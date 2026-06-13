@@ -2,6 +2,7 @@
   "name": "Life Rhythm Prototype",
   "short_name": "Life Rhythm",
   "description": "Local-first ADHD-friendly rhythm and task initiation prototype for personal testing.",
+  "id": "./?life-rhythm=1.4.0",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
