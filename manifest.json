@@ -1,0 +1,19 @@
+{
+  "name": "Life Rhythm Prototype",
+  "short_name": "Life Rhythm",
+  "description": "Local-first ADHD-friendly rhythm and task initiation prototype for personal testing.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F7F2E8",
+  "theme_color": "#3F7471",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
