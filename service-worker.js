@@ -1,5 +1,5 @@
-const CACHE_NAME = 'life-rhythm-prototype-1-4-0-v1';
-const APP_SHELL = ['./', './index.html', './manifest.json', './icons/icon.svg'];
+const CACHE_NAME = 'life-rhythm-prototype-1-4-1-v1';
+const APP_SHELL = ['./', './index.html', './styles.css', './app.js', './manifest.json', './icons/icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
