@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Life Rhythm icon">
+  <rect width="512" height="512" rx="112" fill="#F7F2E8"/>
+  <circle cx="256" cy="256" r="158" fill="#3F7471"/>
+  <path d="M156 270c44-94 102-96 140-8 20 48 38 60 60 24 12-20 26-36 46-43" fill="none" stroke="#FFFDF8" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="170" cy="170" r="28" fill="#D97A43"/>
+</svg>
