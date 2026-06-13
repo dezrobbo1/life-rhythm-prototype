@@ -1,4 +1,4 @@
-const CACHE_NAME = 'life-rhythm-prototype-1-4-3-v1';
+const CACHE_NAME = 'life-rhythm-prototype-1-4-4-v1';
 const APP_SHELL = ['./', './index.html', './manifest.json', './icons/icon.svg'];
 
 self.addEventListener('install', event => {

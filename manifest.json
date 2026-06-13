@@ -2,7 +2,7 @@
   "name": "Life Rhythm Prototype",
   "short_name": "Life Rhythm",
   "description": "Local-first rhythm and task initiation prototype for personal testing.",
-  "id": "./?life-rhythm=1.4.3",
+  "id": "./?life-rhythm=1.4.4",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
