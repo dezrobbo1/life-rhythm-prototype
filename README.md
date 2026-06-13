@@ -2,38 +2,54 @@
 
 Life Rhythm is a local-first prototype for testing ADHD-friendly rhythm support, task initiation, re-entry after missed tasks, realistic time planning and daily routine scaffolding.
 
-Current version in this repository: **Prototype 1.3.6**.
+Current version in this repository: **Prototype 1.4.0 deployment shell**.
+
+## Active deployable app
+
+The active deployable app is `index.html`. It currently contains the full phone-trial prototype UI and logic inline so it can be deployed directly by Netlify, Vercel or GitHub Pages without a build step.
 
 ## What is included
 
-- `index.html` — small PWA entry point.
-- `styles.css` — shared visual styling.
-- `app.js` — main app logic.
+- `index.html` — deployable prototype shell.
 - `manifest.json` — PWA metadata for Home Screen installation.
-- `service-worker.js` — basic offline cache for the app shell.
+- `service-worker.js` — offline cache with network-first navigation so new deployments replace stale cached builds.
 - `icons/icon.svg` — temporary app icon.
 - `.nojekyll` — prevents GitHub Pages from applying Jekyll processing.
+- `styles.css` and `app.js` — older modular prototype files retained for reference only; the active deployable app is `index.html`.
 
-## Why it is now modular
+## Prototype capabilities
 
-The prototype started as a single HTML file for fast iPhone testing. It is now split into HTML, CSS and JavaScript so future changes are easier to review, test and improve without editing one large file.
+The current deployable prototype includes:
 
-This gives more flexibility for:
+- Today-first start screen.
+- Current block / work-time awareness.
+- “How today feels” state selection.
+- Top 3 next actions.
+- Minimum / Normal / Full task completion.
+- Soft daily schedule by rhythm block.
+- Tomorrow review and daily review.
+- Reset Today, shrink tasks, move extras, restart with one action, and clear today state.
+- Task creation, editing, deletion and starter tasks.
+- Standard task library and quick packs.
+- Start Boost supports for task initiation, with safety exclusions.
+- Task timer and planned-versus-actual timing history.
+- Local storage, JSON export and JSON import.
+- PWA manifest and offline service worker.
 
-- separate UI and logic changes
-- cleaner version control
-- easier debugging
-- future tests
-- future component refactoring
-- possible migration to a fuller PWA framework later
+## Deployment note
+
+The previous service worker used a cache-first pattern. That could keep serving an older or less functional build after Netlify/GitHub had already deployed newer files. `service-worker.js` now uses network-first navigation for HTML and bumps the cache to `life-rhythm-prototype-1-4-0-v1` so stale caches are cleared on activation.
+
+If an older version is still visible on iPhone after deployment, refresh once, then close and reopen the Home Screen app. If Safari still holds the old app shell, remove the Home Screen icon and add it again from the deployed URL.
 
 ## Testing on iPhone
 
-1. Enable GitHub Pages for this repository.
-2. Open the GitHub Pages URL in Safari on iPhone.
-3. Tap **Share**.
-4. Tap **Add to Home Screen**.
-5. Open Life Rhythm from the new Home Screen icon.
+1. Deploy the repository through Netlify, Vercel or GitHub Pages.
+2. Open the deployed URL in Safari on iPhone.
+3. Confirm the app title/date line shows the current prototype rather than an older cached version.
+4. Tap **Share**.
+5. Tap **Add to Home Screen**.
+6. Open Life Rhythm from the new Home Screen icon.
 
 ## Data warning
 
@@ -42,26 +58,3 @@ This prototype stores data locally in the browser/app storage on the device. Exp
 ## Non-clinical boundary
 
 Life Rhythm is not a medical device, diagnostic tool, treatment, therapy, coaching service, exercise prescription, nutrition plan, financial advice tool or crisis support tool. It is a self-management prototype for personal testing.
-
-## Version notes — 1.3.6
-
-Prototype 1.3.6 adds Start Boost as a behavioural task-initiation layer:
-
-- Start Boost is now inside the task-start flow.
-- Tasks include barrier selection, such as too big, unclear first step, low energy, emotionally hard or pulled to phone.
-- Start Boost suggestions are task-sensitive.
-- Timed sessions can record the Start Boost used.
-- The app asks whether the Start Boost helped.
-- Timing Insights now includes Start Boost history.
-- Setup includes safety exclusions for food rewards, shopping rewards, scrolling rewards, urgency countdowns, accountability prompts and streak pressure.
-- Wording avoids dopamine-hacking, dopamine-reset or brain-chemistry claims.
-
-It retains:
-
-- local-first storage
-- task timing
-- planned versus actual time comparison
-- Minimum / Normal / Full task completion
-- Reset Today
-- Not Now parking
-- JSON export/import
