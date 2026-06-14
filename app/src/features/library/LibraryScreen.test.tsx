@@ -101,7 +101,7 @@ describe('Library screen', () => {
     expect(screen.getByRole('article', { name: 'Breakfast reset' })).toBeTruthy();
   });
 
-  it('keeps Setup as a placeholder while Reset is available', async () => {
+  it('keeps Setup available while Reset is available', async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -109,7 +109,8 @@ describe('Library screen', () => {
     expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Setup' }));
-    expect(screen.getByText('Setup storage not connected')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Appearance' })).toBeTruthy();
   });
 
   it('keeps bottom navigation available', async () => {
