@@ -18,6 +18,7 @@ describe('Reset screen', () => {
     expect(screen.getByRole('article', { name: 'Too much today' })).toBeTruthy();
     expect(screen.getByRole('article', { name: 'Move extras' })).toBeTruthy();
     expect(screen.getByRole('article', { name: 'Restart with one action' })).toBeTruthy();
+    expect(screen.getByText('No catch-up pile. Choose what helps now.')).toBeTruthy();
   });
 
   it('renders secondary options', () => {

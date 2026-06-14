@@ -15,12 +15,62 @@ import {
   type LibraryRhythm,
   type QuickPack,
 } from '../features/library/mockLibraryData';
+import {
+  buildLibraryViewModel,
+  type AppDataSnapshot,
+  type LibraryRhythmViewModel,
+  type SnapshotRhythmTemplate,
+} from '../viewModels';
+
+function toSnapshotRhythm(rhythm: LibraryRhythm): SnapshotRhythmTemplate {
+  return {
+    category: rhythm.category,
+    chips: rhythm.chips,
+    enabled: rhythm.enabled,
+    full: { label: rhythm.fullVersion },
+    id: rhythm.id,
+    minimum: { label: rhythm.minimumVersion },
+    normal: { label: rhythm.normalVersion },
+    purpose: rhythm.purpose,
+    title: rhythm.title,
+  };
+}
+
+const libraryScreenSnapshot: AppDataSnapshot = {
+  quickPacks: mockQuickPacks,
+  rhythmTemplates: mockLibraryRhythms.map(toSnapshotRhythm),
+};
+
+const initialLibraryViewModel = buildLibraryViewModel(libraryScreenSnapshot);
+
+function rhythmFromViewModel(rhythm: LibraryRhythmViewModel): LibraryRhythm {
+  const source = mockLibraryRhythms.find((item) => item.id === rhythm.id);
+
+  return {
+    boundaryNote: source?.boundaryNote ?? 'Reusable rhythm support stays optional and user-led.',
+    category: rhythm.category as LibraryRhythm['category'],
+    categoryNote: source?.categoryNote ?? 'Keep this calm, visible, and easy to stop.',
+    chips: rhythm.chips,
+    enabled: rhythm.enabled,
+    fullVersion: rhythm.fullVersion,
+    id: rhythm.id,
+    minimumVersion: rhythm.minimumVersion,
+    normalVersion: rhythm.normalVersion,
+    packIds: source?.packIds ?? [],
+    purpose: rhythm.purpose,
+    recommendedSize: source?.recommendedSize ?? rhythm.recommendedSize,
+    title: rhythm.title,
+    whyThisExists: source?.whyThisExists ?? 'This rhythm can be turned on when it is useful.',
+  };
+}
 
 export function LibraryScreen() {
-  const [libraryRhythms, setLibraryRhythms] = useState<LibraryRhythm[]>(mockLibraryRhythms);
+  const [libraryRhythms, setLibraryRhythms] = useState<LibraryRhythm[]>(() =>
+    initialLibraryViewModel.reusableRhythms.map(rhythmFromViewModel),
+  );
   const [activeCategory, setActiveCategory] = useState<LibraryCategory>('All');
   const [enabledById, setEnabledById] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(mockLibraryRhythms.map((rhythm) => [rhythm.id, rhythm.enabled])),
+    Object.fromEntries(initialLibraryViewModel.reusableRhythms.map((rhythm) => [rhythm.id, rhythm.enabled])),
   );
   const [searchTerm, setSearchTerm] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -136,7 +186,7 @@ export function LibraryScreen() {
           <p>Preview first. Packs enable rhythms, not task piles.</p>
         </div>
         <div className="quick-pack-grid">
-          {mockQuickPacks.map((pack) => (
+          {initialLibraryViewModel.quickPacks.map((pack) => (
             <QuickPackCard
               key={pack.id}
               onEnablePack={enablePack}

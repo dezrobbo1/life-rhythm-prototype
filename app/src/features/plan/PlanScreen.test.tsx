@@ -31,6 +31,7 @@ describe('Plan screen', () => {
     expect(fixed.compareDocumentPosition(rhythm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(fixed).getByText('Fixed commitment')).toBeTruthy();
     expect(within(rhythm).getByText('Soft rhythm')).toBeTruthy();
+    expect(screen.getByText('Fixed commitments are visible. Flexible rhythms can move, shrink, or restart from one action.')).toBeTruthy();
   });
 
   it('keeps hidden edges collapsed by default', () => {

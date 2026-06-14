@@ -22,6 +22,7 @@ describe('Setup screen', () => {
     expect(screen.getByRole('heading', { name: 'Data and backup' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Dev tickets' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'About Life Rhythm' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Future modules' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Advanced/ })).toBeTruthy();
   });
 
@@ -116,6 +117,13 @@ describe('Setup screen', () => {
     render(<SetupScreen />);
 
     expect(screen.getByText('Non-clinical self-management support. No medical claims.')).toBeTruthy();
+  });
+
+  it('renders future module placeholders as inactive', () => {
+    render(<SetupScreen />);
+
+    expect(screen.getByText('Rhythm Food: Inactive')).toBeTruthy();
+    expect(screen.getByText('Rhythm Goals / Quiet Goals: Inactive')).toBeTruthy();
   });
 
   it('keeps bottom navigation available', async () => {

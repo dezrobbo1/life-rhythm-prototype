@@ -32,6 +32,7 @@ describe('Library screen', () => {
     expect(within(card).getByText('Food')).toBeTruthy();
     expect(within(card).getByText('Make the first food step visible and small.')).toBeTruthy();
     expect(within(card).getAllByText(/Morning|Easy start/)).toHaveLength(2);
+    expect(screen.getByRole('article', { name: 'Open the first file' })).toBeTruthy();
   });
 
   it('filters rhythms by category', async () => {

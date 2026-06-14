@@ -1,10 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Button, Card, EmptyState, Modal } from '../components';
 import {
-  mockRhythmPreview,
   mockTodayTask,
   type MockTask,
-  statePlanLines,
   todayStateHints,
   todayStates,
   type TodayState,
@@ -12,6 +10,36 @@ import {
 import { AddTaskModal, type MockAddTaskInput } from '../features/today/AddTaskModal';
 import { StartBoost } from '../features/today/StartBoost';
 import { TaskCard, type TaskProgress } from '../features/today/TaskCard';
+import {
+  buildTodayViewModel,
+  normalDayWithOneTaskSnapshot,
+  type TaskViewModel,
+} from '../viewModels';
+
+const initialTodayViewModel = buildTodayViewModel(normalDayWithOneTaskSnapshot);
+
+function taskFromViewModel(task: TaskViewModel | null): MockTask | null {
+  if (!task) {
+    return null;
+  }
+
+  return {
+    ...mockTodayTask,
+    area: task.area,
+    areaIcon: task.area.toLowerCase().includes('home') ? 'Home' : 'Task',
+    chips: task.chips,
+    fullVersion: task.versions.full.text,
+    hiddenEdges: task.hiddenEdges.length > 0
+      ? task.hiddenEdges.map((edge) => edge.label)
+      : mockTodayTask.hiddenEdges,
+    id: task.id,
+    minimumVersion: task.versions.minimum.text,
+    normalVersion: task.versions.normal.text,
+    purpose: task.purpose,
+    recommendedSize: task.recommendedSize,
+    title: task.title,
+  };
+}
 
 function createMockTask(input: MockAddTaskInput): MockTask {
   return {
@@ -35,9 +63,15 @@ export function TodayScreen() {
   const [boostOpen, setBoostOpen] = useState(false);
   const [stateChooserOpen, setStateChooserOpen] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
-  const [nextTask, setNextTask] = useState<MockTask | null>(mockTodayTask);
+  const [nextTask, setNextTask] = useState<MockTask | null>(() =>
+    taskFromViewModel(initialTodayViewModel.nextUsefulAction),
+  );
   const [taskProgress, setTaskProgress] = useState<TaskProgress>('idle');
   const [completionFeedback, setCompletionFeedback] = useState('');
+  const todayViewModel = useMemo(
+    () => buildTodayViewModel(normalDayWithOneTaskSnapshot, { todayState }),
+    [todayState],
+  );
   const todayLabel = useMemo(
     () =>
       new Intl.DateTimeFormat(undefined, {
@@ -93,12 +127,12 @@ export function TodayScreen() {
       <Card>
         <section aria-labelledby="today-state-summary" className="today-state-summary">
           <div>
-            <h2 id="today-state-summary">Today feels: {todayState}</h2>
+            <h2 id="today-state-summary">Today feels: {todayViewModel.currentState}</h2>
             <p>{todayStateHints[todayState]}</p>
           </div>
           <Button onClick={() => setStateChooserOpen(true)}>Change</Button>
         </section>
-        <p className="plan-adjusted">{statePlanLines[todayState]}</p>
+        <p className="plan-adjusted">{todayViewModel.planAdjustedLine}</p>
       </Card>
 
       {completionFeedback ? <p className="today-feedback" role="status">{completionFeedback}</p> : null}
@@ -135,7 +169,7 @@ export function TodayScreen() {
               <span>Compact view</span>
             </div>
             <ul className="rhythm-preview">
-              {mockRhythmPreview.map((item) => (
+              {todayViewModel.rhythmPreview.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
@@ -144,9 +178,9 @@ export function TodayScreen() {
         </>
       ) : (
         <EmptyState
-          action={<Button onClick={() => setAddTaskOpen(true)} variant="primary">Add one-off</Button>}
-          message="Choose rhythms to turn on, or add one today-only task."
-          title="Choose rhythms to turn on"
+          action={<Button onClick={() => setAddTaskOpen(true)} variant="primary">{todayViewModel.emptyState.primaryActionLabel}</Button>}
+          message={todayViewModel.emptyState.message}
+          title={todayViewModel.emptyState.title}
         />
       )}
 
