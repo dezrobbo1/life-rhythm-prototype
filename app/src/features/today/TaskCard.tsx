@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Chip } from '../../components';
 import type { MockTask, TodayState } from './mockTodayData';
 import { stateActionTone } from './mockTodayData';
 
-export type TaskProgress = 'idle' | 'inProgress' | 'minimumDone';
+export type TaskProgress = 'idle' | 'inProgress' | 'paused' | 'minimumDone';
 
 type TaskCardProps = {
   onMarkMinimumDone: () => void;
+  onPauseTask: () => void;
+  onResumeTask: () => void;
   onStartTask: () => void;
   onStartBoost: () => void;
   progress: TaskProgress;
@@ -16,6 +18,8 @@ type TaskCardProps = {
 
 export function TaskCard({
   onMarkMinimumDone,
+  onPauseTask,
+  onResumeTask,
   onStartBoost,
   onStartTask,
   progress,
@@ -23,9 +27,30 @@ export function TaskCard({
   todayState,
 }: TaskCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [keepGoingOpen, setKeepGoingOpen] = useState(false);
+  const [continuationFeedback, setContinuationFeedback] = useState('');
   const visibleChips = task.chips.slice(0, 2);
-  const isStarted = progress === 'inProgress';
-  const isComplete = progress === 'minimumDone';
+  const isInProgress = progress === 'inProgress';
+  const isPaused = progress === 'paused';
+  const isMinimumDone = progress === 'minimumDone';
+
+  useEffect(() => {
+    setKeepGoingOpen(false);
+    setContinuationFeedback('');
+  }, [task.id]);
+
+  function chooseContinuation(version: 'normal' | 'full') {
+    setContinuationFeedback(
+      version === 'normal'
+        ? 'You kept going with the normal version. Still counts either way.'
+        : 'You kept going with the full version. Still counts either way.',
+    );
+  }
+
+  function stopHere() {
+    setKeepGoingOpen(false);
+    setContinuationFeedback('Enough for now.');
+  }
 
   return (
     <article className="task-card" aria-labelledby={`${task.id}-title`}>
@@ -43,10 +68,16 @@ export function TaskCard({
         <span className="task-card__size">{task.recommendedSize}</span>
       </div>
       <p className="task-card__tone">{stateActionTone[todayState]}</p>
-      {isStarted ? <p className="task-card__status" role="status">In progress. Keep it small.</p> : null}
-      {isComplete ? (
+      {isInProgress ? <p className="task-card__status" role="status">In progress. Keep it small.</p> : null}
+      {isPaused ? <p className="task-card__status" role="status">Paused. You can restart small.</p> : null}
+      {isMinimumDone ? (
         <p className="task-card__status task-card__status--done" role="status">
           Minimum done. That counts.
+        </p>
+      ) : null}
+      {continuationFeedback ? (
+        <p className="task-card__status task-card__status--done" role="status">
+          {continuationFeedback}
         </p>
       ) : null}
       <div className="chip-row task-card__chips" aria-label="Task cues">
@@ -59,10 +90,25 @@ export function TaskCard({
           <Button onClick={onStartTask} variant="primary">Start task</Button>
         ) : null}
         {progress === 'inProgress' ? (
-          <Button onClick={onMarkMinimumDone} variant="primary">Mark minimum done</Button>
+          <>
+            <Button onClick={onMarkMinimumDone} variant="primary">Mark minimum done</Button>
+            <Button onClick={onPauseTask}>Pause</Button>
+            <Button onClick={() => setKeepGoingOpen((isOpen) => !isOpen)}>Keep going</Button>
+          </>
         ) : null}
-        {progress === 'minimumDone' ? <Button disabled variant="primary">Minimum done</Button> : null}
-        <Button onClick={onStartBoost}>Start Boost</Button>
+        {progress === 'paused' ? (
+          <>
+            <Button onClick={onResumeTask} variant="primary">Resume</Button>
+            <Button onClick={onMarkMinimumDone}>Mark minimum done</Button>
+          </>
+        ) : null}
+        {progress === 'minimumDone' ? (
+          <>
+            <Button disabled variant="primary">Minimum done</Button>
+            <Button onClick={() => setKeepGoingOpen((isOpen) => !isOpen)}>Keep going</Button>
+          </>
+        ) : null}
+        {progress !== 'minimumDone' ? <Button onClick={onStartBoost}>Start Boost</Button> : null}
         <Button
           aria-expanded={detailsOpen}
           aria-controls={`${task.id}-details`}
@@ -71,6 +117,31 @@ export function TaskCard({
           Details
         </Button>
       </div>
+      {keepGoingOpen ? (
+        <section className="task-card__continuation" aria-labelledby={`${task.id}-continuation-title`}>
+          <div>
+            <h3 id={`${task.id}-continuation-title`}>Optional next versions</h3>
+            <p>
+              {isMinimumDone
+                ? 'Optional. Minimum already counts. Continue only if it helps.'
+                : 'Optional. Keep the minimum small, then continue only if it helps.'}
+            </p>
+          </div>
+          <div className="task-card__version-options">
+            <article>
+              <h4>Normal version</h4>
+              <p>{task.normalVersion}</p>
+              <Button onClick={() => chooseContinuation('normal')}>Do normal version</Button>
+            </article>
+            <article>
+              <h4>Full version</h4>
+              <p>{task.fullVersion}</p>
+              <Button onClick={() => chooseContinuation('full')}>Do full version</Button>
+            </article>
+          </div>
+          <Button onClick={stopHere}>Stop here</Button>
+        </section>
+      ) : null}
       {detailsOpen ? (
         <div className="task-card__details" id={`${task.id}-details`}>
           <section>

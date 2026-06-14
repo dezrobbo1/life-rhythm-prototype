@@ -66,6 +66,16 @@ export function TodayScreen() {
     setCompletionFeedback('');
   }
 
+  function pauseTask() {
+    setTaskProgress('paused');
+    setCompletionFeedback('');
+  }
+
+  function resumeTask() {
+    setTaskProgress('inProgress');
+    setCompletionFeedback('');
+  }
+
   function markMinimumDone() {
     setTaskProgress('minimumDone');
     setBoostOpen(false);
@@ -101,6 +111,8 @@ export function TodayScreen() {
             </div>
             <TaskCard
               onMarkMinimumDone={markMinimumDone}
+              onPauseTask={pauseTask}
+              onResumeTask={resumeTask}
               onStartBoost={() => setBoostOpen(true)}
               onStartTask={startTask}
               progress={taskProgress}
