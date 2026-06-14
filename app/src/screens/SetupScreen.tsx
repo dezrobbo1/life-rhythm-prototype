@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Button, Card, Chip } from '../components';
 import type { ThemeName } from '../app/theme';
+import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import {
   aboutRows,
   advancedRows,
@@ -8,16 +9,16 @@ import {
   dataActions,
   safetyToggles,
 } from '../features/setup/mockSetupData';
-import { buildSetupViewModel, normalDayWithOneTaskSnapshot } from '../viewModels';
+import { buildSetupViewModel } from '../viewModels';
 
 type SetupScreenProps = {
   onThemeChange?: (theme: ThemeName) => void;
   theme?: ThemeName;
 };
 
-const initialSetupViewModel = buildSetupViewModel(normalDayWithOneTaskSnapshot);
-
 export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProps = {}) {
+  const { snapshot } = useAppSnapshot();
+  const initialSetupViewModel = useMemo(() => buildSetupViewModel(snapshot), [snapshot]);
   const [localTheme, setLocalTheme] = useState<ThemeName>(theme);
   const [safetyState, setSafetyState] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(Object.entries(initialSetupViewModel.startBoostSafety)),
@@ -44,13 +45,13 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
   const setupViewModel = useMemo(
     () =>
       buildSetupViewModel({
-        ...normalDayWithOneTaskSnapshot,
+        ...snapshot,
         settings: {
-          ...normalDayWithOneTaskSnapshot.settings,
+          ...snapshot.settings,
           theme: selectedTheme,
         },
       }),
-    [selectedTheme],
+    [selectedTheme, snapshot],
   );
 
   return (
