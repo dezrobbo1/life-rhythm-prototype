@@ -1,0 +1,203 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  line-height: 1.45;
+}
+
+button,
+select {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding-bottom: 5.5rem;
+}
+
+.app-header {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-bg) 92%, transparent);
+  border-bottom: 1px solid var(--color-line);
+  display: flex;
+  gap: var(--space-4);
+  justify-content: space-between;
+  padding: var(--space-4);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.app-header h1 {
+  font-size: 1.25rem;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.eyebrow {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  margin: 0 0 var(--space-1);
+  text-transform: uppercase;
+}
+
+.theme-control {
+  color: var(--color-muted);
+  display: grid;
+  font-size: 0.75rem;
+  font-weight: 800;
+  gap: var(--space-1);
+  min-width: 8rem;
+}
+
+.theme-control select {
+  background: var(--color-surface-strong);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+  padding: 0.45rem 0.75rem;
+}
+
+.app-main {
+  margin: 0 auto;
+  max-width: 52rem;
+  padding: var(--space-4);
+}
+
+.screen-stack {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.card,
+.empty-state {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  padding: var(--space-5);
+}
+
+.card h2,
+.empty-state h2 {
+  font-size: 1.25rem;
+  line-height: 1.15;
+  margin: 0 0 var(--space-2);
+}
+
+.lede,
+.empty-state p {
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.chip {
+  background: var(--color-chip);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  color: var(--color-accent-strong);
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.4rem 0.65rem;
+}
+
+.button {
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-line);
+  cursor: pointer;
+  font-weight: 850;
+  min-height: 2.6rem;
+  padding: 0.55rem 0.9rem;
+}
+
+.button--primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: white;
+}
+
+.button--secondary {
+  background: var(--color-surface-strong);
+  color: var(--color-text);
+}
+
+.empty-state__action {
+  margin-top: var(--space-4);
+}
+
+.modal-backdrop {
+  align-items: end;
+  background: rgb(19 35 47 / 35%);
+  display: grid;
+  inset: 0;
+  position: fixed;
+  z-index: 5;
+}
+
+.modal {
+  background: var(--color-surface);
+  border-radius: 1.25rem 1.25rem 0 0;
+  padding: var(--space-5);
+}
+
+.bottom-nav {
+  background: color-mix(in srgb, var(--color-bg) 96%, transparent);
+  border-top: 1px solid var(--color-line);
+  bottom: 0;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  left: 0;
+  padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom));
+  position: fixed;
+  right: 0;
+}
+
+.bottom-nav__button {
+  background: transparent;
+  border: 0;
+  border-radius: 0.8rem;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 850;
+  min-height: 2.75rem;
+}
+
+.bottom-nav__button[aria-current='page'] {
+  background: var(--color-surface-strong);
+  box-shadow: var(--shadow-soft);
+  color: var(--color-accent-strong);
+}
+
+@media (max-width: 35rem) {
+  .app-header {
+    align-items: start;
+  }
+
+  .theme-control {
+    min-width: 7rem;
+  }
+}
+
