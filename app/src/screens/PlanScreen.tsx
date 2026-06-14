@@ -92,6 +92,9 @@ export function PlanScreen() {
           <div>
             <h2>{planViewModel.roomMessage.label}</h2>
             <p>{planViewModel.roomMessage.body}</p>
+            <p className="plan-life-shape-preview">
+              Life shape preview: work hours and buffers will shape future planning.
+            </p>
           </div>
           <span>Power underneath. Calm on the surface.</span>
         </div>
