@@ -10,6 +10,16 @@ export const todayStates = [
 
 export type TodayState = (typeof todayStates)[number];
 
+export const todayStateHints: Record<TodayState, string> = {
+  'Normal day': 'Keep the rhythm visible.',
+  'Behind/missed things': 'No catch-up pile.',
+  'Low energy': 'Minimum counts.',
+  Overstimulated: 'Fewer inputs.',
+  'Avoiding something': 'First edge only.',
+  'Need restart': 'One reset step.',
+  'Bored / low stimulation': 'Make it concrete.',
+};
+
 export type StartBarrier =
   | 'Too big'
   | 'Unclear first step'
@@ -35,7 +45,7 @@ export type MockTask = {
   hiddenEdges: string[];
   whyThis: string;
   startBarriers: StartBarrier[];
-  boostSupports: Record<StartBarrier, string[]>;
+  boostSupports: Record<StartBarrier, Array<{ id: string; label: string; detail: string }>>;
 };
 
 export const statePlanLines: Record<TodayState, string> = {
@@ -84,36 +94,100 @@ export const mockTodayTask: MockTask = {
   ],
   boostSupports: {
     'Too big': [
-      'Use the minimum version: write one first step only.',
-      'Hide the rest of the plan for now. Hidden, not deleted.',
+      {
+        id: 'minimum-first-step',
+        label: 'Use the minimum version',
+        detail: 'Write one first step only.',
+      },
+      {
+        id: 'hide-the-rest',
+        label: 'Hide the rest for now',
+        detail: 'Hidden, not deleted.',
+      },
     ],
     'Unclear first step': [
-      'Start with "Tomorrow I open..." and finish the sentence.',
-      'Choose the first physical object or screen you need.',
+      {
+        id: 'tomorrow-open',
+        label: 'Finish one sentence',
+        detail: 'Start with "Tomorrow I open..." and stop there.',
+      },
+      {
+        id: 'choose-object',
+        label: 'Choose the first object',
+        detail: 'Pick the physical object or screen you need first.',
+      },
     ],
     'Too boring': [
-      'Make it a two-line note: first step, then where it lives.',
-      'Change the surface: paper, notes app, or a visible sticky note.',
+      {
+        id: 'two-line-note',
+        label: 'Make it two lines',
+        detail: 'First step, then where it lives.',
+      },
+      {
+        id: 'change-surface',
+        label: 'Change the surface',
+        detail: 'Use paper, notes app, or a visible sticky note.',
+      },
     ],
     'Low energy': [
-      'Sit down and do only the two-minute version.',
-      'Use the easiest capture place already open.',
+      {
+        id: 'sit-two-minutes',
+        label: 'Use the two-minute version',
+        detail: 'Sit down and stop after the smallest useful step.',
+      },
+      {
+        id: 'already-open',
+        label: 'Use what is already open',
+        detail: 'Capture it in the easiest place you can already see.',
+      },
     ],
     'Not enough time': [
-      'Choose one task and write a seven-word first step.',
-      'Park everything else for the next review.',
+      {
+        id: 'seven-word-step',
+        label: 'Write seven words',
+        detail: 'Choose one task and write a short first step.',
+      },
+      {
+        id: 'park-the-rest',
+        label: 'Park the rest',
+        detail: 'Everything else can wait for the next review.',
+      },
     ],
     'Emotionally hard': [
-      'Write the gentlest truthful version of the first step.',
-      'Name one support condition that would make it easier.',
+      {
+        id: 'gentle-truth',
+        label: 'Use the gentlest truthful wording',
+        detail: 'Write the first step without making it bigger.',
+      },
+      {
+        id: 'support-condition',
+        label: 'Name one support condition',
+        detail: 'Capture what would make this easier to start.',
+      },
     ],
     'Need information': [
-      'Write the missing question instead of solving it now.',
-      'Capture where you would look first later.',
+      {
+        id: 'missing-question',
+        label: 'Write the missing question',
+        detail: 'Capture the question instead of solving it now.',
+      },
+      {
+        id: 'where-to-look',
+        label: 'Name where to look first',
+        detail: 'Leave a clear place to begin later.',
+      },
     ],
     'Pulled to phone': [
-      'Place the phone face down and keep the task on one visible surface.',
-      'Open only the note you need, then return to the first step.',
+      {
+        id: 'phone-face-down',
+        label: 'Set the phone face down',
+        detail: 'Keep the task on one visible surface.',
+      },
+      {
+        id: 'one-note-only',
+        label: 'Open one note only',
+        detail: 'Return to the first step after capture.',
+      },
     ],
   },
 };

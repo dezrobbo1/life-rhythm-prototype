@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Button, Modal } from '../../components';
+import { useEffect, useState } from 'react';
+import { Modal } from '../../components';
 import type { MockTask, StartBarrier } from './mockTodayData';
 
 const feedbackOptions = ['Yes', 'A bit', 'No', 'Made it harder', 'Skip'];
@@ -12,20 +12,33 @@ type StartBoostProps = {
 
 export function StartBoost({ onClose, open, task }: StartBoostProps) {
   const [selectedBarrier, setSelectedBarrier] = useState<StartBarrier | null>(null);
+  const [selectedSupportId, setSelectedSupportId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedBarrier(null);
+      setSelectedSupportId(null);
+    }
+  }, [open]);
+
+  function chooseBarrier(barrier: StartBarrier) {
+    setSelectedBarrier(barrier);
+    setSelectedSupportId(null);
+  }
 
   return (
-    <Modal open={open} title="Start Boost">
+    <Modal onClose={onClose} open={open} title="Start Boost">
       <div className="start-boost">
-        <p className="lede">A friction reducer for the next start. No rewards or pressure loops.</p>
+        <p className="lede">A friction reducer for the next start. Choose one small support; no pressure loops.</p>
         <section>
           <h3>What is blocking the start?</h3>
-          <div className="boost-grid" role="list">
+          <div className="boost-grid">
             {task.startBarriers.map((barrier) => (
               <button
                 aria-pressed={selectedBarrier === barrier}
                 className="boost-option"
                 key={barrier}
-                onClick={() => setSelectedBarrier(barrier)}
+                onClick={() => chooseBarrier(barrier)}
                 type="button"
               >
                 {barrier}
@@ -35,27 +48,35 @@ export function StartBoost({ onClose, open, task }: StartBoostProps) {
         </section>
         {selectedBarrier ? (
           <section aria-live="polite" className="boost-supports">
-            <h3>Try one support</h3>
-            <ul>
+            <h3>Choose one support</h3>
+            <div className="support-grid">
               {task.boostSupports[selectedBarrier].map((support) => (
-                <li key={support}>{support}</li>
+                <button
+                  aria-pressed={selectedSupportId === support.id}
+                  className="support-option"
+                  key={support.id}
+                  onClick={() => setSelectedSupportId(support.id)}
+                  type="button"
+                >
+                  <strong>{support.label}</strong>
+                  <span>{support.detail}</span>
+                </button>
               ))}
-            </ul>
-            <div className="boost-feedback">
-              <h3>Did that reduce friction?</h3>
-              <div className="feedback-row">
-                {feedbackOptions.map((option) => (
-                  <button key={option} type="button">
-                    {option}
-                  </button>
-                ))}
-              </div>
             </div>
+            {selectedSupportId ? (
+              <div className="boost-feedback">
+                <h3>Did that reduce friction?</h3>
+                <div className="feedback-row">
+                  {feedbackOptions.map((option) => (
+                    <button key={option} type="button">
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : null}
-        <div className="modal-actions">
-          <Button onClick={onClose}>Close</Button>
-        </div>
       </div>
     </Modal>
   );
