@@ -12,11 +12,9 @@ import { StartBoost } from '../features/today/StartBoost';
 import { TaskCard, type TaskProgress } from '../features/today/TaskCard';
 import {
   buildTodayViewModel,
-  normalDayWithOneTaskSnapshot,
   type TaskViewModel,
 } from '../viewModels';
-
-const initialTodayViewModel = buildTodayViewModel(normalDayWithOneTaskSnapshot);
+import { useAppSnapshot } from '../data/AppSnapshotProvider';
 
 function taskFromViewModel(task: TaskViewModel | null): MockTask | null {
   if (!task) {
@@ -59,6 +57,8 @@ function createMockTask(input: MockAddTaskInput): MockTask {
 }
 
 export function TodayScreen() {
+  const { snapshot } = useAppSnapshot();
+  const initialTodayViewModel = useMemo(() => buildTodayViewModel(snapshot), [snapshot]);
   const [todayState, setTodayState] = useState<TodayState>('Normal day');
   const [boostOpen, setBoostOpen] = useState(false);
   const [stateChooserOpen, setStateChooserOpen] = useState(false);
@@ -69,8 +69,8 @@ export function TodayScreen() {
   const [taskProgress, setTaskProgress] = useState<TaskProgress>('idle');
   const [completionFeedback, setCompletionFeedback] = useState('');
   const todayViewModel = useMemo(
-    () => buildTodayViewModel(normalDayWithOneTaskSnapshot, { todayState }),
-    [todayState],
+    () => buildTodayViewModel(snapshot, { todayState }),
+    [snapshot, todayState],
   );
   const todayLabel = useMemo(
     () =>

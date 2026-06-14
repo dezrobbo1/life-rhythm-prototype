@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import { Card } from '../components';
+import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import { PlanBlock } from '../features/plan/PlanBlock';
 import { mockPlanBlocks, type PlanBlock as PlanBlockData, type PlanItem } from '../features/plan/mockPlanData';
 import {
@@ -7,25 +9,6 @@ import {
   type PlanBlockViewModel,
   type PlanItemViewModel,
 } from '../viewModels';
-
-const planScreenSnapshot: AppDataSnapshot = {
-  planBlocks: mockPlanBlocks.map((block) => ({
-    ...block,
-    items: block.items.map((item) => ({
-      ...item,
-      hiddenEdges: item.hiddenEdges ?? [],
-    })),
-    state: block.state === 'room'
-      ? 'planned'
-      : block.state === 'full'
-        ? 'heavy'
-        : block.state === 'wind-down'
-          ? 'wind down'
-          : 'light',
-  })),
-};
-
-const planViewModel = buildPlanViewModel(planScreenSnapshot);
 
 function toPlanBlockState(state: PlanBlockViewModel['state']): PlanBlockData['state'] {
   if (state === 'heavy' || state === 'fixed') {
@@ -70,7 +53,33 @@ function toPlanBlockData(block: PlanBlockViewModel): PlanBlockData {
   };
 }
 
+function planScreenSnapshotFromProvider(snapshot: AppDataSnapshot): AppDataSnapshot {
+  return {
+    ...snapshot,
+    planBlocks: mockPlanBlocks.map((block) => ({
+      ...block,
+      items: block.items.map((item) => ({
+        ...item,
+        hiddenEdges: item.hiddenEdges ?? [],
+      })),
+      state: block.state === 'room'
+        ? 'planned'
+        : block.state === 'full'
+          ? 'heavy'
+          : block.state === 'wind-down'
+            ? 'wind down'
+            : 'light',
+    })),
+  };
+}
+
 export function PlanScreen() {
+  const { snapshot } = useAppSnapshot();
+  const planViewModel = useMemo(
+    () => buildPlanViewModel(planScreenSnapshotFromProvider(snapshot)),
+    [snapshot],
+  );
+
   return (
     <div className="screen-stack plan-screen">
       <section className="plan-hero" aria-labelledby="plan-title">

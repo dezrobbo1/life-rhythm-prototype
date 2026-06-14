@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Button, Card, EmptyState } from '../components';
+import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import {
   CreateRhythmModal,
   createMockLibraryRhythm,
@@ -41,8 +42,6 @@ const libraryScreenSnapshot: AppDataSnapshot = {
   rhythmTemplates: mockLibraryRhythms.map(toSnapshotRhythm),
 };
 
-const initialLibraryViewModel = buildLibraryViewModel(libraryScreenSnapshot);
-
 function rhythmFromViewModel(rhythm: LibraryRhythmViewModel): LibraryRhythm {
   const source = mockLibraryRhythms.find((item) => item.id === rhythm.id);
 
@@ -65,6 +64,15 @@ function rhythmFromViewModel(rhythm: LibraryRhythmViewModel): LibraryRhythm {
 }
 
 export function LibraryScreen() {
+  const { snapshot } = useAppSnapshot();
+  const initialLibraryViewModel = useMemo(
+    () =>
+      buildLibraryViewModel({
+        ...snapshot,
+        ...libraryScreenSnapshot,
+      }),
+    [snapshot],
+  );
   const [libraryRhythms, setLibraryRhythms] = useState<LibraryRhythm[]>(() =>
     initialLibraryViewModel.reusableRhythms.map(rhythmFromViewModel),
   );

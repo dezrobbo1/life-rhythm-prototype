@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button, Card } from '../components';
+import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import { ResetActionCard } from '../features/reset/ResetActionCard';
 import {
   fullResetAction,
@@ -35,8 +36,6 @@ const resetScreenSnapshot: AppDataSnapshot = {
   ],
 };
 
-const resetViewModel = buildResetViewModel(resetScreenSnapshot);
-
 function resetActionFromViewModel(action: ResetActionViewModel): ResetAction {
   const source = [...mainResetActions, ...secondaryResetActions, fullResetAction].find((item) => item.id === action.id);
 
@@ -53,6 +52,15 @@ function resetActionFromViewModel(action: ResetActionViewModel): ResetAction {
 }
 
 export function ResetScreen() {
+  const { snapshot } = useAppSnapshot();
+  const resetViewModel = useMemo(
+    () =>
+      buildResetViewModel({
+        ...snapshot,
+        ...resetScreenSnapshot,
+      }),
+    [snapshot],
+  );
   const [confirmation, setConfirmation] = useState('');
   const [selectedRestart, setSelectedRestart] = useState<RestartChoice | null>(null);
   const [fullResetInput, setFullResetInput] = useState('');
