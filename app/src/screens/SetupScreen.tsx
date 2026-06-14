@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button, Card, Chip } from '../components';
 import type { ThemeName } from '../app/theme';
 import {
@@ -8,16 +8,19 @@ import {
   dataActions,
   safetyToggles,
 } from '../features/setup/mockSetupData';
+import { buildSetupViewModel, normalDayWithOneTaskSnapshot } from '../viewModels';
 
 type SetupScreenProps = {
   onThemeChange?: (theme: ThemeName) => void;
   theme?: ThemeName;
 };
 
+const initialSetupViewModel = buildSetupViewModel(normalDayWithOneTaskSnapshot);
+
 export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProps = {}) {
   const [localTheme, setLocalTheme] = useState<ThemeName>(theme);
   const [safetyState, setSafetyState] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(safetyToggles.map((toggle) => [toggle.id, toggle.defaultEnabled])),
+    Object.fromEntries(Object.entries(initialSetupViewModel.startBoostSafety)),
   );
   const [status, setStatus] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -38,6 +41,17 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
   }
 
   const selectedTheme = onThemeChange ? theme : localTheme;
+  const setupViewModel = useMemo(
+    () =>
+      buildSetupViewModel({
+        ...normalDayWithOneTaskSnapshot,
+        settings: {
+          ...normalDayWithOneTaskSnapshot.settings,
+          theme: selectedTheme,
+        },
+      }),
+    [selectedTheme],
+  );
 
   return (
     <div className="screen-stack setup-screen">
@@ -55,7 +69,10 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
           <p>Themes change colour only. Layout, task logic, copy and scheduling stay the same.</p>
         </div>
         <div className="setup-theme-grid" role="radiogroup" aria-label="Appearance theme">
-          {appearanceOptions.map((option) => (
+          {setupViewModel.themeChoices.map((option) => {
+            const copy = appearanceOptions.find((appearance) => appearance.id === option.id);
+
+            return (
             <button
               aria-checked={selectedTheme === option.id}
               className="setup-theme-option"
@@ -65,12 +82,13 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
               type="button"
             >
               <strong>{option.label}</strong>
-              <span>{option.description}</span>
+              <span>{copy?.description ?? 'Colour-only theme option.'}</span>
             </button>
-          ))}
+            );
+          })}
         </div>
         <div className="chip-row">
-          <Chip>Selected: {appearanceOptions.find((option) => option.id === selectedTheme)?.label}</Chip>
+          <Chip>Selected: {setupViewModel.themeChoices.find((option) => option.id === selectedTheme)?.label}</Chip>
           <Chip>Colour only</Chip>
         </div>
       </Card>
@@ -102,7 +120,7 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
           <h2>Data and backup</h2>
           <p>Stored in this browser later. Export before resetting. You control what you share.</p>
         </div>
-        <p className="setup-note">Backup, import and export actions are not connected in this mock surface.</p>
+        <p className="setup-note">{setupViewModel.dataPreview.copy}</p>
         <div className="setup-action-row">
           {dataActions.map((action) => (
             <Button key={action.id} onClick={() => setStatus(`${action.label}: ${action.helper}`)}>
@@ -139,6 +157,18 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
             </div>
           ))}
         </dl>
+      </Card>
+
+      <Card>
+        <div className="setup-section-heading">
+          <h2>Future modules</h2>
+          <p>Future-only module shapes for later screen work. No module logic is connected.</p>
+        </div>
+        <div className="chip-row">
+          {setupViewModel.futureModules.map((module) => (
+            <Chip key={module.id}>{module.label}: {module.enabled ? 'Active' : 'Inactive'}</Chip>
+          ))}
+        </div>
       </Card>
 
       <Card>

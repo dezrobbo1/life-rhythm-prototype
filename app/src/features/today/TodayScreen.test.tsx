@@ -18,6 +18,7 @@ describe('Today screen', () => {
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Today feels: Normal day' })).toBeTruthy();
     expect(screen.getByText('Next useful action')).toBeTruthy();
+    expect(screen.getByText('Gentle wind-down')).toBeTruthy();
   });
 
   it('keeps the full Today state selector collapsed by default', () => {

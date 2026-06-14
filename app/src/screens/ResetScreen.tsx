@@ -9,6 +9,48 @@ import {
   type ResetAction,
   type RestartChoice,
 } from '../features/reset/mockResetData';
+import {
+  buildResetViewModel,
+  type AppDataSnapshot,
+  type ResetActionViewModel,
+  type SnapshotResetAction,
+} from '../viewModels';
+
+function toSnapshotResetAction(action: ResetAction, group: SnapshotResetAction['group']): SnapshotResetAction {
+  return {
+    confirmationCopy: action.confirmationCopy,
+    destructive: action.destructive,
+    group,
+    id: action.id,
+    purpose: action.purpose,
+    title: action.title,
+  };
+}
+
+const resetScreenSnapshot: AppDataSnapshot = {
+  resetActions: [
+    ...mainResetActions.map((action) => toSnapshotResetAction(action, 'main')),
+    ...secondaryResetActions.map((action) => toSnapshotResetAction(action, 'secondary')),
+    toSnapshotResetAction(fullResetAction, 'destructive'),
+  ],
+};
+
+const resetViewModel = buildResetViewModel(resetScreenSnapshot);
+
+function resetActionFromViewModel(action: ResetActionViewModel): ResetAction {
+  const source = [...mainResetActions, ...secondaryResetActions, fullResetAction].find((item) => item.id === action.id);
+
+  return {
+    affectedMockItemCount: source?.affectedMockItemCount ?? 0,
+    boundaryNote: source?.boundaryNote ?? 'Mock only. No real data changes.',
+    confirmationCopy: action.confirmationCopy,
+    destructive: action.destructive,
+    id: action.id as ResetAction['id'],
+    purpose: action.purpose,
+    recommendedWhen: source?.recommendedWhen ?? 'Use when this support helps now.',
+    title: action.title,
+  };
+}
 
 export function ResetScreen() {
   const [confirmation, setConfirmation] = useState('');
@@ -40,7 +82,7 @@ export function ResetScreen() {
       <section className="reset-hero" aria-labelledby="reset-title">
         <p className="eyebrow">Re-entry surface</p>
         <h1 id="reset-title">Reset</h1>
-        <p>No catch-up pile. Choose what helps now.</p>
+        <p>{resetViewModel.headline}</p>
       </section>
 
       {confirmation ? <p className="reset-confirmation" role="status">{confirmation}</p> : null}
@@ -51,8 +93,8 @@ export function ResetScreen() {
           <p>Mock only. Nothing is saved or cleared.</p>
         </div>
         <div className="reset-card-grid">
-          {mainResetActions.map((action) => (
-            <ResetActionCard action={action} key={action.id} onRunAction={runResetAction} />
+          {resetViewModel.mainActions.map((action) => (
+            <ResetActionCard action={resetActionFromViewModel(action)} key={action.id} onRunAction={runResetAction} />
           ))}
         </div>
       </section>
@@ -75,7 +117,7 @@ export function ResetScreen() {
           <p>Soft review and restore actions.</p>
         </div>
         <div className="reset-secondary-list">
-          {secondaryResetActions.map((action) => (
+          {resetViewModel.secondaryActions.map((action) => resetActionFromViewModel(action)).map((action) => (
             <article className="reset-secondary" key={action.id}>
               <div>
                 <h3>{action.title}</h3>
@@ -90,9 +132,9 @@ export function ResetScreen() {
       <section className="reset-danger-zone" aria-labelledby="full-reset-title">
         <div>
           <p className="eyebrow">Protected action</p>
-          <h2 id="full-reset-title">{fullResetAction.title}</h2>
-          <p>{fullResetAction.purpose}</p>
-          <p>{fullResetAction.boundaryNote}</p>
+          <h2 id="full-reset-title">{resetViewModel.destructiveAction.title}</h2>
+          <p>{resetViewModel.destructiveAction.purpose}</p>
+          <p>{resetActionFromViewModel(resetViewModel.destructiveAction).boundaryNote}</p>
         </div>
         <label>
           <span>Type RESET to confirm this mock action</span>
