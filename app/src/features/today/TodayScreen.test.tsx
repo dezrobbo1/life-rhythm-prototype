@@ -89,6 +89,23 @@ describe('Today screen', () => {
     expect(screen.queryByRole('radio', { name: /Low energy/ })).toBeNull();
   });
 
+  it('shows Add one-off as a secondary today-only action', () => {
+    render(<TodayScreen />);
+
+    expect(screen.getByRole('button', { name: 'Add one-off' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Add task' })).toBeNull();
+    expect(screen.getByText('Add one today-only task. It will not go into Library or storage.')).toBeTruthy();
+  });
+
+  it('keeps Add one-off out of the Next useful action heading', () => {
+    render(<TodayScreen />);
+
+    const nextAction = screen.getByRole('region', { name: 'Next useful action' });
+
+    expect(within(nextAction).getByText('Next useful action')).toBeTruthy();
+    expect(within(nextAction).queryByRole('button', { name: 'Add one-off' })).toBeNull();
+  });
+
   it('opens task details', async () => {
     const user = userEvent.setup();
     render(<TodayScreen />);
@@ -176,23 +193,43 @@ describe('Today screen', () => {
     expect(screen.queryByText('Choose one support')).toBeNull();
   });
 
-  it('opens Add task and saves a mock in-memory task only', async () => {
+  it('opens Add one-off and saves a mock in-memory Today task only', async () => {
     const user = userEvent.setup();
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
     const clearSpy = vi.spyOn(Storage.prototype, 'clear');
     render(<TodayScreen />);
 
-    await user.click(screen.getByRole('button', { name: 'Add task' }));
+    await user.click(screen.getByRole('button', { name: 'Add one-off' }));
+    expect(screen.getByText('For today only. Preview only; not saved yet.')).toBeTruthy();
     await user.type(screen.getByLabelText('Task title'), 'Pay water bill');
+    await user.clear(screen.getByLabelText('Area'));
     await user.type(screen.getByLabelText('Area'), 'Money');
     await user.type(screen.getByLabelText('Minimum version'), 'Open the bill and note the due date.');
-    await user.click(screen.getByRole('button', { name: 'Save mock task' }));
+    await user.click(screen.getByRole('button', { name: 'Save one-off' }));
 
-    expect(screen.queryByRole('dialog', { name: 'Add one task' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Add one-off' })).toBeNull();
     expect(screen.getByRole('article', { name: 'Pay water bill' })).toBeTruthy();
     expect(screen.getByText('Mock task added for today only. Nothing was saved.')).toBeTruthy();
     expect(setItemSpy).not.toHaveBeenCalled();
     expect(clearSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not add a saved one-off to the Library catalogue', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Add one-off' }));
+    await user.type(screen.getByLabelText('Task title'), 'Pay water bill');
+    await user.clear(screen.getByLabelText('Area'));
+    await user.type(screen.getByLabelText('Area'), 'Money');
+    await user.type(screen.getByLabelText('Minimum version'), 'Open the bill and note the due date.');
+    await user.click(screen.getByRole('button', { name: 'Save one-off' }));
+
+    expect(screen.getByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Library' }));
+
+    expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
   });
 
   it('closes Start Boost from the modal close button', async () => {
