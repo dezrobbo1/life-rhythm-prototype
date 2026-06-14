@@ -26,9 +26,16 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-accent) 42%, transparent);
+  outline-offset: 3px;
+}
+
 .app-shell {
   min-height: 100vh;
-  padding-bottom: 5.5rem;
+  padding-bottom: 5.75rem;
 }
 
 .app-header {
@@ -78,8 +85,8 @@ button {
 
 .app-main {
   margin: 0 auto;
-  max-width: 52rem;
-  padding: var(--space-4);
+  max-width: 54rem;
+  padding: var(--space-5) var(--space-4);
 }
 
 .screen-stack {
@@ -96,6 +103,11 @@ button {
   padding: var(--space-5);
 }
 
+.empty-state {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .card h2,
 .empty-state h2 {
   font-size: 1.25rem;
@@ -109,24 +121,40 @@ button {
   margin: 0;
 }
 
-.today-screen {
+.today-screen,
+.plan-screen,
+.library-screen,
+.reset-screen,
+.setup-screen {
   gap: var(--space-5);
 }
 
-.today-hero {
+.today-hero,
+.plan-hero,
+.library-hero,
+.reset-hero,
+.setup-hero {
   display: grid;
   gap: var(--space-2);
   padding: var(--space-2) 0;
 }
 
-.today-hero h1 {
+.today-hero h1,
+.plan-hero h1,
+.library-hero h1,
+.reset-hero h1,
+.setup-hero h1 {
   font-size: clamp(2rem, 8vw, 3.5rem);
   letter-spacing: 0;
   line-height: 0.95;
   margin: 0;
 }
 
-.today-hero p:last-child {
+.today-hero p:last-child,
+.plan-hero p:last-child,
+.library-hero p:last-child,
+.reset-hero p:last-child,
+.setup-hero p:last-child {
   color: var(--color-muted);
   font-size: 1.05rem;
   margin: 0;
@@ -249,6 +277,21 @@ button {
   color: var(--color-text);
 }
 
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.button--secondary:hover,
+.task-card__quiet-actions button:hover,
+.feedback-row button:hover,
+.boost-option:hover,
+.support-option:hover,
+.modal__close:hover,
+.library-category-row button:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 38%, var(--color-line));
+}
+
 .task-card {
   background: var(--color-surface);
   border: 1px solid var(--color-line);
@@ -323,6 +366,10 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+.task-card__actions .button--primary {
+  flex: 1 1 12rem;
 }
 
 .task-card__details {
@@ -422,29 +469,6 @@ button {
 .rhythm-preview li {
   border-top: 1px solid var(--color-line);
   padding-top: var(--space-2);
-}
-
-.plan-screen {
-  gap: var(--space-5);
-}
-
-.plan-hero {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
-}
-
-.plan-hero h1 {
-  font-size: clamp(2rem, 8vw, 3.5rem);
-  letter-spacing: 0;
-  line-height: 0.95;
-  margin: 0;
-}
-
-.plan-hero p:last-child {
-  color: var(--color-muted);
-  font-size: 1.05rem;
-  margin: 0;
 }
 
 .plan-room-message {
@@ -604,6 +628,15 @@ button {
   gap: var(--space-2);
 }
 
+.plan-item__actions .button,
+.library-card__actions .button,
+.quick-pack__actions .button,
+.reset-secondary .button,
+.setup-action-row .button,
+.setup-dev-card .button {
+  min-height: 2.45rem;
+}
+
 .hidden-edges {
   display: grid;
   gap: var(--space-2);
@@ -660,29 +693,6 @@ button {
   color: var(--color-muted);
   font-style: normal;
   white-space: nowrap;
-}
-
-.library-screen {
-  gap: var(--space-5);
-}
-
-.library-hero {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
-}
-
-.library-hero h1 {
-  font-size: clamp(2rem, 8vw, 3.5rem);
-  letter-spacing: 0;
-  line-height: 0.95;
-  margin: 0;
-}
-
-.library-hero p:last-child {
-  color: var(--color-muted);
-  font-size: 1.05rem;
-  margin: 0;
 }
 
 .library-filters {
@@ -759,6 +769,7 @@ button {
 .section-heading p {
   color: var(--color-muted);
   margin: 0;
+  text-align: right;
 }
 
 .quick-packs,
@@ -918,29 +929,6 @@ button {
   margin: 0;
 }
 
-.reset-screen {
-  gap: var(--space-5);
-}
-
-.reset-hero {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
-}
-
-.reset-hero h1 {
-  font-size: clamp(2rem, 8vw, 3.5rem);
-  letter-spacing: 0;
-  line-height: 0.95;
-  margin: 0;
-}
-
-.reset-hero p:last-child {
-  color: var(--color-muted);
-  font-size: 1.05rem;
-  margin: 0;
-}
-
 .reset-confirmation {
   background: color-mix(in srgb, var(--color-chip) 55%, transparent);
   border: 1px solid var(--color-line);
@@ -1080,29 +1068,6 @@ button {
   color: var(--color-text);
   min-height: 2.8rem;
   padding: 0.55rem 0.9rem;
-}
-
-.setup-screen {
-  gap: var(--space-5);
-}
-
-.setup-hero {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
-}
-
-.setup-hero h1 {
-  font-size: clamp(2rem, 8vw, 3.5rem);
-  letter-spacing: 0;
-  line-height: 0.95;
-  margin: 0;
-}
-
-.setup-hero p:last-child {
-  color: var(--color-muted);
-  font-size: 1.05rem;
-  margin: 0;
 }
 
 .setup-confirmation {
@@ -1414,10 +1379,10 @@ button {
   border-top: 1px solid var(--color-line);
   bottom: 0;
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
   grid-template-columns: repeat(5, minmax(0, 1fr));
   left: 0;
-  padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom));
+  padding: var(--space-2) max(var(--space-2), env(safe-area-inset-left)) calc(var(--space-2) + env(safe-area-inset-bottom)) max(var(--space-2), env(safe-area-inset-right));
   position: fixed;
   right: 0;
 }
@@ -1431,6 +1396,8 @@ button {
   font-size: 0.75rem;
   font-weight: 850;
   min-height: 2.75rem;
+  overflow-wrap: anywhere;
+  padding: 0 var(--space-1);
 }
 
 .bottom-nav__button[aria-current='page'] {
@@ -1442,10 +1409,44 @@ button {
 @media (max-width: 35rem) {
   .app-header {
     align-items: start;
+    padding: var(--space-3);
   }
 
   .theme-control {
     min-width: 7rem;
+  }
+
+  .app-main {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .card,
+  .empty-state,
+  .task-card,
+  .plan-block,
+  .quick-pack,
+  .library-card,
+  .reset-card,
+  .reset-secondary,
+  .reset-danger-zone {
+    padding: var(--space-4);
+  }
+
+  .today-hero h1,
+  .plan-hero h1,
+  .library-hero h1,
+  .reset-hero h1,
+  .setup-hero h1 {
+    font-size: 2.4rem;
+  }
+
+  .section-heading {
+    align-items: start;
+    display: grid;
+  }
+
+  .section-heading p {
+    text-align: left;
   }
 
   .today-state-grid,
@@ -1471,8 +1472,15 @@ button {
   .library-card__state,
   .reset-card__header span,
   .plan-item__range,
-  .task-card__size {
+  .task-card__size,
+  .setup-advanced-toggle em {
     justify-self: start;
     white-space: normal;
+  }
+
+  .bottom-nav__button {
+    border-radius: 0.65rem;
+    font-size: 0.68rem;
+    min-height: 2.55rem;
   }
 }
