@@ -15,8 +15,24 @@ describe('Today screen', () => {
     render(<TodayScreen />);
 
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
-    expect(screen.getByLabelText('How today feels')).toBeTruthy();
+    expect(screen.getByRole('radiogroup', { name: 'How today feels' })).toBeTruthy();
     expect(screen.getByText('Next useful action')).toBeTruthy();
+  });
+
+  it('renders all seven Today state choices', () => {
+    render(<TodayScreen />);
+
+    const stateGroup = screen.getByRole('radiogroup', { name: 'How today feels' });
+    const stateChoices = within(stateGroup).getAllByRole('radio');
+
+    expect(stateChoices).toHaveLength(7);
+    expect(within(stateGroup).getByRole('radio', { name: /Normal day/ })).toBeTruthy();
+    expect(within(stateGroup).getByRole('radio', { name: /Behind\/missed things/ })).toBeTruthy();
+    expect(within(stateGroup).getByRole('radio', { name: /Low energy/ })).toBeTruthy();
+    expect(within(stateGroup).getByRole('radio', { name: /Overstimulated/ })).toBeTruthy();
+    expect(within(stateGroup).getByRole('radio', { name: /Avoiding something/ })).toBeTruthy();
+    expect(within(stateGroup).getByRole('radio', { name: /Need restart/ })).toBeTruthy();
+    expect(within(stateGroup).getByRole('radio', { name: /Bored \/ low stimulation/ })).toBeTruthy();
   });
 
   it('keeps the bottom navigation available in the app shell', () => {
@@ -34,7 +50,7 @@ describe('Today screen', () => {
     const user = userEvent.setup();
     render(<TodayScreen />);
 
-    await user.selectOptions(screen.getByLabelText('How today feels'), 'Low energy');
+    await user.click(screen.getByRole('radio', { name: /Low energy/ }));
 
     expect(screen.getByText('Plan adjusted: minimum counts and the smallest version comes first.')).toBeTruthy();
     expect(screen.getByText('Use the smallest possible version and stop cleanly.')).toBeTruthy();
@@ -67,28 +83,30 @@ describe('Today screen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Start Boost' }));
 
-    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Start Boost' })).toBeTruthy();
     expect(screen.getByText('What is blocking the start?')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Too big' })).toBeTruthy();
   });
 
-  it('shows support options after barrier selection', async () => {
+  it('shows support buttons after barrier selection', async () => {
     const user = userEvent.setup();
     render(<TodayScreen />);
 
     await user.click(screen.getByRole('button', { name: 'Start Boost' }));
     await user.click(screen.getByRole('button', { name: 'Unclear first step' }));
 
-    expect(screen.getByText('Try one support')).toBeTruthy();
-    expect(screen.getByText('Start with "Tomorrow I open..." and finish the sentence.')).toBeTruthy();
+    expect(screen.getByText('Choose one support')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Finish one sentence/ })).toBeTruthy();
+    expect(screen.queryByText('Did that reduce friction?')).toBeNull();
   });
 
-  it('renders feedback controls after support options', async () => {
+  it('renders feedback controls after support selection', async () => {
     const user = userEvent.setup();
     render(<TodayScreen />);
 
     await user.click(screen.getByRole('button', { name: 'Start Boost' }));
     await user.click(screen.getByRole('button', { name: 'Low energy' }));
+    await user.click(screen.getByRole('button', { name: /Use the two-minute version/ }));
 
     expect(screen.getByText('Did that reduce friction?')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Yes' })).toBeTruthy();
@@ -96,5 +114,15 @@ describe('Today screen', () => {
     expect(screen.getByRole('button', { name: 'No' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Made it harder' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Skip' })).toBeTruthy();
+  });
+
+  it('closes Start Boost from the modal close button', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Start Boost' }));
+    await user.click(screen.getByRole('button', { name: 'Close Start Boost' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Start Boost' })).toBeNull();
   });
 });

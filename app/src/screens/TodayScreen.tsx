@@ -4,6 +4,7 @@ import {
   mockRhythmPreview,
   mockTodayTask,
   statePlanLines,
+  todayStateHints,
   todayStates,
   type TodayState,
 } from '../features/today/mockTodayData';
@@ -33,20 +34,27 @@ export function TodayScreen() {
       </section>
 
       <Card>
-        <div className="today-state-row">
-          <label htmlFor="today-state">How today feels</label>
-          <select
-            id="today-state"
-            onChange={(event) => setTodayState(event.target.value as TodayState)}
-            value={todayState}
-          >
+        <section aria-labelledby="today-state-label" className="today-state-panel">
+          <div className="today-state-panel__header">
+            <h2 id="today-state-label">How today feels</h2>
+            <span>{todayState}</span>
+          </div>
+          <div aria-labelledby="today-state-label" className="today-state-grid" role="radiogroup">
             {todayStates.map((state) => (
-              <option key={state} value={state}>
-                {state}
-              </option>
+              <button
+                aria-checked={todayState === state}
+                className="state-choice"
+                key={state}
+                onClick={() => setTodayState(state)}
+                role="radio"
+                type="button"
+              >
+                <strong>{state}</strong>
+                <span>{todayStateHints[state]}</span>
+              </button>
             ))}
-          </select>
-        </div>
+          </div>
+        </section>
         <p className="plan-adjusted">{statePlanLines[todayState]}</p>
       </Card>
 
