@@ -128,11 +128,73 @@ describe('Today screen', () => {
 
     expect(screen.getByText('In progress. Keep it small.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Mark minimum done' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Keep going' })).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Mark minimum done' }));
 
     expect(screen.getAllByText('Minimum done. That counts.').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Minimum done' })).toBeTruthy();
+  });
+
+  it('pauses and resumes an in-progress task', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(screen.getByRole('button', { name: 'Pause' }));
+
+    expect(screen.getByText('Paused. You can restart small.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark minimum done' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Resume' }));
+
+    expect(screen.getByText('In progress. Keep it small.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy();
+  });
+
+  it('keeps optional normal and full versions hidden until Keep going', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    expect(screen.queryByRole('button', { name: 'Do normal version' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Do full version' })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(screen.getByRole('button', { name: 'Keep going' }));
+
+    expect(screen.getByText('Optional. Keep the minimum small, then continue only if it helps.')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Normal version' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Full version' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Do normal version' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Do full version' })).toBeTruthy();
+  });
+
+  it('keeps going after minimum done with minimum-already-counts copy', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(screen.getByRole('button', { name: 'Mark minimum done' }));
+    await user.click(screen.getByRole('button', { name: 'Keep going' }));
+
+    expect(screen.getByText('Optional. Minimum already counts. Continue only if it helps.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Do normal version' }));
+
+    expect(screen.getByText('You kept going with the normal version. Still counts either way.')).toBeTruthy();
+  });
+
+  it('can stop after opening optional continuation', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(screen.getByRole('button', { name: 'Keep going' }));
+    await user.click(screen.getByRole('button', { name: 'Stop here' }));
+
+    expect(screen.queryByRole('heading', { name: 'Normal version' })).toBeNull();
+    expect(screen.getByText('Enough for now.')).toBeTruthy();
   });
 
   it('opens Start Boost from the task card', async () => {
@@ -141,9 +203,50 @@ describe('Today screen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Start Boost' }));
 
+    const dialog = screen.getByRole('dialog', { name: 'Start Boost' });
+    expect(dialog).toBeTruthy();
+    expect(within(dialog).getByRole('heading', { name: "Set tomorrow's first step" })).toBeTruthy();
+    expect(within(dialog).getByText(/Minimum:/)).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: /Read the first action/ })).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: /Set up the space/ })).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: /Do the 30-second start/ })).toBeTruthy();
+    expect(within(dialog).getByText('What is blocking the start?')).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: 'Too big' })).toBeTruthy();
+  });
+
+  it('opens Start Boost from in-progress state', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(screen.getByRole('button', { name: 'Start Boost' }));
+
     expect(screen.getByRole('dialog', { name: 'Start Boost' })).toBeTruthy();
-    expect(screen.getByText('What is blocking the start?')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Too big' })).toBeTruthy();
+    expect(screen.getByText('In progress. Keep it small.')).toBeTruthy();
+  });
+
+  it('opens Start Boost from paused state', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(screen.getByRole('button', { name: 'Pause' }));
+    await user.click(screen.getByRole('button', { name: 'Start Boost' }));
+
+    expect(screen.getByRole('dialog', { name: 'Start Boost' })).toBeTruthy();
+    expect(screen.getByText('Paused. You can restart small.')).toBeTruthy();
+  });
+
+  it('selects a mock Start Boost activation option without writing storage', async () => {
+    const user = userEvent.setup();
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    render(<TodayScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Start Boost' }));
+    await user.click(screen.getByRole('button', { name: /Read the first action/ }));
+
+    expect(screen.getByText('Read the first action is enough to begin.')).toBeTruthy();
+    expect(setItemSpy).not.toHaveBeenCalled();
   });
 
   it('shows support buttons after barrier selection', async () => {
@@ -174,7 +277,7 @@ describe('Today screen', () => {
     expect(screen.getByRole('button', { name: 'Skip' })).toBeTruthy();
   });
 
-  it('closes and resets Start Boost after minimum completion', async () => {
+  it('closes Start Boost after minimum completion', async () => {
     const user = userEvent.setup();
     render(<TodayScreen />);
 
@@ -187,10 +290,7 @@ describe('Today screen', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Start Boost' })).toBeNull();
     expect(screen.getAllByText('Minimum done. That counts.').length).toBeGreaterThan(0);
-
-    await user.click(screen.getByRole('button', { name: 'Start Boost' }));
-    expect(screen.getByRole('dialog', { name: 'Start Boost' })).toBeTruthy();
-    expect(screen.queryByText('Choose one support')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Start Boost' })).toBeNull();
   });
 
   it('opens Add one-off and saves a mock in-memory Today task only', async () => {
