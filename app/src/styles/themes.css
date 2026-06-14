@@ -1,0 +1,37 @@
+:root,
+[data-theme='exhale'] {
+  --color-bg: #f7f2e8;
+  --color-surface: #fffdf8;
+  --color-surface-strong: #ffffff;
+  --color-text: #1f2933;
+  --color-muted: #667085;
+  --color-line: #d9cdbb;
+  --color-accent: #3f7471;
+  --color-accent-strong: #285653;
+  --color-chip: #fff7e8;
+}
+
+[data-theme='clear'] {
+  --color-bg: #eef5f7;
+  --color-surface: #ffffff;
+  --color-surface-strong: #f9fcfd;
+  --color-text: #13232f;
+  --color-muted: #4d6475;
+  --color-line: #b9d1dc;
+  --color-accent: #236c8a;
+  --color-accent-strong: #184a60;
+  --color-chip: #e4f2f7;
+}
+
+[data-theme='grounded'] {
+  --color-bg: #f3eadf;
+  --color-surface: #fffaf3;
+  --color-surface-strong: #ffffff;
+  --color-text: #2c241e;
+  --color-muted: #76685e;
+  --color-line: #d7c4b2;
+  --color-accent: #7a6047;
+  --color-accent-strong: #4f3f31;
+  --color-chip: #f7eadc;
+}
+
