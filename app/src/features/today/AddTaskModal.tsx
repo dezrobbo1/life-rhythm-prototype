@@ -43,9 +43,9 @@ export function AddTaskModal({ onClose, onSave, open }: AddTaskModalProps) {
   }
 
   return (
-    <Modal onClose={onClose} open={open} title="Add one task">
+    <Modal onClose={onClose} open={open} title="Add one-off">
       <div className="add-task-form">
-        <p className="lede">Mock only. This adds one in-memory task for the preview.</p>
+        <p className="lede">For today only. Preview only; not saved yet.</p>
         <label>
           <span>Task title</span>
           <input onChange={(event) => setTitle(event.target.value)} value={title} />
@@ -80,7 +80,7 @@ export function AddTaskModal({ onClose, onSave, open }: AddTaskModalProps) {
           </div>
         ) : null}
         <div className="modal-actions">
-          <Button disabled={!canSave} onClick={saveTask} variant="primary">Save mock task</Button>
+          <Button disabled={!canSave} onClick={saveTask} variant="primary">Save one-off</Button>
           <Button onClick={onClose}>Cancel</Button>
         </div>
       </div>

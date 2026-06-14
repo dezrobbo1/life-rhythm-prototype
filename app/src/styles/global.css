@@ -34,6 +34,8 @@ select:focus-visible {
 }
 
 .app-shell {
+  background: var(--color-bg);
+  color: var(--color-text);
   min-height: 100vh;
   padding-bottom: 5.75rem;
 }
@@ -165,8 +167,7 @@ select:focus-visible {
   gap: var(--space-3);
 }
 
-.today-state-summary,
-.today-action-heading {
+.today-state-summary {
   align-items: center;
   display: flex;
   gap: var(--space-3);
@@ -266,6 +267,26 @@ select:focus-visible {
   font-weight: 850;
   margin: 0;
   padding: var(--space-4);
+}
+
+.today-one-off {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.today-one-off h2,
+.library-create-card h2 {
+  font-size: 1.05rem;
+  line-height: 1.15;
+  margin: 0 0 var(--space-1);
+}
+
+.today-one-off p,
+.library-create-card p {
+  color: var(--color-muted);
+  margin: 0;
 }
 
 .today-action-heading .section-label {
@@ -745,6 +766,20 @@ select:focus-visible {
 .library-filters {
   display: grid;
   gap: var(--space-4);
+}
+
+.library-create-card {
+  align-items: center;
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.library-create-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
 }
 
 .library-filters label {
@@ -1338,7 +1373,8 @@ select:focus-visible {
   gap: var(--space-2);
 }
 
-.add-task-form input {
+.add-task-form input,
+.add-task-form select {
   background: var(--color-surface-strong);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
@@ -1539,7 +1575,7 @@ select:focus-visible {
   }
 
   .today-state-summary,
-  .today-action-heading {
+  .today-one-off {
     align-items: stretch;
     display: grid;
   }
@@ -1563,8 +1599,13 @@ select:focus-visible {
   .plan-item__main,
   .hidden-edges__list li,
   .task-card__header,
-  .boost-grid {
+  .boost-grid,
+  .library-create-card {
     grid-template-columns: 1fr;
+  }
+
+  .library-create-card__actions {
+    justify-content: start;
   }
 
   .plan-room-message span,

@@ -98,7 +98,6 @@ export function TodayScreen() {
           <section aria-label="Next useful action">
             <div className="today-action-heading">
               <p className="section-label">Next useful action</p>
-              <Button onClick={() => setAddTaskOpen(true)}>Add task</Button>
             </div>
             <TaskCard
               onMarkMinimumDone={markMinimumDone}
@@ -109,6 +108,15 @@ export function TodayScreen() {
               todayState={todayState}
             />
           </section>
+          <Card>
+            <section aria-labelledby="today-one-off-title" className="today-one-off">
+              <div>
+                <h2 id="today-one-off-title">Need something else today?</h2>
+                <p>Add one today-only task. It will not go into Library or storage.</p>
+              </div>
+              <Button onClick={() => setAddTaskOpen(true)}>Add one-off</Button>
+            </section>
+          </Card>
           <Card>
             <div className="rhythm-preview__header">
               <h2>Today rhythm preview</h2>
@@ -124,8 +132,8 @@ export function TodayScreen() {
         </>
       ) : (
         <EmptyState
-          action={<Button onClick={() => setAddTaskOpen(true)} variant="primary">Add one task</Button>}
-          message="Choose rhythms to turn on, or add one task for today."
+          action={<Button onClick={() => setAddTaskOpen(true)} variant="primary">Add one-off</Button>}
+          message="Choose rhythms to turn on, or add one today-only task."
           title="Choose rhythms to turn on"
         />
       )}
