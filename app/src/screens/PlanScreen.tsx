@@ -1,20 +1,29 @@
-import { Card, Chip, EmptyState } from '../components';
+import { Card } from '../components';
+import { PlanBlock } from '../features/plan/PlanBlock';
+import { mockPlanBlocks, planRoomMessage } from '../features/plan/mockPlanData';
 
 export function PlanScreen() {
   return (
-    <div className="screen-stack">
-      <Card title="Plan">
-        <p className="lede">Soft rhythm scaffold placeholder. No scheduler details are exposed here.</p>
-        <div className="chip-row">
-          <Chip>Fixed commitments later</Chip>
-          <Chip>Hidden edges later</Chip>
+    <div className="screen-stack plan-screen">
+      <section className="plan-hero" aria-labelledby="plan-title">
+        <p className="eyebrow">Soft rhythm scaffold</p>
+        <h1 id="plan-title">Plan</h1>
+        <p>Plan the shape of your day, not every minute.</p>
+      </section>
+      <Card>
+        <div className="plan-room-message">
+          <div>
+            <h2>{planRoomMessage.label}</h2>
+            <p>{planRoomMessage.body}</p>
+          </div>
+          <span>Power underneath. Calm on the surface.</span>
         </div>
       </Card>
-      <EmptyState
-        message="The full scheduler will be ported in a later phase after the data layer is designed."
-        title="Plan shell only"
-      />
+      <div className="plan-blocks" aria-label="Broad day blocks">
+        {mockPlanBlocks.map((block) => (
+          <PlanBlock block={block} key={block.id} />
+        ))}
+      </div>
     </div>
   );
 }
-
