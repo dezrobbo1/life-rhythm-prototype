@@ -9,8 +9,13 @@ import {
   safetyToggles,
 } from '../features/setup/mockSetupData';
 
-export function SetupScreen() {
-  const [selectedTheme, setSelectedTheme] = useState<ThemeName>('exhale');
+type SetupScreenProps = {
+  onThemeChange?: (theme: ThemeName) => void;
+  theme?: ThemeName;
+};
+
+export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProps = {}) {
+  const [localTheme, setLocalTheme] = useState<ThemeName>(theme);
   const [safetyState, setSafetyState] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(safetyToggles.map((toggle) => [toggle.id, toggle.defaultEnabled])),
   );
@@ -23,6 +28,16 @@ export function SetupScreen() {
       [id]: !current[id],
     }));
   }
+
+  function chooseTheme(nextTheme: ThemeName) {
+    if (onThemeChange) {
+      onThemeChange(nextTheme);
+    } else {
+      setLocalTheme(nextTheme);
+    }
+  }
+
+  const selectedTheme = onThemeChange ? theme : localTheme;
 
   return (
     <div className="screen-stack setup-screen">
@@ -45,7 +60,7 @@ export function SetupScreen() {
               aria-checked={selectedTheme === option.id}
               className="setup-theme-option"
               key={option.id}
-              onClick={() => setSelectedTheme(option.id)}
+              onClick={() => chooseTheme(option.id)}
               role="radio"
               type="button"
             >
