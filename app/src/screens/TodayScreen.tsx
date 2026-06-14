@@ -1,19 +1,43 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, EmptyState } from '../components';
+import { Button, Card, EmptyState, Modal } from '../components';
 import {
   mockRhythmPreview,
   mockTodayTask,
+  type MockTask,
   statePlanLines,
   todayStateHints,
   todayStates,
   type TodayState,
 } from '../features/today/mockTodayData';
+import { AddTaskModal, type MockAddTaskInput } from '../features/today/AddTaskModal';
 import { StartBoost } from '../features/today/StartBoost';
-import { TaskCard } from '../features/today/TaskCard';
+import { TaskCard, type TaskProgress } from '../features/today/TaskCard';
+
+function createMockTask(input: MockAddTaskInput): MockTask {
+  return {
+    ...mockTodayTask,
+    area: input.area,
+    areaIcon: 'Task',
+    chips: ['Minimum counts', 'Start small'],
+    fullVersion: input.fullVersion || input.normalVersion || input.minimumVersion,
+    id: `mock-added-${Date.now()}`,
+    minimumVersion: input.minimumVersion,
+    normalVersion: input.normalVersion || input.minimumVersion,
+    purpose: 'A preview task added for today only.',
+    recommendedSize: 'Small',
+    title: input.title,
+    whyThis: 'This mock task shows how a one-off add will feel before real storage is connected.',
+  };
+}
 
 export function TodayScreen() {
   const [todayState, setTodayState] = useState<TodayState>('Normal day');
   const [boostOpen, setBoostOpen] = useState(false);
+  const [stateChooserOpen, setStateChooserOpen] = useState(false);
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [nextTask, setNextTask] = useState<MockTask | null>(mockTodayTask);
+  const [taskProgress, setTaskProgress] = useState<TaskProgress>('idle');
+  const [completionFeedback, setCompletionFeedback] = useState('');
   const todayLabel = useMemo(
     () =>
       new Intl.DateTimeFormat(undefined, {
@@ -23,7 +47,30 @@ export function TodayScreen() {
       }).format(new Date()),
     [],
   );
-  const nextTask = mockTodayTask;
+
+  function chooseTodayState(state: TodayState) {
+    setTodayState(state);
+    setStateChooserOpen(false);
+  }
+
+  function saveMockTask(input: MockAddTaskInput) {
+    setNextTask(createMockTask(input));
+    setTaskProgress('idle');
+    setCompletionFeedback('Mock task added for today only. Nothing was saved.');
+    setAddTaskOpen(false);
+    setBoostOpen(false);
+  }
+
+  function startTask() {
+    setTaskProgress('inProgress');
+    setCompletionFeedback('');
+  }
+
+  function markMinimumDone() {
+    setTaskProgress('minimumDone');
+    setBoostOpen(false);
+    setCompletionFeedback('Minimum done. That counts.');
+  }
 
   return (
     <div className="screen-stack today-screen">
@@ -34,35 +81,33 @@ export function TodayScreen() {
       </section>
 
       <Card>
-        <section aria-labelledby="today-state-label" className="today-state-panel">
-          <div className="today-state-panel__header">
-            <h2 id="today-state-label">How today feels</h2>
-            <span>{todayState}</span>
+        <section aria-labelledby="today-state-summary" className="today-state-summary">
+          <div>
+            <h2 id="today-state-summary">Today feels: {todayState}</h2>
+            <p>{todayStateHints[todayState]}</p>
           </div>
-          <div aria-labelledby="today-state-label" className="today-state-grid" role="radiogroup">
-            {todayStates.map((state) => (
-              <button
-                aria-checked={todayState === state}
-                className="state-choice"
-                key={state}
-                onClick={() => setTodayState(state)}
-                role="radio"
-                type="button"
-              >
-                <strong>{state}</strong>
-                <span>{todayStateHints[state]}</span>
-              </button>
-            ))}
-          </div>
+          <Button onClick={() => setStateChooserOpen(true)}>Change</Button>
         </section>
         <p className="plan-adjusted">{statePlanLines[todayState]}</p>
       </Card>
 
+      {completionFeedback ? <p className="today-feedback" role="status">{completionFeedback}</p> : null}
+
       {nextTask ? (
         <>
           <section aria-label="Next useful action">
-            <p className="section-label">Next useful action</p>
-            <TaskCard task={nextTask} todayState={todayState} onStartBoost={() => setBoostOpen(true)} />
+            <div className="today-action-heading">
+              <p className="section-label">Next useful action</p>
+              <Button onClick={() => setAddTaskOpen(true)}>Add task</Button>
+            </div>
+            <TaskCard
+              onMarkMinimumDone={markMinimumDone}
+              onStartBoost={() => setBoostOpen(true)}
+              onStartTask={startTask}
+              progress={taskProgress}
+              task={nextTask}
+              todayState={todayState}
+            />
           </section>
           <Card>
             <div className="rhythm-preview__header">
@@ -79,11 +124,33 @@ export function TodayScreen() {
         </>
       ) : (
         <EmptyState
-          action={<Button variant="primary">Add one task</Button>}
+          action={<Button onClick={() => setAddTaskOpen(true)} variant="primary">Add one task</Button>}
           message="Choose rhythms to turn on, or add one task for today."
           title="Choose rhythms to turn on"
         />
       )}
+
+      <Modal onClose={() => setStateChooserOpen(false)} open={stateChooserOpen} title="How today feels">
+        <div className="today-state-panel">
+          <p className="lede">Choose the closest state. This only changes the preview tone.</p>
+          <div aria-label="How today feels" className="today-state-grid" role="radiogroup">
+            {todayStates.map((state) => (
+              <button
+                aria-checked={todayState === state}
+                className="state-choice"
+                key={state}
+                onClick={() => chooseTodayState(state)}
+                role="radio"
+                type="button"
+              >
+                <strong>{state}</strong>
+                <span>{todayStateHints[state]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Modal>
+      <AddTaskModal onClose={() => setAddTaskOpen(false)} onSave={saveMockTask} open={addTaskOpen} />
     </div>
   );
 }

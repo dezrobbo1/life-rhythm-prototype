@@ -4,6 +4,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
+import { themeBackgrounds } from '../../app/theme';
 import { SetupScreen } from '../../screens/SetupScreen';
 
 afterEach(() => {
@@ -38,6 +39,26 @@ describe('Setup screen', () => {
 
     expect(screen.getByText('Selected: Clear')).toBeTruthy();
     expect(within(themes).getByRole('radio', { name: /Clear/ }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('uses Setup theme selection to change the actual app theme', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    await user.click(screen.getByRole('radio', { name: /Clear/ }));
+
+    expect(document.querySelector('.app-shell')?.getAttribute('data-theme')).toBe('clear');
+    expect((screen.getByLabelText('Theme') as HTMLSelectElement).value).toBe('clear');
+
+    await user.selectOptions(screen.getByLabelText('Theme'), 'grounded');
+
+    expect(within(screen.getByRole('radiogroup', { name: 'Appearance theme' })).getByRole('radio', { name: /Grounded/ }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('keeps the Clear theme away from beige backgrounds', () => {
+    expect(themeBackgrounds.clear).toBe('#f4f8fa');
+    expect(themeBackgrounds.clear).not.toMatch(/f7f2e8|fff7e8|f3eadf|fffaf3|f7eadc/i);
   });
 
   it('renders safety toggles and can toggle them', async () => {
