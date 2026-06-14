@@ -1,0 +1,69 @@
+name: App Preview (/app)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - app/**
+      - .github/workflows/app-preview.yml
+  pull_request:
+    paths:
+      - app/**
+      - .github/workflows/app-preview.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: app-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-preview:
+    name: Build /app preview
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install /app dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Test /app
+        working-directory: app
+        run: npm test
+
+      - name: Build /app preview
+        working-directory: app
+        run: npm run build -- --base=./
+
+      - name: Keep preview branch static hosting friendly
+        run: touch app/dist/.nojekyll
+
+      - name: Upload /app preview artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: life-rhythm-app-preview-dist
+          path: app/dist
+          if-no-files-found: error
+
+      - name: Publish /app preview branch
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages-app-preview
+          folder: app/dist
+          clean: true
+          single-commit: true
+          commit-message: Deploy /app preview from ${{ github.sha }}
