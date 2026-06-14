@@ -14,6 +14,7 @@ describe('Plan screen', () => {
   it('renders all broad day blocks', () => {
     render(<PlanScreen />);
 
+    expect(screen.getByText('Life shape preview: work hours and buffers will shape future planning.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Morning' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Midday' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Afternoon' })).toBeTruthy();

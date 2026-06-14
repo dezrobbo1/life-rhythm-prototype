@@ -18,12 +18,62 @@ describe('Setup screen', () => {
 
     expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Appearance' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Life shape' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Start Boost safety' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Data and backup' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Dev tickets' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'About Life Rhythm' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Future modules' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Advanced/ })).toBeTruthy();
+  });
+
+  it('renders Life shape preview controls', () => {
+    render(<SetupScreen />);
+
+    expect(screen.getByRole('heading', { name: 'Life shape' })).toBeTruthy();
+    expect(screen.getByText('Preview only. These settings do not save yet.')).toBeTruthy();
+    expect(screen.getByLabelText('Work starts')).toBeTruthy();
+    expect(screen.getByLabelText('Work ends')).toBeTruthy();
+    expect(screen.getByLabelText('Commute / travel time')).toBeTruthy();
+    expect(screen.getByLabelText('Fixed commitments')).toBeTruthy();
+    expect(screen.getByLabelText('Transition buffer')).toBeTruthy();
+    expect(screen.getByLabelText('Breakfast anchor')).toBeTruthy();
+    expect(screen.getByLabelText('Lunch anchor')).toBeTruthy();
+    expect(screen.getByLabelText('Dinner anchor')).toBeTruthy();
+    expect(screen.getByLabelText('Wake anchor')).toBeTruthy();
+    expect(screen.getByLabelText('Sleep anchor')).toBeTruthy();
+    expect(screen.getByLabelText('Low-capacity day preference')).toBeTruthy();
+  });
+
+  it('changes Life shape controls in memory only', async () => {
+    const user = userEvent.setup();
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const clearSpy = vi.spyOn(Storage.prototype, 'clear');
+    const openSpy = vi.fn();
+    const deleteDatabaseSpy = vi.fn();
+    Object.defineProperty(globalThis, 'indexedDB', {
+      configurable: true,
+      value: {
+        deleteDatabase: deleteDatabaseSpy,
+        open: openSpy,
+      },
+    });
+    render(<SetupScreen />);
+
+    await user.clear(screen.getByLabelText('Commute / travel time'));
+    await user.type(screen.getByLabelText('Commute / travel time'), '35');
+    await user.selectOptions(screen.getByLabelText('Transition buffer'), '20');
+    await user.selectOptions(screen.getByLabelText('Low-capacity day preference'), 'minimum-first');
+
+    expect((screen.getByLabelText('Commute / travel time') as HTMLInputElement).value).toBe('35');
+    expect((screen.getByLabelText('Transition buffer') as HTMLSelectElement).value).toBe('20');
+    expect(screen.getByRole('status').textContent).toContain('Life shape updated in preview only');
+    expect(getItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(clearSpy).not.toHaveBeenCalled();
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(deleteDatabaseSpy).not.toHaveBeenCalled();
   });
 
   it('renders appearance options and updates selected mock state', async () => {
@@ -119,9 +169,10 @@ describe('Setup screen', () => {
     expect(screen.getByText('Non-clinical self-management support. No medical claims.')).toBeTruthy();
   });
 
-  it('renders future module placeholders as inactive', () => {
+  it('keeps future modules planned and inactive', () => {
     render(<SetupScreen />);
 
+    expect(screen.getByText('Future modules: planned, inactive for now.')).toBeTruthy();
     expect(screen.getByText('Rhythm Food: Inactive')).toBeTruthy();
     expect(screen.getByText('Rhythm Goals / Quiet Goals: Inactive')).toBeTruthy();
   });

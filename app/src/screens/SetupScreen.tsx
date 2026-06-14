@@ -7,7 +7,10 @@ import {
   advancedRows,
   appearanceOptions,
   dataActions,
+  defaultLifeShape,
+  lowCapacityPreferenceOptions,
   safetyToggles,
+  type LifeShapeState,
 } from '../features/setup/mockSetupData';
 import { buildSetupViewModel } from '../viewModels';
 
@@ -23,6 +26,7 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
   const [safetyState, setSafetyState] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(Object.entries(initialSetupViewModel.startBoostSafety)),
   );
+  const [lifeShape, setLifeShape] = useState<LifeShapeState>(defaultLifeShape);
   const [status, setStatus] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -39,6 +43,14 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
     } else {
       setLocalTheme(nextTheme);
     }
+  }
+
+  function updateLifeShape<Key extends keyof LifeShapeState>(key: Key, value: LifeShapeState[Key]) {
+    setLifeShape((current) => ({
+      ...current,
+      [key]: value,
+    }));
+    setStatus('Life shape updated in preview only. These settings do not save yet.');
   }
 
   const selectedTheme = onThemeChange ? theme : localTheme;
@@ -92,6 +104,148 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
           <Chip>Selected: {setupViewModel.themeChoices.find((option) => option.id === selectedTheme)?.label}</Chip>
           <Chip>Colour only</Chip>
         </div>
+      </Card>
+
+      <Card>
+        <div className="setup-section-heading">
+          <h2>Life shape</h2>
+          <p>Preview only. These settings do not save yet.</p>
+        </div>
+        <div className="life-shape-grid">
+          <fieldset className="life-shape-fieldset">
+            <legend>Usual work hours</legend>
+            <div className="life-shape-inline">
+              <label>
+                <span>Work starts</span>
+                <input
+                  aria-label="Work starts"
+                  onChange={(event) => updateLifeShape('workStart', event.target.value)}
+                  type="time"
+                  value={lifeShape.workStart}
+                />
+              </label>
+              <label>
+                <span>Work ends</span>
+                <input
+                  aria-label="Work ends"
+                  onChange={(event) => updateLifeShape('workEnd', event.target.value)}
+                  type="time"
+                  value={lifeShape.workEnd}
+                />
+              </label>
+            </div>
+          </fieldset>
+
+          <label className="life-shape-control">
+            <span>Commute / travel time</span>
+            <input
+              aria-label="Commute / travel time"
+              min="0"
+              onChange={(event) => updateLifeShape('commuteMinutes', event.target.value)}
+              type="number"
+              value={lifeShape.commuteMinutes}
+            />
+            <small>Minutes usually needed around leaving or arriving.</small>
+          </label>
+
+          <label className="life-shape-control life-shape-control--wide">
+            <span>Fixed commitments</span>
+            <textarea
+              aria-label="Fixed commitments"
+              onChange={(event) => updateLifeShape('fixedCommitments', event.target.value)}
+              rows={3}
+              value={lifeShape.fixedCommitments}
+            />
+            <small>Appointments, care, school runs, or other fixed edges.</small>
+          </label>
+
+          <label className="life-shape-control">
+            <span>Transition buffer</span>
+            <select
+              aria-label="Transition buffer"
+              onChange={(event) => updateLifeShape('transitionBuffer', event.target.value)}
+              value={lifeShape.transitionBuffer}
+            >
+              <option value="5">5 minutes</option>
+              <option value="10">10 minutes</option>
+              <option value="20">20 minutes</option>
+              <option value="30">30 minutes</option>
+            </select>
+          </label>
+
+          <fieldset className="life-shape-fieldset life-shape-fieldset--wide">
+            <legend>Meal anchors</legend>
+            <div className="life-shape-inline">
+              <label>
+                <span>Breakfast</span>
+                <input
+                  aria-label="Breakfast anchor"
+                  onChange={(event) => updateLifeShape('breakfastAnchor', event.target.value)}
+                  type="time"
+                  value={lifeShape.breakfastAnchor}
+                />
+              </label>
+              <label>
+                <span>Lunch</span>
+                <input
+                  aria-label="Lunch anchor"
+                  onChange={(event) => updateLifeShape('lunchAnchor', event.target.value)}
+                  type="time"
+                  value={lifeShape.lunchAnchor}
+                />
+              </label>
+              <label>
+                <span>Dinner</span>
+                <input
+                  aria-label="Dinner anchor"
+                  onChange={(event) => updateLifeShape('dinnerAnchor', event.target.value)}
+                  type="time"
+                  value={lifeShape.dinnerAnchor}
+                />
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset className="life-shape-fieldset">
+            <legend>Sleep / wake anchor</legend>
+            <div className="life-shape-inline">
+              <label>
+                <span>Wake</span>
+                <input
+                  aria-label="Wake anchor"
+                  onChange={(event) => updateLifeShape('wakeAnchor', event.target.value)}
+                  type="time"
+                  value={lifeShape.wakeAnchor}
+                />
+              </label>
+              <label>
+                <span>Sleep</span>
+                <input
+                  aria-label="Sleep anchor"
+                  onChange={(event) => updateLifeShape('sleepAnchor', event.target.value)}
+                  type="time"
+                  value={lifeShape.sleepAnchor}
+                />
+              </label>
+            </div>
+          </fieldset>
+
+          <label className="life-shape-control">
+            <span>Low-capacity day preference</span>
+            <select
+              aria-label="Low-capacity day preference"
+              onChange={(event) => updateLifeShape('lowCapacityPreference', event.target.value)}
+              value={lifeShape.lowCapacityPreference}
+            >
+              {lowCapacityPreferenceOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="setup-note">Preview only. Future planning can use this shape, but nothing saves or schedules yet.</p>
       </Card>
 
       <Card>
@@ -161,11 +315,11 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
       </Card>
 
       <Card>
-        <div className="setup-section-heading">
+        <div className="setup-section-heading setup-section-heading--quiet">
           <h2>Future modules</h2>
-          <p>Future-only module shapes for later screen work. No module logic is connected.</p>
+          <p>Future modules: planned, inactive for now.</p>
         </div>
-        <div className="chip-row">
+        <div className="chip-row chip-row--quiet">
           {setupViewModel.futureModules.map((module) => (
             <Chip key={module.id}>{module.label}: {module.enabled ? 'Active' : 'Inactive'}</Chip>
           ))}

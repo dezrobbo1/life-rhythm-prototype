@@ -25,6 +25,40 @@ export type SetupAction = {
   helper: string;
 };
 
+export type LifeShapeState = {
+  workStart: string;
+  workEnd: string;
+  commuteMinutes: string;
+  fixedCommitments: string;
+  transitionBuffer: string;
+  breakfastAnchor: string;
+  lunchAnchor: string;
+  dinnerAnchor: string;
+  wakeAnchor: string;
+  sleepAnchor: string;
+  lowCapacityPreference: string;
+};
+
+export const defaultLifeShape: LifeShapeState = {
+  breakfastAnchor: '07:30',
+  commuteMinutes: '20',
+  dinnerAnchor: '18:30',
+  fixedCommitments: 'School run, appointments, care responsibilities',
+  lunchAnchor: '12:30',
+  lowCapacityPreference: 'protect-evening',
+  sleepAnchor: '22:00',
+  transitionBuffer: '10',
+  wakeAnchor: '06:30',
+  workEnd: '16:30',
+  workStart: '09:00',
+};
+
+export const lowCapacityPreferenceOptions = [
+  { label: 'Protect evening', value: 'protect-evening' },
+  { label: 'Keep mornings lighter', value: 'lighter-morning' },
+  { label: 'Use minimum versions first', value: 'minimum-first' },
+];
+
 export const appearanceOptions: AppearanceOption[] = [
   {
     id: 'exhale',
