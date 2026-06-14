@@ -95,13 +95,14 @@ describe('Reset screen', () => {
     expect(clearSpy).not.toHaveBeenCalled();
   });
 
-  it('keeps Setup as a placeholder', async () => {
+  it('keeps Setup available as a mock settings surface', async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: 'Setup' }));
 
-    expect(screen.getByText('Setup storage not connected')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Start Boost safety' })).toBeTruthy();
   });
 
   it('keeps bottom navigation available', async () => {
