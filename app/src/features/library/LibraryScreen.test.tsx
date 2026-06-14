@@ -101,12 +101,12 @@ describe('Library screen', () => {
     expect(screen.getByRole('article', { name: 'Breakfast reset' })).toBeTruthy();
   });
 
-  it('keeps Reset and Setup as placeholders', async () => {
+  it('keeps Setup as a placeholder while Reset is available', async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: 'Reset' }));
-    expect(screen.getByText('Reset tools not ported yet')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Setup' }));
     expect(screen.getByText('Setup storage not connected')).toBeTruthy();

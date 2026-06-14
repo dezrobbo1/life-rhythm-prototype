@@ -1,20 +1,112 @@
-import { Card, Chip, EmptyState } from '../components';
+import { useState } from 'react';
+import { Button, Card } from '../components';
+import { ResetActionCard } from '../features/reset/ResetActionCard';
+import {
+  fullResetAction,
+  mainResetActions,
+  restartChoices,
+  secondaryResetActions,
+  type ResetAction,
+  type RestartChoice,
+} from '../features/reset/mockResetData';
 
 export function ResetScreen() {
+  const [confirmation, setConfirmation] = useState('');
+  const [selectedRestart, setSelectedRestart] = useState<RestartChoice | null>(null);
+  const [fullResetInput, setFullResetInput] = useState('');
+  const [fullResetConfirmed, setFullResetConfirmed] = useState(false);
+
+  function runResetAction(action: ResetAction) {
+    setFullResetConfirmed(false);
+
+    if (action.id === 'restartOneAction') {
+      setSelectedRestart(restartChoices[0]);
+    }
+
+    if (action.id === 'restoreHidden') {
+      setSelectedRestart(null);
+    }
+
+    setConfirmation(action.confirmationCopy);
+  }
+
+  function confirmFullReset() {
+    setFullResetConfirmed(true);
+    setConfirmation(fullResetAction.confirmationCopy);
+  }
+
   return (
-    <div className="screen-stack">
-      <Card title="Reset">
-        <p className="lede">Relief-valve placeholder for restart and review flows.</p>
-        <div className="chip-row">
-          <Chip>No catch-up pile</Chip>
-          <Chip>No scoring</Chip>
+    <div className="screen-stack reset-screen">
+      <section className="reset-hero" aria-labelledby="reset-title">
+        <p className="eyebrow">Re-entry surface</p>
+        <h1 id="reset-title">Reset</h1>
+        <p>No catch-up pile. Choose what helps now.</p>
+      </section>
+
+      {confirmation ? <p className="reset-confirmation" role="status">{confirmation}</p> : null}
+
+      <section className="reset-section" aria-labelledby="main-reset-title">
+        <div className="section-heading">
+          <h2 id="main-reset-title">Daily reset actions</h2>
+          <p>Mock only. Nothing is saved or cleared.</p>
         </div>
-      </Card>
-      <EmptyState
-        message="Reset actions will hide, move, or shrink later. This scaffold does not alter live data."
-        title="Reset tools not ported yet"
-      />
+        <div className="reset-card-grid">
+          {mainResetActions.map((action) => (
+            <ResetActionCard action={action} key={action.id} onRunAction={runResetAction} />
+          ))}
+        </div>
+      </section>
+
+      {selectedRestart ? (
+        <Card>
+          <div className="restart-choice">
+            <p className="eyebrow">Selected restart action</p>
+            <h2>{selectedRestart.title}</h2>
+            <p>{selectedRestart.area}</p>
+            <strong>{selectedRestart.firstAction}</strong>
+            <span>That counts.</span>
+          </div>
+        </Card>
+      ) : null}
+
+      <section className="reset-section" aria-labelledby="secondary-reset-title">
+        <div className="section-heading">
+          <h2 id="secondary-reset-title">Secondary options</h2>
+          <p>Soft review and restore actions.</p>
+        </div>
+        <div className="reset-secondary-list">
+          {secondaryResetActions.map((action) => (
+            <article className="reset-secondary" key={action.id}>
+              <div>
+                <h3>{action.title}</h3>
+                <p>{action.purpose}</p>
+              </div>
+              <Button onClick={() => runResetAction(action)}>{action.title}</Button>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="reset-danger-zone" aria-labelledby="full-reset-title">
+        <div>
+          <p className="eyebrow">Protected action</p>
+          <h2 id="full-reset-title">{fullResetAction.title}</h2>
+          <p>{fullResetAction.purpose}</p>
+          <p>{fullResetAction.boundaryNote}</p>
+        </div>
+        <label>
+          <span>Type RESET to confirm this mock action</span>
+          <input
+            aria-label="Type RESET to confirm full reset"
+            onChange={(event) => setFullResetInput(event.target.value)}
+            value={fullResetInput}
+          />
+        </label>
+        <Button disabled={fullResetInput !== 'RESET'} onClick={confirmFullReset}>
+          Confirm mock full reset
+        </Button>
+        {fullResetConfirmed ? <p role="status">Mock full reset complete. No real data was cleared.</p> : null}
+      </section>
     </div>
   );
 }
-
