@@ -27,6 +27,18 @@ The current view model layer includes:
 - `selectors.ts`: pure `build*ViewModel(snapshot, options)` functions.
 - `viewModels.test.ts`: selector and guardrail tests.
 
+## Read-only local adapter
+
+The next bridge lives in `src/data/readOnlyAdapter/`:
+
+```text
+local data / legacy-shaped data / fixtures -> read-only app snapshot -> selectors
+```
+
+The adapter is read-only. It accepts already-provided current data, legacy-shaped data, or fallback fixtures and maps them into the `AppDataSnapshot` consumed by the selectors. It does not call localStorage, Dexie, IndexedDB, network APIs, migration writes, scheduler code, or any screen write path.
+
+Screens still should not write through this layer. Add one-off, Create rhythm, task progression, Start Boost, settings, backup/import/export, and reset behavior remain mock or future work until separate persistence PRs explicitly add safe writes.
+
 The future module placeholders are present but inactive by default:
 
 - Rhythm Food
@@ -44,3 +56,5 @@ The future module placeholders are present but inactive by default:
 This layer does not connect persistence. It does not migrate legacy data, create task writes, schedule rhythms, create notifications, connect calendar data, or expose backend/account behavior.
 
 When persistence is approved later, the first step should be to build a read-only snapshot from validated local data, then feed that snapshot into these selectors. Write paths should remain separate from the view model layer.
+
+Persistence, migration execution, scheduler behavior, and real screen data connections are future PRs. The root GitHub Pages app remains protected and should not be replaced by `/app` architecture work.
