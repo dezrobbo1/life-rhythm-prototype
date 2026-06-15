@@ -174,6 +174,7 @@ function settingsFromCurrent(settings: Partial<Settings> | null | undefined): Sn
   }
 
   return {
+    lifeShape: settings.lifeShape as SnapshotSettings['lifeShape'] | undefined,
     startBoostSafety: settings.startBoostSafety as Partial<SafetySettingsViewModel> | undefined,
     theme: themeValue(settings.theme),
   };
@@ -246,6 +247,21 @@ function cloneSnapshot(snapshot: AppDataSnapshot): AppDataSnapshot {
     settings: snapshot.settings
       ? {
           ...snapshot.settings,
+          lifeShape: snapshot.settings.lifeShape
+            ? {
+                ...snapshot.settings.lifeShape,
+                fixedCommitments: snapshot.settings.lifeShape.fixedCommitments.map((commitment) => ({
+                  ...commitment,
+                  days: [...commitment.days],
+                })),
+                mealAnchors: { ...snapshot.settings.lifeShape.mealAnchors },
+                sleepWakeAnchors: { ...snapshot.settings.lifeShape.sleepWakeAnchors },
+                usualWorkHours: {
+                  ...snapshot.settings.lifeShape.usualWorkHours,
+                  days: [...snapshot.settings.lifeShape.usualWorkHours.days],
+                },
+              }
+            : undefined,
           startBoostSafety: snapshot.settings.startBoostSafety
             ? { ...snapshot.settings.startBoostSafety }
             : undefined,

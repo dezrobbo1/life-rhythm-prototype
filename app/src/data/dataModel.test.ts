@@ -5,8 +5,11 @@ import { inspectAndPlanLegacyV146, inspectLegacyV146, LEGACY_V146_KEY } from './
 import {
   activeTaskSchema,
   appExportSchema,
+  lifeShapeSettingsSchema,
   rhythmTemplateSchema,
   settingsSchema,
+  startBoostSafetySettingsSchema,
+  themeNameSchema,
   type AppExport,
 } from './schemas';
 
@@ -136,8 +139,182 @@ const validExport: AppExport = appExportSchema.parse({
 describe('future data schemas', () => {
   it('validates settings, rhythm templates and active tasks', () => {
     expect(settings.theme).toBe('exhale');
+    expect(settings.lifeShape.transitionBufferMinutes).toBe(10);
     expect(rhythmTemplate.enabled).toBe(true);
     expect(activeTask.source).toBe('library');
+  });
+
+  it('validates theme preferences', () => {
+    expect(themeNameSchema.parse('clear')).toBe('clear');
+    expect(themeNameSchema.safeParse('warm-cream').success).toBe(false);
+  });
+
+  it('validates Start Boost safety settings with defaults', () => {
+    const safety = startBoostSafetySettingsSchema.parse({
+      avoidFoodRewards: true,
+      avoidShoppingRewards: true,
+    });
+
+    expect(safety.avoidFoodRewards).toBe(true);
+    expect(safety.avoidShoppingRewards).toBe(true);
+    expect(safety.avoidScrollingRewards).toBe(true);
+    expect(safety.avoidStreakPressure).toBe(true);
+  });
+
+  it('validates Life Shape settings', () => {
+    const lifeShape = lifeShapeSettingsSchema.parse({
+      usualWorkHours: {
+        days: ['Monday', 'Tuesday', 'Wednesday'],
+        start: '09:00',
+        end: '17:00',
+      },
+      commuteMinutes: 25,
+      travelMinutes: 15,
+      fixedCommitments: [
+        {
+          id: 'school-run',
+          label: 'School run',
+          days: ['Monday', 'Tuesday'],
+          start: '08:00',
+          end: '08:45',
+          travelMinutes: 10,
+          bufferMinutes: 5,
+        },
+      ],
+      transitionBufferMinutes: 15,
+      mealAnchors: {
+        breakfast: '07:30',
+        lunch: '12:30',
+        dinner: '18:30',
+      },
+      sleepWakeAnchors: {
+        wake: '06:30',
+        sleep: '22:00',
+      },
+      lowCapacityPreference: 'minimum-first',
+    });
+
+    expect(lifeShape.usualWorkHours.start).toBe('09:00');
+    expect(lifeShape.fixedCommitments[0].label).toBe('School run');
+    expect(lifeShape.lowCapacityPreference).toBe('minimum-first');
+  });
+
+  it('rejects invalid work hours safely', () => {
+    const result = lifeShapeSettingsSchema.safeParse({
+      usualWorkHours: {
+        start: '18:00',
+        end: '09:00',
+      },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.join('.') === 'usualWorkHours.end')).toBe(true);
+    }
+  });
+
+  it('rejects invalid travel and buffer values safely', () => {
+    const lifeShapeResult = lifeShapeSettingsSchema.safeParse({
+      commuteMinutes: -1,
+      travelMinutes: 481,
+      transitionBufferMinutes: 181,
+    });
+    const commitmentResult = lifeShapeSettingsSchema.safeParse({
+      fixedCommitments: [
+        {
+          id: 'too-wide',
+          label: 'Too wide',
+          travelMinutes: 481,
+          bufferMinutes: 181,
+        },
+      ],
+    });
+
+    expect(lifeShapeResult.success).toBe(false);
+    expect(commitmentResult.success).toBe(false);
+  });
+
+  it('fills missing optional Life Shape fields with safe defaults', () => {
+    const lifeShape = lifeShapeSettingsSchema.parse({});
+
+    expect(lifeShape.usualWorkHours.days).toEqual(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+    expect(lifeShape.usualWorkHours.start).toBe('08:00');
+    expect(lifeShape.usualWorkHours.end).toBe('16:00');
+    expect(lifeShape.commuteMinutes).toBe(0);
+    expect(lifeShape.travelMinutes).toBe(0);
+    expect(lifeShape.fixedCommitments).toEqual([]);
+    expect(lifeShape.transitionBufferMinutes).toBe(10);
+    expect(lifeShape.mealAnchors).toEqual({
+      breakfast: '07:00',
+      lunch: '12:00',
+      dinner: '18:00',
+    });
+    expect(lifeShape.sleepWakeAnchors).toEqual({
+      wake: '06:30',
+      sleep: '21:30',
+    });
+    expect(lifeShape.lowCapacityPreference).toBe('protect-evening');
+  });
+
+  it('does not call storage write APIs during settings validation', () => {
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    const indexedDbDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
+    const setItem = vi.fn();
+    const removeItem = vi.fn();
+    const clear = vi.fn();
+    const indexedDbOpen = vi.fn();
+    const indexedDbDelete = vi.fn();
+
+    try {
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: {
+          clear,
+          removeItem,
+          setItem,
+        },
+      });
+      Object.defineProperty(globalThis, 'indexedDB', {
+        configurable: true,
+        value: {
+          deleteDatabase: indexedDbDelete,
+          open: indexedDbOpen,
+        },
+      });
+
+      settingsSchema.parse({
+        appVersion: '1.4.6',
+        theme: 'grounded',
+        startBoostSafety: {
+          avoidShoppingRewards: true,
+        },
+        lifeShape: {
+          usualWorkHours: {
+            start: '09:00',
+            end: '17:00',
+          },
+        },
+        createdAt: now,
+        updatedAt: now,
+      });
+    } finally {
+      if (localStorageDescriptor) {
+        Object.defineProperty(globalThis, 'localStorage', localStorageDescriptor);
+      } else {
+        Reflect.deleteProperty(globalThis, 'localStorage');
+      }
+      if (indexedDbDescriptor) {
+        Object.defineProperty(globalThis, 'indexedDB', indexedDbDescriptor);
+      } else {
+        Reflect.deleteProperty(globalThis, 'indexedDB');
+      }
+    }
+
+    expect(setItem).not.toHaveBeenCalled();
+    expect(removeItem).not.toHaveBeenCalled();
+    expect(clear).not.toHaveBeenCalled();
+    expect(indexedDbOpen).not.toHaveBeenCalled();
+    expect(indexedDbDelete).not.toHaveBeenCalled();
   });
 
   it('rejects library active tasks without template references', () => {
