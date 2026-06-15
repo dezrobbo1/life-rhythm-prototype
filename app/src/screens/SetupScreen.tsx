@@ -1,7 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, Chip } from '../components';
 import type { ThemeName } from '../app/theme';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
+import type {
+  Settings,
+  SettingsWriteInput,
+  SettingsWriteResult,
+} from '../data/settingsRepository';
 import {
   aboutRows,
   advancedRows,
@@ -12,23 +17,46 @@ import {
   safetyToggles,
   type LifeShapeState,
 } from '../features/setup/mockSetupData';
+import {
+  lifeShapeStateFromSettings,
+  normalizeLifeShapeForm,
+  safetySettingsFromState,
+  safetyStateFromSettings,
+} from '../features/setup/settingsForm';
 import { buildSetupViewModel } from '../viewModels';
 
 type SetupScreenProps = {
+  onResetSettings?: () => Promise<Settings>;
+  onSaveSettings?: (settings: SettingsWriteInput) => Promise<SettingsWriteResult>;
   onThemeChange?: (theme: ThemeName) => void;
+  settings?: Settings;
   theme?: ThemeName;
 };
 
-export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProps = {}) {
+export function SetupScreen({
+  onResetSettings,
+  onSaveSettings,
+  onThemeChange,
+  settings,
+  theme = 'exhale',
+}: SetupScreenProps = {}) {
   const { snapshot } = useAppSnapshot();
   const initialSetupViewModel = useMemo(() => buildSetupViewModel(snapshot), [snapshot]);
   const [localTheme, setLocalTheme] = useState<ThemeName>(theme);
   const [safetyState, setSafetyState] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(Object.entries(initialSetupViewModel.startBoostSafety)),
+    settings ? safetyStateFromSettings(settings) : Object.fromEntries(Object.entries(initialSetupViewModel.startBoostSafety)),
   );
-  const [lifeShape, setLifeShape] = useState<LifeShapeState>(defaultLifeShape);
+  const [lifeShape, setLifeShape] = useState<LifeShapeState>(() => lifeShapeStateFromSettings(settings));
   const [status, setStatus] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  useEffect(() => {
+    if (!settings) return;
+
+    setLocalTheme(settings.theme);
+    setSafetyState(safetyStateFromSettings(settings));
+    setLifeShape(lifeShapeStateFromSettings(settings));
+  }, [settings]);
 
   function toggleSafety(id: string) {
     setSafetyState((current) => ({
@@ -38,11 +66,8 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
   }
 
   function chooseTheme(nextTheme: ThemeName) {
-    if (onThemeChange) {
-      onThemeChange(nextTheme);
-    } else {
-      setLocalTheme(nextTheme);
-    }
+    setLocalTheme(nextTheme);
+    onThemeChange?.(nextTheme);
   }
 
   function updateLifeShape<Key extends keyof LifeShapeState>(key: Key, value: LifeShapeState[Key]) {
@@ -50,7 +75,41 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
       ...current,
       [key]: value,
     }));
-    setStatus('Life shape updated in preview only. These settings do not save yet.');
+    setStatus('Life shape updated. Save settings when ready.');
+  }
+
+  async function saveCurrentSettings() {
+    if (!onSaveSettings) {
+      setStatus('Settings save controls are not connected in this render.');
+      return;
+    }
+
+    try {
+      const result = await onSaveSettings({
+        lifeShape: normalizeLifeShapeForm(lifeShape),
+        startBoostSafety: safetySettingsFromState(safetyState),
+        theme: selectedTheme,
+      });
+
+      setStatus(result.ok ? 'Settings saved on this device.' : 'Settings were not saved. Check work hours and travel numbers.');
+    } catch {
+      setStatus('Settings were not saved. Check work hours and travel numbers.');
+    }
+  }
+
+  async function resetCurrentSettings() {
+    if (!onResetSettings) {
+      setLifeShape(defaultLifeShape);
+      setStatus('Settings reset to defaults for this preview render.');
+      return;
+    }
+
+    const resetSettings = await onResetSettings();
+
+    setLocalTheme(resetSettings.theme);
+    setSafetyState(safetyStateFromSettings(resetSettings));
+    setLifeShape(lifeShapeStateFromSettings(resetSettings));
+    setStatus('Settings reset to defaults on this device.');
   }
 
   const selectedTheme = onThemeChange ? theme : localTheme;
@@ -109,7 +168,7 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
       <Card>
         <div className="setup-section-heading">
           <h2>Life shape</h2>
-          <p>Preview only. These settings do not save yet.</p>
+          <p>Saved on this device when you choose Save settings.</p>
         </div>
         <div className="life-shape-grid">
           <fieldset className="life-shape-fieldset">
@@ -245,13 +304,13 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
             </select>
           </label>
         </div>
-        <p className="setup-note">Preview only. Future planning can use this shape, but nothing saves or schedules yet.</p>
+        <p className="setup-note">Settings only. Future planning can use this shape later, but this does not schedule anything.</p>
       </Card>
 
       <Card>
         <div className="setup-section-heading">
           <h2>Start Boost safety</h2>
-          <p>Mock exclusions for support suggestions. Nothing is saved yet.</p>
+          <p>Safety choices are saved on this device when you choose Save settings.</p>
         </div>
         <div className="setup-toggle-list">
           {safetyToggles.map((toggle) => (
@@ -272,8 +331,20 @@ export function SetupScreen({ onThemeChange, theme = 'exhale' }: SetupScreenProp
 
       <Card>
         <div className="setup-section-heading">
+          <h2>Save settings</h2>
+          <p>Save theme, Start Boost safety, and Life shape only.</p>
+        </div>
+        <div className="setup-action-row">
+          <Button onClick={saveCurrentSettings} variant="primary">Save settings</Button>
+          <Button onClick={resetCurrentSettings}>Reset settings to defaults</Button>
+        </div>
+        <p className="setup-note">This does not save tasks, rhythms, packs, resets, imports, dev tickets, or future modules.</p>
+      </Card>
+
+      <Card>
+        <div className="setup-section-heading">
           <h2>Data and backup</h2>
-          <p>Stored in this browser later. Export before resetting. You control what you share.</p>
+          <p>Settings can be saved on this device. Backup and import stay later-only.</p>
         </div>
         <p className="setup-note">{setupViewModel.dataPreview.copy}</p>
         <div className="setup-action-row">

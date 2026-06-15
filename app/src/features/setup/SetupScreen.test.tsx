@@ -31,7 +31,7 @@ describe('Setup screen', () => {
     render(<SetupScreen />);
 
     expect(screen.getByRole('heading', { name: 'Life shape' })).toBeTruthy();
-    expect(screen.getByText('Preview only. These settings do not save yet.')).toBeTruthy();
+    expect(screen.getByText('Saved on this device when you choose Save settings.')).toBeTruthy();
     expect(screen.getByLabelText('Work starts')).toBeTruthy();
     expect(screen.getByLabelText('Work ends')).toBeTruthy();
     expect(screen.getByLabelText('Commute / travel time')).toBeTruthy();
@@ -45,7 +45,7 @@ describe('Setup screen', () => {
     expect(screen.getByLabelText('Low-capacity day preference')).toBeTruthy();
   });
 
-  it('changes Life shape controls in memory only', async () => {
+  it('changes Life shape controls without saving until Save settings is used', async () => {
     const user = userEvent.setup();
     const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
@@ -68,7 +68,7 @@ describe('Setup screen', () => {
 
     expect((screen.getByLabelText('Commute / travel time') as HTMLInputElement).value).toBe('35');
     expect((screen.getByLabelText('Transition buffer') as HTMLSelectElement).value).toBe('20');
-    expect(screen.getByRole('status').textContent).toContain('Life shape updated in preview only');
+    expect(screen.getByRole('status').textContent).toContain('Life shape updated. Save settings when ready.');
     expect(getItemSpy).not.toHaveBeenCalled();
     expect(setItemSpy).not.toHaveBeenCalled();
     expect(clearSpy).not.toHaveBeenCalled();
@@ -144,6 +144,15 @@ describe('Setup screen', () => {
     expect(screen.getByRole('button', { name: 'Export dev tickets later' })).toBeTruthy();
   });
 
+  it('renders settings-only save and reset controls', () => {
+    render(<SetupScreen />);
+
+    expect(screen.getByRole('heading', { name: 'Save settings' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save settings' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Reset settings to defaults' })).toBeTruthy();
+    expect(screen.getByText('This does not save tasks, rhythms, packs, resets, imports, dev tickets, or future modules.')).toBeTruthy();
+  });
+
   it('renders dev tickets as a local mock entry point', () => {
     render(<SetupScreen />);
 
@@ -160,7 +169,7 @@ describe('Setup screen', () => {
     await user.click(screen.getByRole('button', { name: /Advanced/ }));
 
     expect(screen.getByRole('heading', { name: 'Reset whole app' })).toBeTruthy();
-    expect(screen.getByText('Real reset controls will stay protected and separate. This Setup pass does not clear data.')).toBeTruthy();
+    expect(screen.getByText('Whole-app reset controls will stay protected and separate. Settings reset only affects settings.')).toBeTruthy();
   });
 
   it('renders non-clinical boundary copy', () => {

@@ -120,7 +120,7 @@ export const dataActions: SetupAction[] = [
   {
     id: 'exportBackup',
     label: 'Export backup later',
-    helper: 'Backup export will be wired after real settings and storage are connected.',
+    helper: 'Backup export will be wired after the settings write path is proven.',
   },
   {
     id: 'importBackup',
@@ -143,7 +143,7 @@ export const aboutRows = [
 export const advancedRows = [
   {
     title: 'Reset whole app',
-    body: 'Real reset controls will stay protected and separate. This Setup pass does not clear data.',
+    body: 'Whole-app reset controls will stay protected and separate. Settings reset only affects settings.',
   },
   {
     title: 'Storage migration',
