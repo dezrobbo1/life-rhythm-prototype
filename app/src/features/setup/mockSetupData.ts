@@ -118,11 +118,6 @@ export const safetyToggles: SafetyToggle[] = [
 
 export const dataActions: SetupAction[] = [
   {
-    id: 'exportBackup',
-    label: 'Export backup later',
-    helper: 'Backup export will be wired after the settings write path is proven.',
-  },
-  {
     id: 'importBackup',
     label: 'Import backup later',
     helper: 'Import will stay blocked until validation and recovery paths are ready.',
