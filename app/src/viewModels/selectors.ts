@@ -222,7 +222,7 @@ function toFutureModules(modules: FutureModuleViewModel[] | undefined): FutureMo
 export function buildSetupViewModel(snapshot: AppDataSnapshot = {}): SetupViewModel {
   return {
     dataPreview: {
-      copy: 'Stored in this browser later. Export and import stay preview-only until storage is connected.',
+      copy: 'Settings can be saved on this device. Export and import stay later-only.',
       exportAvailable: false,
       importAvailable: false,
     },
