@@ -34,6 +34,9 @@ describe('five-tab app shell', () => {
     await user.click(within(nav).getByRole('button', { name: 'Setup' }));
     expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Start Boost safety' })).toBeTruthy();
+    expect(document.querySelector('.app-shell')).toBeTruthy();
+    expect(document.querySelector('.app-main')).toBeTruthy();
+    expect(document.querySelector('.bottom-nav')).toBe(nav);
 
     expect(screen.queryByText(/placeholder/i)).toBeNull();
   });
