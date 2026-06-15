@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 const isoDateTime = z.string().min(1, 'Expected an ISO timestamp');
-const timeOfDay = z.string().regex(/^\d{2}:\d{2}$/, 'Expected HH:MM');
+const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:MM');
 
 export const appVersionSchema = z.string().min(1);
 export const idSchema = z.string().min(1);
@@ -77,6 +77,129 @@ export const lateHandlingSchema = z.enum(['moveNext', 'fallback', 'keep', 'ask',
 export const bufferModeSchema = z.enum(['auto', 'none', 'light', 'normal', 'heavy', 'leaving']);
 export const recurrencePeriodSchema = z.enum(['day', 'week', 'month']);
 
+const minuteAmountSchema = z.number().int().min(0).max(480);
+const transitionBufferMinutesSchema = z.number().int().min(0).max(180);
+
+function minutesFromTime(value: string): number {
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+export const startBoostSafetySettingsSchema = z
+  .object({
+    avoidFoodRewards: z.boolean().default(false),
+    avoidShoppingRewards: z.boolean().default(false),
+    avoidScrollingRewards: z.boolean().default(true),
+    avoidUrgencyCountdowns: z.boolean().default(false),
+    avoidAccountabilityPrompts: z.boolean().default(false),
+    avoidStreakPressure: z.boolean().default(true),
+  })
+  .default({});
+
+export const usualWorkHoursSettingsSchema = z
+  .object({
+    days: z.array(dayOfWeekSchema).default(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']),
+    start: timeOfDay.default('08:00'),
+    end: timeOfDay.default('16:00'),
+  })
+  .strict()
+  .superRefine((workHours, context) => {
+    if (minutesFromTime(workHours.start) >= minutesFromTime(workHours.end)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Work end must be later than work start.',
+        path: ['end'],
+      });
+    }
+  });
+
+export const mealAnchorsSettingsSchema = z
+  .object({
+    breakfast: timeOfDay.default('07:00'),
+    lunch: timeOfDay.default('12:00'),
+    dinner: timeOfDay.default('18:00'),
+  })
+  .strict();
+
+export const sleepWakeAnchorsSettingsSchema = z
+  .object({
+    wake: timeOfDay.default('06:30'),
+    sleep: timeOfDay.default('21:30'),
+  })
+  .strict();
+
+export const fixedCommitmentSettingsSchema = z
+  .object({
+    id: idSchema,
+    label: z.string().min(1),
+    days: z.array(dayOfWeekSchema).default([]),
+    start: timeOfDay.optional(),
+    end: timeOfDay.optional(),
+    travelMinutes: minuteAmountSchema.default(0),
+    bufferMinutes: transitionBufferMinutesSchema.default(0),
+  })
+  .strict()
+  .superRefine((commitment, context) => {
+    if (commitment.start && commitment.end && minutesFromTime(commitment.start) >= minutesFromTime(commitment.end)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Fixed commitment end must be later than start.',
+        path: ['end'],
+      });
+    }
+  });
+
+export const lowCapacityPreferenceSchema = z.enum([
+  'protect-evening',
+  'lighter-morning',
+  'minimum-first',
+]);
+
+export const lifeShapeSettingsSchema = z
+  .object({
+    usualWorkHours: usualWorkHoursSettingsSchema.default({
+      days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+      start: '08:00',
+      end: '16:00',
+    }),
+    commuteMinutes: minuteAmountSchema.default(0),
+    travelMinutes: minuteAmountSchema.default(0),
+    fixedCommitments: z.array(fixedCommitmentSettingsSchema).default([]),
+    transitionBufferMinutes: transitionBufferMinutesSchema.default(10),
+    mealAnchors: mealAnchorsSettingsSchema.default({
+      breakfast: '07:00',
+      lunch: '12:00',
+      dinner: '18:00',
+    }),
+    sleepWakeAnchors: sleepWakeAnchorsSettingsSchema.default({
+      wake: '06:30',
+      sleep: '21:30',
+    }),
+    lowCapacityPreference: lowCapacityPreferenceSchema.default('protect-evening'),
+  })
+  .strict()
+  .default({
+    usualWorkHours: {
+      days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+      start: '08:00',
+      end: '16:00',
+    },
+    commuteMinutes: 0,
+    travelMinutes: 0,
+    fixedCommitments: [],
+    transitionBufferMinutes: 10,
+    mealAnchors: {
+      breakfast: '07:00',
+      lunch: '12:00',
+      dinner: '18:00',
+    },
+    sleepWakeAnchors: {
+      wake: '06:30',
+      sleep: '21:30',
+    },
+    lowCapacityPreference: 'protect-evening',
+  });
+
 export const settingsSchema = z
   .object({
     id: idSchema.default('settings'),
@@ -90,16 +213,8 @@ export const settingsSchema = z
     breakfastTime: timeOfDay.default('07:00'),
     lunchTime: timeOfDay.default('12:00'),
     dinnerTime: timeOfDay.default('18:00'),
-    startBoostSafety: z
-      .object({
-        avoidFoodRewards: z.boolean().default(false),
-        avoidShoppingRewards: z.boolean().default(false),
-        avoidScrollingRewards: z.boolean().default(true),
-        avoidUrgencyCountdowns: z.boolean().default(false),
-        avoidAccountabilityPrompts: z.boolean().default(false),
-        avoidStreakPressure: z.boolean().default(true),
-      })
-      .default({}),
+    startBoostSafety: startBoostSafetySettingsSchema,
+    lifeShape: lifeShapeSettingsSchema,
     createdAt: isoDateTime,
     updatedAt: isoDateTime,
   })
@@ -313,6 +428,8 @@ export const appExportSchema = z
   .strict();
 
 export type Settings = z.infer<typeof settingsSchema>;
+export type StartBoostSafetySettings = z.infer<typeof startBoostSafetySettingsSchema>;
+export type LifeShapeSettings = z.infer<typeof lifeShapeSettingsSchema>;
 export type RhythmTemplate = z.infer<typeof rhythmTemplateSchema>;
 export type ActiveTask = z.infer<typeof activeTaskSchema>;
 export type TaskHistory = z.infer<typeof taskHistorySchema>;
@@ -322,4 +439,3 @@ export type StartBoostLog = z.infer<typeof startBoostLogSchema>;
 export type DevTicket = z.infer<typeof devTicketSchema>;
 export type MigrationLog = z.infer<typeof migrationLogSchema>;
 export type AppExport = z.infer<typeof appExportSchema>;
-

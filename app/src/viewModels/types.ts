@@ -145,6 +145,36 @@ export type SafetySettingsViewModel = {
   avoidStreakPressure: boolean;
 };
 
+export type LifeShapeSettingsViewModel = {
+  usualWorkHours: {
+    days: string[];
+    start: string;
+    end: string;
+  };
+  commuteMinutes: number;
+  travelMinutes: number;
+  fixedCommitments: Array<{
+    id: string;
+    label: string;
+    days: string[];
+    start?: string;
+    end?: string;
+    travelMinutes: number;
+    bufferMinutes: number;
+  }>;
+  transitionBufferMinutes: number;
+  mealAnchors: {
+    breakfast: string;
+    lunch: string;
+    dinner: string;
+  };
+  sleepWakeAnchors: {
+    wake: string;
+    sleep: string;
+  };
+  lowCapacityPreference: 'protect-evening' | 'lighter-morning' | 'minimum-first';
+};
+
 export type FutureModuleId =
   | 'rhythm-food'
   | 'rhythm-move'
@@ -241,6 +271,7 @@ export type SnapshotResetAction = ResetActionViewModel & {
 export type SnapshotSettings = {
   theme?: ThemeName;
   startBoostSafety?: Partial<SafetySettingsViewModel>;
+  lifeShape?: LifeShapeSettingsViewModel;
 };
 
 export type AppDataSnapshot = {
