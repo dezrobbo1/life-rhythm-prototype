@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { Button, Card, EmptyState } from '../components';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
+import {
+  parseLibraryRhythmBackupJson,
+  type LibraryRhythmBackupPreview,
+} from '../data/libraryRhythmBackup';
 import {
   exportLibraryRhythmBackup,
   type LibraryRhythmBackupExport,
@@ -238,6 +242,9 @@ export function LibraryScreen() {
   const [confirmation, setConfirmation] = useState('');
   const [createRhythmOpen, setCreateRhythmOpen] = useState(false);
   const [previewPackId, setPreviewPackId] = useState<string | null>(null);
+  const [backupJson, setBackupJson] = useState('');
+  const [backupPreview, setBackupPreview] = useState<LibraryRhythmBackupPreview | null>(null);
+  const [backupErrors, setBackupErrors] = useState<string[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -312,6 +319,38 @@ export function LibraryScreen() {
     setConfirmation('Library rhythms backup created on this device.');
   }
 
+  function checkLibraryRhythmBackup() {
+    const result = parseLibraryRhythmBackupJson(backupJson);
+
+    if (result.ok) {
+      setBackupErrors([]);
+      setBackupPreview(result.preview);
+      setConfirmation('Library rhythms backup looks valid. Restore is not connected yet.');
+      return;
+    }
+
+    setBackupErrors(result.errors);
+    setBackupPreview(null);
+    setConfirmation('This Library rhythms backup could not be used.');
+  }
+
+  async function readLibraryRhythmBackupFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+
+    if (!file) return;
+
+    try {
+      setBackupJson(await file.text());
+      setBackupErrors([]);
+      setBackupPreview(null);
+      setConfirmation('Library rhythms backup loaded. Choose Check Library rhythms backup.');
+    } catch {
+      setBackupErrors(['backup: Library rhythms backup file could not be read.']);
+      setBackupPreview(null);
+      setConfirmation('This Library rhythms backup could not be used.');
+    }
+  }
+
   async function saveCreatedRhythm(input: CreateRhythmInput): Promise<boolean> {
     let result;
 
@@ -361,6 +400,69 @@ export function LibraryScreen() {
             <Button onClick={exportSavedLibraryRhythms}>Export Library rhythms backup</Button>
             <Button disabled>Create pack later</Button>
           </div>
+        </section>
+      </Card>
+
+      <Card>
+        <section aria-labelledby="library-backup-check-title" className="library-backup-checker">
+          <div className="library-subheading">
+            <h2 id="library-backup-check-title">Check Library rhythms backup</h2>
+            <p>Checking a backup does not change anything on this device. Restore is not connected yet.</p>
+          </div>
+          <label className="library-backup-field">
+            <span>Library rhythm backup JSON</span>
+            <textarea
+              aria-label="Library rhythm backup JSON"
+              onChange={(event) => {
+                setBackupJson(event.target.value);
+                setBackupErrors([]);
+                setBackupPreview(null);
+              }}
+              placeholder="Paste a Library rhythms backup JSON file here."
+              rows={6}
+              value={backupJson}
+            />
+            <small>This checks saved custom Library rhythm backups only. It does not restore rhythms.</small>
+          </label>
+          <div className="library-backup-actions">
+            <label className="library-file-picker">
+              <span>Select Library backup file</span>
+              <input
+                accept="application/json,.json"
+                aria-label="Select Library backup file"
+                onChange={readLibraryRhythmBackupFile}
+                type="file"
+              />
+            </label>
+            <Button onClick={checkLibraryRhythmBackup}>Check Library rhythms backup</Button>
+          </div>
+          {backupPreview ? (
+            <dl aria-label="Library rhythm backup preview" className="library-backup-preview">
+              <div>
+                <dt>Rhythms</dt>
+                <dd>{backupPreview.rhythmCount}</dd>
+              </div>
+              <div>
+                <dt>Created</dt>
+                <dd>{backupPreview.exportedAt}</dd>
+              </div>
+              <div>
+                <dt>Titles</dt>
+                <dd>{backupPreview.rhythmTitles.join(', ') || 'No rhythm titles in backup.'}</dd>
+              </div>
+            </dl>
+          ) : null}
+          {backupErrors.length > 0 ? (
+            <div className="library-validation-summary">
+              <strong>Backup check notes</strong>
+              <p>Nothing changed on this device. The first items to review are below.</p>
+              <ul aria-label="Library rhythm backup errors" className="library-validation-list">
+                {backupErrors.slice(0, 3).map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
       </Card>
 
