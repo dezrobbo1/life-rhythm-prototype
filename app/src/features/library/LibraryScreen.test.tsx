@@ -3,7 +3,11 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { libraryRhythmBackupSchema } from '../../data/libraryRhythmBackup';
+import {
+  buildLibraryRhythmBackupPayload,
+  libraryRhythmBackupSchema,
+  serializeLibraryRhythmBackup,
+} from '../../data/libraryRhythmBackup';
 import { rhythmTemplateSchema, type RhythmTemplate } from '../../data/schemas';
 
 const libraryRepositoryMocks = vi.hoisted(() => ({
@@ -39,6 +43,18 @@ function savedRhythmTemplate(overrides: Partial<RhythmTemplate> = {}): RhythmTem
     updatedAt: '2026-06-16T00:00:00.000Z',
     ...overrides,
   });
+}
+
+function validLibraryBackupJson(overrides: Partial<RhythmTemplate> = {}) {
+  return serializeLibraryRhythmBackup(
+    buildLibraryRhythmBackupPayload([
+      savedRhythmTemplate({
+        id: 'custom-backup-paperwork',
+        title: 'Backup paperwork rhythm',
+        ...overrides,
+      }),
+    ], '2026-06-16T00:00:00.000Z'),
+  );
 }
 
 const originalCreateObjectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
@@ -239,6 +255,138 @@ describe('Library screen', () => {
     expect(screen.getByRole('status').textContent).toContain('No saved custom rhythms to export yet.');
     expect(createObjectUrl).not.toHaveBeenCalled();
     expect(anchorClick).not.toHaveBeenCalled();
+  });
+
+  it('renders the Library rhythm backup checker UI', () => {
+    render(<LibraryScreen />);
+
+    expect(screen.getByRole('heading', { name: 'Check Library rhythms backup' })).toBeTruthy();
+    expect(screen.getByLabelText('Library rhythm backup JSON')).toBeTruthy();
+    expect(screen.getByLabelText('Select Library backup file')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Check Library rhythms backup' })).toBeTruthy();
+    expect(screen.getByText('Checking a backup does not change anything on this device. Restore is not connected yet.')).toBeTruthy();
+  });
+
+  it('validates pasted Library backup JSON and shows a preview without saving', async () => {
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    fireEvent.change(screen.getByLabelText('Library rhythm backup JSON'), {
+      target: { value: validLibraryBackupJson() },
+    });
+    await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid. Restore is not connected yet.');
+    const preview = screen.getByLabelText('Library rhythm backup preview');
+    expect(within(preview).getByText('1')).toBeTruthy();
+    expect(within(preview).getByText('Backup paperwork rhythm')).toBeTruthy();
+    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
+  });
+
+  it('shows invalid pasted JSON feedback without changing Library rhythms', async () => {
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    expect(screen.queryByRole('article', { name: 'Backup paperwork rhythm' })).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Library rhythm backup JSON'), {
+      target: { value: '{ not json' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('This Library rhythms backup could not be used.');
+    expect(screen.getByRole('list', { name: 'Library rhythm backup errors' }).textContent).toContain('malformed');
+    expect(screen.queryByRole('article', { name: 'Backup paperwork rhythm' })).toBeNull();
+    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
+  });
+
+  it('validates a selected Library backup file', async () => {
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    await user.upload(
+      screen.getByLabelText('Select Library backup file'),
+      new File([validLibraryBackupJson()], 'library-backup.json', { type: 'application/json' }),
+    );
+    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup loaded. Choose Check Library rhythms backup.');
+
+    await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid. Restore is not connected yet.');
+    expect(screen.getByLabelText('Library rhythm backup preview').textContent).toContain('Backup paperwork rhythm');
+  });
+
+  it('shows invalid feedback for a selected malformed Library backup file', async () => {
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    await user.upload(
+      screen.getByLabelText('Select Library backup file'),
+      new File(['{ no'], 'library-backup.json', { type: 'application/json' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('This Library rhythms backup could not be used.');
+    expect(screen.getByRole('list', { name: 'Library rhythm backup errors' }).textContent).toContain('malformed');
+  });
+
+  it('checks Library backups without Dexie writes or localStorage use', async () => {
+    const originalIndexedDb = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
+    const indexedDB = {
+      deleteDatabase: vi.fn(() => {
+        throw new Error('IndexedDB must not be changed');
+      }),
+      open: vi.fn(() => {
+        throw new Error('IndexedDB must not be opened');
+      }),
+    };
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const user = userEvent.setup();
+
+    Object.defineProperty(globalThis, 'indexedDB', {
+      configurable: true,
+      value: indexedDB,
+    });
+
+    try {
+      render(<LibraryScreen />);
+      fireEvent.change(screen.getByLabelText('Library rhythm backup JSON'), {
+        target: { value: validLibraryBackupJson() },
+      });
+      await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
+
+      expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid.');
+      expect(indexedDB.open).not.toHaveBeenCalled();
+      expect(indexedDB.deleteDatabase).not.toHaveBeenCalled();
+      expect(getItemSpy).not.toHaveBeenCalled();
+      expect(setItemSpy).not.toHaveBeenCalled();
+      expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
+    } finally {
+      if (originalIndexedDb) {
+        Object.defineProperty(globalThis, 'indexedDB', originalIndexedDb);
+      } else {
+        Reflect.deleteProperty(globalThis, 'indexedDB');
+      }
+    }
+  });
+
+  it('checks Library backups without affecting enablement state', async () => {
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    const card = screen.getByRole('article', { name: 'Breakfast reset' });
+    await user.click(within(card).getByRole('button', { name: 'Enable rhythm' }));
+
+    expect(within(card).getByText('Enabled')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Library rhythm backup JSON'), {
+      target: { value: validLibraryBackupJson() },
+    });
+    await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
+
+    expect(within(card).getByText('Enabled')).toBeTruthy();
+    expect(within(card).getByRole('button', { name: 'Disable rhythm' })).toBeTruthy();
   });
 
   it('keeps the Create rhythm modal open with entered values when save fails', async () => {
