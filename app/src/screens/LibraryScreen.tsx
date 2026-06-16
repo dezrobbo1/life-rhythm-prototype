@@ -276,13 +276,20 @@ export function LibraryScreen() {
     setConfirmation(`${pack.rhythmIds.length} rhythms enabled. Today only shows what fits.`);
   }
 
-  async function saveCreatedRhythm(input: CreateRhythmInput) {
-    const candidate = templateFromCreatedRhythm(input);
-    const result = await saveCustomLibraryRhythm(candidate);
+  async function saveCreatedRhythm(input: CreateRhythmInput): Promise<boolean> {
+    let result;
+
+    try {
+      const candidate = templateFromCreatedRhythm(input);
+      result = await saveCustomLibraryRhythm(candidate);
+    } catch {
+      setConfirmation('Rhythm was not saved. Check the required fields.');
+      return false;
+    }
 
     if (!result.ok) {
       setConfirmation('Rhythm was not saved. Check the required fields.');
-      return;
+      return false;
     }
 
     const rhythm = rhythmFromTemplate(result.rhythm, input.enabled);
@@ -293,6 +300,7 @@ export function LibraryScreen() {
     setSearchTerm('');
     setConfirmation('Rhythm saved to Library on this device. Enablement and Add to Today are still preview-only.');
     setCreateRhythmOpen(false);
+    return true;
   }
 
   return (

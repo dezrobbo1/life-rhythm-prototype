@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { rhythmTemplateSchema, type RhythmTemplate } from '../../data/schemas';
@@ -55,6 +55,14 @@ afterEach(() => {
 });
 
 describe('Library screen', () => {
+  async function fillCreateRhythmForm(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: 'Create rhythm' }));
+    await user.type(screen.getByLabelText('Rhythm title'), 'Paperwork landing');
+    await user.selectOptions(screen.getByLabelText('Category'), 'Money');
+    await user.type(screen.getByLabelText('Purpose'), 'Give loose paperwork one safe place.');
+    await user.type(screen.getByLabelText('Minimum version'), 'Put one paper in the folder.');
+  }
+
   it('renders library categories', () => {
     render(<LibraryScreen />);
 
@@ -134,11 +142,7 @@ describe('Library screen', () => {
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
     render(<LibraryScreen />);
 
-    await user.click(screen.getByRole('button', { name: 'Create rhythm' }));
-    await user.type(screen.getByLabelText('Rhythm title'), 'Paperwork landing');
-    await user.selectOptions(screen.getByLabelText('Category'), 'Money');
-    await user.type(screen.getByLabelText('Purpose'), 'Give loose paperwork one safe place.');
-    await user.type(screen.getByLabelText('Minimum version'), 'Put one paper in the folder.');
+    await fillCreateRhythmForm(user);
     await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Create rhythm' })).toBeNull());
@@ -153,6 +157,55 @@ describe('Library screen', () => {
       title: 'Paperwork landing',
     });
     expect(setItemSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps the Create rhythm modal open with entered values when save fails', async () => {
+    libraryRepositoryMocks.saveCustomLibraryRhythm.mockResolvedValueOnce({
+      errors: ['id: A Library rhythm with this ID already exists.'],
+      ok: false,
+    });
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    await fillCreateRhythmForm(user);
+    await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Rhythm was not saved. Check the required fields.');
+    expect(screen.getByRole('dialog', { name: 'Create rhythm' })).toBeTruthy();
+    expect((screen.getByLabelText('Rhythm title') as HTMLInputElement).value).toBe('Paperwork landing');
+    expect((screen.getByLabelText('Purpose') as HTMLInputElement).value).toBe('Give loose paperwork one safe place.');
+    expect((screen.getByLabelText('Minimum version') as HTMLInputElement).value).toBe('Put one paper in the folder.');
+    expect(screen.getByRole('status').textContent).toContain('Rhythm was not saved. Check the required fields.');
+    expect(screen.queryByRole('article', { name: 'Paperwork landing' })).toBeNull();
+  });
+
+  it('prevents duplicate Create rhythm saves while saving', async () => {
+    let finishSave: (() => void) | undefined;
+    libraryRepositoryMocks.saveCustomLibraryRhythm.mockImplementationOnce(
+      async (rhythm: unknown) =>
+        new Promise((resolve) => {
+          finishSave = () => resolve({
+            ok: true,
+            rhythm: rhythmTemplateSchema.parse(rhythm),
+          });
+        }),
+    );
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    await fillCreateRhythmForm(user);
+    const saveButton = screen.getByRole('button', { name: 'Save rhythm' });
+
+    fireEvent.click(saveButton);
+    fireEvent.click(saveButton);
+
+    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).toHaveBeenCalledTimes(1);
+    expect((screen.getByRole('button', { name: 'Saving rhythm...' }) as HTMLButtonElement).disabled).toBe(true);
+
+    finishSave?.();
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Create rhythm' })).toBeNull());
+    expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
   });
 
   it('reloads saved custom rhythms from the repository', async () => {
@@ -182,11 +235,7 @@ describe('Library screen', () => {
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: 'Library' }));
-    await user.click(screen.getByRole('button', { name: 'Create rhythm' }));
-    await user.type(screen.getByLabelText('Rhythm title'), 'Paperwork landing');
-    await user.selectOptions(screen.getByLabelText('Category'), 'Money');
-    await user.type(screen.getByLabelText('Purpose'), 'Give loose paperwork one safe place.');
-    await user.type(screen.getByLabelText('Minimum version'), 'Put one paper in the folder.');
+    await fillCreateRhythmForm(user);
     await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
 
     await waitFor(() => expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy());
