@@ -1,16 +1,59 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { themeBackgrounds } from '../../app/theme';
+import { buildSettingsBackupPayload } from '../../data/settingsExport';
+import { settingsSchema } from '../../data/schemas';
 import { SetupScreen } from '../../screens/SetupScreen';
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
+
+function validSettingsBackupJson() {
+  const settings = settingsSchema.parse({
+    appVersion: '1.4.6',
+    createdAt: '2026-06-15T00:00:00.000Z',
+    id: 'settings',
+    lifeShape: {
+      commuteMinutes: 20,
+      fixedCommitments: [],
+      lowCapacityPreference: 'protect-evening',
+      mealAnchors: {
+        breakfast: '07:30',
+        dinner: '18:30',
+        lunch: '12:30',
+      },
+      sleepWakeAnchors: {
+        sleep: '22:00',
+        wake: '06:30',
+      },
+      transitionBufferMinutes: 10,
+      travelMinutes: 20,
+      usualWorkHours: {
+        days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+        end: '16:30',
+        start: '09:00',
+      },
+    },
+    startBoostSafety: {
+      avoidAccountabilityPrompts: false,
+      avoidFoodRewards: false,
+      avoidScrollingRewards: true,
+      avoidShoppingRewards: true,
+      avoidStreakPressure: true,
+      avoidUrgencyCountdowns: true,
+    },
+    theme: 'clear',
+    updatedAt: '2026-06-15T01:00:00.000Z',
+  });
+
+  return JSON.stringify(buildSettingsBackupPayload(settings, '2026-06-16T00:00:00.000Z'));
+}
 
 describe('Setup screen', () => {
   it('renders all setup sections', () => {
@@ -149,6 +192,41 @@ describe('Setup screen', () => {
     expect(clearSpy).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Import backup later' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Export dev tickets later' })).toBeTruthy();
+  });
+
+  it('shows valid settings backup preview feedback', async () => {
+    const user = userEvent.setup();
+    render(<SetupScreen />);
+
+    fireEvent.change(screen.getByLabelText('Settings backup JSON'), {
+      target: {
+        value: validSettingsBackupJson(),
+      },
+    });
+    await user.click(screen.getByRole('button', { name: 'Check settings backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('Settings backup looks valid. Restore is not connected yet.');
+    expect(screen.getByText('Theme')).toBeTruthy();
+    expect(screen.getByText('clear')).toBeTruthy();
+    expect(screen.getByText('4 safety choices on')).toBeTruthy();
+    expect(screen.getByText('09:00-16:30, 10 min buffer')).toBeTruthy();
+    expect(screen.getByText('Checking a backup does not change anything on this device.')).toBeTruthy();
+  });
+
+  it('shows invalid settings backup feedback', async () => {
+    const user = userEvent.setup();
+    render(<SetupScreen />);
+
+    fireEvent.change(screen.getByLabelText('Settings backup JSON'), {
+      target: {
+        value: '{ not json',
+      },
+    });
+    await user.click(screen.getByRole('button', { name: 'Check settings backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('This settings backup could not be used.');
+    expect(screen.getByRole('list', { name: 'Settings backup errors' })).toBeTruthy();
+    expect(screen.getByText('backup: Settings backup JSON is malformed.')).toBeTruthy();
   });
 
   it('renders settings-only save and reset controls', () => {

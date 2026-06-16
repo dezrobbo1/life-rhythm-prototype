@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { settingsSchema, type Settings } from '../data/schemas';
+import { buildSettingsBackupPayload } from '../data/settingsExport';
 import type { SettingsWriteInput } from '../data/settingsRepository';
 
 const settingsMocks = vi.hoisted(() => ({
@@ -200,5 +201,26 @@ describe('App settings persistence wiring', () => {
     expect(createObjectUrl).toHaveBeenCalledTimes(1);
     expect(anchorClick).toHaveBeenCalledTimes(1);
     expect(revokeObjectUrl).toHaveBeenCalledWith('blob:settings-backup');
+  });
+
+  it('checks a settings backup without saving or resetting settings', async () => {
+    settingsMocks.loadSettings.mockResolvedValue(makeSettings());
+    const backupJson = JSON.stringify(buildSettingsBackupPayload(makeSettings({ theme: 'clear' }), '2026-06-16T00:00:00.000Z'));
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    fireEvent.change(screen.getByLabelText('Settings backup JSON'), {
+      target: {
+        value: backupJson,
+      },
+    });
+    await user.click(screen.getByRole('button', { name: 'Check settings backup' }));
+
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Settings backup looks valid. Restore is not connected yet.'));
+    expect(settingsMocks.saveSettings).not.toHaveBeenCalled();
+    expect(settingsMocks.resetSettingsToDefaults).not.toHaveBeenCalled();
+    expect(settingsExportMocks.exportSettingsBackup).not.toHaveBeenCalled();
   });
 });
