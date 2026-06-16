@@ -1,9 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, EmptyState } from '../components';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import {
+  loadCustomLibraryRhythms,
+  saveCustomLibraryRhythm,
+} from '../data/libraryRhythmRepository';
+import { rhythmTemplateSchema, type RhythmTemplate } from '../data/schemas';
+import {
   CreateRhythmModal,
-  createMockLibraryRhythm,
   type CreateRhythmInput,
 } from '../features/library/CreateRhythmModal';
 import { LibraryRhythmCard } from '../features/library/LibraryRhythmCard';
@@ -22,6 +26,54 @@ import {
   type LibraryRhythmViewModel,
   type SnapshotRhythmTemplate,
 } from '../viewModels';
+
+type RhythmArea = RhythmTemplate['area'];
+type RhythmTaskType = RhythmTemplate['taskType'];
+
+const categoryToArea: Record<LibraryRhythm['category'], RhythmArea> = {
+  'Anti-scroll': 'antidrift',
+  'Emotional recovery': 'emotion',
+  Food: 'food',
+  Household: 'house',
+  Money: 'money',
+  Motivation: 'other',
+  Movement: 'movement',
+  'Sensory load': 'sensory',
+  Sleep: 'health',
+  'Social support': 'social',
+  'Start Boost': 'other',
+  'Work focus': 'work',
+};
+
+const areaToCategory: Record<RhythmArea, LibraryRhythm['category']> = {
+  admin: 'Household',
+  antidrift: 'Anti-scroll',
+  emotion: 'Emotional recovery',
+  food: 'Food',
+  health: 'Sleep',
+  house: 'Household',
+  money: 'Money',
+  movement: 'Movement',
+  other: 'Motivation',
+  sensory: 'Sensory load',
+  social: 'Social support',
+  work: 'Work focus',
+};
+
+const areaToTaskType: Record<RhythmArea, RhythmTaskType> = {
+  admin: 'admin',
+  antidrift: 'simple',
+  emotion: 'emotion',
+  food: 'food',
+  health: 'simple',
+  house: 'house',
+  money: 'admin',
+  movement: 'exercise',
+  other: 'simple',
+  sensory: 'sensory',
+  social: 'social',
+  work: 'work',
+};
 
 function toSnapshotRhythm(rhythm: LibraryRhythm): SnapshotRhythmTemplate {
   return {
@@ -63,6 +115,84 @@ function rhythmFromViewModel(rhythm: LibraryRhythmViewModel): LibraryRhythm {
   };
 }
 
+function safeSlug(value: string) {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32);
+
+  return slug || 'rhythm';
+}
+
+function randomIdSegment() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}`;
+}
+
+function templateFromCreatedRhythm(input: CreateRhythmInput): RhythmTemplate {
+  const timestamp = new Date().toISOString();
+  const area = categoryToArea[input.category];
+
+  return rhythmTemplateSchema.parse({
+    area,
+    createdAt: timestamp,
+    enabled: false,
+    full: {
+      label: input.fullVersion || input.normalVersion || input.minimumVersion,
+      minutes: 20,
+    },
+    id: `custom-${safeSlug(input.title)}-${randomIdSegment()}`,
+    kind: 'repeating',
+    minimum: {
+      label: input.minimumVersion,
+      minutes: 5,
+    },
+    normal: {
+      label: input.normalVersion || input.minimumVersion,
+      minutes: 10,
+    },
+    purpose: input.purpose,
+    source: 'custom',
+    taskType: areaToTaskType[area],
+    title: input.title,
+    updatedAt: timestamp,
+  });
+}
+
+function rhythmFromTemplate(template: RhythmTemplate, sessionEnabled = false): LibraryRhythm {
+  const category = areaToCategory[template.area] ?? 'Motivation';
+
+  return {
+    boundaryNote: 'Saved custom rhythms stay reusable. Enablement and Add to Today are preview-only for now.',
+    category,
+    categoryNote: 'Keep this rhythm optional, reusable, and small enough to return to.',
+    chips: ['Custom', 'Saved'],
+    enabled: sessionEnabled,
+    fullVersion: template.full.label,
+    id: template.id,
+    minimumVersion: template.minimum.label,
+    normalVersion: template.normal.label,
+    packIds: [],
+    purpose: template.purpose ?? 'Reusable support for later planning.',
+    recommendedSize: `${template.minimum.minutes}-${template.normal.minutes} min`,
+    title: template.title,
+    whyThisExists: 'This custom rhythm was created by you and saved on this device.',
+  };
+}
+
+function mergeRhythms(current: LibraryRhythm[], additions: LibraryRhythm[]) {
+  const existingIds = new Set(current.map((rhythm) => rhythm.id));
+
+  return [
+    ...additions.filter((rhythm) => !existingIds.has(rhythm.id)),
+    ...current,
+  ];
+}
+
 export function LibraryScreen() {
   const { snapshot } = useAppSnapshot();
   const initialLibraryViewModel = useMemo(
@@ -84,6 +214,26 @@ export function LibraryScreen() {
   const [confirmation, setConfirmation] = useState('');
   const [createRhythmOpen, setCreateRhythmOpen] = useState(false);
   const [previewPackId, setPreviewPackId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    loadCustomLibraryRhythms().then((savedRhythms) => {
+      if (!active || savedRhythms.length === 0) return;
+
+      const loadedRhythms = savedRhythms.map((rhythm) => rhythmFromTemplate(rhythm, false));
+
+      setLibraryRhythms((current) => mergeRhythms(current, loadedRhythms));
+      setEnabledById((current) => ({
+        ...Object.fromEntries(loadedRhythms.map((rhythm) => [rhythm.id, false])),
+        ...current,
+      }));
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const filteredRhythms = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -126,14 +276,22 @@ export function LibraryScreen() {
     setConfirmation(`${pack.rhythmIds.length} rhythms enabled. Today only shows what fits.`);
   }
 
-  function saveCreatedRhythm(input: CreateRhythmInput) {
-    const rhythm = createMockLibraryRhythm(input);
+  async function saveCreatedRhythm(input: CreateRhythmInput) {
+    const candidate = templateFromCreatedRhythm(input);
+    const result = await saveCustomLibraryRhythm(candidate);
 
-    setLibraryRhythms((current) => [rhythm, ...current]);
-    setEnabledById((current) => ({ ...current, [rhythm.id]: rhythm.enabled }));
+    if (!result.ok) {
+      setConfirmation('Rhythm was not saved. Check the required fields.');
+      return;
+    }
+
+    const rhythm = rhythmFromTemplate(result.rhythm, input.enabled);
+
+    setLibraryRhythms((current) => mergeRhythms(current, [rhythm]));
+    setEnabledById((current) => ({ ...current, [rhythm.id]: input.enabled }));
     setActiveCategory(rhythm.category);
     setSearchTerm('');
-    setConfirmation('Rhythm created in preview only.');
+    setConfirmation('Rhythm saved to Library on this device. Enablement and Add to Today are still preview-only.');
     setCreateRhythmOpen(false);
   }
 

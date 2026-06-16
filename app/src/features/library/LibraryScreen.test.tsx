@@ -1,13 +1,56 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { rhythmTemplateSchema, type RhythmTemplate } from '../../data/schemas';
+
+const libraryRepositoryMocks = vi.hoisted(() => ({
+  loadCustomLibraryRhythms: vi.fn(),
+  saveCustomLibraryRhythm: vi.fn(),
+}));
+
+vi.mock('../../data/libraryRhythmRepository', () => libraryRepositoryMocks);
+
 import App from '../../App';
 import { LibraryScreen } from '../../screens/LibraryScreen';
 
+function savedRhythmTemplate(overrides: Partial<RhythmTemplate> = {}): RhythmTemplate {
+  return rhythmTemplateSchema.parse({
+    area: 'money',
+    createdAt: '2026-06-16T00:00:00.000Z',
+    full: {
+      label: 'Put papers together and name the next admin step.',
+      minutes: 20,
+    },
+    id: 'custom-paperwork-landing',
+    minimum: {
+      label: 'Put one paper in the folder.',
+      minutes: 5,
+    },
+    normal: {
+      label: 'Put the loose papers in one safe place.',
+      minutes: 10,
+    },
+    purpose: 'Give loose paperwork one safe place.',
+    source: 'custom',
+    title: 'Paperwork landing',
+    updatedAt: '2026-06-16T00:00:00.000Z',
+    ...overrides,
+  });
+}
+
+beforeEach(() => {
+  libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue([]);
+  libraryRepositoryMocks.saveCustomLibraryRhythm.mockImplementation(async (rhythm: unknown) => ({
+    ok: true,
+    rhythm: rhythmTemplateSchema.parse(rhythm),
+  }));
+});
+
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   vi.restoreAllMocks();
 });
 
@@ -67,6 +110,7 @@ describe('Library screen', () => {
     await user.click(within(card).getByRole('button', { name: 'Add to Today now' }));
 
     expect(screen.getByRole('status').textContent).toContain('Nothing was saved or created.');
+    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
     expect(setItemSpy).not.toHaveBeenCalled();
   });
 
@@ -77,7 +121,7 @@ describe('Library screen', () => {
     await user.click(screen.getByRole('button', { name: 'Create rhythm' }));
 
     expect(screen.getByRole('dialog', { name: 'Create rhythm' })).toBeTruthy();
-    expect(screen.getByText('Reusable rhythm. Preview only; not saved yet.')).toBeTruthy();
+    expect(screen.getByText('Reusable rhythm. Saved on this device. Enablement and Add to Today are preview-only.')).toBeTruthy();
     expect(screen.getByLabelText('Rhythm title')).toBeTruthy();
     expect(screen.getByLabelText('Category')).toBeTruthy();
     expect(screen.getByLabelText('Purpose')).toBeTruthy();
@@ -85,7 +129,7 @@ describe('Library screen', () => {
     expect(screen.getByRole('checkbox', { name: /Enabled/ })).toBeTruthy();
   });
 
-  it('saves a created rhythm into the in-memory Library only', async () => {
+  it('saves a created rhythm through the custom Library rhythm repository', async () => {
     const user = userEvent.setup();
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
     render(<LibraryScreen />);
@@ -97,11 +141,40 @@ describe('Library screen', () => {
     await user.type(screen.getByLabelText('Minimum version'), 'Put one paper in the folder.');
     await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
 
-    expect(screen.queryByRole('dialog', { name: 'Create rhythm' })).toBeNull();
-    expect(screen.getByRole('status').textContent).toContain('Rhythm created in preview only.');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Create rhythm' })).toBeNull());
+    expect(screen.getByRole('status').textContent).toContain('Rhythm saved to Library on this device.');
+    expect(screen.getByRole('status').textContent).toContain('Enablement and Add to Today are still preview-only.');
     expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Money' }).getAttribute('aria-pressed')).toBe('true');
+    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).toHaveBeenCalledTimes(1);
+    expect(libraryRepositoryMocks.saveCustomLibraryRhythm.mock.calls[0][0]).toMatchObject({
+      area: 'money',
+      source: 'custom',
+      title: 'Paperwork landing',
+    });
     expect(setItemSpy).not.toHaveBeenCalled();
+  });
+
+  it('reloads saved custom rhythms from the repository', async () => {
+    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue([savedRhythmTemplate()]);
+
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    const card = await screen.findByRole('article', { name: 'Paperwork landing' });
+    await user.click(within(card).getByRole('button', { name: 'Details' }));
+
+    expect(within(card).getByText('This custom rhythm was created by you and saved on this device.')).toBeTruthy();
+  });
+
+  it('does not restore Library enablement as persisted state', async () => {
+    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue([savedRhythmTemplate({ enabled: true })]);
+
+    render(<LibraryScreen />);
+
+    const card = await screen.findByRole('article', { name: 'Paperwork landing' });
+    expect(within(card).getByText('Disabled')).toBeTruthy();
+    expect(within(card).getByRole('button', { name: 'Enable rhythm' })).toBeTruthy();
   });
 
   it('does not add a created rhythm to Today', async () => {
@@ -116,7 +189,7 @@ describe('Library screen', () => {
     await user.type(screen.getByLabelText('Minimum version'), 'Put one paper in the folder.');
     await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
 
-    expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy());
 
     await user.click(screen.getByRole('button', { name: 'Today' }));
 
