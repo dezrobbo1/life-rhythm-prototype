@@ -1626,6 +1626,17 @@ textarea:focus-visible {
   gap: var(--space-3);
 }
 
+.form-feedback {
+  background: color-mix(in srgb, var(--color-chip) 60%, transparent);
+  border: 1px solid var(--color-line);
+  border-radius: 0.85rem;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-weight: 750;
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+}
+
 .modal-backdrop {
   align-items: end;
   background: rgb(19 35 47 / 35%);

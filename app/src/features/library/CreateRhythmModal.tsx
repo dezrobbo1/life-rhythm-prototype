@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button, Modal } from '../../components';
 import { libraryCategories, type LibraryRhythm, type RhythmCategory } from './mockLibraryData';
 
@@ -14,7 +14,7 @@ export type CreateRhythmInput = {
 
 type CreateRhythmModalProps = {
   onClose: () => void;
-  onSave: (rhythm: CreateRhythmInput) => Promise<void> | void;
+  onSave: (rhythm: CreateRhythmInput) => Promise<boolean> | boolean;
   open: boolean;
 };
 
@@ -48,6 +48,9 @@ export function CreateRhythmModal({ onClose, onSave, open }: CreateRhythmModalPr
   const [fullVersion, setFullVersion] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const savingRef = useRef(false);
   const canSave =
     title.trim().length > 0 &&
     purpose.trim().length > 0 &&
@@ -62,21 +65,39 @@ export function CreateRhythmModal({ onClose, onSave, open }: CreateRhythmModalPr
     setFullVersion('');
     setEnabled(true);
     setVersionsOpen(false);
+    setSaveError('');
   }
 
-  function saveRhythm() {
-    if (!canSave) return;
+  async function saveRhythm() {
+    if (!canSave || savingRef.current) return;
 
-    onSave({
-      category,
-      enabled,
-      fullVersion: fullVersion.trim(),
-      minimumVersion: minimumVersion.trim(),
-      normalVersion: normalVersion.trim(),
-      purpose: purpose.trim(),
-      title: title.trim(),
-    });
-    resetForm();
+    savingRef.current = true;
+    setSaving(true);
+    setSaveError('');
+
+    try {
+      const saved = await onSave({
+        category,
+        enabled,
+        fullVersion: fullVersion.trim(),
+        minimumVersion: minimumVersion.trim(),
+        normalVersion: normalVersion.trim(),
+        purpose: purpose.trim(),
+        title: title.trim(),
+      });
+
+      if (saved) {
+        resetForm();
+        return;
+      }
+
+      setSaveError('Rhythm was not saved. Check the required fields.');
+    } catch {
+      setSaveError('Rhythm was not saved. Check the required fields.');
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   }
 
   function closeModal() {
@@ -138,8 +159,11 @@ export function CreateRhythmModal({ onClose, onSave, open }: CreateRhythmModalPr
             </label>
           </div>
         ) : null}
+        {saveError ? <p className="form-feedback" role="alert">{saveError}</p> : null}
         <div className="modal-actions">
-          <Button disabled={!canSave} onClick={saveRhythm} variant="primary">Save rhythm</Button>
+          <Button disabled={!canSave || saving} onClick={saveRhythm} variant="primary">
+            {saving ? 'Saving rhythm...' : 'Save rhythm'}
+          </Button>
           <Button onClick={closeModal}>Cancel</Button>
         </div>
       </div>
