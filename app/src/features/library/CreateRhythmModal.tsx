@@ -14,7 +14,7 @@ export type CreateRhythmInput = {
 
 type CreateRhythmModalProps = {
   onClose: () => void;
-  onSave: (rhythm: CreateRhythmInput) => void;
+  onSave: (rhythm: CreateRhythmInput) => Promise<void> | void;
   open: boolean;
 };
 
@@ -22,7 +22,7 @@ const rhythmCategories = libraryCategories.filter((category): category is Rhythm
 
 export function createMockLibraryRhythm(input: CreateRhythmInput): LibraryRhythm {
   return {
-    boundaryNote: 'Custom rhythms are reusable planning templates. Preview only; not saved yet.',
+    boundaryNote: 'Custom rhythms are reusable planning templates. Enablement and Add to Today are preview-only.',
     category: input.category,
     categoryNote: 'Keep the rhythm optional, reusable, and small enough to return to.',
     chips: ['Custom', input.enabled ? 'Enabled' : 'Preview'],
@@ -35,7 +35,7 @@ export function createMockLibraryRhythm(input: CreateRhythmInput): LibraryRhythm
     purpose: input.purpose,
     recommendedSize: 'Small',
     title: input.title,
-    whyThisExists: 'This mock rhythm shows how reusable templates will feel before real storage is connected.',
+    whyThisExists: 'This rhythm shows how reusable templates can stay available without becoming a Today task.',
   };
 }
 
@@ -87,7 +87,7 @@ export function CreateRhythmModal({ onClose, onSave, open }: CreateRhythmModalPr
   return (
     <Modal onClose={closeModal} open={open} title="Create rhythm">
       <div className="add-task-form">
-        <p className="lede">Reusable rhythm. Preview only; not saved yet.</p>
+        <p className="lede">Reusable rhythm. Saved on this device. Enablement and Add to Today are preview-only.</p>
         <label>
           <span>Rhythm title</span>
           <input onChange={(event) => setTitle(event.target.value)} value={title} />
@@ -114,7 +114,7 @@ export function CreateRhythmModal({ onClose, onSave, open }: CreateRhythmModalPr
           <input checked={enabled} onChange={(event) => setEnabled(event.target.checked)} type="checkbox" />
           <span>
             <strong>Enabled</strong>
-            <small>Enabled rhythms can appear when useful. This preview does not schedule or save anything.</small>
+            <small>Enabled rhythms can appear when useful. This choice is preview-only and does not schedule anything.</small>
           </span>
         </label>
         <button
