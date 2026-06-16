@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import {
-  appVersionSchema,
   dayOfWeekSchema,
   idSchema,
   lowCapacityPreferenceSchema,
@@ -8,10 +7,74 @@ import {
 } from './schemas';
 import { settingsBackupSchema } from './settingsExport';
 
-const isoDateTime = z.string().min(1, 'Expected an ISO timestamp');
+const appVersion = z
+  .string()
+  .regex(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/, 'Expected a valid app version');
+const isoDateTimePattern =
+  /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,3}))?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
+
+function isValidIsoDateTime(value: string): boolean {
+  const match = isoDateTimePattern.exec(value);
+
+  if (!match) {
+    return false;
+  }
+
+  const [, yearValue, monthValue, dayValue, hourValue, minuteValue, secondValue, millisecondValue = '0'] = match;
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+  const second = Number(secondValue);
+  const millisecond = Number(millisecondValue.padEnd(3, '0'));
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second, millisecond));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day &&
+    date.getUTCHours() === hour &&
+    date.getUTCMinutes() === minute &&
+    date.getUTCSeconds() === second &&
+    date.getUTCMilliseconds() === millisecond
+  );
+}
+
+const isoDateTime = z
+  .string()
+  .regex(isoDateTimePattern, 'Expected a valid ISO timestamp')
+  .refine(isValidIsoDateTime, 'Expected a valid ISO timestamp');
+const settingsId = z.literal('settings');
 const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:MM');
 const minuteAmount = z.number().int().min(0).max(480);
 const transitionBufferMinutes = z.number().int().min(0).max(180);
+
+const blockedDataKeys = new Set([
+  'activeTasks',
+  'devTickets',
+  'futureModules',
+  'imports',
+  'legacy',
+  'legacyData',
+  'legacyLocalStorage',
+  'libraryEnablement',
+  'lifeRhythmPrototype13',
+  'lifeRhythm_v140',
+  'lifeRhythm_v143',
+  'lifeRhythm_v146',
+  'migrationLog',
+  'migrations',
+  'oneOff',
+  'oneOffs',
+  'quickPacks',
+  'resetLog',
+  'resetLogs',
+  'rhythmTemplates',
+  'rhythms',
+  'schedulerOutput',
+  'tasks',
+]);
 
 function minutesFromTime(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
@@ -94,9 +157,9 @@ const lifeShapeImportSchema = z
 
 const settingsBackupImportSettingsSchema = z
   .object({
-    appVersion: appVersionSchema,
+    appVersion,
     createdAt: isoDateTime,
-    id: idSchema,
+    id: settingsId,
     lifeShape: lifeShapeImportSchema,
     startBoostSafety: startBoostSafetyImportSchema,
     theme: themeNameSchema,
@@ -106,7 +169,7 @@ const settingsBackupImportSettingsSchema = z
 
 export const settingsBackupImportSchema = z
   .object({
-    appVersion: appVersionSchema,
+    appVersion,
     exportedAt: isoDateTime,
     format: z.literal('life-rhythm-settings-backup'),
     settings: settingsBackupImportSettingsSchema,
@@ -143,6 +206,32 @@ function issuesToMessages(issues: Array<{ message: string; path: Array<string | 
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function findBlockedDataKey(value: unknown, path: Array<string | number> = []): string | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    const nextPath = [...path, key];
+
+    if (blockedDataKeys.has(key)) {
+      return nextPath.join('.');
+    }
+
+    const nestedPath = findBlockedDataKey(child, nextPath);
+
+    if (nestedPath) {
+      return nestedPath;
+    }
+  }
+
+  return undefined;
+}
+
 function countEnabledSafetyFlags(settings: SettingsBackupImportPayload['settings']) {
   return Object.values(settings.startBoostSafety).filter(Boolean).length;
 }
@@ -161,6 +250,22 @@ function buildPreview(payload: SettingsBackupImportPayload): SettingsBackupPrevi
 }
 
 export function validateSettingsBackupImport(input: unknown): SettingsBackupImportValidationResult {
+  if (!isRecord(input)) {
+    return {
+      errors: ['backup: Expected a settings backup object.'],
+      ok: false,
+    };
+  }
+
+  const blockedDataKey = findBlockedDataKey(input);
+
+  if (blockedDataKey) {
+    return {
+      errors: [`${blockedDataKey}: Settings backup import cannot include app, legacy, task, rhythm, or migration data.`],
+      ok: false,
+    };
+  }
+
   const parsed = settingsBackupImportSchema.safeParse(input);
 
   if (!parsed.success) {

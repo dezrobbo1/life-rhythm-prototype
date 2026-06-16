@@ -58,7 +58,7 @@ function validPayload(): SettingsBackupImportPayload {
     updatedAt: '2026-06-15T01:00:00.000Z',
   });
 
-  return buildSettingsBackupPayload(settings, exportedAt);
+  return settingsBackupImportSchema.parse(buildSettingsBackupPayload(settings, exportedAt));
 }
 
 function clone<T>(value: T): T {
@@ -87,12 +87,24 @@ describe('settings backup import validation', () => {
     }
   });
 
+  it('rejects non-object JSON values', () => {
+    const results = [
+      validateSettingsBackupImport(null),
+      validateSettingsBackupImport([]),
+      validateSettingsBackupImport('backup'),
+    ];
+
+    expect(results.every((result) => !result.ok)).toBe(true);
+    expect(results.map((result) => (!result.ok ? result.errors[0] : '')).join(' ')).toContain(
+      'Expected a settings backup object',
+    );
+  });
+
   it('rejects backups with unknown top-level fields', () => {
-    const payload = {
+    const result = validateSettingsBackupImport({
       ...validPayload(),
-      activeTasks: [],
-    };
-    const result = validateSettingsBackupImport(payload);
+      notes: 'extra data',
+    });
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -113,6 +125,80 @@ describe('settings backup import validation', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errors.join(' ')).toContain('Unrecognized key');
+    }
+  });
+
+  it('rejects invalid backup metadata', () => {
+    const invalidFormat = validateSettingsBackupImport({
+      ...validPayload(),
+      format: 'life-rhythm-full-backup',
+    });
+    const invalidAppVersion = validateSettingsBackupImport({
+      ...validPayload(),
+      appVersion: 'latest',
+    });
+    const invalidExportedAt = validateSettingsBackupImport({
+      ...validPayload(),
+      exportedAt: '2026-02-31T00:00:00.000Z',
+    });
+
+    expect(invalidFormat.ok).toBe(false);
+    expect(invalidAppVersion.ok).toBe(false);
+    expect(invalidExportedAt.ok).toBe(false);
+    if (!invalidFormat.ok && !invalidAppVersion.ok && !invalidExportedAt.ok) {
+      expect(invalidFormat.errors.join(' ')).toContain('format');
+      expect(invalidAppVersion.errors.join(' ')).toContain('appVersion');
+      expect(invalidExportedAt.errors.join(' ')).toContain('exportedAt');
+    }
+  });
+
+  it('rejects invalid settings metadata', () => {
+    const payload = clone(validPayload());
+    const invalidId = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        id: 'other-settings',
+      },
+    });
+    const invalidSettingsAppVersion = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        appVersion: 'preview',
+      },
+    });
+    const invalidCreatedAt = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        createdAt: 'yesterday',
+      },
+    });
+    const invalidUpdatedAt = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        updatedAt: 'tomorrow',
+      },
+    });
+
+    expect(invalidId.ok).toBe(false);
+    expect(invalidSettingsAppVersion.ok).toBe(false);
+    expect(invalidCreatedAt.ok).toBe(false);
+    expect(invalidUpdatedAt.ok).toBe(false);
+    if (!invalidId.ok && !invalidSettingsAppVersion.ok && !invalidCreatedAt.ok && !invalidUpdatedAt.ok) {
+      const errors = [
+        ...invalidId.errors,
+        ...invalidSettingsAppVersion.errors,
+        ...invalidCreatedAt.errors,
+        ...invalidUpdatedAt.errors,
+      ].join(' ');
+
+      expect(errors).toContain('settings.id');
+      expect(errors).toContain('settings.appVersion');
+      expect(errors).toContain('settings.createdAt');
+      expect(errors).toContain('settings.updatedAt');
     }
   });
 
@@ -174,6 +260,57 @@ describe('settings backup import validation', () => {
       const errors = result.errors.join(' ');
       expect(errors).toContain('settings.lifeShape.commuteMinutes');
       expect(errors).toContain('settings.lifeShape.usualWorkHours.end');
+    }
+  });
+
+  it('rejects payloads containing task, rhythm, or legacy data', () => {
+    const activeTasks = validateSettingsBackupImport({
+      ...validPayload(),
+      activeTasks: [],
+    });
+    const rhythmTemplates = validateSettingsBackupImport({
+      ...validPayload(),
+      settings: {
+        ...validPayload().settings,
+        rhythmTemplates: [],
+      },
+    });
+    const legacyRootData = validateSettingsBackupImport({
+      ...validPayload(),
+      lifeRhythm_v146: {
+        tasks: [],
+      },
+    });
+
+    expect(activeTasks.ok).toBe(false);
+    expect(rhythmTemplates.ok).toBe(false);
+    expect(legacyRootData.ok).toBe(false);
+    if (!activeTasks.ok && !rhythmTemplates.ok && !legacyRootData.ok) {
+      const errors = [...activeTasks.errors, ...rhythmTemplates.errors, ...legacyRootData.errors].join(' ');
+
+      expect(errors).toContain('activeTasks');
+      expect(errors).toContain('settings.rhythmTemplates');
+      expect(errors).toContain('lifeRhythm_v146');
+      expect(errors).toContain('cannot include app, legacy, task, rhythm, or migration data');
+    }
+  });
+
+  it('does not repair invalid import payloads with defaults', () => {
+    const payload = clone(validPayload());
+    const result = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        lifeShape: {
+          ...payload.settings.lifeShape,
+          transitionBufferMinutes: undefined,
+        },
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.join(' ')).toContain('settings.lifeShape.transitionBufferMinutes');
     }
   });
 
