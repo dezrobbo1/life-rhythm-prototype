@@ -12,6 +12,10 @@ const settingsMocks = vi.hoisted(() => ({
   saveSettings: vi.fn(),
 }));
 
+const settingsExportMocks = vi.hoisted(() => ({
+  exportSettingsBackup: vi.fn(),
+}));
+
 vi.mock('../data/settingsRepository', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/settingsRepository')>();
 
@@ -20,6 +24,15 @@ vi.mock('../data/settingsRepository', async (importOriginal) => {
     loadSettings: settingsMocks.loadSettings,
     resetSettingsToDefaults: settingsMocks.resetSettingsToDefaults,
     saveSettings: settingsMocks.saveSettings,
+  };
+});
+
+vi.mock('../data/settingsExport', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/settingsExport')>();
+
+  return {
+    ...actual,
+    exportSettingsBackup: settingsExportMocks.exportSettingsBackup,
   };
 });
 
@@ -153,5 +166,39 @@ describe('App settings persistence wiring', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Settings reset to defaults on this device.'));
     expect(settingsMocks.resetSettingsToDefaults).toHaveBeenCalledTimes(1);
     expect(document.querySelector('.app-shell')?.getAttribute('data-theme')).toBe('exhale');
+  });
+
+  it('exports a settings-only backup from Setup', async () => {
+    settingsMocks.loadSettings.mockResolvedValue(makeSettings());
+    settingsExportMocks.exportSettingsBackup.mockResolvedValue({
+      fileName: 'life-rhythm-settings-backup-2026-06-16.json',
+      json: '{}',
+      payload: {},
+    });
+    const createObjectUrl = vi.fn(() => 'blob:settings-backup');
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: createObjectUrl,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: revokeObjectUrl,
+    });
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    await user.click(screen.getByRole('button', { name: 'Export settings backup' }));
+
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Settings backup created on this device.'));
+    expect(settingsExportMocks.exportSettingsBackup).toHaveBeenCalledTimes(1);
+    expect(settingsMocks.saveSettings).not.toHaveBeenCalled();
+    expect(settingsMocks.resetSettingsToDefaults).not.toHaveBeenCalled();
+    expect(createObjectUrl).toHaveBeenCalledTimes(1);
+    expect(anchorClick).toHaveBeenCalledTimes(1);
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:settings-backup');
   });
 });

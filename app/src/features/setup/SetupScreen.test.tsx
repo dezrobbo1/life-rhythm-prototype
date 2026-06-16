@@ -133,11 +133,18 @@ describe('Setup screen', () => {
     const user = userEvent.setup();
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
     const clearSpy = vi.spyOn(Storage.prototype, 'clear');
-    render(<SetupScreen />);
+    const exportSettingsBackup = vi.fn(async () => ({
+      fileName: 'life-rhythm-settings-backup-2026-06-16.json',
+      json: '{}',
+      payload: {} as never,
+    }));
+    render(<SetupScreen onExportSettingsBackup={exportSettingsBackup} />);
 
-    await user.click(screen.getByRole('button', { name: 'Export backup later' }));
+    await user.click(screen.getByRole('button', { name: 'Export settings backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('Export backup later');
+    expect(screen.getByText('This backup includes settings only. Tasks and rhythms are not included yet.')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toContain('Settings backup created on this device.');
+    expect(exportSettingsBackup).toHaveBeenCalledTimes(1);
     expect(setItemSpy).not.toHaveBeenCalled();
     expect(clearSpy).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Import backup later' })).toBeTruthy();

@@ -7,6 +7,7 @@ import type {
   SettingsWriteInput,
   SettingsWriteResult,
 } from '../data/settingsRepository';
+import type { SettingsBackupExport } from '../data/settingsExport';
 import {
   aboutRows,
   advancedRows,
@@ -26,6 +27,7 @@ import {
 import { buildSetupViewModel } from '../viewModels';
 
 type SetupScreenProps = {
+  onExportSettingsBackup?: () => Promise<SettingsBackupExport>;
   onResetSettings?: () => Promise<Settings>;
   onSaveSettings?: (settings: SettingsWriteInput) => Promise<SettingsWriteResult>;
   onThemeChange?: (theme: ThemeName) => void;
@@ -34,6 +36,7 @@ type SetupScreenProps = {
 };
 
 export function SetupScreen({
+  onExportSettingsBackup,
   onResetSettings,
   onSaveSettings,
   onThemeChange,
@@ -110,6 +113,20 @@ export function SetupScreen({
     setSafetyState(safetyStateFromSettings(resetSettings));
     setLifeShape(lifeShapeStateFromSettings(resetSettings));
     setStatus('Settings reset to defaults on this device.');
+  }
+
+  async function exportSettingsOnlyBackup() {
+    if (!onExportSettingsBackup) {
+      setStatus('Settings backup export is not connected in this render.');
+      return;
+    }
+
+    try {
+      await onExportSettingsBackup();
+      setStatus('Settings backup created on this device.');
+    } catch {
+      setStatus('Settings backup was not created. Try saving settings first.');
+    }
   }
 
   const selectedTheme = onThemeChange ? theme : localTheme;
@@ -344,11 +361,12 @@ export function SetupScreen({
       <Card>
         <div className="setup-section-heading">
           <h2>Data and backup</h2>
-          <p>Settings can be saved on this device. Backup and import stay later-only.</p>
+          <p>This backup includes settings only. Tasks and rhythms are not included yet.</p>
         </div>
         <p className="setup-note">{setupViewModel.dataPreview.copy}</p>
         <div className="setup-action-row">
-          {dataActions.map((action) => (
+          <Button onClick={exportSettingsOnlyBackup} variant="primary">Export settings backup</Button>
+          {dataActions.filter((action) => action.id !== 'exportBackup').map((action) => (
             <Button key={action.id} onClick={() => setStatus(`${action.label}: ${action.helper}`)}>
               {action.label}
             </Button>

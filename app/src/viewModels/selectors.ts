@@ -222,8 +222,8 @@ function toFutureModules(modules: FutureModuleViewModel[] | undefined): FutureMo
 export function buildSetupViewModel(snapshot: AppDataSnapshot = {}): SetupViewModel {
   return {
     dataPreview: {
-      copy: 'Settings can be saved on this device. Export and import stay later-only.',
-      exportAvailable: false,
+      copy: 'Settings backup is available now. Import and wider app backup stay later-only.',
+      exportAvailable: true,
       importAvailable: false,
     },
     futureModules: toFutureModules(snapshot.futureModules),

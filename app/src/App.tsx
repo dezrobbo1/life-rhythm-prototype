@@ -17,7 +17,28 @@ import {
   type SettingsWriteInput,
   type SettingsWriteResult,
 } from './data/settingsRepository';
+import { exportSettingsBackup, type SettingsBackupExport } from './data/settingsExport';
 import { normalDayWithOneTaskSnapshot, type AppDataSnapshot } from './viewModels';
+
+function downloadJsonBackup(backup: SettingsBackupExport) {
+  if (
+    typeof document === 'undefined' ||
+    typeof Blob === 'undefined' ||
+    typeof URL === 'undefined' ||
+    typeof URL.createObjectURL !== 'function'
+  ) {
+    return;
+  }
+
+  const blob = new Blob([backup.json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = backup.fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function App() {
   const [activeScreen, setActiveScreen] = useState<ScreenId>('today');
@@ -59,6 +80,14 @@ export default function App() {
     return resetSettings;
   }
 
+  async function handleExportSettingsBackup(): Promise<SettingsBackupExport> {
+    const backup = await exportSettingsBackup();
+
+    downloadJsonBackup(backup);
+
+    return backup;
+  }
+
   const appSnapshot = useMemo<AppDataSnapshot>(
     () => ({
       ...normalDayWithOneTaskSnapshot,
@@ -79,6 +108,7 @@ export default function App() {
     reset: <ResetScreen />,
     setup: (
       <SetupScreen
+        onExportSettingsBackup={handleExportSettingsBackup}
         onResetSettings={handleResetSettings}
         onSaveSettings={handleSaveSettings}
         onThemeChange={setTheme}
