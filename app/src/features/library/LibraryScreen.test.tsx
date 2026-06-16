@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { libraryRhythmBackupSchema } from '../../data/libraryRhythmBackup';
 import { rhythmTemplateSchema, type RhythmTemplate } from '../../data/schemas';
 
 const libraryRepositoryMocks = vi.hoisted(() => ({
@@ -40,6 +41,33 @@ function savedRhythmTemplate(overrides: Partial<RhythmTemplate> = {}): RhythmTem
   });
 }
 
+const originalCreateObjectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+const originalRevokeObjectUrl = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
+
+function mockDownloadApi() {
+  const createObjectUrl = vi.fn((blob: Blob) => {
+    void blob;
+    return 'blob:library-rhythm-backup';
+  });
+  const revokeObjectUrl = vi.fn();
+  const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: createObjectUrl,
+  });
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    configurable: true,
+    value: revokeObjectUrl,
+  });
+
+  return {
+    anchorClick,
+    createObjectUrl,
+    revokeObjectUrl,
+  };
+}
+
 beforeEach(() => {
   libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue([]);
   libraryRepositoryMocks.saveCustomLibraryRhythm.mockImplementation(async (rhythm: unknown) => ({
@@ -52,6 +80,18 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   vi.restoreAllMocks();
+
+  if (originalCreateObjectUrl) {
+    Object.defineProperty(URL, 'createObjectURL', originalCreateObjectUrl);
+  } else {
+    Reflect.deleteProperty(URL, 'createObjectURL');
+  }
+
+  if (originalRevokeObjectUrl) {
+    Object.defineProperty(URL, 'revokeObjectURL', originalRevokeObjectUrl);
+  } else {
+    Reflect.deleteProperty(URL, 'revokeObjectURL');
+  }
 });
 
 describe('Library screen', () => {
@@ -77,8 +117,10 @@ describe('Library screen', () => {
     render(<LibraryScreen />);
 
     expect(screen.getByRole('button', { name: 'Create rhythm' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Export Library rhythms backup' })).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Create pack later' }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText('Create rhythm makes a reusable template. Add to Today now is only for a one-off today action.')).toBeTruthy();
+    expect(screen.getByText(/Create rhythm makes a reusable template/)).toBeTruthy();
+    expect(screen.getByText(/This backup includes saved custom Library rhythms only. It does not include Today tasks./)).toBeTruthy();
     const card = screen.getByRole('article', { name: 'Breakfast reset' });
     expect(within(card).getByText('Food')).toBeTruthy();
     expect(within(card).getByText('Make the first food step visible and small.')).toBeTruthy();
@@ -157,6 +199,46 @@ describe('Library screen', () => {
       title: 'Paperwork landing',
     });
     expect(setItemSpy).not.toHaveBeenCalled();
+  });
+
+  it('exports saved custom Library rhythms as a valid backup download', async () => {
+    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue([savedRhythmTemplate()]);
+    const { anchorClick, createObjectUrl, revokeObjectUrl } = mockDownloadApi();
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Export Library rhythms backup' }));
+
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Library rhythms backup created on this device.'));
+    expect(createObjectUrl).toHaveBeenCalledTimes(1);
+    expect(anchorClick).toHaveBeenCalledTimes(1);
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:library-rhythm-backup');
+
+    const blob = createObjectUrl.mock.calls[0][0] as Blob;
+    const json = await blob.text();
+    const payload = libraryRhythmBackupSchema.parse(JSON.parse(json));
+
+    expect(payload.rhythms).toHaveLength(1);
+    expect(payload.rhythms[0]).toMatchObject({
+      id: 'custom-paperwork-landing',
+      source: 'custom',
+      title: 'Paperwork landing',
+    });
+    expect(json).not.toMatch(/settings|activeTasks|oneOff|scheduler|devTickets|migrationLog|resetLog|futureModules/i);
+    expect(json).not.toContain('lifeRhythm_v146');
+    expect(json).not.toContain('Breakfast reset');
+  });
+
+  it('shows an empty export message without downloading when no custom rhythms are saved', async () => {
+    const { anchorClick, createObjectUrl } = mockDownloadApi();
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Export Library rhythms backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('No saved custom rhythms to export yet.');
+    expect(createObjectUrl).not.toHaveBeenCalled();
+    expect(anchorClick).not.toHaveBeenCalled();
   });
 
   it('keeps the Create rhythm modal open with entered values when save fails', async () => {

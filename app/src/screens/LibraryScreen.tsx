@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, EmptyState } from '../components';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import {
+  exportLibraryRhythmBackup,
+  type LibraryRhythmBackupExport,
+} from '../data/libraryRhythmExport';
+import {
   loadCustomLibraryRhythms,
   saveCustomLibraryRhythm,
 } from '../data/libraryRhythmRepository';
@@ -193,6 +197,26 @@ function mergeRhythms(current: LibraryRhythm[], additions: LibraryRhythm[]) {
   ];
 }
 
+function downloadLibraryRhythmBackup(backup: LibraryRhythmBackupExport) {
+  if (
+    typeof document === 'undefined' ||
+    typeof Blob === 'undefined' ||
+    typeof URL === 'undefined' ||
+    typeof URL.createObjectURL !== 'function'
+  ) {
+    return;
+  }
+
+  const blob = new Blob([backup.json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = backup.fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export function LibraryScreen() {
   const { snapshot } = useAppSnapshot();
   const initialLibraryViewModel = useMemo(
@@ -276,6 +300,18 @@ export function LibraryScreen() {
     setConfirmation(`${pack.rhythmIds.length} rhythms enabled. Today only shows what fits.`);
   }
 
+  async function exportSavedLibraryRhythms() {
+    const backup = await exportLibraryRhythmBackup();
+
+    if (!backup) {
+      setConfirmation('No saved custom rhythms to export yet.');
+      return;
+    }
+
+    downloadLibraryRhythmBackup(backup);
+    setConfirmation('Library rhythms backup created on this device.');
+  }
+
   async function saveCreatedRhythm(input: CreateRhythmInput): Promise<boolean> {
     let result;
 
@@ -317,10 +353,12 @@ export function LibraryScreen() {
             <h2 id="library-create-title">Create reusable support</h2>
             <p>
               Create rhythm makes a reusable template. Add to Today now is only for a one-off today action.
+              This backup includes saved custom Library rhythms only. It does not include Today tasks.
             </p>
           </div>
           <div className="library-create-card__actions">
             <Button onClick={() => setCreateRhythmOpen(true)} variant="primary">Create rhythm</Button>
+            <Button onClick={exportSavedLibraryRhythms}>Export Library rhythms backup</Button>
             <Button disabled>Create pack later</Button>
           </div>
         </section>
