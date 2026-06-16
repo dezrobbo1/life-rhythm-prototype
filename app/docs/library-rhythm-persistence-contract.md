@@ -156,6 +156,8 @@ Requirements for the future Library export:
 
 Export must remain user-triggered. It must not run automatically as part of rhythm creation.
 
+Backup validation scaffolding may exist before persistence as long as it is pure, receives explicitly supplied rhythm template data, and does not read or write Dexie, IndexedDB, localStorage, migrations, imports, resets, active tasks, or scheduler output.
+
 ## 9. Rollback Expectations
 
 Settings reset remains settings-only and must not delete rhythms.
