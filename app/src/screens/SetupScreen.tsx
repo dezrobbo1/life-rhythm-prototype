@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { Button, Card, Chip } from '../components';
 import type { ThemeName } from '../app/theme';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
@@ -8,6 +8,10 @@ import type {
   SettingsWriteResult,
 } from '../data/settingsRepository';
 import type { SettingsBackupExport } from '../data/settingsExport';
+import {
+  parseSettingsBackupImportJson,
+  type SettingsBackupPreview,
+} from '../data/settingsImportValidation';
 import {
   aboutRows,
   advancedRows,
@@ -50,6 +54,9 @@ export function SetupScreen({
     settings ? safetyStateFromSettings(settings) : Object.fromEntries(Object.entries(initialSetupViewModel.startBoostSafety)),
   );
   const [lifeShape, setLifeShape] = useState<LifeShapeState>(() => lifeShapeStateFromSettings(settings));
+  const [settingsBackupErrors, setSettingsBackupErrors] = useState<string[]>([]);
+  const [settingsBackupJson, setSettingsBackupJson] = useState('');
+  const [settingsBackupPreview, setSettingsBackupPreview] = useState<SettingsBackupPreview | null>(null);
   const [status, setStatus] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -126,6 +133,38 @@ export function SetupScreen({
       setStatus('Settings backup created on this device.');
     } catch {
       setStatus('Settings backup was not created. Try saving settings first.');
+    }
+  }
+
+  function checkSettingsBackup() {
+    const result = parseSettingsBackupImportJson(settingsBackupJson);
+
+    if (result.ok) {
+      setSettingsBackupErrors([]);
+      setSettingsBackupPreview(result.preview);
+      setStatus('Settings backup looks valid. Restore is not connected yet.');
+      return;
+    }
+
+    setSettingsBackupErrors(result.errors);
+    setSettingsBackupPreview(null);
+    setStatus('This settings backup could not be used.');
+  }
+
+  async function readSettingsBackupFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+
+    if (!file) return;
+
+    try {
+      setSettingsBackupJson(await file.text());
+      setSettingsBackupErrors([]);
+      setSettingsBackupPreview(null);
+      setStatus('Settings backup loaded. Choose Check settings backup.');
+    } catch {
+      setSettingsBackupErrors(['backup: Settings backup file could not be read.']);
+      setSettingsBackupPreview(null);
+      setStatus('This settings backup could not be used.');
     }
   }
 
@@ -371,6 +410,62 @@ export function SetupScreen({
               {action.label}
             </Button>
           ))}
+        </div>
+        <div className="setup-backup-checker">
+          <label className="life-shape-control life-shape-control--wide">
+            <span>Settings backup JSON</span>
+            <textarea
+              aria-label="Settings backup JSON"
+              onChange={(event) => {
+                setSettingsBackupJson(event.target.value);
+                setSettingsBackupErrors([]);
+                setSettingsBackupPreview(null);
+              }}
+              placeholder="Paste a settings backup JSON file here."
+              rows={6}
+              value={settingsBackupJson}
+            />
+            <small>Checking a backup does not change anything on this device.</small>
+          </label>
+          <div className="setup-action-row">
+            <label className="setup-file-picker">
+              <span>Select settings backup file</span>
+              <input
+                accept="application/json,.json"
+                aria-label="Select settings backup file"
+                onChange={readSettingsBackupFile}
+                type="file"
+              />
+            </label>
+            <Button onClick={checkSettingsBackup}>Check settings backup</Button>
+          </div>
+          {settingsBackupPreview ? (
+            <dl aria-label="Settings backup preview" className="setup-about-list">
+              <div>
+                <dt>Theme</dt>
+                <dd>{settingsBackupPreview.theme}</dd>
+              </div>
+              <div>
+                <dt>Start Boost safety</dt>
+                <dd>{settingsBackupPreview.startBoostSafetySummary}</dd>
+              </div>
+              <div>
+                <dt>Life shape</dt>
+                <dd>{settingsBackupPreview.lifeShapeSummary}</dd>
+              </div>
+              <div>
+                <dt>Exported</dt>
+                <dd>{settingsBackupPreview.exportedAt}</dd>
+              </div>
+            </dl>
+          ) : null}
+          {settingsBackupErrors.length > 0 ? (
+            <ul aria-label="Settings backup errors" className="setup-validation-list">
+              {settingsBackupErrors.slice(0, 3).map((error) => (
+                <li key={error}>{error}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       </Card>
 
