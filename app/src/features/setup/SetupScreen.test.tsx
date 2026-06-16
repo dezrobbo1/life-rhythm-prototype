@@ -63,7 +63,7 @@ describe('Setup screen', () => {
     expect(screen.getByRole('heading', { name: 'Appearance' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Life shape' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Start Boost safety' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Data and backup' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Backup and recovery' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Dev tickets' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'About Life Rhythm' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Future modules' })).toBeTruthy();
@@ -186,6 +186,8 @@ describe('Setup screen', () => {
     await user.click(screen.getByRole('button', { name: 'Export settings backup' }));
 
     expect(screen.getByText('This backup includes settings only. Tasks and rhythms are not included yet.')).toBeTruthy();
+    expect(screen.getByText('Export settings')).toBeTruthy();
+    expect(screen.getByText('Creates a settings-only file when you choose it.')).toBeTruthy();
     expect(screen.getByRole('status').textContent).toContain('Settings backup created on this device.');
     expect(exportSettingsBackup).toHaveBeenCalledTimes(1);
     expect(setItemSpy).not.toHaveBeenCalled();
@@ -206,6 +208,7 @@ describe('Setup screen', () => {
     await user.click(screen.getByRole('button', { name: 'Check settings backup' }));
 
     expect(screen.getByRole('status').textContent).toContain('Settings backup looks valid. Restore is not connected yet.');
+    expect(screen.getByText('Read-only check. Restore/import is not connected yet.')).toBeTruthy();
     expect(screen.getByText('Theme')).toBeTruthy();
     expect(screen.getByText('clear')).toBeTruthy();
     expect(screen.getByText('4 safety choices on')).toBeTruthy();
@@ -224,7 +227,9 @@ describe('Setup screen', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Check settings backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('This settings backup could not be used.');
+    expect(screen.getByRole('status').textContent).toContain('Backup check found an issue. Nothing changed on this device.');
+    expect(screen.getByText('Backup check notes')).toBeTruthy();
+    expect(screen.getByText('Nothing changed on this device. The first items to review are below.')).toBeTruthy();
     expect(screen.getByRole('list', { name: 'Settings backup errors' })).toBeTruthy();
     expect(screen.getByText('backup: Settings backup JSON is malformed.')).toBeTruthy();
   });
@@ -235,7 +240,9 @@ describe('Setup screen', () => {
     expect(screen.getByRole('heading', { name: 'Save settings' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Save settings' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reset settings to defaults' })).toBeTruthy();
-    expect(screen.getByText('This does not save tasks, rhythms, packs, resets, imports, dev tickets, or future modules.')).toBeTruthy();
+    expect(screen.getByText('This is the only settings area here that changes saved data on this device.')).toBeTruthy();
+    expect(screen.getByText('Save writes theme, Start Boost safety, and Life shape only. Reset returns those settings to defaults.')).toBeTruthy();
+    expect(screen.getByText('Tasks, rhythms, packs, imports, dev tickets, and future modules are not changed.')).toBeTruthy();
   });
 
   it('renders dev tickets as a local mock entry point', () => {

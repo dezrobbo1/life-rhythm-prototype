@@ -148,7 +148,7 @@ export function SetupScreen({
 
     setSettingsBackupErrors(result.errors);
     setSettingsBackupPreview(null);
-    setStatus('This settings backup could not be used.');
+    setStatus('Backup check found an issue. Nothing changed on this device.');
   }
 
   async function readSettingsBackupFile(event: ChangeEvent<HTMLInputElement>) {
@@ -164,7 +164,7 @@ export function SetupScreen({
     } catch {
       setSettingsBackupErrors(['backup: Settings backup file could not be read.']);
       setSettingsBackupPreview(null);
-      setStatus('This settings backup could not be used.');
+      setStatus('Backup check found an issue. Nothing changed on this device.');
     }
   }
 
@@ -388,30 +388,37 @@ export function SetupScreen({
       <Card>
         <div className="setup-section-heading">
           <h2>Save settings</h2>
-          <p>Save theme, Start Boost safety, and Life shape only.</p>
+          <p>This is the only settings area here that changes saved data on this device.</p>
         </div>
         <div className="setup-action-row">
           <Button onClick={saveCurrentSettings} variant="primary">Save settings</Button>
           <Button onClick={resetCurrentSettings}>Reset settings to defaults</Button>
         </div>
-        <p className="setup-note">This does not save tasks, rhythms, packs, resets, imports, dev tickets, or future modules.</p>
+        <p className="setup-note">Save writes theme, Start Boost safety, and Life shape only. Reset returns those settings to defaults.</p>
+        <p className="setup-note setup-note--quiet">Tasks, rhythms, packs, imports, dev tickets, and future modules are not changed.</p>
       </Card>
 
       <Card>
         <div className="setup-section-heading">
-          <h2>Data and backup</h2>
-          <p>This backup includes settings only. Tasks and rhythms are not included yet.</p>
+          <h2>Backup and recovery</h2>
+          <p>Export settings or check a backup. Checking does not restore.</p>
         </div>
         <p className="setup-note">{setupViewModel.dataPreview.copy}</p>
-        <div className="setup-action-row">
-          <Button onClick={exportSettingsOnlyBackup} variant="primary">Export settings backup</Button>
-          {dataActions.filter((action) => action.id !== 'exportBackup').map((action) => (
-            <Button key={action.id} onClick={() => setStatus(`${action.label}: ${action.helper}`)}>
-              {action.label}
-            </Button>
-          ))}
+        <div className="setup-backup-panel">
+          <div className="setup-subheading">
+            <h3>Export settings</h3>
+            <p>This backup includes settings only. Tasks and rhythms are not included yet.</p>
+            <p>Creates a settings-only file when you choose it.</p>
+          </div>
+          <div className="setup-action-row">
+            <Button onClick={exportSettingsOnlyBackup} variant="primary">Export settings backup</Button>
+          </div>
         </div>
-        <div className="setup-backup-checker">
+        <div className="setup-backup-checker" aria-labelledby="settings-backup-check-title">
+          <div className="setup-subheading">
+            <h3 id="settings-backup-check-title">Check settings backup</h3>
+            <p>Read-only check. Restore/import is not connected yet.</p>
+          </div>
           <label className="life-shape-control life-shape-control--wide">
             <span>Settings backup JSON</span>
             <textarea
@@ -460,12 +467,23 @@ export function SetupScreen({
             </dl>
           ) : null}
           {settingsBackupErrors.length > 0 ? (
-            <ul aria-label="Settings backup errors" className="setup-validation-list">
-              {settingsBackupErrors.slice(0, 3).map((error) => (
-                <li key={error}>{error}</li>
-              ))}
-            </ul>
+            <div className="setup-validation-summary">
+              <strong>Backup check notes</strong>
+              <p>Nothing changed on this device. The first items to review are below.</p>
+              <ul aria-label="Settings backup errors" className="setup-validation-list">
+                {settingsBackupErrors.slice(0, 3).map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+            </div>
           ) : null}
+        </div>
+        <div className="setup-later-actions" aria-label="Later backup actions">
+          {dataActions.filter((action) => action.id !== 'exportBackup').map((action) => (
+            <Button key={action.id} onClick={() => setStatus(`${action.label}: ${action.helper}`)}>
+              {action.label}
+            </Button>
+          ))}
         </div>
       </Card>
 
