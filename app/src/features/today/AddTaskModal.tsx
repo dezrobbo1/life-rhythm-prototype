@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button, Modal } from '../../components';
 
 export type MockAddTaskInput = {
@@ -11,7 +11,7 @@ export type MockAddTaskInput = {
 
 type AddTaskModalProps = {
   onClose: () => void;
-  onSave: (task: MockAddTaskInput) => void;
+  onSave: (task: MockAddTaskInput) => Promise<boolean> | boolean;
   open: boolean;
 };
 
@@ -22,30 +22,60 @@ export function AddTaskModal({ onClose, onSave, open }: AddTaskModalProps) {
   const [normalVersion, setNormalVersion] = useState('');
   const [fullVersion, setFullVersion] = useState('');
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const savingRef = useRef(false);
   const canSave = title.trim().length > 0 && area.trim().length > 0 && minimumVersion.trim().length > 0;
 
-  function saveTask() {
-    if (!canSave) return;
-
-    onSave({
-      area: area.trim(),
-      fullVersion: fullVersion.trim(),
-      minimumVersion: minimumVersion.trim(),
-      normalVersion: normalVersion.trim(),
-      title: title.trim(),
-    });
+  function resetForm() {
     setTitle('');
     setArea('Home admin');
     setMinimumVersion('');
     setNormalVersion('');
     setFullVersion('');
     setVersionsOpen(false);
+    setSaveError('');
+  }
+
+  async function saveTask() {
+    if (!canSave || savingRef.current) return;
+
+    savingRef.current = true;
+    setSaving(true);
+    setSaveError('');
+
+    try {
+      const saved = await onSave({
+        area: area.trim(),
+        fullVersion: fullVersion.trim(),
+        minimumVersion: minimumVersion.trim(),
+        normalVersion: normalVersion.trim(),
+        title: title.trim(),
+      });
+
+      if (saved) {
+        resetForm();
+        return;
+      }
+
+      setSaveError('One-off was not saved. Check the required fields.');
+    } catch {
+      setSaveError('One-off was not saved. Check the required fields.');
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }
+
+  function closeModal() {
+    resetForm();
+    onClose();
   }
 
   return (
-    <Modal onClose={onClose} open={open} title="Add one-off">
+    <Modal onClose={closeModal} open={open} title="Add one-off">
       <div className="add-task-form">
-        <p className="lede">For today only. Preview only; not saved yet.</p>
+        <p className="lede">For today only. Saved on this device. It will not go into Library.</p>
         <label>
           <span>Task title</span>
           <input onChange={(event) => setTitle(event.target.value)} value={title} />
@@ -79,9 +109,12 @@ export function AddTaskModal({ onClose, onSave, open }: AddTaskModalProps) {
             </label>
           </div>
         ) : null}
+        {saveError ? <p className="form-feedback" role="alert">{saveError}</p> : null}
         <div className="modal-actions">
-          <Button disabled={!canSave} onClick={saveTask} variant="primary">Save one-off</Button>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button disabled={!canSave || saving} onClick={saveTask} variant="primary">
+            {saving ? 'Saving one-off...' : 'Save one-off'}
+          </Button>
+          <Button onClick={closeModal}>Cancel</Button>
         </div>
       </div>
     </Modal>

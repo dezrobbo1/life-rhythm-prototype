@@ -1,5 +1,9 @@
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { Button, Card, EmptyState } from '../components';
+import {
+  createActiveTaskId,
+  saveActiveTodayTask,
+} from '../data/activeTaskRepository';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import {
   parseLibraryRhythmBackupJson,
@@ -13,7 +17,7 @@ import {
   loadCustomLibraryRhythms,
   saveCustomLibraryRhythm,
 } from '../data/libraryRhythmRepository';
-import { rhythmTemplateSchema, type RhythmTemplate } from '../data/schemas';
+import { activeTaskSchema, rhythmTemplateSchema, type ActiveTask, type RhythmTemplate } from '../data/schemas';
 import {
   CreateRhythmModal,
   type CreateRhythmInput,
@@ -201,6 +205,37 @@ function mergeRhythms(current: LibraryRhythm[], additions: LibraryRhythm[]) {
   ];
 }
 
+function activeTaskFromLibraryRhythm(rhythm: LibraryRhythm): ActiveTask {
+  const timestamp = new Date().toISOString();
+  const area = categoryToArea[rhythm.category];
+
+  return activeTaskSchema.parse({
+    area,
+    createdAt: timestamp,
+    full: {
+      label: rhythm.fullVersion,
+      minutes: 20,
+    },
+    id: createActiveTaskId(`library-${rhythm.id}`),
+    minimum: {
+      label: rhythm.minimumVersion,
+      minutes: 5,
+    },
+    normal: {
+      label: rhythm.normalVersion,
+      minutes: 10,
+    },
+    purpose: rhythm.purpose,
+    showToday: true,
+    source: 'library',
+    status: 'active',
+    taskType: areaToTaskType[area],
+    templateId: rhythm.id,
+    title: rhythm.title,
+    updatedAt: timestamp,
+  });
+}
+
 function downloadLibraryRhythmBackup(backup: LibraryRhythmBackupExport) {
   if (
     typeof document === 'undefined' ||
@@ -295,8 +330,20 @@ export function LibraryScreen() {
     setEnabledById((current) => ({ ...current, [rhythmId]: !current[rhythmId] }));
   }
 
-  function addToToday(rhythm: LibraryRhythm) {
-    setConfirmation(`${rhythm.title} is shown as a mock Today add. Nothing was saved or created.`);
+  async function addToToday(rhythm: LibraryRhythm) {
+    const result = await saveActiveTodayTask(activeTaskFromLibraryRhythm(rhythm));
+
+    if (!result.ok) {
+      setConfirmation(`${rhythm.title} was not added to Today. Check the rhythm details.`);
+      return;
+    }
+
+    if (result.alreadyExists) {
+      setConfirmation(`${rhythm.title} is already in Today on this device.`);
+      return;
+    }
+
+    setConfirmation(`${rhythm.title} saved to Today on this device. Library enablement did not change.`);
   }
 
   function enablePack(pack: QuickPack) {

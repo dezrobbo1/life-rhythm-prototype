@@ -1,5 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, EmptyState, Modal } from '../components';
+import {
+  createActiveTaskId,
+  loadActiveTodayTasks,
+  saveActiveTodayTask,
+} from '../data/activeTaskRepository';
+import { activeTaskSchema, type ActiveTask } from '../data/schemas';
 import {
   mockTodayTask,
   type MockTask,
@@ -15,6 +21,41 @@ import {
   type TaskViewModel,
 } from '../viewModels';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
+
+type ActiveTaskArea = ActiveTask['area'];
+
+const areaLabels: Record<ActiveTaskArea, string> = {
+  admin: 'Admin',
+  antidrift: 'Anti-scroll',
+  emotion: 'Emotional recovery',
+  food: 'Food',
+  health: 'Health',
+  house: 'Household',
+  money: 'Money',
+  movement: 'Movement',
+  other: 'Other',
+  sensory: 'Sensory load',
+  social: 'Social support',
+  work: 'Work',
+};
+
+function areaFromInput(value: string): ActiveTaskArea {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized.includes('money') || normalized.includes('bill')) return 'money';
+  if (normalized.includes('food') || normalized.includes('meal') || normalized.includes('breakfast')) return 'food';
+  if (normalized.includes('move') || normalized.includes('exercise')) return 'movement';
+  if (normalized.includes('work')) return 'work';
+  if (normalized.includes('admin') || normalized.includes('paper')) return 'admin';
+  if (normalized.includes('home') || normalized.includes('house')) return 'house';
+  if (normalized.includes('social') || normalized.includes('message')) return 'social';
+  if (normalized.includes('sensory') || normalized.includes('quiet')) return 'sensory';
+  if (normalized.includes('emotion') || normalized.includes('reset')) return 'emotion';
+  if (normalized.includes('health') || normalized.includes('sleep')) return 'health';
+  if (normalized.includes('scroll') || normalized.includes('phone')) return 'antidrift';
+
+  return 'other';
+}
 
 function taskFromViewModel(task: TaskViewModel | null): MockTask | null {
   if (!task) {
@@ -39,21 +80,55 @@ function taskFromViewModel(task: TaskViewModel | null): MockTask | null {
   };
 }
 
-function createMockTask(input: MockAddTaskInput): MockTask {
+function taskFromActiveTask(task: ActiveTask): MockTask {
   return {
     ...mockTodayTask,
-    area: input.area,
+    area: areaLabels[task.area],
     areaIcon: 'Task',
     chips: ['Minimum counts', 'Start small'],
-    fullVersion: input.fullVersion || input.normalVersion || input.minimumVersion,
-    id: `mock-added-${Date.now()}`,
-    minimumVersion: input.minimumVersion,
-    normalVersion: input.normalVersion || input.minimumVersion,
-    purpose: 'A preview task added for today only.',
-    recommendedSize: 'Small',
-    title: input.title,
-    whyThis: 'This mock task shows how a one-off add will feel before real storage is connected.',
+    fullVersion: task.full.label,
+    hiddenEdges: mockTodayTask.hiddenEdges,
+    id: task.id,
+    minimumVersion: task.minimum.label,
+    normalVersion: task.normal.label,
+    purpose: task.purpose ?? 'One Today task saved on this device.',
+    recommendedSize: `${task.minimum.minutes} min minimum`,
+    title: task.title,
+    whyThis: task.source === 'library'
+      ? 'This task was added from a Library rhythm by you.'
+      : 'This one-off was added for today only and is not part of Library.',
   };
+}
+
+function createOneOffActiveTask(input: MockAddTaskInput): ActiveTask {
+  const timestamp = new Date().toISOString();
+  const minimum = input.minimumVersion;
+  const normal = input.normalVersion || minimum;
+  const full = input.fullVersion || normal;
+
+  return activeTaskSchema.parse({
+    area: areaFromInput(input.area),
+    createdAt: timestamp,
+    full: {
+      label: full,
+      minutes: 20,
+    },
+    id: createActiveTaskId('adhoc'),
+    minimum: {
+      label: minimum,
+      minutes: 5,
+    },
+    normal: {
+      label: normal,
+      minutes: 10,
+    },
+    purpose: 'Today-only task added by you.',
+    showToday: true,
+    source: 'adhoc',
+    status: 'active',
+    title: input.title,
+    updatedAt: timestamp,
+  });
 }
 
 export function TodayScreen() {
@@ -87,12 +162,39 @@ export function TodayScreen() {
     setStateChooserOpen(false);
   }
 
-  function saveMockTask(input: MockAddTaskInput) {
-    setNextTask(createMockTask(input));
+  useEffect(() => {
+    let active = true;
+
+    loadActiveTodayTasks().then((tasks) => {
+      if (!active || tasks.length === 0) return;
+
+      setNextTask(taskFromActiveTask(tasks[0]));
+      setTaskProgress('idle');
+      setCompletionFeedback('');
+      setBoostOpen(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function saveOneOffTask(input: MockAddTaskInput): Promise<boolean> {
+    const candidate = createOneOffActiveTask(input);
+    const result = await saveActiveTodayTask(candidate);
+
+    if (!result.ok) {
+      setCompletionFeedback('One-off was not saved. Check the required fields.');
+      return false;
+    }
+
+    setNextTask(taskFromActiveTask(result.task));
     setTaskProgress('idle');
-    setCompletionFeedback('Mock task added for today only. Nothing was saved.');
+    setCompletionFeedback('One-off saved to Today on this device. It will not go into Library.');
     setAddTaskOpen(false);
     setBoostOpen(false);
+
+    return true;
   }
 
   function startTask() {
@@ -158,7 +260,7 @@ export function TodayScreen() {
             <section aria-labelledby="today-one-off-title" className="today-one-off">
               <div>
                 <h2 id="today-one-off-title">Need something else today?</h2>
-                <p>Add one today-only task. It will not go into Library or storage.</p>
+                <p>Add one today-only task. It will not go into Library.</p>
               </div>
               <Button onClick={() => setAddTaskOpen(true)}>Add one-off</Button>
             </section>
@@ -204,7 +306,7 @@ export function TodayScreen() {
           </div>
         </div>
       </Modal>
-      <AddTaskModal onClose={() => setAddTaskOpen(false)} onSave={saveMockTask} open={addTaskOpen} />
+      <AddTaskModal onClose={() => setAddTaskOpen(false)} onSave={saveOneOffTask} open={addTaskOpen} />
     </div>
   );
 }
