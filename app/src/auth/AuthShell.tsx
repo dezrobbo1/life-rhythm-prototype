@@ -1,6 +1,7 @@
 import { ClerkProvider, Show, SignInButton, SignOutButton, UserButton } from '@clerk/react';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '../components';
+import { inspectLegacyLocalData, type LegacyLocalDataInspection } from '../data/localDataNamespace';
 import { canUseAuth, readAuthConfig, type AuthRuntimeConfig } from './authConfig';
 import {
   AuthLocalNamespaceProvider,
@@ -15,6 +16,41 @@ type AuthBoundaryProps = {
 type AuthShellProps = {
   children: ReactNode;
 };
+
+function LegacyLocalDataNotice() {
+  const [inspection, setInspection] = useState<LegacyLocalDataInspection | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    inspectLegacyLocalData().then((result) => {
+      if (active) {
+        setInspection(result);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!inspection?.hasLegacyLocalData) {
+    return null;
+  }
+
+  return (
+    <section className="auth-handoff-notice" aria-labelledby="auth-handoff-title">
+      <div>
+        <strong id="auth-handoff-title">Existing local setup found</strong>
+        <span>It has not been deleted.</span>
+        <span>You are now using a separate signed-in local profile.</span>
+        <span>Sign out to return to the existing local setup.</span>
+        <span>Backup and export remain user-controlled.</span>
+        <span>No data has been uploaded or synced.</span>
+      </div>
+    </section>
+  );
+}
 
 export function AuthBoundary({ children, config = readAuthConfig() }: AuthBoundaryProps) {
   if (!canUseAuth(config)) {
@@ -63,6 +99,7 @@ export function AuthShell({ children }: AuthShellProps) {
               </SignOutButton>
             </div>
           </aside>
+          <LegacyLocalDataNotice />
           {children}
         </AuthLocalNamespaceProvider>
       </Show>

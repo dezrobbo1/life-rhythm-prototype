@@ -6,6 +6,7 @@ import {
   createAuthLocalDataNamespace,
   getCurrentLocalDataNamespace,
   getLegacyLocalDataNamespace,
+  inspectLegacyLocalData,
   resetCurrentLocalDataNamespace,
   setCurrentLocalDataNamespace,
   type LocalDataNamespace,
@@ -129,6 +130,20 @@ async function deleteNamespaces(namespaces: LocalDataNamespace[]) {
   for (const namespace of namespaces) {
     await createLifeRhythmDatabase(namespace.databaseName).delete();
   }
+}
+
+async function tableCounts(namespace: LocalDataNamespace) {
+  const database = createLifeRhythmDatabase(namespace.databaseName);
+
+  return {
+    activeTasks: await database.activeTasks.count(),
+    rhythmTemplates: await database.rhythmTemplates.count(),
+    settings: await database.settings.count(),
+  };
+}
+
+async function databaseNames() {
+  return (await indexedDB.databases()).map((database) => database.name);
 }
 
 afterEach(async () => {
@@ -264,6 +279,110 @@ describe('local data namespace', () => {
     expect(settingsBackup.payload.settings.theme).toBe('clear');
     expect(libraryBackup?.payload.rhythms.map((rhythm) => rhythm.title)).toEqual(['User B rhythm']);
     expect(activeTasksForBackup.map((task) => task.title)).toEqual(['User B task']);
+  });
+
+  it('detects no legacy local data when the legacy namespace is empty', async () => {
+    setCurrentLocalDataNamespace(userANamespace);
+
+    expect(await databaseNames()).not.toContain(getLegacyLocalDataNamespace().databaseName);
+    await expect(inspectLegacyLocalData()).resolves.toMatchObject({
+      activeTaskCount: 0,
+      customRhythmCount: 0,
+      hasActiveTasks: false,
+      hasChangedSettings: false,
+      hasCustomLibraryRhythms: false,
+      hasLegacyLocalData: false,
+    });
+    expect(await databaseNames()).not.toContain(getLegacyLocalDataNamespace().databaseName);
+    expect(getCurrentLocalDataNamespace()).toEqual(userANamespace);
+  });
+
+  it('detects legacy settings that differ from defaults without changing the current namespace', async () => {
+    setCurrentLocalDataNamespace(getLegacyLocalDataNamespace());
+    await saveSettings(validSettingsInput({ theme: 'grounded' }));
+
+    setCurrentLocalDataNamespace(userANamespace);
+    const result = await inspectLegacyLocalData();
+
+    expect(result).toMatchObject({
+      hasChangedSettings: true,
+      hasLegacyLocalData: true,
+    });
+    expect(getCurrentLocalDataNamespace()).toEqual(userANamespace);
+  });
+
+  it('detects legacy custom Library rhythms without writing data', async () => {
+    setCurrentLocalDataNamespace(getLegacyLocalDataNamespace());
+    await saveCustomLibraryRhythm(validRhythm({
+      id: 'legacy-custom-rhythm',
+      title: 'Legacy custom rhythm',
+    }));
+    const beforeCounts = await tableCounts(getLegacyLocalDataNamespace());
+
+    setCurrentLocalDataNamespace(userANamespace);
+    const result = await inspectLegacyLocalData();
+    const afterCounts = await tableCounts(getLegacyLocalDataNamespace());
+
+    expect(result).toMatchObject({
+      customRhythmCount: 1,
+      hasCustomLibraryRhythms: true,
+      hasLegacyLocalData: true,
+    });
+    expect(afterCounts).toEqual(beforeCounts);
+    expect(getCurrentLocalDataNamespace()).toEqual(userANamespace);
+  });
+
+  it('detects legacy active tasks without writing data', async () => {
+    setCurrentLocalDataNamespace(getLegacyLocalDataNamespace());
+    await saveActiveTodayTask(validActiveTask({
+      id: 'legacy-active-task',
+      title: 'Legacy active task',
+    }));
+    const beforeCounts = await tableCounts(getLegacyLocalDataNamespace());
+
+    setCurrentLocalDataNamespace(userANamespace);
+    const result = await inspectLegacyLocalData();
+    const afterCounts = await tableCounts(getLegacyLocalDataNamespace());
+
+    expect(result).toMatchObject({
+      activeTaskCount: 1,
+      hasActiveTasks: true,
+      hasLegacyLocalData: true,
+    });
+    expect(afterCounts).toEqual(beforeCounts);
+    expect(getCurrentLocalDataNamespace()).toEqual(userANamespace);
+  });
+
+  it('does not change signed-in namespace data while inspecting legacy data', async () => {
+    setCurrentLocalDataNamespace(getLegacyLocalDataNamespace());
+    await saveSettings(validSettingsInput({ theme: 'grounded' }));
+    await saveActiveTodayTask(validActiveTask({
+      id: 'legacy-active-task',
+      title: 'Legacy active task',
+    }));
+
+    setCurrentLocalDataNamespace(userANamespace);
+    await saveSettings(validSettingsInput({ theme: 'clear' }));
+    await saveActiveTodayTask(validActiveTask({
+      id: 'auth-active-task',
+      title: 'Auth active task',
+    }));
+    await saveCustomLibraryRhythm(validRhythm({
+      id: 'auth-custom-rhythm',
+      title: 'Auth custom rhythm',
+    }));
+    const beforeCounts = await tableCounts(userANamespace);
+
+    await expect(inspectLegacyLocalData()).resolves.toMatchObject({
+      hasActiveTasks: true,
+      hasChangedSettings: true,
+      hasLegacyLocalData: true,
+    });
+
+    expect(await tableCounts(userANamespace)).toEqual(beforeCounts);
+    expect((await loadSettings()).theme).toBe('clear');
+    expect((await loadActiveTodayTasks()).map((task) => task.title)).toEqual(['Auth active task']);
+    expect((await loadCustomLibraryRhythms()).map((rhythm) => rhythm.title)).toEqual(['Auth custom rhythm']);
   });
 
   it('does not use fetch or localStorage while choosing local namespaces', async () => {
