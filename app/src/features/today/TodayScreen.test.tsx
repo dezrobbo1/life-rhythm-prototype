@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { parseActiveTaskBackupJson } from '../../data/activeTaskBackup';
+import {
+  buildActiveTaskBackupPayload,
+  parseActiveTaskBackupJson,
+  serializeActiveTaskBackup,
+} from '../../data/activeTaskBackup';
 import { activeTaskSchema, type ActiveTask } from '../../data/schemas';
 
 const activeTaskRepositoryMocks = vi.hoisted(() => ({
@@ -44,6 +48,15 @@ function persistedOneOffTask(overrides: Partial<ActiveTask> = {}): ActiveTask {
     updatedAt: '2026-06-17T00:00:00.000Z',
     ...overrides,
   });
+}
+
+function validActiveTaskBackupJson(overrides: Partial<ActiveTask> = {}) {
+  return serializeActiveTaskBackup(buildActiveTaskBackupPayload([
+    persistedOneOffTask({
+      status: 'paused',
+      ...overrides,
+    }),
+  ], '2026-06-17T00:00:00.000Z'));
 }
 
 beforeEach(() => {
@@ -170,6 +183,16 @@ describe('Today screen', () => {
     expect(screen.getByText('This backup includes Today tasks only. It does not include Library rhythms or settings.')).toBeTruthy();
   });
 
+  it('renders the Today tasks backup checker UI', () => {
+    render(<TodayScreen />);
+
+    expect(screen.getByRole('heading', { name: 'Check Today tasks backup' })).toBeTruthy();
+    expect(screen.getByLabelText('Today task backup JSON')).toBeTruthy();
+    expect(screen.getByLabelText('Select Today tasks backup file')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Check Today tasks backup' })).toBeTruthy();
+    expect(screen.getByText('Checking a backup does not change anything on this device. Restore is not connected yet.')).toBeTruthy();
+  });
+
   it('shows an empty export message and does not download when there are no saved Today tasks', async () => {
     const user = userEvent.setup();
     const createObjectURL = vi.fn(() => 'blob:today-tasks');
@@ -276,6 +299,101 @@ describe('Today screen', () => {
     await user.click(screen.getByRole('button', { name: 'Export Today tasks backup' }));
 
     expect(screen.getByText('Today tasks backup created on this device.')).toBeTruthy();
+    expect(getItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(clearSpy).not.toHaveBeenCalled();
+  });
+
+  it('validates pasted Today task backup JSON and shows a preview without saving', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    fireEvent.change(screen.getByLabelText('Today task backup JSON'), {
+      target: { value: validActiveTaskBackupJson({ status: 'paused' }) },
+    });
+    await user.click(screen.getByRole('button', { name: 'Check Today tasks backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('Today tasks backup looks valid. Restore is not connected yet.');
+    const preview = screen.getByLabelText('Today task backup preview');
+    expect(preview.textContent).toContain('Pay water bill (paused)');
+    expect(preview.textContent).toContain('Tasks');
+    expect(preview.textContent).toContain('1');
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
+  });
+
+  it('shows invalid feedback for malformed pasted Today task backup JSON', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    fireEvent.change(screen.getByLabelText('Today task backup JSON'), {
+      target: { value: '{ not json' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Check Today tasks backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('This Today tasks backup could not be used.');
+    expect(screen.getByText('backup: Active task backup JSON is malformed.')).toBeTruthy();
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
+  });
+
+  it('loads a valid selected Today task backup file and validates it', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    const file = new File([validActiveTaskBackupJson({ status: 'minimumDone' })], 'today-tasks.json', {
+      type: 'application/json',
+    });
+
+    await user.upload(screen.getByLabelText('Select Today tasks backup file'), file);
+
+    expect(screen.getByRole('status').textContent).toContain('Today tasks backup loaded. Choose Check Today tasks backup.');
+
+    await user.click(screen.getByRole('button', { name: 'Check Today tasks backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('Today tasks backup looks valid. Restore is not connected yet.');
+    expect(screen.getByLabelText('Today task backup preview').textContent).toContain('Pay water bill (minimumDone)');
+  });
+
+  it('loads an invalid selected Today task backup file and shows invalid feedback after checking', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    const file = new File(['{ not json'], 'today-tasks.json', {
+      type: 'application/json',
+    });
+
+    await user.upload(screen.getByLabelText('Select Today tasks backup file'), file);
+
+    expect(screen.getByRole('status').textContent).toContain('Today tasks backup loaded. Choose Check Today tasks backup.');
+
+    await user.click(screen.getByRole('button', { name: 'Check Today tasks backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('This Today tasks backup could not be used.');
+    expect(screen.getByText('backup: Active task backup JSON is malformed.')).toBeTruthy();
+  });
+
+  it('checks Today task backups without localStorage, Dexie writes, or current-task changes', async () => {
+    const user = userEvent.setup();
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    const clearSpy = vi.spyOn(Storage.prototype, 'clear');
+
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Today task backup JSON'), {
+      target: { value: validActiveTaskBackupJson({ title: 'Different saved task' }) },
+    });
+    await user.click(screen.getByRole('button', { name: 'Check Today tasks backup' }));
+
+    expect(screen.getByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+    expect(screen.queryByRole('article', { name: 'Different saved task' })).toBeNull();
+    expect(screen.getByLabelText('Today task backup preview').textContent).toContain('Different saved task (paused)');
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
     expect(getItemSpy).not.toHaveBeenCalled();
     expect(setItemSpy).not.toHaveBeenCalled();
     expect(clearSpy).not.toHaveBeenCalled();
