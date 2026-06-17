@@ -131,6 +131,39 @@ describe('read-only local data adapter', () => {
     expect(setItemSpy).not.toHaveBeenCalled();
   });
 
+  it('maps active task deadline fields through the read-only snapshot bridge', () => {
+    const snapshot = mapCurrentDataToAppSnapshot({
+      activeTasks: [
+        activeTaskSchema.parse({
+          ...currentOneOff,
+          dueAt: '2026-06-17T09:00:00.000Z',
+          latestUsefulStartAt: '2026-06-17T08:45:00.000Z',
+          minimumStillUsefulAfterDeadline: true,
+          missedPolicy: 'minimumOnly',
+          notUsefulAfter: '2026-06-17T10:00:00.000Z',
+          timeConstraint: 'dueBy',
+        }),
+      ],
+    });
+    const today = buildTodayViewModel(snapshot);
+
+    expect(snapshot.activeTasks?.[0].deadline).toEqual({
+      dueAt: '2026-06-17T09:00:00.000Z',
+      expiresAfter: undefined,
+      fixedAt: undefined,
+      latestUsefulStartAt: '2026-06-17T08:45:00.000Z',
+      minimumStillUsefulAfterDeadline: true,
+      missedPolicy: 'minimumOnly',
+      notUsefulAfter: '2026-06-17T10:00:00.000Z',
+      timeConstraint: 'dueBy',
+    });
+    expect(today.nextUsefulAction?.deadline).toMatchObject({
+      dueAt: '2026-06-17T09:00:00.000Z',
+      missedPolicy: 'minimumOnly',
+      timeConstraint: 'dueBy',
+    });
+  });
+
   it('keeps one-off tasks Today-only and reusable rhythms Library-only', () => {
     const snapshot = loadReadOnlyAppSnapshot({
       currentData: {

@@ -18,6 +18,7 @@ import {
   type SnapshotSchedule,
   type SnapshotSettings,
   type SnapshotTaskVersion,
+  type TaskDeadlineViewModel,
 } from '../../viewModels';
 
 type UnknownRecord = Record<string, unknown>;
@@ -63,6 +64,16 @@ const activeTaskStatuses = [
   'parked',
   'skipped',
   'notToday',
+] as const;
+const timeConstraints = ['flexible', 'dueBy', 'fixedAt', 'expiresAfter'] as const;
+const missedPolicies = [
+  'ask',
+  'park',
+  'notToday',
+  'minimumOnly',
+  'followUpPrompt',
+  'hideUntilReview',
+  'archiveIfExpired',
 ] as const;
 
 function isRecord(value: unknown): value is UnknownRecord {
@@ -116,6 +127,22 @@ function statusValue(value: unknown): SnapshotActiveTask['status'] | undefined {
     : undefined;
 }
 
+function timeConstraintValue(value: unknown): TaskDeadlineViewModel['timeConstraint'] | undefined {
+  const timeConstraint = value as TaskDeadlineViewModel['timeConstraint'];
+
+  return timeConstraint && timeConstraints.includes(timeConstraint)
+    ? timeConstraint
+    : undefined;
+}
+
+function missedPolicyValue(value: unknown): TaskDeadlineViewModel['missedPolicy'] | undefined {
+  const missedPolicy = value as TaskDeadlineViewModel['missedPolicy'];
+
+  return missedPolicy && missedPolicies.includes(missedPolicy)
+    ? missedPolicy
+    : undefined;
+}
+
 function versionFromUnknown(value: unknown, fallbackLabel: string): SnapshotTaskVersion {
   if (isRecord(value)) {
     return {
@@ -144,6 +171,22 @@ function scheduleFromRecord(record: UnknownRecord | undefined): SnapshotSchedule
     targetDate: stringValue(schedule.targetDate),
     transitionMinutes: numberValue(schedule.transitionMinutes),
     travelMinutes: numberValue(schedule.travelMinutes),
+  };
+  const hasValue = Object.values(result).some((value) => value !== undefined);
+
+  return hasValue ? result : undefined;
+}
+
+function deadlineFromRecord(record: UnknownRecord): TaskDeadlineViewModel | undefined {
+  const result: TaskDeadlineViewModel = {
+    dueAt: stringValue(record.dueAt),
+    expiresAfter: stringValue(record.expiresAfter),
+    fixedAt: stringValue(record.fixedAt),
+    latestUsefulStartAt: stringValue(record.latestUsefulStartAt),
+    minimumStillUsefulAfterDeadline: booleanValue(record.minimumStillUsefulAfterDeadline),
+    missedPolicy: missedPolicyValue(record.missedPolicy),
+    notUsefulAfter: stringValue(record.notUsefulAfter),
+    timeConstraint: timeConstraintValue(record.timeConstraint),
   };
   const hasValue = Object.values(result).some((value) => value !== undefined);
 
@@ -197,6 +240,7 @@ function currentTaskToSnapshot(task: Partial<ActiveTask>, index: number): Snapsh
     area: areaLabel(task.area),
     chips: stringArray((task as UnknownRecord).chips),
     full: versionFromUnknown(task.full, 'Full version is not set yet.'),
+    deadline: deadlineFromRecord(task as UnknownRecord),
     hiddenEdges: hiddenEdgesFromSchedule(id, schedule),
     id,
     minimum: versionFromUnknown(task.minimum, 'Minimum version is not set yet.'),
@@ -233,6 +277,7 @@ function cloneSnapshot(snapshot: AppDataSnapshot): AppDataSnapshot {
       ...task,
       chips: task.chips ? [...task.chips] : undefined,
       hiddenEdges: task.hiddenEdges?.map((edge) => ({ ...edge })),
+      deadline: task.deadline ? { ...task.deadline } : undefined,
       schedule: task.schedule ? { ...task.schedule, preferredDays: task.schedule.preferredDays ? [...task.schedule.preferredDays] : undefined } : undefined,
     })),
     futureModules: snapshot.futureModules?.map((module) => ({ ...module })),
@@ -352,6 +397,7 @@ function legacyTaskToActiveTask(record: UnknownRecord, index: number): SnapshotA
     area: areaLabel(record.area ?? record.category),
     chips: stringArray(record.chips),
     full: versions.full,
+    deadline: deadlineFromRecord(record),
     hiddenEdges: hiddenEdgesFromSchedule(id, schedule),
     id,
     minimum: versions.minimum,

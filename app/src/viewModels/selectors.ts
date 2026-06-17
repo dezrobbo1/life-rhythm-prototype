@@ -63,6 +63,7 @@ function toTaskViewModel(task: SnapshotActiveTask): TaskViewModel {
     id: task.id,
     area: task.area || 'Other',
     chips: (task.chips ?? ['Minimum counts']).slice(0, 2),
+    deadline: task.deadline ? { ...task.deadline } : undefined,
     hiddenEdges: toHiddenEdges(task.hiddenEdges),
     purpose: task.purpose || 'One realistic next action.',
     recommendedSize: task.minimum?.minutes ? `${task.minimum.minutes} min minimum` : 'Small',

@@ -136,6 +136,30 @@ describe('active task backup scaffolding', () => {
     expect(task.schedule.preferredDays).toEqual(['Monday', 'Wednesday']);
   });
 
+  it('includes approved deadline and time-edge fields only when present', () => {
+    const payload = buildActiveTaskBackupPayload([
+      validActiveTask({
+        dueAt: '2026-06-17T09:00:00.000Z',
+        latestUsefulStartAt: '2026-06-17T08:45:00.000Z',
+        minimumStillUsefulAfterDeadline: true,
+        missedPolicy: 'minimumOnly',
+        notUsefulAfter: '2026-06-17T10:00:00.000Z',
+        timeConstraint: 'dueBy',
+      }),
+    ], exportedAt);
+
+    expect(payload.activeTasks[0]).toMatchObject({
+      dueAt: '2026-06-17T09:00:00.000Z',
+      latestUsefulStartAt: '2026-06-17T08:45:00.000Z',
+      minimumStillUsefulAfterDeadline: true,
+      missedPolicy: 'minimumOnly',
+      notUsefulAfter: '2026-06-17T10:00:00.000Z',
+      timeConstraint: 'dueBy',
+    });
+    expect(payload.activeTasks[0]).not.toHaveProperty('fixedAt');
+    expect(validateActiveTaskBackup(payload).ok).toBe(true);
+  });
+
   it('serializes a payload that parses through active task backup validation', () => {
     const payload = validPayload();
     const serialized = serializeActiveTaskBackup(payload);
@@ -186,13 +210,24 @@ describe('active task backup scaffolding', () => {
         },
       ],
     });
+    const unknownDeadlineField = validateActiveTaskBackup({
+      ...payload,
+      activeTasks: [
+        {
+          ...payload.activeTasks[0],
+          deadlineAt: '2026-06-17T09:00:00.000Z',
+        },
+      ],
+    });
 
     expect(unknownTopLevel.ok).toBe(false);
     expect(unknownTaskField.ok).toBe(false);
-    if (!unknownTopLevel.ok && !unknownTaskField.ok) {
+    expect(unknownDeadlineField.ok).toBe(false);
+    if (!unknownTopLevel.ok && !unknownTaskField.ok && !unknownDeadlineField.ok) {
       expect(unknownTopLevel.errors.join(' ')).toContain('Unrecognized key');
       expect(unknownTaskField.errors.join(' ')).toContain('activeTasks.0');
       expect(unknownTaskField.errors.join(' ')).toContain('startBarrier');
+      expect(unknownDeadlineField.errors.join(' ')).toContain('deadlineAt');
     }
   });
 
@@ -305,6 +340,57 @@ describe('active task backup scaffolding', () => {
       expect(errors).toContain('activeTasks.0.full.minutes');
       expect(errors).toContain('activeTasks.0.schedule.fixedTime');
       expect(errors).toContain('activeTasks.0.schedule.maxPerDay');
+    }
+  });
+
+  it('rejects invalid deadline and time-edge fields', () => {
+    const payload = clone(validPayload());
+    const invalidDeadline = validateActiveTaskBackup({
+      ...payload,
+      activeTasks: [
+        {
+          ...payload.activeTasks[0],
+          dueAt: '2026-06-17T09:00:00.000Z',
+          expiresAfter: '2026-06-17T17:00:00.000Z',
+          fixedAt: '2026-06-17T10:00:00.000Z',
+          latestUsefulStartAt: '2026-06-17T18:00:00.000Z',
+          missedPolicy: 'minimumOnly',
+          notUsefulAfter: '2026-06-17T17:00:00.000Z',
+          timeConstraint: 'dueBy',
+        },
+      ],
+    });
+    const invalidMissedPolicy = validateActiveTaskBackup({
+      ...payload,
+      activeTasks: [
+        {
+          ...payload.activeTasks[0],
+          missedPolicy: 'pressure',
+        },
+      ],
+    });
+    const invalidIso = validateActiveTaskBackup({
+      ...payload,
+      activeTasks: [
+        {
+          ...payload.activeTasks[0],
+          dueAt: '2026-02-31T09:00:00.000Z',
+          timeConstraint: 'dueBy',
+        },
+      ],
+    });
+
+    expect(invalidDeadline.ok).toBe(false);
+    expect(invalidMissedPolicy.ok).toBe(false);
+    expect(invalidIso.ok).toBe(false);
+    if (!invalidDeadline.ok && !invalidMissedPolicy.ok && !invalidIso.ok) {
+      const errors = [...invalidDeadline.errors, ...invalidMissedPolicy.errors, ...invalidIso.errors].join(' ');
+
+      expect(errors).toContain('activeTasks.0.fixedAt');
+      expect(errors).toContain('activeTasks.0.expiresAfter');
+      expect(errors).toContain('activeTasks.0.latestUsefulStartAt');
+      expect(errors).toContain('activeTasks.0.missedPolicy');
+      expect(errors).toContain('activeTasks.0.dueAt');
     }
   });
 
