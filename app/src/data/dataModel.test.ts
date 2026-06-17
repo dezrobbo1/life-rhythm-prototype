@@ -336,6 +336,104 @@ describe('future data schemas', () => {
     }
   });
 
+  it('accepts a flexible active task without deadline fields', () => {
+    const result = activeTaskSchema.safeParse({
+      ...activeTask,
+      id: 'task-flexible',
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts active task deadline fields that match their time constraint', () => {
+    const dueBy = activeTaskSchema.safeParse({
+      ...activeTask,
+      id: 'task-due-by',
+      dueAt: '2026-06-17T08:00:00.000Z',
+      timeConstraint: 'dueBy',
+    });
+    const fixedAt = activeTaskSchema.safeParse({
+      ...activeTask,
+      id: 'task-fixed-at',
+      fixedAt: '2026-06-17T09:00:00.000Z',
+      timeConstraint: 'fixedAt',
+    });
+    const expiresAfter = activeTaskSchema.safeParse({
+      ...activeTask,
+      id: 'task-expires-after',
+      expiresAfter: '2026-06-17T17:00:00.000Z',
+      timeConstraint: 'expiresAfter',
+    });
+
+    expect(dueBy.success).toBe(true);
+    expect(fixedAt.success).toBe(true);
+    expect(expiresAfter.success).toBe(true);
+  });
+
+  it('rejects active task deadline fields that do not match their time constraint', () => {
+    const dueAtOnFlexible = activeTaskSchema.safeParse({
+      ...activeTask,
+      id: 'task-flexible-with-due-at',
+      dueAt: '2026-06-17T08:00:00.000Z',
+      timeConstraint: 'flexible',
+    });
+    const fixedAtOnDueBy = activeTaskSchema.safeParse({
+      ...activeTask,
+      id: 'task-due-by-with-fixed-at',
+      fixedAt: '2026-06-17T09:00:00.000Z',
+      timeConstraint: 'dueBy',
+    });
+    const expiresAfterOnDueBy = activeTaskSchema.safeParse({
+      ...activeTask,
+      id: 'task-due-by-with-expires-after',
+      expiresAfter: '2026-06-17T17:00:00.000Z',
+      timeConstraint: 'dueBy',
+    });
+
+    expect(dueAtOnFlexible.success).toBe(false);
+    expect(fixedAtOnDueBy.success).toBe(false);
+    expect(expiresAfterOnDueBy.success).toBe(false);
+  });
+
+  it('rejects invalid deadline windows and missed policies', () => {
+    const invalidWindow = activeTaskSchema.safeParse({
+      ...activeTask,
+      id: 'task-invalid-window',
+      latestUsefulStartAt: '2026-06-17T18:00:00.000Z',
+      notUsefulAfter: '2026-06-17T17:00:00.000Z',
+      timeConstraint: 'dueBy',
+      dueAt: '2026-06-17T19:00:00.000Z',
+    });
+    const invalidMissedPolicy = activeTaskSchema.safeParse({
+      ...activeTask,
+      id: 'task-invalid-missed-policy',
+      missedPolicy: 'pressure' as never,
+    });
+    const invalidIso = activeTaskSchema.safeParse({
+      ...activeTask,
+      id: 'task-invalid-iso',
+      dueAt: '2026-02-31T08:00:00.000Z',
+      timeConstraint: 'dueBy',
+    });
+
+    expect(invalidWindow.success).toBe(false);
+    expect(invalidMissedPolicy.success).toBe(false);
+    expect(invalidIso.success).toBe(false);
+  });
+
+  it('rejects unknown active task deadline fields', () => {
+    const result = activeTaskSchema.safeParse({
+      ...activeTask,
+      id: 'task-unknown-deadline-field',
+      deadlineAt: '2026-06-17T08:00:00.000Z',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.message.includes('Unrecognized key'))).toBe(true);
+    }
+  });
+
   it('defines Dexie tables for each schema group', () => {
     const db = createLifeRhythmDatabase('life-rhythm-test-schema-only');
 

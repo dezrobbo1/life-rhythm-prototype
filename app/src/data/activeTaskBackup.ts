@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  activeTaskDeadlineIsoDateTimeSchema,
   activeTaskSchema,
   activeTaskStatusSchema,
   areaSchema,
@@ -10,6 +11,8 @@ import {
   recurrencePeriodSchema,
   taskTypeSchema,
   taskVersionSchema,
+  missedPolicySchema,
+  timeConstraintSchema,
   timeWindowSchema,
 } from './schemas';
 
@@ -115,6 +118,56 @@ const activeTaskScheduleBackupSchema = z
   })
   .strict();
 
+function validateBackupDeadlineFields(
+  task: {
+    dueAt?: string;
+    expiresAfter?: string;
+    fixedAt?: string;
+    latestUsefulStartAt?: string;
+    notUsefulAfter?: string;
+    timeConstraint?: z.infer<typeof timeConstraintSchema>;
+  },
+  context: z.RefinementCtx,
+) {
+  const timeConstraint = task.timeConstraint ?? 'flexible';
+
+  if (task.dueAt && timeConstraint !== 'dueBy') {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'dueAt is only valid for dueBy tasks.',
+      path: ['dueAt'],
+    });
+  }
+
+  if (task.fixedAt && timeConstraint !== 'fixedAt') {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'fixedAt is only valid for fixedAt tasks.',
+      path: ['fixedAt'],
+    });
+  }
+
+  if (task.expiresAfter && timeConstraint !== 'expiresAfter') {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'expiresAfter is only valid for expiresAfter tasks.',
+      path: ['expiresAfter'],
+    });
+  }
+
+  if (
+    task.latestUsefulStartAt &&
+    task.notUsefulAfter &&
+    Date.parse(task.latestUsefulStartAt) > Date.parse(task.notUsefulAfter)
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'latestUsefulStartAt must not be after notUsefulAfter.',
+      path: ['latestUsefulStartAt'],
+    });
+  }
+}
+
 export const activeTaskBackupItemSchema = z
   .object({
     area: areaSchema,
@@ -131,6 +184,14 @@ export const activeTaskBackupItemSchema = z
     status: activeTaskStatusSchema,
     taskType: taskTypeSchema,
     templateId: idSchema.optional(),
+    timeConstraint: timeConstraintSchema.optional(),
+    dueAt: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    fixedAt: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    expiresAfter: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    latestUsefulStartAt: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    notUsefulAfter: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    minimumStillUsefulAfterDeadline: z.boolean().optional(),
+    missedPolicy: missedPolicySchema.optional(),
     title: z.string().min(1),
     updatedAt: isoDateTime,
   })
@@ -143,6 +204,8 @@ export const activeTaskBackupItemSchema = z
         path: ['templateId'],
       });
     }
+
+    validateBackupDeadlineFields(task, context);
   });
 
 export const activeTaskBackupSchema = z
@@ -259,6 +322,16 @@ function toBackupItem(activeTaskInput: unknown): ActiveTaskBackupItem {
     ...(task.fallback ? { fallback: task.fallback } : {}),
     ...(task.purpose ? { purpose: task.purpose } : {}),
     ...(task.templateId ? { templateId: task.templateId } : {}),
+    ...(task.timeConstraint ? { timeConstraint: task.timeConstraint } : {}),
+    ...(task.dueAt ? { dueAt: task.dueAt } : {}),
+    ...(task.fixedAt ? { fixedAt: task.fixedAt } : {}),
+    ...(task.expiresAfter ? { expiresAfter: task.expiresAfter } : {}),
+    ...(task.latestUsefulStartAt ? { latestUsefulStartAt: task.latestUsefulStartAt } : {}),
+    ...(task.notUsefulAfter ? { notUsefulAfter: task.notUsefulAfter } : {}),
+    ...(task.minimumStillUsefulAfterDeadline !== undefined
+      ? { minimumStillUsefulAfterDeadline: task.minimumStillUsefulAfterDeadline }
+      : {}),
+    ...(task.missedPolicy ? { missedPolicy: task.missedPolicy } : {}),
   };
 
   return activeTaskBackupItemSchema.parse(backupItem);

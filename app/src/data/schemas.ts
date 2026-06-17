@@ -3,6 +3,8 @@ import { z } from 'zod';
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 const isoDateTime = z.string().min(1, 'Expected an ISO timestamp');
 const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:MM');
+const strictIsoDateTimePattern =
+  /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,3}))?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
 
 export const appVersionSchema = z.string().min(1);
 export const idSchema = z.string().min(1);
@@ -52,6 +54,16 @@ export const taskPrioritySchema = z.enum(['normal', 'important', 'must']);
 export const taskKindSchema = z.enum(['adhoc', 'repeating']);
 export const completionStyleSchema = z.enum(['flexible', 'must', 'checkpoint']);
 export const energySchema = z.enum(['low', 'medium', 'high']);
+export const timeConstraintSchema = z.enum(['flexible', 'dueBy', 'fixedAt', 'expiresAfter']);
+export const missedPolicySchema = z.enum([
+  'ask',
+  'park',
+  'notToday',
+  'minimumOnly',
+  'followUpPrompt',
+  'hideUntilReview',
+  'archiveIfExpired',
+]);
 export const activeTaskStatusSchema = z.enum([
   'active',
   'inProgress',
@@ -93,6 +105,92 @@ const transitionBufferMinutesSchema = z.number().int().min(0).max(180);
 function minutesFromTime(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
   return hours * 60 + minutes;
+}
+
+function isValidStrictIsoDateTime(value: string): boolean {
+  const match = strictIsoDateTimePattern.exec(value);
+
+  if (!match) {
+    return false;
+  }
+
+  const [, yearValue, monthValue, dayValue, hourValue, minuteValue, secondValue, millisecondValue = '0'] = match;
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+  const second = Number(secondValue);
+  const millisecond = Number(millisecondValue.padEnd(3, '0'));
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second, millisecond));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day &&
+    date.getUTCHours() === hour &&
+    date.getUTCMinutes() === minute &&
+    date.getUTCSeconds() === second &&
+    date.getUTCMilliseconds() === millisecond
+  );
+}
+
+export const activeTaskDeadlineIsoDateTimeSchema = z
+  .string()
+  .regex(strictIsoDateTimePattern, 'Expected a valid ISO timestamp')
+  .refine(isValidStrictIsoDateTime, 'Expected a valid ISO timestamp');
+
+type ActiveTaskDeadlineFields = {
+  dueAt?: string;
+  expiresAfter?: string;
+  fixedAt?: string;
+  latestUsefulStartAt?: string;
+  notUsefulAfter?: string;
+  timeConstraint?: z.infer<typeof timeConstraintSchema>;
+};
+
+function validateActiveTaskDeadlineFields(
+  task: ActiveTaskDeadlineFields,
+  context: z.RefinementCtx,
+  basePath: Array<string | number> = [],
+) {
+  const timeConstraint = task.timeConstraint ?? 'flexible';
+
+  if (task.dueAt && timeConstraint !== 'dueBy') {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'dueAt is only valid for dueBy tasks.',
+      path: [...basePath, 'dueAt'],
+    });
+  }
+
+  if (task.fixedAt && timeConstraint !== 'fixedAt') {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'fixedAt is only valid for fixedAt tasks.',
+      path: [...basePath, 'fixedAt'],
+    });
+  }
+
+  if (task.expiresAfter && timeConstraint !== 'expiresAfter') {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'expiresAfter is only valid for expiresAfter tasks.',
+      path: [...basePath, 'expiresAfter'],
+    });
+  }
+
+  if (
+    task.latestUsefulStartAt &&
+    task.notUsefulAfter &&
+    Date.parse(task.latestUsefulStartAt) > Date.parse(task.notUsefulAfter)
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'latestUsefulStartAt must not be after notUsefulAfter.',
+      path: [...basePath, 'latestUsefulStartAt'],
+    });
+  }
 }
 
 export const startBoostSafetySettingsSchema = z
@@ -304,6 +402,14 @@ export const activeTaskSchema = z
     schedule: schedulePolicySchema.default({}),
     showToday: z.boolean().default(false),
     status: activeTaskStatusSchema.default('active'),
+    timeConstraint: timeConstraintSchema.optional(),
+    dueAt: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    fixedAt: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    expiresAfter: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    latestUsefulStartAt: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    notUsefulAfter: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    minimumStillUsefulAfterDeadline: z.boolean().optional(),
+    missedPolicy: missedPolicySchema.optional(),
     createdAt: isoDateTime,
     updatedAt: isoDateTime,
   })
@@ -316,6 +422,8 @@ export const activeTaskSchema = z
         path: ['templateId'],
       });
     }
+
+    validateActiveTaskDeadlineFields(task, context);
   });
 
 export const taskHistorySchema = z

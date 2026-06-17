@@ -254,6 +254,41 @@ describe('active task repository', () => {
     }
   });
 
+  it('preserves deadline and time-edge fields during status updates', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await saveActiveTodayTask(validActiveTask({
+        dueAt: '2026-06-17T09:00:00.000Z',
+        latestUsefulStartAt: '2026-06-17T08:45:00.000Z',
+        minimumStillUsefulAfterDeadline: true,
+        missedPolicy: 'minimumOnly',
+        notUsefulAfter: '2026-06-17T10:00:00.000Z',
+        timeConstraint: 'dueBy',
+      }), database);
+
+      const result = await updateActiveTaskStatus('active-kitchen-landing', 'paused', database);
+      const stored = await database.activeTasks.get('active-kitchen-landing');
+
+      expect(result).toMatchObject({
+        ok: true,
+        visibleToday: true,
+      });
+      expect(stored).toMatchObject({
+        dueAt: '2026-06-17T09:00:00.000Z',
+        latestUsefulStartAt: '2026-06-17T08:45:00.000Z',
+        minimumStillUsefulAfterDeadline: true,
+        missedPolicy: 'minimumOnly',
+        notUsefulAfter: '2026-06-17T10:00:00.000Z',
+        status: 'paused',
+        timeConstraint: 'dueBy',
+      });
+      await expectOnlyActiveTasksWritten(database, 1);
+    } finally {
+      await database.delete();
+    }
+  });
+
   it.each([
     ['done'],
     ['parked'],

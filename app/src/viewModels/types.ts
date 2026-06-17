@@ -15,6 +15,17 @@ export type TaskVersionViewModel = {
   minutes?: number;
 };
 
+export type TaskDeadlineViewModel = {
+  timeConstraint?: 'flexible' | 'dueBy' | 'fixedAt' | 'expiresAfter';
+  dueAt?: string;
+  fixedAt?: string;
+  expiresAfter?: string;
+  latestUsefulStartAt?: string;
+  notUsefulAfter?: string;
+  minimumStillUsefulAfterDeadline?: boolean;
+  missedPolicy?: 'ask' | 'park' | 'notToday' | 'minimumOnly' | 'followUpPrompt' | 'hideUntilReview' | 'archiveIfExpired';
+};
+
 export type TaskViewModel = {
   id: string;
   title: string;
@@ -30,6 +41,7 @@ export type TaskViewModel = {
   };
   chips: string[];
   hiddenEdges: HiddenEdgeViewModel[];
+  deadline?: TaskDeadlineViewModel;
 };
 
 export type TodayViewModel = {
@@ -239,6 +251,7 @@ export type SnapshotActiveTask = {
   schedule?: SnapshotSchedule;
   chips?: string[];
   hiddenEdges?: HiddenEdgeViewModel[];
+  deadline?: TaskDeadlineViewModel;
 };
 
 export type SnapshotRhythmTemplate = {
