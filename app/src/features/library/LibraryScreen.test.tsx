@@ -14,6 +14,7 @@ const activeTaskRepositoryMocks = vi.hoisted(() => ({
   createActiveTaskId: vi.fn((prefix = 'active-task') => `${prefix}-test-id`),
   loadActiveTodayTasks: vi.fn(),
   saveActiveTodayTask: vi.fn(),
+  updateActiveTaskStatus: vi.fn(),
 }));
 
 const libraryRepositoryMocks = vi.hoisted(() => ({

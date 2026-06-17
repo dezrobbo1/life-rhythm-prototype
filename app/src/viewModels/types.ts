@@ -232,7 +232,7 @@ export type SnapshotActiveTask = {
   source?: 'adhoc' | 'library' | 'custom';
   templateId?: string;
   showToday?: boolean;
-  status?: 'active' | 'parked' | 'completed' | 'archived';
+  status?: 'active' | 'inProgress' | 'paused' | 'minimumDone' | 'done' | 'parked' | 'skipped' | 'notToday';
   minimum?: SnapshotTaskVersion;
   normal?: SnapshotTaskVersion;
   full?: SnapshotTaskVersion;

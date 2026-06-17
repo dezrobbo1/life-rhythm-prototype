@@ -54,7 +54,16 @@ const areaLabels: Record<string, string> = {
 };
 
 const themeNames = ['exhale', 'clear', 'grounded'] as const;
-const activeTaskStatuses = ['active', 'parked', 'completed', 'archived'] as const;
+const activeTaskStatuses = [
+  'active',
+  'inProgress',
+  'paused',
+  'minimumDone',
+  'done',
+  'parked',
+  'skipped',
+  'notToday',
+] as const;
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

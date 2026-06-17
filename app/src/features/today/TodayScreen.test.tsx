@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { activeTaskSchema, type ActiveTask } from '../../data/schemas';
@@ -9,6 +9,7 @@ const activeTaskRepositoryMocks = vi.hoisted(() => ({
   createActiveTaskId: vi.fn((prefix = 'active-task') => `${prefix}-test-id`),
   loadActiveTodayTasks: vi.fn(),
   saveActiveTodayTask: vi.fn(),
+  updateActiveTaskStatus: vi.fn(),
 }));
 
 vi.mock('../../data/activeTaskRepository', () => activeTaskRepositoryMocks);
@@ -50,6 +51,19 @@ beforeEach(() => {
     ok: true,
     task,
   }));
+  activeTaskRepositoryMocks.updateActiveTaskStatus.mockImplementation(async (id: string, status: ActiveTask['status']) => {
+    const visibleToday = status === 'active' || status === 'inProgress' || status === 'paused' || status === 'minimumDone';
+
+    return {
+      ok: true,
+      task: persistedOneOffTask({
+        id,
+        showToday: visibleToday,
+        status,
+      }),
+      visibleToday,
+    };
+  });
 });
 
 afterEach(() => {
@@ -185,6 +199,23 @@ describe('Today screen', () => {
     expect(screen.getByRole('button', { name: 'Minimum done' })).toBeTruthy();
   });
 
+  it('persists Start as inProgress for a persisted active task', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
+    render(<TodayScreen />);
+
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+
+    await waitFor(() => {
+      expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenCalledWith(
+        'adhoc-pay-water-bill',
+        'inProgress',
+      );
+    });
+    expect(screen.getByText('In progress. Keep it small.')).toBeTruthy();
+  });
+
   it('pauses and resumes an in-progress task', async () => {
     const user = userEvent.setup();
     render(<TodayScreen />);
@@ -200,6 +231,142 @@ describe('Today screen', () => {
 
     expect(screen.getByText('In progress. Keep it small.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy();
+  });
+
+  it('persists Pause and Resume for a persisted active task', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
+    render(<TodayScreen />);
+
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(await screen.findByRole('button', { name: 'Pause' }));
+    await user.click(await screen.findByRole('button', { name: 'Resume' }));
+
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus.mock.calls.map((call) => call[1])).toEqual([
+      'inProgress',
+      'paused',
+      'inProgress',
+    ]);
+  });
+
+  it('persists Minimum done for a persisted active task', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
+    render(<TodayScreen />);
+
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(await screen.findByRole('button', { name: 'Mark minimum done' }));
+
+    await waitFor(() => {
+      expect(activeTaskRepositoryMocks.updateActiveTaskStatus.mock.calls.map((call) => call[1])).toEqual([
+        'inProgress',
+        'minimumDone',
+      ]);
+    });
+    expect(screen.getAllByText('Minimum done. That counts.').length).toBeGreaterThan(0);
+  });
+
+  it('persists Stop here as done and removes the task from the next-action slot', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
+    render(<TodayScreen />);
+
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(await screen.findByRole('button', { name: 'Mark minimum done' }));
+    await user.click(await screen.findByRole('button', { name: 'Stop here' }));
+
+    await waitFor(() => {
+      expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenLastCalledWith(
+        'adhoc-pay-water-bill',
+        'done',
+      );
+    });
+    expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
+    expect(screen.getByText('Stopped here. That task is out of Today. No catch-up pile.')).toBeTruthy();
+    expect(screen.getByText('Choose rhythms to turn on')).toBeTruthy();
+  });
+
+  it('persists Park and removes the task from the next-action slot', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
+    render(<TodayScreen />);
+
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(await screen.findByRole('button', { name: 'Mark minimum done' }));
+    await user.click(await screen.findByRole('button', { name: 'Park' }));
+
+    await waitFor(() => {
+      expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenLastCalledWith(
+        'adhoc-pay-water-bill',
+        'parked',
+      );
+    });
+    expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
+    expect(screen.getByText('Parked. It is safely held. No catch-up pile.')).toBeTruthy();
+  });
+
+  it('persists Not today and removes the task from the next-action slot', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
+    render(<TodayScreen />);
+
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(await screen.findByRole('button', { name: 'Mark minimum done' }));
+    await user.click(await screen.findByRole('button', { name: 'Not today' }));
+
+    await waitFor(() => {
+      expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenLastCalledWith(
+        'adhoc-pay-water-bill',
+        'notToday',
+      );
+    });
+    expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
+    expect(screen.getByText('Not today. It is out of the current list. No catch-up pile.')).toBeTruthy();
+  });
+
+  it('shows the next visible active task after the current task leaves Today', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask(),
+      persistedOneOffTask({
+        id: 'adhoc-file-letter',
+        title: 'File letter',
+      }),
+    ]);
+    render(<TodayScreen />);
+
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(await screen.findByRole('button', { name: 'Mark minimum done' }));
+    await user.click(await screen.findByRole('button', { name: 'Stop here' }));
+
+    expect(await screen.findByRole('article', { name: 'File letter' })).toBeTruthy();
+    expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
+  });
+
+  it('persists Keep going after minimum done as inProgress', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
+    render(<TodayScreen />);
+
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(await screen.findByRole('button', { name: 'Mark minimum done' }));
+    await user.click(await screen.findByRole('button', { name: 'Keep going' }));
+
+    await waitFor(() => {
+      expect(activeTaskRepositoryMocks.updateActiveTaskStatus.mock.calls.map((call) => call[1])).toEqual([
+        'inProgress',
+        'minimumDone',
+        'inProgress',
+      ]);
+    });
+    expect(screen.getByText('Optional. Minimum already counts. Continue only if it helps.')).toBeTruthy();
   });
 
   it('keeps optional normal and full versions hidden until Keep going', async () => {
