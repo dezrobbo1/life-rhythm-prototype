@@ -20,6 +20,69 @@ type TaskCardProps = {
   todayState: TodayState;
 };
 
+const missedPolicyLabels: Record<NonNullable<NonNullable<MockTask['timeEdge']>['missedPolicy']>, string> = {
+  archiveIfExpired: 'Archive if expired',
+  ask: 'Ask me',
+  followUpPrompt: 'Follow-up prompt',
+  hideUntilReview: 'Hide until review',
+  minimumOnly: 'Minimum only',
+  notToday: 'Not today',
+  park: 'Park',
+};
+
+function formatTimeEdgeDate(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+}
+
+function timeEdgeLines(task: MockTask): string[] {
+  const edge = task.timeEdge;
+
+  if (!edge) {
+    return [];
+  }
+
+  const lines: string[] = [];
+
+  if (edge.timeConstraint === 'dueBy' && edge.dueAt) {
+    lines.push(`Useful before ${formatTimeEdgeDate(edge.dueAt)}`);
+  }
+
+  if (edge.timeConstraint === 'fixedAt' && edge.fixedAt) {
+    lines.push(`Tied to ${formatTimeEdgeDate(edge.fixedAt)}`);
+  }
+
+  if (edge.timeConstraint === 'expiresAfter' && edge.expiresAfter) {
+    lines.push(`Useful until ${formatTimeEdgeDate(edge.expiresAfter)}`);
+  }
+
+  if (edge.latestUsefulStartAt) {
+    lines.push(`Last useful start ${formatTimeEdgeDate(edge.latestUsefulStartAt)}`);
+  }
+
+  if (edge.notUsefulAfter) {
+    lines.push(`Not useful after ${formatTimeEdgeDate(edge.notUsefulAfter)}`);
+  }
+
+  if (edge.minimumStillUsefulAfterDeadline) {
+    lines.push('Minimum still helps');
+  }
+
+  if (edge.missedPolicy) {
+    lines.push(`Re-entry choice: ${missedPolicyLabels[edge.missedPolicy]}`);
+  }
+
+  return lines.length > 0 ? [...lines, 'No schedule created'] : [];
+}
+
 export function TaskCard({
   onKeepGoing,
   onMarkMinimumDone,
@@ -39,6 +102,7 @@ export function TaskCard({
   const [continuedAfterMinimum, setContinuedAfterMinimum] = useState(false);
   const [continuationFeedback, setContinuationFeedback] = useState('');
   const visibleChips = task.chips.slice(0, 2);
+  const visibleTimeEdgeLines = timeEdgeLines(task);
   const isInProgress = progress === 'inProgress';
   const isPaused = progress === 'paused';
   const isMinimumDone = progress === 'minimumDone';
@@ -92,6 +156,13 @@ export function TaskCard({
         <span className="task-card__size">{task.recommendedSize}</span>
       </div>
       <p className="task-card__tone">{stateActionTone[todayState]}</p>
+      {visibleTimeEdgeLines.length > 0 ? (
+        <div className="task-card__time-edge" aria-label="Time edge">
+          {visibleTimeEdgeLines.map((line) => (
+            <span key={line}>{line}</span>
+          ))}
+        </div>
+      ) : null}
       {isInProgress ? <p className="task-card__status" role="status">In progress. Keep it small.</p> : null}
       {isPaused ? <p className="task-card__status" role="status">Paused. You can restart small.</p> : null}
       {isMinimumDone ? (

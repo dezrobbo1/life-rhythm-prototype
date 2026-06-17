@@ -91,6 +91,7 @@ function taskFromViewModel(task: TaskViewModel | null): MockTask | null {
     normalVersion: task.versions.normal.text,
     purpose: task.purpose,
     recommendedSize: task.recommendedSize,
+    timeEdge: task.deadline,
     title: task.title,
   };
 }
@@ -108,6 +109,16 @@ function taskFromActiveTask(task: ActiveTask): MockTask {
     normalVersion: task.normal.label,
     purpose: task.purpose ?? 'One Today task saved on this device.',
     recommendedSize: `${task.minimum.minutes} min minimum`,
+    timeEdge: {
+      dueAt: task.dueAt,
+      expiresAfter: task.expiresAfter,
+      fixedAt: task.fixedAt,
+      latestUsefulStartAt: task.latestUsefulStartAt,
+      minimumStillUsefulAfterDeadline: task.minimumStillUsefulAfterDeadline,
+      missedPolicy: task.missedPolicy,
+      notUsefulAfter: task.notUsefulAfter,
+      timeConstraint: task.timeConstraint,
+    },
     title: task.title,
     whyThis: task.source === 'library'
       ? 'This task was added from a Library rhythm by you.'
@@ -154,6 +165,16 @@ function createOneOffActiveTask(input: MockAddTaskInput): ActiveTask {
   const minimum = input.minimumVersion;
   const normal = input.normalVersion || minimum;
   const full = input.fullVersion || normal;
+  const timeEdgeFields = {
+    ...(input.timeConstraint ? { timeConstraint: input.timeConstraint } : {}),
+    ...(input.dueAt ? { dueAt: input.dueAt } : {}),
+    ...(input.fixedAt ? { fixedAt: input.fixedAt } : {}),
+    ...(input.expiresAfter ? { expiresAfter: input.expiresAfter } : {}),
+    ...(input.latestUsefulStartAt ? { latestUsefulStartAt: input.latestUsefulStartAt } : {}),
+    ...(input.notUsefulAfter ? { notUsefulAfter: input.notUsefulAfter } : {}),
+    ...(input.minimumStillUsefulAfterDeadline ? { minimumStillUsefulAfterDeadline: true } : {}),
+    ...(input.missedPolicy ? { missedPolicy: input.missedPolicy } : {}),
+  };
 
   return activeTaskSchema.parse({
     area: areaFromInput(input.area),
@@ -175,6 +196,7 @@ function createOneOffActiveTask(input: MockAddTaskInput): ActiveTask {
     showToday: true,
     source: 'adhoc',
     status: 'active',
+    ...timeEdgeFields,
     title: input.title,
     updatedAt: timestamp,
   });
@@ -318,7 +340,15 @@ export function TodayScreen() {
   }, []);
 
   async function saveOneOffTask(input: MockAddTaskInput): Promise<boolean> {
-    const candidate = createOneOffActiveTask(input);
+    let candidate: ActiveTask;
+
+    try {
+      candidate = createOneOffActiveTask(input);
+    } catch {
+      setCompletionFeedback('One-off was not saved. Check the time edge or required fields.');
+      return false;
+    }
+
     const result = await saveActiveTodayTask(candidate);
 
     if (!result.ok) {

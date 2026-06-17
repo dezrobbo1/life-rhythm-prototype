@@ -59,6 +59,20 @@ function validActiveTaskBackupJson(overrides: Partial<ActiveTask> = {}) {
   ], '2026-06-17T00:00:00.000Z'));
 }
 
+async function openFilledOneOffModal(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Add one-off' }));
+  await user.type(screen.getByLabelText('Task title'), 'Pay water bill');
+  await user.clear(screen.getByLabelText('Area'));
+  await user.type(screen.getByLabelText('Area'), 'Money');
+  await user.type(screen.getByLabelText('Minimum version'), 'Open the bill and note the due date.');
+}
+
+function savedOneOffTask(): ActiveTask {
+  const calls = activeTaskRepositoryMocks.saveActiveTodayTask.mock.calls;
+
+  return calls[calls.length - 1][0] as ActiveTask;
+}
+
 beforeEach(() => {
   activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([]);
   activeTaskRepositoryMocks.loadPersistedActiveTasks.mockResolvedValue([]);
@@ -275,6 +289,50 @@ describe('Today screen', () => {
       expect(parsed.payload).not.toHaveProperty('taskHistory');
       expect(parsed.payload).not.toHaveProperty('migrationLog');
       expect(parsed.payload).not.toHaveProperty('lifeRhythm_v146');
+    }
+  });
+
+  it('exports Today task backup with time-edge fields when saved tasks have them', async () => {
+    const user = userEvent.setup();
+    const exportedBlobs: Blob[] = [];
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn((blob: Blob) => {
+        exportedBlobs.push(blob);
+        return 'blob:today-tasks';
+      }),
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    activeTaskRepositoryMocks.loadPersistedActiveTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        dueAt: '2026-06-17T09:00:00.000Z',
+        minimumStillUsefulAfterDeadline: true,
+        missedPolicy: 'minimumOnly',
+        timeConstraint: 'dueBy',
+      }),
+    ]);
+    render(<TodayScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Export Today tasks backup' }));
+
+    const parsed = parseActiveTaskBackupJson(await exportedBlobs[0].text());
+
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.payload.activeTasks[0]).toMatchObject({
+        dueAt: '2026-06-17T09:00:00.000Z',
+        minimumStillUsefulAfterDeadline: true,
+        missedPolicy: 'minimumOnly',
+        timeConstraint: 'dueBy',
+      });
+      expect(parsed.payload).not.toHaveProperty('settings');
+      expect(parsed.payload).not.toHaveProperty('rhythmTemplates');
+      expect(parsed.payload).not.toHaveProperty('schedulerOutput');
     }
   });
 
@@ -773,8 +831,155 @@ describe('Today screen', () => {
       status: 'active',
       title: 'Pay water bill',
     });
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask.mock.calls[0][0]).not.toHaveProperty('timeConstraint');
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask.mock.calls[0][0]).not.toHaveProperty('dueAt');
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask.mock.calls[0][0]).not.toHaveProperty('fixedAt');
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask.mock.calls[0][0]).not.toHaveProperty('expiresAfter');
     expect(setItemSpy).not.toHaveBeenCalled();
     expect(clearSpy).not.toHaveBeenCalled();
+  });
+
+  it('persists a due-by time edge for an Add one-off task', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await openFilledOneOffModal(user);
+    await user.selectOptions(screen.getByLabelText('Time edge type'), 'dueBy');
+    fireEvent.change(screen.getByLabelText('Due by'), {
+      target: { value: '2026-06-17T09:00' },
+    });
+    await user.click(screen.getByLabelText('Minimum still helps after the time edge'));
+    await user.selectOptions(screen.getByLabelText('If it stops being useful'), 'minimumOnly');
+    await user.click(screen.getByRole('button', { name: 'Save one-off' }));
+
+    const saved = savedOneOffTask();
+
+    expect(saved).toMatchObject({
+      minimumStillUsefulAfterDeadline: true,
+      missedPolicy: 'minimumOnly',
+      source: 'adhoc',
+      timeConstraint: 'dueBy',
+      title: 'Pay water bill',
+    });
+    expect(saved.dueAt).toBe(new Date('2026-06-17T09:00').toISOString());
+    expect(saved).not.toHaveProperty('settings');
+    expect(saved).not.toHaveProperty('rhythmTemplates');
+    expect(saved).not.toHaveProperty('schedulerOutput');
+    expect(screen.getByLabelText('Time edge').textContent).toContain('Useful before');
+    expect(screen.getByLabelText('Time edge').textContent).toContain('Minimum still helps');
+    expect(screen.getByLabelText('Time edge').textContent).toContain('No schedule created');
+  });
+
+  it('persists a fixed-at time edge for an Add one-off task', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await openFilledOneOffModal(user);
+    await user.selectOptions(screen.getByLabelText('Time edge type'), 'fixedAt');
+    fireEvent.change(screen.getByLabelText('Fixed at'), {
+      target: { value: '2026-06-17T10:30' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Save one-off' }));
+
+    expect(savedOneOffTask()).toMatchObject({
+      fixedAt: new Date('2026-06-17T10:30').toISOString(),
+      timeConstraint: 'fixedAt',
+    });
+    expect(screen.getByLabelText('Time edge').textContent).toContain('Tied to');
+    expect(screen.getByLabelText('Time edge').textContent).toContain('No schedule created');
+  });
+
+  it('persists an expires-after time edge for an Add one-off task', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await openFilledOneOffModal(user);
+    await user.selectOptions(screen.getByLabelText('Time edge type'), 'expiresAfter');
+    fireEvent.change(screen.getByLabelText('Expires after'), {
+      target: { value: '2026-06-17T18:00' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Save one-off' }));
+
+    expect(savedOneOffTask()).toMatchObject({
+      expiresAfter: new Date('2026-06-17T18:00').toISOString(),
+      timeConstraint: 'expiresAfter',
+    });
+    expect(screen.getByLabelText('Time edge').textContent).toContain('Useful until');
+    expect(screen.getByLabelText('Time edge').textContent).toContain('No schedule created');
+  });
+
+  it('does not save a due-by one-off without a due-by time', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await openFilledOneOffModal(user);
+    await user.selectOptions(screen.getByLabelText('Time edge type'), 'dueBy');
+    await user.click(screen.getByRole('button', { name: 'Save one-off' }));
+
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toContain('Add a due-by time, or keep this flexible.');
+  });
+
+  it('does not save a fixed-at one-off without a fixed time', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await openFilledOneOffModal(user);
+    await user.selectOptions(screen.getByLabelText('Time edge type'), 'fixedAt');
+    await user.click(screen.getByRole('button', { name: 'Save one-off' }));
+
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toContain('Add the fixed time, or keep this flexible.');
+  });
+
+  it('does not save an expires-after one-off without an expires-after time', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await openFilledOneOffModal(user);
+    await user.selectOptions(screen.getByLabelText('Time edge type'), 'expiresAfter');
+    await user.click(screen.getByRole('button', { name: 'Save one-off' }));
+
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toContain('Add when this stops being useful, or keep this flexible.');
+  });
+
+  it('does not save a one-off when latest useful start is after not-useful-after', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await openFilledOneOffModal(user);
+    fireEvent.change(screen.getByLabelText('Last useful start'), {
+      target: { value: '2026-06-17T18:00' },
+    });
+    fireEvent.change(screen.getByLabelText('Not useful after'), {
+      target: { value: '2026-06-17T09:00' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Save one-off' }));
+
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Last useful start needs to be before the not-useful-after time.',
+    );
+  });
+
+  it('shows calm time-edge copy without pressure wording on the Today card', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await openFilledOneOffModal(user);
+    await user.selectOptions(screen.getByLabelText('Time edge type'), 'dueBy');
+    fireEvent.change(screen.getByLabelText('Due by'), {
+      target: { value: '2026-06-17T09:00' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Save one-off' }));
+
+    const taskCard = screen.getByRole('article', { name: 'Pay water bill' });
+    const cardText = taskCard.textContent?.toLowerCase() ?? '';
+
+    expect(within(taskCard).getByLabelText('Time edge').textContent).toContain('Useful before');
+    expect(within(taskCard).getByLabelText('Time edge').textContent).toContain('No schedule created');
+    expect(cardText).not.toMatch(/overdue|late|failed|urgent|behind/);
   });
 
   it('reloads persisted active Today tasks from the repository', async () => {

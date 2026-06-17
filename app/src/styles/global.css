@@ -423,6 +423,27 @@ textarea:focus-visible {
   font-weight: 800;
 }
 
+.task-card__time-edge {
+  background: var(--color-surface-strong);
+  border: 1px solid var(--color-line);
+  border-radius: 0.9rem;
+  color: var(--color-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.task-card__time-edge span {
+  background: var(--color-chip);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  color: var(--color-accent-strong);
+  font-size: 0.78rem;
+  font-weight: 850;
+  padding: 0.3rem 0.55rem;
+}
+
 .task-card__status {
   background: color-mix(in srgb, var(--color-chip) 55%, transparent);
   border: 1px solid var(--color-line);
@@ -1917,6 +1938,38 @@ textarea:focus-visible {
 .add-task-form__optional {
   display: grid;
   gap: var(--space-3);
+}
+
+.add-task-form__section {
+  background: color-mix(in srgb, var(--color-chip) 34%, transparent);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.add-task-form__section h3 {
+  font-size: 1rem;
+  line-height: 1.15;
+  margin: 0 0 var(--space-2);
+}
+
+.add-task-form__section p {
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.add-task-form__checkbox {
+  align-items: center;
+  display: flex !important;
+  flex-direction: row;
+  gap: var(--space-2);
+}
+
+.add-task-form__checkbox input {
+  min-height: 1rem;
+  width: 1rem;
 }
 
 .form-feedback {
