@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { Button, Card, EmptyState, Modal } from '../components';
 import {
   createActiveTaskId,
@@ -9,6 +9,7 @@ import {
 } from '../data/activeTaskRepository';
 import {
   buildActiveTaskBackupPayload,
+  parseActiveTaskBackupJson,
   serializeActiveTaskBackup,
 } from '../data/activeTaskBackup';
 import { activeTaskSchema, type ActiveTask, type ActiveTaskStatus } from '../data/schemas';
@@ -30,6 +31,13 @@ import { useAppSnapshot } from '../data/AppSnapshotProvider';
 
 type ActiveTaskArea = ActiveTask['area'];
 type VisibleActiveTaskStatus = Extract<ActiveTaskStatus, 'active' | 'inProgress' | 'paused' | 'minimumDone'>;
+type ActiveTaskBackupCheckPreview = {
+  exportedAt: string;
+  items: Array<{
+    status: ActiveTaskStatus;
+    title: string;
+  }>;
+};
 
 const areaLabels: Record<ActiveTaskArea, string> = {
   admin: 'Admin',
@@ -187,6 +195,9 @@ export function TodayScreen() {
   const [taskProgress, setTaskProgress] = useState<TaskProgress>('idle');
   const [completionFeedback, setCompletionFeedback] = useState('');
   const [backupFeedback, setBackupFeedback] = useState('');
+  const [backupCheckJson, setBackupCheckJson] = useState('');
+  const [backupCheckErrors, setBackupCheckErrors] = useState<string[]>([]);
+  const [backupCheckPreview, setBackupCheckPreview] = useState<ActiveTaskBackupCheckPreview | null>(null);
   const todayViewModel = useMemo(
     () => buildTodayViewModel(snapshot, { todayState }),
     [snapshot, todayState],
@@ -378,6 +389,44 @@ export function TodayScreen() {
     }
   }
 
+  function checkTodayTasksBackup() {
+    const result = parseActiveTaskBackupJson(backupCheckJson);
+
+    if (result.ok) {
+      setBackupCheckErrors([]);
+      setBackupCheckPreview({
+        exportedAt: result.preview.exportedAt,
+        items: result.payload.activeTasks.map((task) => ({
+          status: task.status,
+          title: task.title,
+        })),
+      });
+      setBackupFeedback('Today tasks backup looks valid. Restore is not connected yet.');
+      return;
+    }
+
+    setBackupCheckErrors(result.errors);
+    setBackupCheckPreview(null);
+    setBackupFeedback('This Today tasks backup could not be used.');
+  }
+
+  async function readTodayTasksBackupFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+
+    if (!file) return;
+
+    try {
+      setBackupCheckJson(await file.text());
+      setBackupCheckErrors([]);
+      setBackupCheckPreview(null);
+      setBackupFeedback('Today tasks backup loaded. Choose Check Today tasks backup.');
+    } catch {
+      setBackupCheckErrors(['backup: Today tasks backup file could not be read.']);
+      setBackupCheckPreview(null);
+      setBackupFeedback('This Today tasks backup could not be used.');
+    }
+  }
+
   return (
     <div className="screen-stack today-screen">
       <section className="today-hero" aria-labelledby="today-title">
@@ -457,6 +506,70 @@ export function TodayScreen() {
             <p>This backup includes Today tasks only. It does not include Library rhythms or settings.</p>
           </div>
           <Button onClick={exportTodayTasksBackup}>Export Today tasks backup</Button>
+        </section>
+        <section aria-labelledby="today-backup-check-title" className="library-backup-checker">
+          <div className="library-subheading">
+            <h2 id="today-backup-check-title">Check Today tasks backup</h2>
+            <p>Checking a backup does not change anything on this device. Restore is not connected yet.</p>
+          </div>
+          <label className="library-backup-field">
+            <span>Today task backup JSON</span>
+            <textarea
+              aria-label="Today task backup JSON"
+              onChange={(event) => {
+                setBackupCheckJson(event.target.value);
+                setBackupCheckErrors([]);
+                setBackupCheckPreview(null);
+              }}
+              placeholder="Paste a Today tasks backup JSON file here."
+              rows={6}
+              value={backupCheckJson}
+            />
+            <small>This checks Today task backups only. It does not restore tasks.</small>
+          </label>
+          <div className="library-backup-actions">
+            <label className="library-file-picker">
+              <span>Select Today tasks backup file</span>
+              <input
+                accept="application/json,.json"
+                aria-label="Select Today tasks backup file"
+                onChange={readTodayTasksBackupFile}
+                type="file"
+              />
+            </label>
+            <Button onClick={checkTodayTasksBackup}>Check Today tasks backup</Button>
+          </div>
+          {backupCheckPreview ? (
+            <dl aria-label="Today task backup preview" className="library-backup-preview">
+              <div>
+                <dt>Tasks</dt>
+                <dd>{backupCheckPreview.items.length}</dd>
+              </div>
+              <div>
+                <dt>Created</dt>
+                <dd>{backupCheckPreview.exportedAt}</dd>
+              </div>
+              <div>
+                <dt>Titles and statuses</dt>
+                <dd>
+                  {backupCheckPreview.items.length > 0
+                    ? backupCheckPreview.items.map((task) => `${task.title} (${task.status})`).join(', ')
+                    : 'No task titles in backup.'}
+                </dd>
+              </div>
+            </dl>
+          ) : null}
+          {backupCheckErrors.length > 0 ? (
+            <div className="library-validation-summary">
+              <strong>Backup check notes</strong>
+              <p>Nothing changed on this device. The first items to review are below.</p>
+              <ul aria-label="Today task backup errors" className="library-validation-list">
+                {backupCheckErrors.slice(0, 3).map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
         {backupFeedback ? <p className="today-feedback" role="status">{backupFeedback}</p> : null}
       </Card>
