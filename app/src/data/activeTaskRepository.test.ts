@@ -4,6 +4,7 @@ import { createLifeRhythmDatabase } from './db';
 import {
   createActiveTaskId,
   loadActiveTodayTasks,
+  loadPersistedActiveTasks,
   saveActiveTodayTask,
   updateActiveTaskStatus,
 } from './activeTaskRepository';
@@ -141,6 +142,43 @@ describe('active task repository', () => {
         'active-paused',
         'active-visible',
       ].sort());
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('loads persisted active tasks for backup without hiding re-entry states', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await database.activeTasks.bulkPut([
+        validActiveTask({ id: 'active-visible' }),
+        validActiveTask({ id: 'active-done', showToday: false, status: 'done' }),
+        validActiveTask({ id: 'active-parked', showToday: false, status: 'parked' }),
+        validActiveTask({ id: 'active-not-today', showToday: false, status: 'notToday' }),
+        validActiveTask({ id: 'active-custom', source: 'custom' }),
+        {
+          id: 'broken-active-task',
+          showToday: true,
+          source: 'adhoc',
+        } as ActiveTask,
+      ]);
+
+      const loaded = await loadPersistedActiveTasks(database);
+
+      expect(loaded.map((task) => task.id).sort()).toEqual([
+        'active-done',
+        'active-not-today',
+        'active-parked',
+        'active-visible',
+      ].sort());
+      expect(loaded.map((task) => task.status).sort()).toEqual([
+        'active',
+        'done',
+        'notToday',
+        'parked',
+      ].sort());
+      await expectOnlyActiveTasksWritten(database, 6);
     } finally {
       await database.delete();
     }
@@ -394,6 +432,7 @@ describe('active task repository', () => {
         id: createActiveTaskId('active-localstorage-check'),
       }), database);
       await loadActiveTodayTasks(database);
+      await loadPersistedActiveTasks(database);
 
       expect(localStorage.getItem).not.toHaveBeenCalled();
       expect(localStorage.setItem).not.toHaveBeenCalled();
