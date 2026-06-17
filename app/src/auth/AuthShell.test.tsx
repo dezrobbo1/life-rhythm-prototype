@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthBoundary } from './AuthShell';
@@ -16,6 +16,10 @@ const clerkState = vi.hoisted(() => ({
   providerProps: vi.fn(),
   signedIn: false,
   userId: 'user_test_alpha',
+}));
+
+const namespaceMocks = vi.hoisted(() => ({
+  inspectLegacyLocalData: vi.fn(),
 }));
 
 vi.mock('@clerk/react', () => ({
@@ -47,6 +51,15 @@ vi.mock('@clerk/react', () => ({
   ),
 }));
 
+vi.mock('../data/localDataNamespace', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/localDataNamespace')>();
+
+  return {
+    ...actual,
+    inspectLegacyLocalData: namespaceMocks.inspectLegacyLocalData,
+  };
+});
+
 const disabledConfig: AuthRuntimeConfig = {
   authRequested: false,
   publishableKey: null,
@@ -69,12 +82,21 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   clerkState.providerProps.mockClear();
+  namespaceMocks.inspectLegacyLocalData.mockReset();
   resetCurrentLocalDataNamespace();
 });
 
 beforeEach(() => {
   clerkState.signedIn = false;
   clerkState.userId = 'user_test_alpha';
+  namespaceMocks.inspectLegacyLocalData.mockResolvedValue({
+    activeTaskCount: 0,
+    customRhythmCount: 0,
+    hasActiveTasks: false,
+    hasChangedSettings: false,
+    hasCustomLibraryRhythms: false,
+    hasLegacyLocalData: false,
+  });
   resetCurrentLocalDataNamespace();
 });
 
@@ -146,7 +168,7 @@ describe('AuthBoundary', () => {
     expect(screen.queryByText(/sign up/i)).toBeNull();
   });
 
-  it('renders the app shell and sign-out affordance for signed-in users', () => {
+  it('renders the app shell and sign-out affordance for signed-in users', async () => {
     clerkState.signedIn = true;
 
     render(
@@ -164,6 +186,37 @@ describe('AuthBoundary', () => {
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
     expect(screen.getByText('Private app shell')).toBeTruthy();
     expect(getCurrentLocalDataNamespace()).toEqual(createAuthLocalDataNamespace('user_test_alpha'));
+    await waitFor(() => expect(namespaceMocks.inspectLegacyLocalData).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('Existing local setup found')).toBeNull();
+  });
+
+  it('shows a calm handoff notice when legacy local data exists', async () => {
+    namespaceMocks.inspectLegacyLocalData.mockResolvedValue({
+      activeTaskCount: 1,
+      customRhythmCount: 1,
+      hasActiveTasks: true,
+      hasChangedSettings: true,
+      hasCustomLibraryRhythms: true,
+      hasLegacyLocalData: true,
+    });
+    clerkState.signedIn = true;
+
+    render(
+      <AuthBoundary config={enabledConfig}>
+        <main className="app-shell">Private app shell</main>
+      </AuthBoundary>,
+    );
+
+    const noticeTitle = await screen.findByText('Existing local setup found');
+    const notice = noticeTitle.closest('section');
+
+    expect(notice).toBeTruthy();
+    expect(within(notice as HTMLElement).getByText('It has not been deleted.')).toBeTruthy();
+    expect(within(notice as HTMLElement).getByText('You are now using a separate signed-in local profile.')).toBeTruthy();
+    expect(within(notice as HTMLElement).getByText('Sign out to return to the existing local setup.')).toBeTruthy();
+    expect(within(notice as HTMLElement).getByText('Backup and export remain user-controlled.')).toBeTruthy();
+    expect(within(notice as HTMLElement).getByText('No data has been uploaded or synced.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
   });
 
   it('uses different local namespaces for different signed-in users', () => {
