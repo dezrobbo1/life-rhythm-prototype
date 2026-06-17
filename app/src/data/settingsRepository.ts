@@ -1,5 +1,5 @@
 import type { Table } from 'dexie';
-import { createLifeRhythmDatabase } from './db';
+import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   settingsSchema,
   type LifeShapeSettings,
@@ -34,8 +34,6 @@ export type SettingsWriteResult =
       settings: Settings;
     };
 
-const defaultDatabase = createLifeRhythmDatabase();
-
 function nowIso() {
   return new Date().toISOString();
 }
@@ -56,7 +54,7 @@ export function createDefaultSettings(timestamp = nowIso()): Settings {
   });
 }
 
-export async function loadSettings(store: SettingsStore = defaultDatabase): Promise<Settings> {
+export async function loadSettings(store: SettingsStore = getCurrentLifeRhythmDatabase()): Promise<Settings> {
   try {
     const saved = await store.settings.get(SETTINGS_ID);
     const parsed = settingsSchema.safeParse(saved);
@@ -93,7 +91,7 @@ function settingsCandidateFromInput(
 
 export async function saveSettings(
   input: SettingsWriteInput,
-  store: SettingsStore = defaultDatabase,
+  store: SettingsStore = getCurrentLifeRhythmDatabase(),
 ): Promise<SettingsWriteResult> {
   const current = await loadSettings(store);
   const parsed = settingsSchema.safeParse(settingsCandidateFromInput(current, input));
@@ -114,7 +112,7 @@ export async function saveSettings(
   };
 }
 
-export async function resetSettingsToDefaults(store: SettingsStore = defaultDatabase): Promise<Settings> {
+export async function resetSettingsToDefaults(store: SettingsStore = getCurrentLifeRhythmDatabase()): Promise<Settings> {
   const defaults = createDefaultSettings();
   await store.settings.put(defaults);
 

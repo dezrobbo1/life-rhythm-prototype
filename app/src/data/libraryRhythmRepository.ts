@@ -1,5 +1,5 @@
 import type { Table } from 'dexie';
-import { createLifeRhythmDatabase } from './db';
+import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import { rhythmTemplateSchema, type RhythmTemplate } from './schemas';
 
 type RhythmTemplatesTable = Pick<Table<RhythmTemplate, string>, 'get' | 'put' | 'where'>;
@@ -17,8 +17,6 @@ export type LibraryRhythmWriteResult =
       errors: string[];
       ok: false;
     };
-
-const defaultDatabase = createLifeRhythmDatabase();
 
 function issuesToMessages(issues: Array<{ message: string; path: Array<string | number> }>) {
   return issues.map((issue) => {
@@ -59,7 +57,7 @@ function validateCustomRhythm(input: unknown): LibraryRhythmWriteResult {
 }
 
 export async function loadCustomLibraryRhythms(
-  store: LibraryRhythmStore = defaultDatabase,
+  store: LibraryRhythmStore = getCurrentLifeRhythmDatabase(),
 ): Promise<RhythmTemplate[]> {
   try {
     const stored = await store.rhythmTemplates.where('source').equals('custom').toArray();
@@ -80,7 +78,7 @@ export async function loadCustomLibraryRhythms(
 
 export async function saveCustomLibraryRhythm(
   input: unknown,
-  store: LibraryRhythmStore = defaultDatabase,
+  store: LibraryRhythmStore = getCurrentLifeRhythmDatabase(),
 ): Promise<LibraryRhythmWriteResult> {
   const validated = validateCustomRhythm(input);
 

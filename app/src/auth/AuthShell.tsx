@@ -2,6 +2,10 @@ import { ClerkProvider, Show, SignInButton, SignOutButton, UserButton } from '@c
 import type { ReactNode } from 'react';
 import { Button } from '../components';
 import { canUseAuth, readAuthConfig, type AuthRuntimeConfig } from './authConfig';
+import {
+  AuthLocalNamespaceProvider,
+  LegacyLocalNamespaceProvider,
+} from './AuthLocalNamespaceProvider';
 
 type AuthBoundaryProps = {
   children: ReactNode;
@@ -14,7 +18,7 @@ type AuthShellProps = {
 
 export function AuthBoundary({ children, config = readAuthConfig() }: AuthBoundaryProps) {
   if (!canUseAuth(config)) {
-    return <>{children}</>;
+    return <LegacyLocalNamespaceProvider>{children}</LegacyLocalNamespaceProvider>;
   }
 
   return (
@@ -43,20 +47,24 @@ export function AuthShell({ children }: AuthShellProps) {
       </Show>
 
       <Show when="signed-in">
-        <aside className="auth-account-bar" aria-label="Trial access status">
-          <div>
-            <strong>Signed in for trial access.</strong>
-            <span>Local-first data remains on this device.</span>
-            <span>Backup and export remain user-controlled.</span>
-          </div>
-          <div className="auth-account-bar__actions">
-            <UserButton />
-            <SignOutButton redirectUrl="/">
-              <Button variant="secondary">Sign out</Button>
-            </SignOutButton>
-          </div>
-        </aside>
-        {children}
+        <AuthLocalNamespaceProvider>
+          <aside className="auth-account-bar" aria-label="Trial access status">
+            <div>
+              <strong>Signed in for trial access.</strong>
+              <span>Local-first data remains on this device.</span>
+              <span>This local profile is separate from other signed-in testers on this device.</span>
+              <span>Signing out does not delete local data.</span>
+              <span>Backup and export remain user-controlled.</span>
+            </div>
+            <div className="auth-account-bar__actions">
+              <UserButton />
+              <SignOutButton redirectUrl="/">
+                <Button variant="secondary">Sign out</Button>
+              </SignOutButton>
+            </div>
+          </aside>
+          {children}
+        </AuthLocalNamespaceProvider>
       </Show>
     </>
   );

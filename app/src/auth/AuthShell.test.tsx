@@ -5,10 +5,17 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthBoundary } from './AuthShell';
 import { readAuthConfig, type AuthRuntimeConfig } from './authConfig';
+import {
+  createAuthLocalDataNamespace,
+  getCurrentLocalDataNamespace,
+  getLegacyLocalDataNamespace,
+  resetCurrentLocalDataNamespace,
+} from '../data/localDataNamespace';
 
 const clerkState = vi.hoisted(() => ({
   providerProps: vi.fn(),
   signedIn: false,
+  userId: 'user_test_alpha',
 }));
 
 vi.mock('@clerk/react', () => ({
@@ -30,6 +37,9 @@ vi.mock('@clerk/react', () => ({
       {children}
     </span>
   ),
+  useAuth: () => ({
+    userId: clerkState.userId,
+  }),
   UserButton: () => (
     <button aria-label="Account" type="button">
       Account
@@ -59,10 +69,13 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   clerkState.providerProps.mockClear();
+  resetCurrentLocalDataNamespace();
 });
 
 beforeEach(() => {
   clerkState.signedIn = false;
+  clerkState.userId = 'user_test_alpha';
+  resetCurrentLocalDataNamespace();
 });
 
 describe('auth config', () => {
@@ -90,6 +103,7 @@ describe('AuthBoundary', () => {
 
     expect(screen.getByText('Current local-first app')).toBeTruthy();
     expect(screen.queryByTestId('clerk-provider')).toBeNull();
+    expect(getCurrentLocalDataNamespace()).toEqual(getLegacyLocalDataNamespace());
   });
 
   it('falls back safely when auth is requested but the Clerk key is missing', () => {
@@ -102,6 +116,7 @@ describe('AuthBoundary', () => {
     expect(screen.getByText('Local development app')).toBeTruthy();
     expect(screen.queryByText('Life Rhythm trial access')).toBeNull();
     expect(screen.queryByTestId('clerk-provider')).toBeNull();
+    expect(getCurrentLocalDataNamespace()).toEqual(getLegacyLocalDataNamespace());
   });
 
   it('shows the invite-only trial landing for signed-out users', () => {
@@ -142,10 +157,40 @@ describe('AuthBoundary', () => {
 
     expect(screen.getByText('Signed in for trial access.')).toBeTruthy();
     expect(screen.getByText('Local-first data remains on this device.')).toBeTruthy();
+    expect(screen.getByText('This local profile is separate from other signed-in testers on this device.')).toBeTruthy();
+    expect(screen.getByText('Signing out does not delete local data.')).toBeTruthy();
     expect(screen.getByText('Backup and export remain user-controlled.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Account' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
     expect(screen.getByText('Private app shell')).toBeTruthy();
+    expect(getCurrentLocalDataNamespace()).toEqual(createAuthLocalDataNamespace('user_test_alpha'));
+  });
+
+  it('uses different local namespaces for different signed-in users', () => {
+    clerkState.signedIn = true;
+    clerkState.userId = 'user_test_alpha';
+
+    const { rerender } = render(
+      <AuthBoundary config={enabledConfig}>
+        <main>Private app shell</main>
+      </AuthBoundary>,
+    );
+    const userANamespace = getCurrentLocalDataNamespace();
+
+    clerkState.userId = 'user_test_beta';
+    rerender(
+      <AuthBoundary config={enabledConfig}>
+        <main>Private app shell</main>
+      </AuthBoundary>,
+    );
+
+    const userBNamespace = getCurrentLocalDataNamespace();
+
+    expect(userANamespace.source).toBe('auth');
+    expect(userBNamespace.source).toBe('auth');
+    expect(userBNamespace.databaseName).not.toBe(userANamespace.databaseName);
+    expect(userANamespace.databaseName).not.toContain('user_test_alpha');
+    expect(userBNamespace.databaseName).not.toContain('user_test_beta');
   });
 
   it('does not call browser data upload or local storage APIs from the auth shell', () => {

@@ -1,5 +1,5 @@
 import type { Table } from 'dexie';
-import { createLifeRhythmDatabase } from './db';
+import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   activeTaskSchema,
   activeTaskStatusSchema,
@@ -35,7 +35,6 @@ export type ActiveTaskStatusUpdateResult =
       ok: false;
     };
 
-const defaultDatabase = createLifeRhythmDatabase();
 const visibleTodayStatuses: readonly ActiveTaskStatus[] = ['active', 'inProgress', 'paused', 'minimumDone'];
 
 function issuesToMessages(issues: Array<{ message: string; path: Array<string | number> }>) {
@@ -143,7 +142,7 @@ export function createActiveTaskId(prefix = 'active-task') {
 }
 
 export async function loadActiveTodayTasks(
-  store: ActiveTaskStore = defaultDatabase,
+  store: ActiveTaskStore = getCurrentLifeRhythmDatabase(),
 ): Promise<ActiveTask[]> {
   try {
     const stored = await store.activeTasks.toArray();
@@ -159,7 +158,7 @@ export async function loadActiveTodayTasks(
 }
 
 export async function loadPersistedActiveTasks(
-  store: ActiveTaskStore = defaultDatabase,
+  store: ActiveTaskStore = getCurrentLifeRhythmDatabase(),
 ): Promise<ActiveTask[]> {
   try {
     const stored = await store.activeTasks.toArray();
@@ -176,7 +175,7 @@ export async function loadPersistedActiveTasks(
 
 export async function saveActiveTodayTask(
   input: unknown,
-  store: ActiveTaskStore = defaultDatabase,
+  store: ActiveTaskStore = getCurrentLifeRhythmDatabase(),
 ): Promise<ActiveTaskWriteResult> {
   const validated = validateCurrentWrite(input);
 
@@ -212,7 +211,7 @@ export async function saveActiveTodayTask(
 export async function updateActiveTaskStatus(
   taskId: string,
   status: ActiveTaskStatus,
-  store: ActiveTaskStore = defaultDatabase,
+  store: ActiveTaskStore = getCurrentLifeRhythmDatabase(),
 ): Promise<ActiveTaskStatusUpdateResult> {
   const statusResult = activeTaskStatusSchema.safeParse(status);
 
