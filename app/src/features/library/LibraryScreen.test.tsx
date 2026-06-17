@@ -8,13 +8,20 @@ import {
   libraryRhythmBackupSchema,
   serializeLibraryRhythmBackup,
 } from '../../data/libraryRhythmBackup';
-import { rhythmTemplateSchema, type RhythmTemplate } from '../../data/schemas';
+import { activeTaskSchema, rhythmTemplateSchema, type ActiveTask, type RhythmTemplate } from '../../data/schemas';
+
+const activeTaskRepositoryMocks = vi.hoisted(() => ({
+  createActiveTaskId: vi.fn((prefix = 'active-task') => `${prefix}-test-id`),
+  loadActiveTodayTasks: vi.fn(),
+  saveActiveTodayTask: vi.fn(),
+}));
 
 const libraryRepositoryMocks = vi.hoisted(() => ({
   loadCustomLibraryRhythms: vi.fn(),
   saveCustomLibraryRhythm: vi.fn(),
 }));
 
+vi.mock('../../data/activeTaskRepository', () => activeTaskRepositoryMocks);
 vi.mock('../../data/libraryRhythmRepository', () => libraryRepositoryMocks);
 
 import App from '../../App';
@@ -85,6 +92,12 @@ function mockDownloadApi() {
 }
 
 beforeEach(() => {
+  activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([]);
+  activeTaskRepositoryMocks.saveActiveTodayTask.mockImplementation(async (task: ActiveTask) => ({
+    alreadyExists: false,
+    ok: true,
+    task: activeTaskSchema.parse(task),
+  }));
   libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue([]);
   libraryRepositoryMocks.saveCustomLibraryRhythm.mockImplementation(async (rhythm: unknown) => ({
     ok: true,
@@ -167,7 +180,7 @@ describe('Library screen', () => {
     expect(within(card).getByRole('button', { name: 'Disable rhythm' })).toBeTruthy();
   });
 
-  it('shows Add to Today mock confirmation without writing data', async () => {
+  it('persists Add to Today as one active task without writing Library rhythms', async () => {
     const user = userEvent.setup();
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
     render(<LibraryScreen />);
@@ -175,9 +188,34 @@ describe('Library screen', () => {
     const card = screen.getByRole('article', { name: 'Breakfast reset' });
     await user.click(within(card).getByRole('button', { name: 'Add to Today now' }));
 
-    expect(screen.getByRole('status').textContent).toContain('Nothing was saved or created.');
+    expect(screen.getByRole('status').textContent).toContain('Breakfast reset saved to Today on this device.');
+    expect(screen.getByRole('status').textContent).toContain('Library enablement did not change.');
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).toHaveBeenCalledTimes(1);
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask.mock.calls[0][0]).toMatchObject({
+      source: 'library',
+      templateId: 'food-breakfast-reset',
+      showToday: true,
+      status: 'active',
+      title: 'Breakfast reset',
+    });
     expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
     expect(setItemSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not duplicate Add to Today when the active task already exists', async () => {
+    activeTaskRepositoryMocks.saveActiveTodayTask.mockImplementationOnce(async (task: ActiveTask) => ({
+      alreadyExists: true,
+      ok: true,
+      task: activeTaskSchema.parse(task),
+    }));
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    const card = screen.getByRole('article', { name: 'Breakfast reset' });
+    await user.click(within(card).getByRole('button', { name: 'Add to Today now' }));
+
+    expect(screen.getByRole('status').textContent).toContain('Breakfast reset is already in Today on this device.');
+    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
   });
 
   it('opens Create rhythm as a reusable preview modal', async () => {

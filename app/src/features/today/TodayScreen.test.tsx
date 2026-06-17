@@ -2,12 +2,59 @@
 
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { activeTaskSchema, type ActiveTask } from '../../data/schemas';
+
+const activeTaskRepositoryMocks = vi.hoisted(() => ({
+  createActiveTaskId: vi.fn((prefix = 'active-task') => `${prefix}-test-id`),
+  loadActiveTodayTasks: vi.fn(),
+  saveActiveTodayTask: vi.fn(),
+}));
+
+vi.mock('../../data/activeTaskRepository', () => activeTaskRepositoryMocks);
+
 import App from '../../App';
 import { TodayScreen } from '../../screens/TodayScreen';
 
+function persistedOneOffTask(overrides: Partial<ActiveTask> = {}): ActiveTask {
+  return activeTaskSchema.parse({
+    area: 'money',
+    createdAt: '2026-06-17T00:00:00.000Z',
+    full: {
+      label: 'Open the bill, note the due date, and park the next step.',
+      minutes: 20,
+    },
+    id: 'adhoc-pay-water-bill',
+    minimum: {
+      label: 'Open the bill and note the due date.',
+      minutes: 5,
+    },
+    normal: {
+      label: 'Open the bill and check the amount.',
+      minutes: 10,
+    },
+    purpose: 'Today-only task added by you.',
+    showToday: true,
+    source: 'adhoc',
+    status: 'active',
+    title: 'Pay water bill',
+    updatedAt: '2026-06-17T00:00:00.000Z',
+    ...overrides,
+  });
+}
+
+beforeEach(() => {
+  activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([]);
+  activeTaskRepositoryMocks.saveActiveTodayTask.mockImplementation(async (task: ActiveTask) => ({
+    alreadyExists: false,
+    ok: true,
+    task,
+  }));
+});
+
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   vi.restoreAllMocks();
 });
 
@@ -95,7 +142,7 @@ describe('Today screen', () => {
 
     expect(screen.getByRole('button', { name: 'Add one-off' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Add task' })).toBeNull();
-    expect(screen.getByText('Add one today-only task. It will not go into Library or storage.')).toBeTruthy();
+    expect(screen.getByText('Add one today-only task. It will not go into Library.')).toBeTruthy();
   });
 
   it('keeps Add one-off out of the Next useful action heading', () => {
@@ -294,14 +341,14 @@ describe('Today screen', () => {
     expect(screen.queryByRole('button', { name: 'Start Boost' })).toBeNull();
   });
 
-  it('opens Add one-off and saves a mock in-memory Today task only', async () => {
+  it('opens Add one-off and persists one active Today task only', async () => {
     const user = userEvent.setup();
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
     const clearSpy = vi.spyOn(Storage.prototype, 'clear');
     render(<TodayScreen />);
 
     await user.click(screen.getByRole('button', { name: 'Add one-off' }));
-    expect(screen.getByText('For today only. Preview only; not saved yet.')).toBeTruthy();
+    expect(screen.getByText('For today only. Saved on this device. It will not go into Library.')).toBeTruthy();
     await user.type(screen.getByLabelText('Task title'), 'Pay water bill');
     await user.clear(screen.getByLabelText('Area'));
     await user.type(screen.getByLabelText('Area'), 'Money');
@@ -310,9 +357,26 @@ describe('Today screen', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Add one-off' })).toBeNull();
     expect(screen.getByRole('article', { name: 'Pay water bill' })).toBeTruthy();
-    expect(screen.getByText('Mock task added for today only. Nothing was saved.')).toBeTruthy();
+    expect(screen.getByText('One-off saved to Today on this device. It will not go into Library.')).toBeTruthy();
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).toHaveBeenCalledTimes(1);
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask.mock.calls[0][0]).toMatchObject({
+      area: 'money',
+      showToday: true,
+      source: 'adhoc',
+      status: 'active',
+      title: 'Pay water bill',
+    });
     expect(setItemSpy).not.toHaveBeenCalled();
     expect(clearSpy).not.toHaveBeenCalled();
+  });
+
+  it('reloads persisted active Today tasks from the repository', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+    expect(screen.getByText('Today-only task added by you.')).toBeTruthy();
   });
 
   it('does not add a saved one-off to the Library catalogue', async () => {
