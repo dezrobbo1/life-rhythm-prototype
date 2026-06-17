@@ -197,6 +197,48 @@ export type LifeShapeSettingsViewModel = {
   }>;
 };
 
+export type DayName =
+  | 'Monday'
+  | 'Tuesday'
+  | 'Wednesday'
+  | 'Thursday'
+  | 'Friday'
+  | 'Saturday'
+  | 'Sunday';
+
+export type DayShapePreviewGroupId = 'unavailable' | 'askFirst' | 'available';
+
+export type DayShapePreviewBlockViewModel = {
+  id: string;
+  label: string;
+  type: LifeShapeSettingsViewModel['timeBlocks'][number]['type'];
+  typeLabel: string;
+  start: string;
+  end: string;
+  timeRange: string;
+  schedulerUse: DayShapePreviewGroupId;
+  schedulerUseMeaning: string;
+  notes?: string;
+};
+
+export type DayShapePreviewGroupViewModel = {
+  id: DayShapePreviewGroupId;
+  title: 'Time to leave alone' | 'Ask first' | 'Open capacity';
+  meaning: string;
+  blocks: DayShapePreviewBlockViewModel[];
+};
+
+export type DayShapePreviewViewModel = {
+  selectedDay: DayName;
+  intro: string;
+  boundaryCopy: string;
+  groups: DayShapePreviewGroupViewModel[];
+  emptyState: {
+    title: string;
+    message: string;
+  };
+};
+
 export type FutureModuleId =
   | 'rhythm-food'
   | 'rhythm-move'

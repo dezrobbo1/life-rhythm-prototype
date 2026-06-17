@@ -2,9 +2,114 @@
 
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
+import { AppSnapshotProvider } from '../../data/AppSnapshotProvider';
 import { PlanScreen } from '../../screens/PlanScreen';
+import { normalDayWithOneTaskSnapshot, type AppDataSnapshot } from '../../viewModels';
+
+const dayShapeSnapshot: AppDataSnapshot = {
+  ...normalDayWithOneTaskSnapshot,
+  settings: {
+    ...normalDayWithOneTaskSnapshot.settings,
+    lifeShape: {
+      commuteMinutes: 0,
+      fixedCommitments: [],
+      lowCapacityPreference: 'protect-evening',
+      mealAnchors: {
+        breakfast: '07:00',
+        dinner: '18:00',
+        lunch: '12:00',
+      },
+      sleepWakeAnchors: {
+        sleep: '21:30',
+        wake: '06:30',
+      },
+      timeBlocks: [
+        {
+          days: ['Monday'],
+          end: '08:00',
+          id: 'protected-morning',
+          label: 'Protected morning',
+          schedulerUse: 'unavailable',
+          start: '07:00',
+          type: 'protectedTime',
+        },
+        {
+          days: ['Monday'],
+          end: '14:00',
+          id: 'recovery-after-lunch',
+          label: 'Recovery after lunch',
+          schedulerUse: 'unavailable',
+          start: '13:00',
+          type: 'recoveryTime',
+        },
+        {
+          days: ['Monday'],
+          end: '18:00',
+          id: 'family-evening',
+          label: 'Family evening',
+          schedulerUse: 'unavailable',
+          start: '17:00',
+          type: 'familyTime',
+        },
+        {
+          days: ['Monday'],
+          end: '11:00',
+          id: 'loose-late-morning',
+          label: 'Loose late morning',
+          schedulerUse: 'askFirst',
+          start: '10:00',
+          type: 'looseTime',
+        },
+        {
+          days: ['Monday'],
+          end: '16:00',
+          id: 'household-flow',
+          label: 'Household flow',
+          schedulerUse: 'askFirst',
+          start: '15:00',
+          type: 'householdFlow',
+        },
+        {
+          days: ['Tuesday'],
+          end: '12:00',
+          id: 'tuesday-window',
+          label: 'Tuesday window',
+          notes: 'Only if the day still has room.',
+          schedulerUse: 'available',
+          start: '11:00',
+          type: 'openCapacity',
+        },
+      ],
+      transitionBufferMinutes: 10,
+      travelMinutes: 0,
+      usualWorkHours: {
+        days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+        end: '16:00',
+        start: '08:00',
+      },
+    },
+  },
+};
+
+function renderPlanWithSnapshot(snapshot: AppDataSnapshot = dayShapeSnapshot) {
+  return render(
+    <AppSnapshotProvider snapshot={snapshot}>
+      <PlanScreen />
+    </AppSnapshotProvider>,
+  );
+}
+
+function sectionForHeading(name: string): HTMLElement {
+  const section = screen.getByRole('heading', { name }).closest('section');
+
+  if (!section) {
+    throw new Error(`Missing section for ${name}`);
+  }
+
+  return section;
+}
 
 afterEach(() => {
   cleanup();
@@ -14,12 +119,71 @@ describe('Plan screen', () => {
   it('renders all broad day blocks', () => {
     render(<PlanScreen />);
 
-    expect(screen.getByText('Life shape preview: work hours and buffers will shape future planning.')).toBeTruthy();
+    expect(screen.getByText('Life shape preview: work hours, buffers, and protected blocks will shape future planning.')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Day Shape preview' })).toBeTruthy();
+    expect(screen.getByText('No blocks defined for Monday.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Morning' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Midday' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Afternoon' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Evening' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Late evening' })).toBeTruthy();
+  });
+
+  it('groups read-only Day Shape blocks into planning categories', () => {
+    renderPlanWithSnapshot();
+
+    const leaveAlone = sectionForHeading('Time to leave alone');
+    const askFirst = sectionForHeading('Ask first');
+    const openCapacity = sectionForHeading('Open capacity');
+
+    expect(within(leaveAlone).getByText('Protected morning')).toBeTruthy();
+    expect(within(leaveAlone).getByText('Protected time')).toBeTruthy();
+    expect(within(leaveAlone).getByText('Recovery after lunch')).toBeTruthy();
+    expect(within(leaveAlone).getByText('Recovery time')).toBeTruthy();
+    expect(within(leaveAlone).getByText('Family evening')).toBeTruthy();
+    expect(within(leaveAlone).getByText('Family time')).toBeTruthy();
+    expect(within(askFirst).getByText('Loose late morning')).toBeTruthy();
+    expect(within(askFirst).getByText('Loose time')).toBeTruthy();
+    expect(within(askFirst).getAllByText('Household flow')).toHaveLength(2);
+    expect(within(openCapacity).getByText('No blocks in this category for Monday.')).toBeTruthy();
+    expect(screen.getByText(/No tasks are placed from this preview/i)).toBeTruthy();
+  });
+
+  it('only shows Day Shape blocks for the selected day', async () => {
+    const user = userEvent.setup();
+    renderPlanWithSnapshot();
+
+    expect(screen.queryByText('Tuesday window')).toBeNull();
+
+    await user.selectOptions(screen.getByLabelText('Selected day'), 'Tuesday');
+
+    expect(screen.getByText('Tuesday window')).toBeTruthy();
+    expect(screen.getAllByText('Open capacity').length).toBeGreaterThan(0);
+    expect(screen.getByText('Only if the day still has room.')).toBeTruthy();
+    expect(screen.queryByText('Protected morning')).toBeNull();
+  });
+
+  it('keeps the Day Shape preview read-only while changing selected days', async () => {
+    const user = userEvent.setup();
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const openSpy = vi.fn();
+    const deleteDatabaseSpy = vi.fn();
+    Object.defineProperty(globalThis, 'indexedDB', {
+      configurable: true,
+      value: {
+        deleteDatabase: deleteDatabaseSpy,
+        open: openSpy,
+      },
+    });
+    renderPlanWithSnapshot();
+
+    await user.selectOptions(screen.getByLabelText('Selected day'), 'Tuesday');
+
+    expect(getItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(deleteDatabaseSpy).not.toHaveBeenCalled();
   });
 
   it('renders fixed commitments before flexible rhythm items in a block', () => {

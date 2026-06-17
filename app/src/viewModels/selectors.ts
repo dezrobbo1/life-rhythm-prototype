@@ -1,8 +1,14 @@
 import { themeLabels, themes } from '../app/theme';
 import type {
   AppDataSnapshot,
+  DayName,
+  DayShapePreviewBlockViewModel,
+  DayShapePreviewGroupId,
+  DayShapePreviewGroupViewModel,
+  DayShapePreviewViewModel,
   FutureModuleViewModel,
   HiddenEdgeViewModel,
+  LifeShapeSettingsViewModel,
   LibraryViewModel,
   LibraryRhythmViewModel,
   PlanBlockViewModel,
@@ -27,6 +33,16 @@ import { futureModulePlaceholders, resetActions as defaultResetActions } from '.
 
 const defaultTodayState: TodayState = 'Normal day';
 
+export const dayShapePreviewDays: DayName[] = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
 const planLines: Record<TodayState, string> = {
   'Normal day': 'Plan adjusted: one useful next action, then the rhythm preview stays light.',
   'Behind/missed things': 'Plan adjusted: no catch-up pile. Hidden, not deleted.',
@@ -44,6 +60,39 @@ const defaultSafetySettings: SafetySettingsViewModel = {
   avoidUrgencyCountdowns: false,
   avoidAccountabilityPrompts: false,
   avoidStreakPressure: true,
+};
+
+const dayShapeTypeLabels: Record<LifeShapeSettingsViewModel['timeBlocks'][number]['type'], string> = {
+  familyTime: 'Family time',
+  householdFlow: 'Household flow',
+  looseTime: 'Loose time',
+  openCapacity: 'Open capacity',
+  protectedTime: 'Protected time',
+  recoveryTime: 'Recovery time',
+};
+
+const dayShapeGroupCopy: Record<DayShapePreviewGroupId, Omit<DayShapePreviewGroupViewModel, 'blocks'>> = {
+  askFirst: {
+    id: 'askFirst',
+    meaning: 'Life Rhythm should ask before treating these blocks as usable.',
+    title: 'Ask first',
+  },
+  available: {
+    id: 'available',
+    meaning: 'The user has marked these blocks as possible open capacity.',
+    title: 'Open capacity',
+  },
+  unavailable: {
+    id: 'unavailable',
+    meaning: 'Life Rhythm should leave these blocks alone by default.',
+    title: 'Time to leave alone',
+  },
+};
+
+const schedulerUseMeanings: Record<DayShapePreviewGroupId, string> = {
+  askFirst: 'Ask before using this block.',
+  available: 'Available only because the user marked it that way.',
+  unavailable: 'Leave this block alone by default.',
 };
 
 function safeVersion(version: SnapshotActiveTask['minimum'], label: TaskVersionViewModel['label']): TaskVersionViewModel {
@@ -145,6 +194,56 @@ export function buildPlanViewModel(snapshot: AppDataSnapshot = {}): PlanViewMode
       label: snapshot.planBlocks?.some((block) => block.state === 'heavy') ? 'Today may be full' : 'Today has room',
       body: 'Fixed commitments are visible. Flexible rhythms can move, shrink, or restart from one action.',
     },
+  };
+}
+
+function toDayShapePreviewBlock(
+  block: LifeShapeSettingsViewModel['timeBlocks'][number],
+): DayShapePreviewBlockViewModel {
+  return {
+    end: block.end,
+    id: block.id,
+    label: block.label,
+    notes: block.notes,
+    schedulerUse: block.schedulerUse,
+    schedulerUseMeaning: schedulerUseMeanings[block.schedulerUse],
+    start: block.start,
+    timeRange: `${block.start}-${block.end}`,
+    type: block.type,
+    typeLabel: dayShapeTypeLabels[block.type],
+  };
+}
+
+function emptyDayShapeGroups(): DayShapePreviewGroupViewModel[] {
+  return [
+    { ...dayShapeGroupCopy.unavailable, blocks: [] },
+    { ...dayShapeGroupCopy.askFirst, blocks: [] },
+    { ...dayShapeGroupCopy.available, blocks: [] },
+  ];
+}
+
+export function buildDayShapePreviewViewModel(
+  snapshot: AppDataSnapshot = {},
+  selectedDay: DayName = 'Monday',
+): DayShapePreviewViewModel {
+  const safeSelectedDay = dayShapePreviewDays.includes(selectedDay) ? selectedDay : 'Monday';
+  const matchingBlocks = (snapshot.settings?.lifeShape?.timeBlocks ?? [])
+    .filter((block) => block.days.includes(safeSelectedDay))
+    .map(toDayShapePreviewBlock);
+  const groups = emptyDayShapeGroups().map((group) => ({
+    ...group,
+    blocks: matchingBlocks.filter((block) => block.schedulerUse === group.id),
+  }));
+
+  return {
+    boundaryCopy: 'These blocks are planning context only. No tasks are placed from this preview.',
+    emptyState: {
+      message: 'Blank time stays blank here. Life Rhythm is not treating it as available.',
+      title: `No blocks defined for ${safeSelectedDay}.`,
+    },
+    groups,
+    intro: 'Not every open gap is available.',
+    selectedDay: safeSelectedDay,
   };
 }
 
