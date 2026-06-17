@@ -52,6 +52,16 @@ export const taskPrioritySchema = z.enum(['normal', 'important', 'must']);
 export const taskKindSchema = z.enum(['adhoc', 'repeating']);
 export const completionStyleSchema = z.enum(['flexible', 'must', 'checkpoint']);
 export const energySchema = z.enum(['low', 'medium', 'high']);
+export const activeTaskStatusSchema = z.enum([
+  'active',
+  'inProgress',
+  'paused',
+  'minimumDone',
+  'done',
+  'parked',
+  'skipped',
+  'notToday',
+]);
 export const startBarrierSchema = z.enum([
   'none',
   'big',
@@ -293,7 +303,7 @@ export const activeTaskSchema = z
     fallback: z.string().max(240).optional(),
     schedule: schedulePolicySchema.default({}),
     showToday: z.boolean().default(false),
-    status: z.enum(['active', 'parked', 'completed', 'archived']).default('active'),
+    status: activeTaskStatusSchema.default('active'),
     createdAt: isoDateTime,
     updatedAt: isoDateTime,
   })
@@ -432,6 +442,7 @@ export type StartBoostSafetySettings = z.infer<typeof startBoostSafetySettingsSc
 export type LifeShapeSettings = z.infer<typeof lifeShapeSettingsSchema>;
 export type RhythmTemplate = z.infer<typeof rhythmTemplateSchema>;
 export type ActiveTask = z.infer<typeof activeTaskSchema>;
+export type ActiveTaskStatus = z.infer<typeof activeTaskStatusSchema>;
 export type TaskHistory = z.infer<typeof taskHistorySchema>;
 export type CompletionLog = z.infer<typeof completionLogSchema>;
 export type ResetLog = z.infer<typeof resetLogSchema>;

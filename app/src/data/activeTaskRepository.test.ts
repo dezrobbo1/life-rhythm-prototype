@@ -5,6 +5,7 @@ import {
   createActiveTaskId,
   loadActiveTodayTasks,
   saveActiveTodayTask,
+  updateActiveTaskStatus,
 } from './activeTaskRepository';
 import { activeTaskSchema, type ActiveTask } from './schemas';
 
@@ -116,21 +117,30 @@ describe('active task repository', () => {
     }
   });
 
-  it('reloads active Today tasks and ignores parked, completed, archived, or not-Today rows', async () => {
+  it('reloads visible active Today task states and ignores re-entry or not-Today rows', async () => {
     const database = createTestDatabase();
 
     try {
       await database.activeTasks.bulkPut([
         validActiveTask({ id: 'active-visible' }),
+        validActiveTask({ id: 'active-in-progress', status: 'inProgress' }),
+        validActiveTask({ id: 'active-paused', status: 'paused' }),
+        validActiveTask({ id: 'active-minimum-done', status: 'minimumDone' }),
         validActiveTask({ id: 'active-not-today', showToday: false }),
         validActiveTask({ id: 'active-parked', status: 'parked' }),
-        validActiveTask({ id: 'active-completed', status: 'completed' }),
-        validActiveTask({ id: 'active-archived', status: 'archived' }),
+        validActiveTask({ id: 'active-done', status: 'done' }),
+        validActiveTask({ id: 'active-skipped', status: 'skipped' }),
+        validActiveTask({ id: 'active-not-today-status', status: 'notToday' }),
       ]);
 
       const loaded = await loadActiveTodayTasks(database);
 
-      expect(loaded.map((task) => task.id)).toEqual(['active-visible']);
+      expect(loaded.map((task) => task.id).sort()).toEqual([
+        'active-in-progress',
+        'active-minimum-done',
+        'active-paused',
+        'active-visible',
+      ].sort());
     } finally {
       await database.delete();
     }
@@ -152,7 +162,7 @@ describe('active task repository', () => {
     }
   });
 
-  it('rejects custom source, not-Today, and non-active writes for this first persistence step', async () => {
+  it('rejects custom source, not-Today, and non-active initial writes for this first persistence step', async () => {
     const database = createTestDatabase();
 
     try {
@@ -164,14 +174,134 @@ describe('active task repository', () => {
         id: 'active-not-today',
         showToday: false,
       }), database);
-      const completed = await saveActiveTodayTask(validActiveTask({
-        id: 'active-completed',
-        status: 'completed',
+      const inProgress = await saveActiveTodayTask(validActiveTask({
+        id: 'active-in-progress',
+        status: 'inProgress',
       }), database);
 
       expect(custom.ok).toBe(false);
       expect(notToday.ok).toBe(false);
-      expect(completed.ok).toBe(false);
+      expect(inProgress.ok).toBe(false);
+      await expectOnlyActiveTasksWritten(database, 0);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it.each([
+    ['inProgress'],
+    ['paused'],
+    ['minimumDone'],
+  ] as const)('persists visible status update %s without writing other tables', async (status) => {
+    const database = createTestDatabase();
+
+    try {
+      await saveActiveTodayTask(validActiveTask(), database);
+
+      const result = await updateActiveTaskStatus('active-kitchen-landing', status, database);
+      const loaded = await loadActiveTodayTasks(database);
+
+      expect(result).toMatchObject({
+        ok: true,
+        visibleToday: true,
+      });
+      expect(loaded).toHaveLength(1);
+      expect(loaded[0]).toMatchObject({
+        showToday: true,
+        status,
+      });
+      await expectOnlyActiveTasksWritten(database, 1);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it.each([
+    ['done'],
+    ['parked'],
+    ['skipped'],
+    ['notToday'],
+  ] as const)('persists re-entry status update %s and removes it from Today loading', async (status) => {
+    const database = createTestDatabase();
+
+    try {
+      await saveActiveTodayTask(validActiveTask(), database);
+
+      const result = await updateActiveTaskStatus('active-kitchen-landing', status, database);
+      const loaded = await loadActiveTodayTasks(database);
+      const stored = await database.activeTasks.get('active-kitchen-landing');
+
+      expect(result).toMatchObject({
+        ok: true,
+        visibleToday: false,
+      });
+      expect(stored).toMatchObject({
+        showToday: false,
+        status,
+      });
+      expect(loaded).toEqual([]);
+      await expectOnlyActiveTasksWritten(database, 1);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('rejects invalid status updates without overwriting the existing task', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await saveActiveTodayTask(validActiveTask(), database);
+
+      const result = await updateActiveTaskStatus(
+        'active-kitchen-landing',
+        'missed' as never,
+        database,
+      );
+      const stored = await database.activeTasks.get('active-kitchen-landing');
+
+      expect(result.ok).toBe(false);
+      expect(stored).toMatchObject({
+        showToday: true,
+        status: 'active',
+      });
+      await expectOnlyActiveTasksWritten(database, 1);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('updates only the matching active task row', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await saveActiveTodayTask(validActiveTask({ id: 'active-first' }), database);
+      await saveActiveTodayTask(validActiveTask({ id: 'active-second', title: 'Second task' }), database);
+
+      await updateActiveTaskStatus('active-first', 'paused', database);
+      const loaded = await loadActiveTodayTasks(database);
+
+      expect(loaded).toHaveLength(2);
+      expect(loaded.find((task) => task.id === 'active-first')).toMatchObject({
+        status: 'paused',
+      });
+      expect(loaded.find((task) => task.id === 'active-second')).toMatchObject({
+        status: 'active',
+      });
+      await expectOnlyActiveTasksWritten(database, 2);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('returns a calm failure when the active task row is missing', async () => {
+    const database = createTestDatabase();
+
+    try {
+      const result = await updateActiveTaskStatus('missing-task', 'paused', database);
+
+      expect(result).toMatchObject({
+        ok: false,
+      });
       await expectOnlyActiveTasksWritten(database, 0);
     } finally {
       await database.delete();

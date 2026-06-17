@@ -78,7 +78,14 @@ function toTaskViewModel(task: SnapshotActiveTask): TaskViewModel {
 }
 
 function isVisibleTodayTask(task: SnapshotActiveTask): boolean {
-  return task.status !== 'completed' && task.status !== 'archived' && Boolean(task.showToday);
+  return (
+    Boolean(task.showToday) &&
+    (task.status === undefined ||
+      task.status === 'active' ||
+      task.status === 'inProgress' ||
+      task.status === 'paused' ||
+      task.status === 'minimumDone')
+  );
 }
 
 function rhythmPreviewFromTemplates(templates: SnapshotRhythmTemplate[] | undefined, limit: number): string[] {

@@ -1,6 +1,11 @@
 import type { Table } from 'dexie';
 import { createLifeRhythmDatabase } from './db';
-import { activeTaskSchema, type ActiveTask } from './schemas';
+import {
+  activeTaskSchema,
+  activeTaskStatusSchema,
+  type ActiveTask,
+  type ActiveTaskStatus,
+} from './schemas';
 
 type ActiveTasksTable = Pick<Table<ActiveTask, string>, 'get' | 'put' | 'toArray'>;
 
@@ -19,7 +24,19 @@ export type ActiveTaskWriteResult =
       ok: false;
     };
 
+export type ActiveTaskStatusUpdateResult =
+  | {
+      ok: true;
+      task: ActiveTask;
+      visibleToday: boolean;
+    }
+  | {
+      errors: string[];
+      ok: false;
+    };
+
 const defaultDatabase = createLifeRhythmDatabase();
+const visibleTodayStatuses: readonly ActiveTaskStatus[] = ['active', 'inProgress', 'paused', 'minimumDone'];
 
 function issuesToMessages(issues: Array<{ message: string; path: Array<string | number> }>) {
   return issues.map((issue) => {
@@ -70,9 +87,13 @@ function validateCurrentWrite(input: unknown): ActiveTaskWriteResult {
 function isApprovedLoadedTask(task: ActiveTask) {
   return (
     task.showToday &&
-    task.status === 'active' &&
+    isVisibleTodayStatus(task.status) &&
     (task.source === 'adhoc' || task.source === 'library')
   );
+}
+
+function isVisibleTodayStatus(status: ActiveTaskStatus) {
+  return visibleTodayStatuses.includes(status);
 }
 
 function parseStoredActiveTask(input: unknown): ActiveTask | null {
@@ -95,7 +116,7 @@ function findExistingLibraryTask(tasks: ActiveTask[], candidate: ActiveTask) {
       task.source === 'library' &&
       task.templateId === candidate.templateId &&
       task.showToday &&
-      task.status === 'active',
+      isVisibleTodayStatus(task.status),
   );
 }
 
@@ -156,4 +177,60 @@ export async function saveActiveTodayTask(
   await store.activeTasks.put(validated.task);
 
   return validated;
+}
+
+export async function updateActiveTaskStatus(
+  taskId: string,
+  status: ActiveTaskStatus,
+  store: ActiveTaskStore = defaultDatabase,
+): Promise<ActiveTaskStatusUpdateResult> {
+  const statusResult = activeTaskStatusSchema.safeParse(status);
+
+  if (!statusResult.success) {
+    return {
+      errors: issuesToMessages(statusResult.error.issues),
+      ok: false,
+    };
+  }
+
+  const storedTask = await store.activeTasks.get(taskId);
+
+  if (!storedTask) {
+    return {
+      errors: ['id: Active Today task was not found.'],
+      ok: false,
+    };
+  }
+
+  const parsedTask = activeTaskSchema.safeParse(storedTask);
+
+  if (!parsedTask.success) {
+    return {
+      errors: issuesToMessages(parsedTask.error.issues),
+      ok: false,
+    };
+  }
+
+  if (parsedTask.data.source === 'custom') {
+    return {
+      errors: ['source: Custom active tasks are not approved for persistence yet.'],
+      ok: false,
+    };
+  }
+
+  const visibleToday = isVisibleTodayStatus(statusResult.data);
+  const updatedTask = activeTaskSchema.parse({
+    ...parsedTask.data,
+    showToday: visibleToday,
+    status: statusResult.data,
+    updatedAt: new Date().toISOString(),
+  });
+
+  await store.activeTasks.put(updatedTask);
+
+  return {
+    ok: true,
+    task: updatedTask,
+    visibleToday,
+  };
 }

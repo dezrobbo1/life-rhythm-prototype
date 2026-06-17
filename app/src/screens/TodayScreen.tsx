@@ -4,8 +4,9 @@ import {
   createActiveTaskId,
   loadActiveTodayTasks,
   saveActiveTodayTask,
+  updateActiveTaskStatus,
 } from '../data/activeTaskRepository';
-import { activeTaskSchema, type ActiveTask } from '../data/schemas';
+import { activeTaskSchema, type ActiveTask, type ActiveTaskStatus } from '../data/schemas';
 import {
   mockTodayTask,
   type MockTask,
@@ -23,6 +24,7 @@ import {
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 
 type ActiveTaskArea = ActiveTask['area'];
+type VisibleActiveTaskStatus = Extract<ActiveTaskStatus, 'active' | 'inProgress' | 'paused' | 'minimumDone'>;
 
 const areaLabels: Record<ActiveTaskArea, string> = {
   admin: 'Admin',
@@ -100,6 +102,22 @@ function taskFromActiveTask(task: ActiveTask): MockTask {
   };
 }
 
+function progressFromActiveTaskStatus(status: VisibleActiveTaskStatus): TaskProgress {
+  if (status === 'inProgress') return 'inProgress';
+  if (status === 'paused') return 'paused';
+  if (status === 'minimumDone') return 'minimumDone';
+
+  return 'idle';
+}
+
+function isVisibleActiveTaskStatus(status: ActiveTaskStatus): status is VisibleActiveTaskStatus {
+  return status === 'active' || status === 'inProgress' || status === 'paused' || status === 'minimumDone';
+}
+
+function isVisibleActiveTask(task: ActiveTask) {
+  return task.showToday && isVisibleActiveTaskStatus(task.status);
+}
+
 function createOneOffActiveTask(input: MockAddTaskInput): ActiveTask {
   const timestamp = new Date().toISOString();
   const minimum = input.minimumVersion;
@@ -141,6 +159,8 @@ export function TodayScreen() {
   const [nextTask, setNextTask] = useState<MockTask | null>(() =>
     taskFromViewModel(initialTodayViewModel.nextUsefulAction),
   );
+  const [activeTasks, setActiveTasks] = useState<ActiveTask[]>([]);
+  const [nextActiveTask, setNextActiveTask] = useState<ActiveTask | null>(null);
   const [taskProgress, setTaskProgress] = useState<TaskProgress>('idle');
   const [completionFeedback, setCompletionFeedback] = useState('');
   const todayViewModel = useMemo(
@@ -162,14 +182,97 @@ export function TodayScreen() {
     setStateChooserOpen(false);
   }
 
+  function showPersistedTask(task: ActiveTask | null) {
+    setNextActiveTask(task);
+
+    if (!task) {
+      setNextTask(null);
+      setTaskProgress('idle');
+      return;
+    }
+
+    if (!isVisibleActiveTaskStatus(task.status)) {
+      setNextTask(null);
+      setTaskProgress('idle');
+      return;
+    }
+
+    setNextTask(taskFromActiveTask(task));
+    setTaskProgress(progressFromActiveTaskStatus(task.status));
+  }
+
+  function refreshPersistedTasks(updatedTask: ActiveTask, feedback: string) {
+    const updatedTasks = activeTasks.map((task) =>
+      task.id === updatedTask.id ? updatedTask : task,
+    );
+    const visibleTasks = updatedTasks.filter(isVisibleActiveTask);
+
+    setActiveTasks(updatedTasks);
+    setCompletionFeedback(feedback);
+    setBoostOpen(false);
+    showPersistedTask(visibleTasks[0] ?? null);
+  }
+
+  async function persistProgress(
+    status: ActiveTaskStatus,
+    progress: TaskProgress,
+    feedback = '',
+  ) {
+    if (!nextActiveTask) {
+      setTaskProgress(progress);
+      setCompletionFeedback(feedback);
+      if (status === 'minimumDone') setBoostOpen(false);
+      return;
+    }
+
+    const result = await updateActiveTaskStatus(nextActiveTask.id, status);
+
+    if (!result.ok) {
+      setCompletionFeedback('Task state was not saved. Try again.');
+      return;
+    }
+
+    const updatedTasks = activeTasks.map((task) =>
+      task.id === result.task.id ? result.task : task,
+    );
+
+    setActiveTasks(updatedTasks);
+    setNextActiveTask(result.task);
+    setTaskProgress(progress);
+    setCompletionFeedback(feedback);
+    if (status === 'minimumDone') setBoostOpen(false);
+  }
+
+  async function moveCurrentTaskOutOfToday(
+    status: Extract<ActiveTaskStatus, 'done' | 'parked' | 'skipped' | 'notToday'>,
+    feedback: string,
+  ) {
+    if (!nextActiveTask) {
+      setNextTask(null);
+      setTaskProgress('idle');
+      setCompletionFeedback(feedback);
+      setBoostOpen(false);
+      return;
+    }
+
+    const result = await updateActiveTaskStatus(nextActiveTask.id, status);
+
+    if (!result.ok) {
+      setCompletionFeedback('Task state was not saved. Try again.');
+      return;
+    }
+
+    refreshPersistedTasks(result.task, feedback);
+  }
+
   useEffect(() => {
     let active = true;
 
     loadActiveTodayTasks().then((tasks) => {
       if (!active || tasks.length === 0) return;
 
-      setNextTask(taskFromActiveTask(tasks[0]));
-      setTaskProgress('idle');
+      setActiveTasks(tasks);
+      showPersistedTask(tasks[0]);
       setCompletionFeedback('');
       setBoostOpen(false);
     });
@@ -189,6 +292,8 @@ export function TodayScreen() {
     }
 
     setNextTask(taskFromActiveTask(result.task));
+    setNextActiveTask(result.task);
+    setActiveTasks((tasks) => [result.task, ...tasks.filter((task) => task.id !== result.task.id)]);
     setTaskProgress('idle');
     setCompletionFeedback('One-off saved to Today on this device. It will not go into Library.');
     setAddTaskOpen(false);
@@ -197,25 +302,36 @@ export function TodayScreen() {
     return true;
   }
 
-  function startTask() {
-    setTaskProgress('inProgress');
-    setCompletionFeedback('');
+  async function startTask() {
+    await persistProgress('inProgress', 'inProgress');
   }
 
-  function pauseTask() {
-    setTaskProgress('paused');
-    setCompletionFeedback('');
+  async function pauseTask() {
+    await persistProgress('paused', 'paused');
   }
 
-  function resumeTask() {
-    setTaskProgress('inProgress');
-    setCompletionFeedback('');
+  async function resumeTask() {
+    await persistProgress('inProgress', 'inProgress');
   }
 
-  function markMinimumDone() {
-    setTaskProgress('minimumDone');
-    setBoostOpen(false);
-    setCompletionFeedback('Minimum done. That counts.');
+  async function markMinimumDone() {
+    await persistProgress('minimumDone', 'minimumDone', 'Minimum done. That counts.');
+  }
+
+  async function keepGoing() {
+    await persistProgress('inProgress', 'inProgress');
+  }
+
+  async function stopHere() {
+    await moveCurrentTaskOutOfToday('done', 'Stopped here. That task is out of Today. No catch-up pile.');
+  }
+
+  async function parkTask() {
+    await moveCurrentTaskOutOfToday('parked', 'Parked. It is safely held. No catch-up pile.');
+  }
+
+  async function notToday() {
+    await moveCurrentTaskOutOfToday('notToday', 'Not today. It is out of the current list. No catch-up pile.');
   }
 
   return (
@@ -246,11 +362,15 @@ export function TodayScreen() {
               <p className="section-label">Next useful action</p>
             </div>
             <TaskCard
+              onKeepGoing={keepGoing}
               onMarkMinimumDone={markMinimumDone}
+              onNotToday={notToday}
+              onParkTask={parkTask}
               onPauseTask={pauseTask}
               onResumeTask={resumeTask}
               onStartBoost={() => setBoostOpen(true)}
               onStartTask={startTask}
+              onStopHere={stopHere}
               progress={taskProgress}
               task={nextTask}
               todayState={todayState}

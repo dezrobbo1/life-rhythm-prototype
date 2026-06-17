@@ -6,28 +6,37 @@ import { stateActionTone } from './mockTodayData';
 export type TaskProgress = 'idle' | 'inProgress' | 'paused' | 'minimumDone';
 
 type TaskCardProps = {
+  onKeepGoing: () => void;
   onMarkMinimumDone: () => void;
+  onNotToday: () => void;
+  onParkTask: () => void;
   onPauseTask: () => void;
   onResumeTask: () => void;
   onStartTask: () => void;
   onStartBoost: () => void;
+  onStopHere: () => void;
   progress: TaskProgress;
   task: MockTask;
   todayState: TodayState;
 };
 
 export function TaskCard({
+  onKeepGoing,
   onMarkMinimumDone,
+  onNotToday,
+  onParkTask,
   onPauseTask,
   onResumeTask,
   onStartBoost,
   onStartTask,
+  onStopHere,
   progress,
   task,
   todayState,
 }: TaskCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [keepGoingOpen, setKeepGoingOpen] = useState(false);
+  const [continuedAfterMinimum, setContinuedAfterMinimum] = useState(false);
   const [continuationFeedback, setContinuationFeedback] = useState('');
   const visibleChips = task.chips.slice(0, 2);
   const isInProgress = progress === 'inProgress';
@@ -36,6 +45,7 @@ export function TaskCard({
 
   useEffect(() => {
     setKeepGoingOpen(false);
+    setContinuedAfterMinimum(false);
     setContinuationFeedback('');
   }, [task.id]);
 
@@ -47,7 +57,21 @@ export function TaskCard({
     );
   }
 
+  function toggleKeepGoing() {
+    if (isMinimumDone) {
+      setContinuedAfterMinimum(true);
+      onKeepGoing();
+    }
+
+    setKeepGoingOpen((isOpen) => !isOpen);
+  }
+
   function stopHere() {
+    if (continuedAfterMinimum) {
+      onStopHere();
+      return;
+    }
+
     setKeepGoingOpen(false);
     setContinuationFeedback('Enough for now.');
   }
@@ -93,7 +117,7 @@ export function TaskCard({
           <>
             <Button onClick={onMarkMinimumDone} variant="primary">Mark minimum done</Button>
             <Button onClick={onPauseTask}>Pause</Button>
-            <Button onClick={() => setKeepGoingOpen((isOpen) => !isOpen)}>Keep going</Button>
+            <Button onClick={toggleKeepGoing}>Keep going</Button>
           </>
         ) : null}
         {progress === 'paused' ? (
@@ -105,7 +129,10 @@ export function TaskCard({
         {progress === 'minimumDone' ? (
           <>
             <Button disabled variant="primary">Minimum done</Button>
-            <Button onClick={() => setKeepGoingOpen((isOpen) => !isOpen)}>Keep going</Button>
+            <Button onClick={toggleKeepGoing}>Keep going</Button>
+            <Button onClick={onStopHere}>Stop here</Button>
+            <Button onClick={onParkTask}>Park</Button>
+            <Button onClick={onNotToday}>Not today</Button>
           </>
         ) : null}
         {progress !== 'minimumDone' ? <Button onClick={onStartBoost}>Start Boost</Button> : null}
@@ -122,7 +149,7 @@ export function TaskCard({
           <div>
             <h3 id={`${task.id}-continuation-title`}>Optional next versions</h3>
             <p>
-              {isMinimumDone
+              {isMinimumDone || continuedAfterMinimum
                 ? 'Optional. Minimum already counts. Continue only if it helps.'
                 : 'Optional. Keep the minimum small, then continue only if it helps.'}
             </p>
@@ -139,7 +166,7 @@ export function TaskCard({
               <Button onClick={() => chooseContinuation('full')}>Do full version</Button>
             </article>
           </div>
-          <Button onClick={stopHere}>Stop here</Button>
+          {!isMinimumDone || continuedAfterMinimum ? <Button onClick={stopHere}>Stop here</Button> : null}
         </section>
       ) : null}
       {detailsOpen ? (
