@@ -3,11 +3,13 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { parseActiveTaskBackupJson } from '../../data/activeTaskBackup';
 import { activeTaskSchema, type ActiveTask } from '../../data/schemas';
 
 const activeTaskRepositoryMocks = vi.hoisted(() => ({
   createActiveTaskId: vi.fn((prefix = 'active-task') => `${prefix}-test-id`),
   loadActiveTodayTasks: vi.fn(),
+  loadPersistedActiveTasks: vi.fn(),
   saveActiveTodayTask: vi.fn(),
   updateActiveTaskStatus: vi.fn(),
 }));
@@ -46,6 +48,7 @@ function persistedOneOffTask(overrides: Partial<ActiveTask> = {}): ActiveTask {
 
 beforeEach(() => {
   activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([]);
+  activeTaskRepositoryMocks.loadPersistedActiveTasks.mockResolvedValue([]);
   activeTaskRepositoryMocks.saveActiveTodayTask.mockImplementation(async (task: ActiveTask) => ({
     alreadyExists: false,
     ok: true,
@@ -157,6 +160,125 @@ describe('Today screen', () => {
     expect(screen.getByRole('button', { name: 'Add one-off' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Add task' })).toBeNull();
     expect(screen.getByText('Add one today-only task. It will not go into Library.')).toBeTruthy();
+  });
+
+  it('renders the Today tasks backup export action', () => {
+    render(<TodayScreen />);
+
+    expect(screen.getByRole('heading', { name: 'Today task backup' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Export Today tasks backup' })).toBeTruthy();
+    expect(screen.getByText('This backup includes Today tasks only. It does not include Library rhythms or settings.')).toBeTruthy();
+  });
+
+  it('shows an empty export message and does not download when there are no saved Today tasks', async () => {
+    const user = userEvent.setup();
+    const createObjectURL = vi.fn(() => 'blob:today-tasks');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: revokeObjectURL,
+    });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    activeTaskRepositoryMocks.loadPersistedActiveTasks.mockResolvedValueOnce([]);
+    render(<TodayScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Export Today tasks backup' }));
+
+    expect(screen.getByText('No saved Today tasks to export yet.')).toBeTruthy();
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    expect(clickSpy).not.toHaveBeenCalled();
+  });
+
+  it('exports valid active task backup JSON for saved Today tasks', async () => {
+    const user = userEvent.setup();
+    const exportedBlobs: Blob[] = [];
+    const createObjectURL = vi.fn((blob: Blob) => {
+      exportedBlobs.push(blob);
+      return 'blob:today-tasks';
+    });
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: revokeObjectURL,
+    });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    activeTaskRepositoryMocks.loadPersistedActiveTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        showToday: false,
+        status: 'done',
+      }),
+    ]);
+    render(<TodayScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Export Today tasks backup' }));
+
+    expect(screen.getByText('Today tasks backup created on this device.')).toBeTruthy();
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:today-tasks');
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(exportedBlobs).toHaveLength(1);
+
+    const exportedJson = await exportedBlobs[0].text();
+    const parsed = parseActiveTaskBackupJson(exportedJson);
+
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.payload).toMatchObject({
+        format: 'life-rhythm-active-task-backup',
+      });
+      expect(parsed.payload.activeTasks).toHaveLength(1);
+      expect(parsed.payload.activeTasks[0]).toMatchObject({
+        id: 'adhoc-pay-water-bill',
+        source: 'adhoc',
+        status: 'done',
+        title: 'Pay water bill',
+      });
+      expect(Object.keys(parsed.payload).sort()).toEqual(['activeTasks', 'appVersion', 'exportedAt', 'format']);
+      expect(parsed.payload).not.toHaveProperty('settings');
+      expect(parsed.payload).not.toHaveProperty('rhythmTemplates');
+      expect(parsed.payload).not.toHaveProperty('schedulerOutput');
+      expect(parsed.payload).not.toHaveProperty('completionLog');
+      expect(parsed.payload).not.toHaveProperty('taskHistory');
+      expect(parsed.payload).not.toHaveProperty('migrationLog');
+      expect(parsed.payload).not.toHaveProperty('lifeRhythm_v146');
+    }
+  });
+
+  it('does not use localStorage when exporting Today tasks backup', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:today-tasks'),
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    const clearSpy = vi.spyOn(Storage.prototype, 'clear');
+
+    activeTaskRepositoryMocks.loadPersistedActiveTasks.mockResolvedValueOnce([persistedOneOffTask()]);
+    render(<TodayScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Export Today tasks backup' }));
+
+    expect(screen.getByText('Today tasks backup created on this device.')).toBeTruthy();
+    expect(getItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(clearSpy).not.toHaveBeenCalled();
   });
 
   it('keeps Add one-off out of the Next useful action heading', () => {

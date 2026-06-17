@@ -3,9 +3,14 @@ import { Button, Card, EmptyState, Modal } from '../components';
 import {
   createActiveTaskId,
   loadActiveTodayTasks,
+  loadPersistedActiveTasks,
   saveActiveTodayTask,
   updateActiveTaskStatus,
 } from '../data/activeTaskRepository';
+import {
+  buildActiveTaskBackupPayload,
+  serializeActiveTaskBackup,
+} from '../data/activeTaskBackup';
 import { activeTaskSchema, type ActiveTask, type ActiveTaskStatus } from '../data/schemas';
 import {
   mockTodayTask,
@@ -118,6 +123,24 @@ function isVisibleActiveTask(task: ActiveTask) {
   return task.showToday && isVisibleActiveTaskStatus(task.status);
 }
 
+function fileDate(timestamp: string) {
+  return timestamp.slice(0, 10);
+}
+
+function downloadJsonFile(fileName: string, json: string) {
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = fileName;
+  link.style.display = 'none';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function createOneOffActiveTask(input: MockAddTaskInput): ActiveTask {
   const timestamp = new Date().toISOString();
   const minimum = input.minimumVersion;
@@ -163,6 +186,7 @@ export function TodayScreen() {
   const [nextActiveTask, setNextActiveTask] = useState<ActiveTask | null>(null);
   const [taskProgress, setTaskProgress] = useState<TaskProgress>('idle');
   const [completionFeedback, setCompletionFeedback] = useState('');
+  const [backupFeedback, setBackupFeedback] = useState('');
   const todayViewModel = useMemo(
     () => buildTodayViewModel(snapshot, { todayState }),
     [snapshot, todayState],
@@ -334,6 +358,26 @@ export function TodayScreen() {
     await moveCurrentTaskOutOfToday('notToday', 'Not today. It is out of the current list. No catch-up pile.');
   }
 
+  async function exportTodayTasksBackup() {
+    const tasks = await loadPersistedActiveTasks();
+
+    if (tasks.length === 0) {
+      setBackupFeedback('No saved Today tasks to export yet.');
+      return;
+    }
+
+    try {
+      const exportedAt = new Date().toISOString();
+      const payload = buildActiveTaskBackupPayload(tasks, exportedAt);
+      const json = serializeActiveTaskBackup(payload);
+
+      downloadJsonFile(`life-rhythm-today-tasks-backup-${fileDate(exportedAt)}.json`, json);
+      setBackupFeedback('Today tasks backup created on this device.');
+    } catch {
+      setBackupFeedback('Today tasks backup could not be created.');
+    }
+  }
+
   return (
     <div className="screen-stack today-screen">
       <section className="today-hero" aria-labelledby="today-title">
@@ -405,6 +449,17 @@ export function TodayScreen() {
           title={todayViewModel.emptyState.title}
         />
       )}
+
+      <Card>
+        <section aria-labelledby="today-backup-title" className="today-one-off">
+          <div>
+            <h2 id="today-backup-title">Today task backup</h2>
+            <p>This backup includes Today tasks only. It does not include Library rhythms or settings.</p>
+          </div>
+          <Button onClick={exportTodayTasksBackup}>Export Today tasks backup</Button>
+        </section>
+        {backupFeedback ? <p className="today-feedback" role="status">{backupFeedback}</p> : null}
+      </Card>
 
       <Modal onClose={() => setStateChooserOpen(false)} open={stateChooserOpen} title="How today feels">
         <div className="today-state-panel">

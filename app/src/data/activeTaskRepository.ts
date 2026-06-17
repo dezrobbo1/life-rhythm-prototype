@@ -92,6 +92,10 @@ function isApprovedLoadedTask(task: ActiveTask) {
   );
 }
 
+function isApprovedPersistedTask(task: ActiveTask) {
+  return task.source === 'adhoc' || task.source === 'library';
+}
+
 function isVisibleTodayStatus(status: ActiveTaskStatus) {
   return visibleTodayStatuses.includes(status);
 }
@@ -100,6 +104,16 @@ function parseStoredActiveTask(input: unknown): ActiveTask | null {
   const parsed = activeTaskSchema.safeParse(input);
 
   if (!parsed.success || !isApprovedLoadedTask(parsed.data)) {
+    return null;
+  }
+
+  return parsed.data;
+}
+
+function parseStoredPersistedTask(input: unknown): ActiveTask | null {
+  const parsed = activeTaskSchema.safeParse(input);
+
+  if (!parsed.success || !isApprovedPersistedTask(parsed.data)) {
     return null;
   }
 
@@ -136,6 +150,22 @@ export async function loadActiveTodayTasks(
 
     return stored.flatMap((task) => {
       const parsed = parseStoredActiveTask(task);
+
+      return parsed ? [parsed] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function loadPersistedActiveTasks(
+  store: ActiveTaskStore = defaultDatabase,
+): Promise<ActiveTask[]> {
+  try {
+    const stored = await store.activeTasks.toArray();
+
+    return stored.flatMap((task) => {
+      const parsed = parseStoredPersistedTask(task);
 
       return parsed ? [parsed] : [];
     });
