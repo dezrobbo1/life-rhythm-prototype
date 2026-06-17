@@ -1483,6 +1483,70 @@ textarea:focus-visible {
   gap: var(--space-2);
 }
 
+.life-shape-time-blocks {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.life-shape-time-block {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+}
+
+.life-shape-time-block legend,
+.life-shape-days legend {
+  color: var(--color-accent-strong);
+  font-size: 0.82rem;
+  font-weight: 850;
+  padding: 0 var(--space-1);
+}
+
+.life-shape-time-block label,
+.life-shape-days {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.life-shape-time-block input,
+.life-shape-time-block select,
+.life-shape-time-block textarea {
+  background: var(--color-surface-strong);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  color: var(--color-text);
+  min-height: 2.65rem;
+  padding: 0.55rem 0.75rem;
+  width: 100%;
+}
+
+.life-shape-day-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.life-shape-day-grid label {
+  align-items: center;
+  background: var(--color-chip);
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.life-shape-day-grid input {
+  accent-color: var(--color-accent);
+  height: 1rem;
+  width: 1rem;
+}
+
 .setup-toggle {
   align-items: start;
   background: var(--color-surface-strong);

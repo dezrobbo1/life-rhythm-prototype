@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { themeBackgrounds } from '../../app/theme';
 import { buildSettingsBackupPayload } from '../../data/settingsExport';
+import type { SettingsWriteInput, SettingsWriteResult } from '../../data/settingsRepository';
 import { settingsSchema } from '../../data/schemas';
 import { SetupScreen } from '../../screens/SetupScreen';
 
@@ -86,6 +87,10 @@ describe('Setup screen', () => {
     expect(screen.getByLabelText('Wake anchor')).toBeTruthy();
     expect(screen.getByLabelText('Sleep anchor')).toBeTruthy();
     expect(screen.getByLabelText('Low-capacity day preference')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Time to leave alone' })).toBeTruthy();
+    expect(screen.getByText('Not every open gap is available.')).toBeTruthy();
+    expect(screen.getByText('Life Rhythm will not place tasks here unless you allow it. Loose time can stay loose.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add block' })).toBeTruthy();
   });
 
   it('changes Life shape controls without saving until Save settings is used', async () => {
@@ -117,6 +122,86 @@ describe('Setup screen', () => {
     expect(clearSpy).not.toHaveBeenCalled();
     expect(openSpy).not.toHaveBeenCalled();
     expect(deleteDatabaseSpy).not.toHaveBeenCalled();
+  });
+
+  it('adds and saves a Life Shape time block through settings only', async () => {
+    const user = userEvent.setup();
+    const onSaveSettings = vi.fn(async (input: SettingsWriteInput): Promise<SettingsWriteResult> => ({
+      ok: true,
+      settings: settingsSchema.parse({
+        appVersion: '1.4.6',
+        createdAt: '2026-06-15T00:00:00.000Z',
+        id: 'settings',
+        lifeShape: input.lifeShape,
+        startBoostSafety: input.startBoostSafety,
+        theme: input.theme,
+        updatedAt: '2026-06-15T01:00:00.000Z',
+      }),
+    }));
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    render(<SetupScreen onSaveSettings={onSaveSettings} />);
+
+    await user.click(screen.getByRole('button', { name: 'Add block' }));
+
+    expect((screen.getByLabelText('Time block 1 type') as HTMLSelectElement).value).toBe('protectedTime');
+    expect((screen.getByLabelText('Time block 1 scheduler use') as HTMLSelectElement).value).toBe('unavailable');
+
+    await user.clear(screen.getByLabelText('Time block 1 label'));
+    await user.type(screen.getByLabelText('Time block 1 label'), 'Protected writing space');
+    await user.selectOptions(screen.getByLabelText('Time block 1 type'), 'looseTime');
+
+    expect((screen.getByLabelText('Time block 1 scheduler use') as HTMLSelectElement).value).toBe('askFirst');
+
+    await user.selectOptions(screen.getByLabelText('Time block 1 type'), 'openCapacity');
+
+    expect((screen.getByLabelText('Time block 1 scheduler use') as HTMLSelectElement).value).toBe('available');
+
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+
+    expect(onSaveSettings).toHaveBeenCalledTimes(1);
+    expect(onSaveSettings.mock.calls[0][0]).toMatchObject({
+      lifeShape: {
+        timeBlocks: [
+          expect.objectContaining({
+            days: ['Monday'],
+            end: '12:00',
+            label: 'Protected writing space',
+            schedulerUse: 'available',
+            start: '11:00',
+            type: 'openCapacity',
+          }),
+        ],
+      },
+    });
+    expect(screen.getByRole('status').textContent).toContain('Settings saved on this device.');
+    expect(setItemSpy).not.toHaveBeenCalled();
+  });
+
+  it('removes a Life Shape time block before saving', async () => {
+    const user = userEvent.setup();
+    const onSaveSettings = vi.fn(async (input: SettingsWriteInput): Promise<SettingsWriteResult> => ({
+      ok: true,
+      settings: settingsSchema.parse({
+        appVersion: '1.4.6',
+        createdAt: '2026-06-15T00:00:00.000Z',
+        id: 'settings',
+        lifeShape: input.lifeShape,
+        startBoostSafety: input.startBoostSafety,
+        theme: input.theme,
+        updatedAt: '2026-06-15T01:00:00.000Z',
+      }),
+    }));
+    render(<SetupScreen onSaveSettings={onSaveSettings} />);
+
+    await user.click(screen.getByRole('button', { name: 'Add block' }));
+    await user.click(screen.getByRole('button', { name: 'Remove block' }));
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+
+    expect(onSaveSettings.mock.calls[0][0]).toMatchObject({
+      lifeShape: {
+        timeBlocks: [],
+      },
+    });
   });
 
   it('renders appearance options and updates selected mock state', async () => {

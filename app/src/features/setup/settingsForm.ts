@@ -3,6 +3,7 @@ import {
   lifeShapeSettingsSchema,
   startBoostSafetySettingsSchema,
   type LifeShapeSettings,
+  type LifeShapeTimeBlock,
   type Settings,
   type StartBoostSafetySettings,
 } from '../../data/schemas';
@@ -45,6 +46,16 @@ export function normalizeLifeShapeForm(lifeShape: LifeShapeState): LifeShapeSett
       sleep: lifeShape.sleepAnchor,
       wake: lifeShape.wakeAnchor,
     },
+    timeBlocks: lifeShape.timeBlocks.map((block) => ({
+      days: block.days,
+      end: block.end,
+      id: block.id,
+      label: block.label.trim(),
+      notes: block.notes.trim().length > 0 ? block.notes.trim() : undefined,
+      schedulerUse: block.schedulerUse,
+      start: block.start,
+      type: block.type,
+    })),
     transitionBufferMinutes: parseMinuteField(lifeShape.transitionBuffer),
     travelMinutes,
     usualWorkHours: {
@@ -82,9 +93,23 @@ export function lifeShapeStateFromSettings(settings: Settings | undefined): Life
     lunchAnchor: lifeShape.mealAnchors.lunch,
     lowCapacityPreference: lifeShape.lowCapacityPreference,
     sleepAnchor: lifeShape.sleepWakeAnchors.sleep,
+    timeBlocks: lifeShape.timeBlocks.map(timeBlockStateFromSettings),
     transitionBuffer: String(lifeShape.transitionBufferMinutes),
     wakeAnchor: lifeShape.sleepWakeAnchors.wake,
     workEnd: lifeShape.usualWorkHours.end,
     workStart: lifeShape.usualWorkHours.start,
+  };
+}
+
+function timeBlockStateFromSettings(block: LifeShapeTimeBlock) {
+  return {
+    days: [...block.days],
+    end: block.end,
+    id: block.id,
+    label: block.label,
+    notes: block.notes ?? '',
+    schedulerUse: block.schedulerUse,
+    start: block.start,
+    type: block.type,
   };
 }

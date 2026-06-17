@@ -310,6 +310,10 @@ function cloneSnapshot(snapshot: AppDataSnapshot): AppDataSnapshot {
                 })),
                 mealAnchors: { ...snapshot.settings.lifeShape.mealAnchors },
                 sleepWakeAnchors: { ...snapshot.settings.lifeShape.sleepWakeAnchors },
+                timeBlocks: (snapshot.settings.lifeShape.timeBlocks ?? []).map((block) => ({
+                  ...block,
+                  days: [...block.days],
+                })),
                 usualWorkHours: {
                   ...snapshot.settings.lifeShape.usualWorkHours,
                   days: [...snapshot.settings.lifeShape.usualWorkHours.days],

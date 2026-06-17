@@ -2,6 +2,8 @@ import { z } from 'zod';
 import {
   dayOfWeekSchema,
   idSchema,
+  lifeShapeSchedulerUseSchema,
+  lifeShapeTimeBlockTypeSchema,
   lowCapacityPreferenceSchema,
   themeNameSchema,
 } from './schemas';
@@ -131,6 +133,44 @@ const fixedCommitmentImportSchema = z
     }
   });
 
+const defaultSchedulerUseByBlockType: Record<
+  z.infer<typeof lifeShapeTimeBlockTypeSchema>,
+  z.infer<typeof lifeShapeSchedulerUseSchema>
+> = {
+  familyTime: 'unavailable',
+  householdFlow: 'askFirst',
+  looseTime: 'askFirst',
+  openCapacity: 'available',
+  protectedTime: 'unavailable',
+  recoveryTime: 'unavailable',
+};
+
+const lifeShapeTimeBlockImportSchema = z
+  .object({
+    days: z.array(dayOfWeekSchema),
+    end: timeOfDay,
+    id: idSchema,
+    label: z.string().min(1),
+    notes: z.string().max(240).optional(),
+    schedulerUse: lifeShapeSchedulerUseSchema.optional(),
+    start: timeOfDay,
+    type: lifeShapeTimeBlockTypeSchema,
+  })
+  .strict()
+  .superRefine((block, context) => {
+    if (minutesFromTime(block.start) >= minutesFromTime(block.end)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Time block end must be later than start.',
+        path: ['end'],
+      });
+    }
+  })
+  .transform((block) => ({
+    ...block,
+    schedulerUse: block.schedulerUse ?? defaultSchedulerUseByBlockType[block.type],
+  }));
+
 const lifeShapeImportSchema = z
   .object({
     commuteMinutes: minuteAmount,
@@ -150,6 +190,7 @@ const lifeShapeImportSchema = z
       })
       .strict(),
     transitionBufferMinutes,
+    timeBlocks: z.array(lifeShapeTimeBlockImportSchema).default([]),
     travelMinutes: minuteAmount,
     usualWorkHours: usualWorkHoursImportSchema,
   })

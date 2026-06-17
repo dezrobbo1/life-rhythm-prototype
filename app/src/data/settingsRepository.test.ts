@@ -41,6 +41,16 @@ function validInput(overrides: Partial<SettingsWriteInput> = {}): SettingsWriteI
       },
       transitionBufferMinutes: 20,
       travelMinutes: 25,
+      timeBlocks: [
+        {
+          days: ['Monday', 'Wednesday'],
+          end: '12:00',
+          id: 'protected-writing',
+          label: 'Protected writing space',
+          start: '10:00',
+          type: 'protectedTime',
+        },
+      ],
       usualWorkHours: {
         start: '09:00',
         end: '17:00',
@@ -137,6 +147,11 @@ describe('settings repository', () => {
     expect(loaded.lifeShape.transitionBufferMinutes).toBe(20);
     expect(loaded.lifeShape.fixedCommitments[0].label).toBe('School run');
     expect(loaded.lifeShape.lowCapacityPreference).toBe('minimum-first');
+    expect(loaded.lifeShape.timeBlocks[0]).toMatchObject({
+      id: 'protected-writing',
+      schedulerUse: 'unavailable',
+      type: 'protectedTime',
+    });
   });
 
   it('does not save invalid work hours', async () => {
@@ -182,6 +197,34 @@ describe('settings repository', () => {
     expect(fake.put).not.toHaveBeenCalled();
   });
 
+  it('does not save invalid Life Shape time blocks', async () => {
+    const existing = createDefaultSettings();
+    const fake = createFakeStore(existing);
+    const result = await saveSettings(
+      validInput({
+        lifeShape: {
+          ...(validInput().lifeShape as Record<string, unknown>),
+          timeBlocks: [
+            {
+              days: ['Monday'],
+              end: '09:00',
+              id: 'invalid-range',
+              label: 'Invalid range',
+              start: '10:00',
+              type: 'protectedTime',
+            },
+          ],
+        },
+        theme: 'clear',
+      }),
+      fake.store,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(fake.getStoredSettings()?.theme).toBe(existing.theme);
+    expect(fake.put).not.toHaveBeenCalled();
+  });
+
   it('resets only the settings row to defaults', async () => {
     const fake = createFakeStore();
     await saveSettings(validInput({ theme: 'clear' }), fake.store);
@@ -189,6 +232,7 @@ describe('settings repository', () => {
     const resetSettings = await resetSettingsToDefaults(fake.store);
 
     expect(resetSettings.theme).toBe('exhale');
+    expect(resetSettings.lifeShape.timeBlocks).toEqual([]);
     expect(fake.getStoredSettings()?.theme).toBe('exhale');
     expect(fake.put).toHaveBeenCalledTimes(2);
   });

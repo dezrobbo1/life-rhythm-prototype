@@ -17,10 +17,14 @@ import {
   advancedRows,
   appearanceOptions,
   dataActions,
+  dayOptions,
   defaultLifeShape,
   lowCapacityPreferenceOptions,
+  schedulerUseOptions,
   safetyToggles,
+  timeBlockTypeOptions,
   type LifeShapeState,
+  type LifeShapeTimeBlockState,
 } from '../features/setup/mockSetupData';
 import {
   lifeShapeStateFromSettings,
@@ -37,6 +41,18 @@ type SetupScreenProps = {
   onThemeChange?: (theme: ThemeName) => void;
   settings?: Settings;
   theme?: ThemeName;
+};
+
+const defaultSchedulerUseByTimeBlockType: Record<
+  LifeShapeTimeBlockState['type'],
+  LifeShapeTimeBlockState['schedulerUse']
+> = {
+  familyTime: 'unavailable',
+  householdFlow: 'askFirst',
+  looseTime: 'askFirst',
+  openCapacity: 'available',
+  protectedTime: 'unavailable',
+  recoveryTime: 'unavailable',
 };
 
 export function SetupScreen({
@@ -84,6 +100,94 @@ export function SetupScreen({
     setLifeShape((current) => ({
       ...current,
       [key]: value,
+    }));
+    setStatus('Life shape updated. Save settings when ready.');
+  }
+
+  function addTimeBlock() {
+    setLifeShape((current) => ({
+      ...current,
+      timeBlocks: [
+        ...current.timeBlocks,
+        {
+          days: ['Monday'],
+          end: '12:00',
+          id: `life-shape-block-${current.timeBlocks.length + 1}`,
+          label: 'Protected time',
+          notes: '',
+          schedulerUse: 'unavailable',
+          start: '11:00',
+          type: 'protectedTime',
+        },
+      ],
+    }));
+    setStatus('Life shape updated. Save settings when ready.');
+  }
+
+  function removeTimeBlock(blockId: string) {
+    setLifeShape((current) => ({
+      ...current,
+      timeBlocks: current.timeBlocks.filter((block) => block.id !== blockId),
+    }));
+    setStatus('Life shape updated. Save settings when ready.');
+  }
+
+  function updateTimeBlock<Key extends keyof LifeShapeTimeBlockState>(
+    blockId: string,
+    key: Key,
+    value: LifeShapeTimeBlockState[Key],
+  ) {
+    setLifeShape((current) => ({
+      ...current,
+      timeBlocks: current.timeBlocks.map((block) =>
+        block.id === blockId
+          ? {
+              ...block,
+              [key]: value,
+            }
+          : block,
+      ),
+    }));
+    setStatus('Life shape updated. Save settings when ready.');
+  }
+
+  function updateTimeBlockType(blockId: string, type: LifeShapeTimeBlockState['type']) {
+    setLifeShape((current) => ({
+      ...current,
+      timeBlocks: current.timeBlocks.map((block) =>
+        block.id === blockId
+          ? {
+              ...block,
+              schedulerUse: defaultSchedulerUseByTimeBlockType[type],
+              type,
+            }
+          : block,
+      ),
+    }));
+    setStatus('Life shape updated. Save settings when ready.');
+  }
+
+  function toggleTimeBlockDay(blockId: string, day: string) {
+    setLifeShape((current) => ({
+      ...current,
+      timeBlocks: current.timeBlocks.map((block) => {
+        if (block.id !== blockId) {
+          return block;
+        }
+
+        const daySet = new Set(block.days);
+
+        if (daySet.has(day)) {
+          daySet.delete(day);
+        } else {
+          daySet.add(day);
+        }
+
+        return {
+          ...block,
+          days: Array.from(daySet),
+        };
+      }),
     }));
     setStatus('Life shape updated. Save settings when ready.');
   }
@@ -359,6 +463,113 @@ export function SetupScreen({
               ))}
             </select>
           </label>
+
+          <section className="life-shape-control life-shape-control--wide" aria-labelledby="time-to-leave-alone-title">
+            <div className="setup-subheading">
+              <h3 id="time-to-leave-alone-title">Time to leave alone</h3>
+              <p>Not every open gap is available.</p>
+              <p>Life Rhythm will not place tasks here unless you allow it. Loose time can stay loose.</p>
+            </div>
+            <div className="setup-action-row">
+              <Button onClick={addTimeBlock}>Add block</Button>
+            </div>
+            {lifeShape.timeBlocks.length === 0 ? (
+              <small>No time blocks added yet.</small>
+            ) : (
+              <div className="life-shape-time-blocks">
+                {lifeShape.timeBlocks.map((block, index) => (
+                  <fieldset className="life-shape-time-block" key={block.id}>
+                    <legend>Time block {index + 1}</legend>
+                    <label>
+                      <span>Label</span>
+                      <input
+                        aria-label={`Time block ${index + 1} label`}
+                        onChange={(event) => updateTimeBlock(block.id, 'label', event.target.value)}
+                        value={block.label}
+                      />
+                    </label>
+                    <label>
+                      <span>Type</span>
+                      <select
+                        aria-label={`Time block ${index + 1} type`}
+                        onChange={(event) =>
+                          updateTimeBlockType(block.id, event.target.value as LifeShapeTimeBlockState['type'])
+                        }
+                        value={block.type}
+                      >
+                        {timeBlockTypeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <fieldset className="life-shape-days">
+                      <legend>Days</legend>
+                      <div className="life-shape-day-grid">
+                        {dayOptions.map((day) => (
+                          <label key={day}>
+                            <input
+                              checked={block.days.includes(day)}
+                              onChange={() => toggleTimeBlockDay(block.id, day)}
+                              type="checkbox"
+                            />
+                            <span>{day.slice(0, 3)}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                    <div className="life-shape-inline">
+                      <label>
+                        <span>Start</span>
+                        <input
+                          aria-label={`Time block ${index + 1} start`}
+                          onChange={(event) => updateTimeBlock(block.id, 'start', event.target.value)}
+                          type="time"
+                          value={block.start}
+                        />
+                      </label>
+                      <label>
+                        <span>End</span>
+                        <input
+                          aria-label={`Time block ${index + 1} end`}
+                          onChange={(event) => updateTimeBlock(block.id, 'end', event.target.value)}
+                          type="time"
+                          value={block.end}
+                        />
+                      </label>
+                    </div>
+                    <label>
+                      <span>Scheduler use</span>
+                      <select
+                        aria-label={`Time block ${index + 1} scheduler use`}
+                        onChange={(event) =>
+                          updateTimeBlock(block.id, 'schedulerUse', event.target.value as LifeShapeTimeBlockState['schedulerUse'])
+                        }
+                        value={block.schedulerUse}
+                      >
+                        {schedulerUseOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Notes</span>
+                      <textarea
+                        aria-label={`Time block ${index + 1} notes`}
+                        onChange={(event) => updateTimeBlock(block.id, 'notes', event.target.value)}
+                        rows={2}
+                        value={block.notes}
+                      />
+                    </label>
+                    <Button onClick={() => removeTimeBlock(block.id)}>Remove block</Button>
+                  </fieldset>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
         <p className="setup-note">Settings only. Future planning can use this shape later, but this does not schedule anything.</p>
       </Card>
