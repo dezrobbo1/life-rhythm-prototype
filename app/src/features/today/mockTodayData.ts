@@ -43,6 +43,16 @@ export type MockTask = {
   fullVersion: string;
   timingReality: string;
   hiddenEdges: string[];
+  timeEdge?: {
+    dueAt?: string;
+    expiresAfter?: string;
+    fixedAt?: string;
+    latestUsefulStartAt?: string;
+    minimumStillUsefulAfterDeadline?: boolean;
+    missedPolicy?: 'ask' | 'park' | 'notToday' | 'minimumOnly' | 'followUpPrompt' | 'hideUntilReview' | 'archiveIfExpired';
+    notUsefulAfter?: string;
+    timeConstraint?: 'flexible' | 'dueBy' | 'fixedAt' | 'expiresAfter';
+  };
   whyThis: string;
   startBarriers: StartBarrier[];
   boostSupports: Record<StartBarrier, Array<{ id: string; label: string; detail: string }>>;
