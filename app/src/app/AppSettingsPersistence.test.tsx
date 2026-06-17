@@ -82,6 +82,17 @@ describe('App settings persistence wiring', () => {
           },
           transitionBufferMinutes: 20,
           travelMinutes: 35,
+          timeBlocks: [
+            {
+              days: ['Monday'],
+              end: '12:00',
+              id: 'protected-writing',
+              label: 'Protected writing space',
+              schedulerUse: 'unavailable',
+              start: '10:00',
+              type: 'protectedTime',
+            },
+          ],
           usualWorkHours: {
             days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
             end: '17:30',
@@ -110,6 +121,8 @@ describe('App settings persistence wiring', () => {
     expect((screen.getByLabelText('Transition buffer') as HTMLSelectElement).value).toBe('20');
     expect((screen.getByLabelText('Low-capacity day preference') as HTMLSelectElement).value).toBe('minimum-first');
     expect((screen.getByLabelText('Fixed commitments') as HTMLTextAreaElement).value).toBe('Stored appointment note');
+    expect((screen.getByLabelText('Time block 1 label') as HTMLInputElement).value).toBe('Protected writing space');
+    expect((screen.getByLabelText('Time block 1 scheduler use') as HTMLSelectElement).value).toBe('unavailable');
     expect(within(screen.getByRole('radiogroup', { name: 'Appearance theme' })).getByRole('radio', { name: /Clear/ }).getAttribute('aria-checked')).toBe('true');
   });
 
@@ -135,6 +148,11 @@ describe('App settings persistence wiring', () => {
     await user.clear(screen.getByLabelText('Fixed commitments'));
     await user.type(screen.getByLabelText('Fixed commitments'), 'School run');
     await user.selectOptions(screen.getByLabelText('Transition buffer'), '20');
+    await user.click(screen.getByRole('button', { name: 'Add block' }));
+    await user.clear(screen.getByLabelText('Time block 1 label'));
+    await user.type(screen.getByLabelText('Time block 1 label'), 'Loose Saturday time');
+    await user.selectOptions(screen.getByLabelText('Time block 1 type'), 'looseTime');
+    await user.selectOptions(screen.getByLabelText('Time block 1 scheduler use'), 'askFirst');
     await user.click(screen.getByRole('button', { name: 'Save settings' }));
 
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Settings saved on this device.'));
@@ -143,6 +161,13 @@ describe('App settings persistence wiring', () => {
       lifeShape: {
         commuteMinutes: 35,
         fixedCommitments: [{ id: 'setup-fixed-commitments', label: 'School run' }],
+        timeBlocks: [
+          expect.objectContaining({
+            label: 'Loose Saturday time',
+            schedulerUse: 'askFirst',
+            type: 'looseTime',
+          }),
+        ],
         transitionBufferMinutes: 20,
         travelMinutes: 35,
       },

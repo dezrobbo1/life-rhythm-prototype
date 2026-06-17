@@ -40,6 +40,25 @@ function validPayload(): SettingsBackupImportPayload {
       },
       transitionBufferMinutes: 20,
       travelMinutes: 25,
+      timeBlocks: [
+        {
+          days: ['Monday', 'Wednesday'],
+          end: '12:00',
+          id: 'protected-writing',
+          label: 'Protected writing space',
+          start: '10:00',
+          type: 'protectedTime',
+        },
+        {
+          days: ['Saturday'],
+          end: '16:00',
+          id: 'loose-saturday',
+          label: 'Loose Saturday time',
+          schedulerUse: 'askFirst',
+          start: '14:00',
+          type: 'looseTime',
+        },
+      ],
       usualWorkHours: {
         days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
         end: '17:00',
@@ -75,6 +94,10 @@ describe('settings backup import validation', () => {
       expect(result.preview.theme).toBe('clear');
       expect(result.preview.lifeShapeSummary).toContain('09:00-17:00');
       expect(result.preview.startBoostSafetySummary).toBe('6 safety choices on');
+      expect(result.payload.settings.lifeShape.timeBlocks[0]).toMatchObject({
+        id: 'protected-writing',
+        schedulerUse: 'unavailable',
+      });
     }
   });
 
@@ -260,6 +283,79 @@ describe('settings backup import validation', () => {
       const errors = result.errors.join(' ');
       expect(errors).toContain('settings.lifeShape.commuteMinutes');
       expect(errors).toContain('settings.lifeShape.usualWorkHours.end');
+    }
+  });
+
+  it('rejects invalid Life Shape time blocks', () => {
+    const payload = clone(validPayload());
+    const invalidRange = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        lifeShape: {
+          ...payload.settings.lifeShape,
+          timeBlocks: [
+            {
+              days: ['Monday'],
+              end: '09:00',
+              id: 'bad-range',
+              label: 'Bad range',
+              start: '10:00',
+              type: 'protectedTime',
+            },
+          ],
+        },
+      },
+    });
+    const invalidDay = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        lifeShape: {
+          ...payload.settings.lifeShape,
+          timeBlocks: [
+            {
+              days: ['Funday'],
+              end: '12:00',
+              id: 'bad-day',
+              label: 'Bad day',
+              start: '10:00',
+              type: 'looseTime',
+            },
+          ],
+        },
+      },
+    });
+    const unknownField = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        lifeShape: {
+          ...payload.settings.lifeShape,
+          timeBlocks: [
+            {
+              days: ['Monday'],
+              end: '12:00',
+              id: 'unknown-field',
+              label: 'Unknown field',
+              scheduleIntoThis: true,
+              start: '10:00',
+              type: 'openCapacity',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(invalidRange.ok).toBe(false);
+    expect(invalidDay.ok).toBe(false);
+    expect(unknownField.ok).toBe(false);
+    if (!invalidRange.ok && !invalidDay.ok && !unknownField.ok) {
+      const errors = [...invalidRange.errors, ...invalidDay.errors, ...unknownField.errors].join(' ');
+
+      expect(errors).toContain('settings.lifeShape.timeBlocks.0.end');
+      expect(errors).toContain('settings.lifeShape.timeBlocks.0.days.0');
+      expect(errors).toContain('scheduleIntoThis');
     }
   });
 

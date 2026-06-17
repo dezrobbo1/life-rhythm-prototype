@@ -98,9 +98,29 @@ export const timeWindowSchema = z.enum([
 export const lateHandlingSchema = z.enum(['moveNext', 'fallback', 'keep', 'ask', 'missed']);
 export const bufferModeSchema = z.enum(['auto', 'none', 'light', 'normal', 'heavy', 'leaving']);
 export const recurrencePeriodSchema = z.enum(['day', 'week', 'month']);
+export const lifeShapeTimeBlockTypeSchema = z.enum([
+  'protectedTime',
+  'recoveryTime',
+  'looseTime',
+  'householdFlow',
+  'familyTime',
+  'openCapacity',
+]);
+export const lifeShapeSchedulerUseSchema = z.enum(['unavailable', 'askFirst', 'available']);
 
 const minuteAmountSchema = z.number().int().min(0).max(480);
 const transitionBufferMinutesSchema = z.number().int().min(0).max(180);
+const defaultSchedulerUseByBlockType: Record<
+  z.infer<typeof lifeShapeTimeBlockTypeSchema>,
+  z.infer<typeof lifeShapeSchedulerUseSchema>
+> = {
+  familyTime: 'unavailable',
+  householdFlow: 'askFirst',
+  looseTime: 'askFirst',
+  openCapacity: 'available',
+  protectedTime: 'unavailable',
+  recoveryTime: 'unavailable',
+};
 
 function minutesFromTime(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
@@ -257,6 +277,32 @@ export const fixedCommitmentSettingsSchema = z
     }
   });
 
+export const lifeShapeTimeBlockSchema = z
+  .object({
+    id: idSchema,
+    label: z.string().min(1),
+    type: lifeShapeTimeBlockTypeSchema,
+    days: z.array(dayOfWeekSchema).default([]),
+    start: timeOfDay,
+    end: timeOfDay,
+    notes: z.string().max(240).optional(),
+    schedulerUse: lifeShapeSchedulerUseSchema.optional(),
+  })
+  .strict()
+  .superRefine((block, context) => {
+    if (minutesFromTime(block.start) >= minutesFromTime(block.end)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Time block end must be later than start.',
+        path: ['end'],
+      });
+    }
+  })
+  .transform((block) => ({
+    ...block,
+    schedulerUse: block.schedulerUse ?? defaultSchedulerUseByBlockType[block.type],
+  }));
+
 export const lowCapacityPreferenceSchema = z.enum([
   'protect-evening',
   'lighter-morning',
@@ -284,6 +330,7 @@ export const lifeShapeSettingsSchema = z
       sleep: '21:30',
     }),
     lowCapacityPreference: lowCapacityPreferenceSchema.default('protect-evening'),
+    timeBlocks: z.array(lifeShapeTimeBlockSchema).default([]),
   })
   .strict()
   .default({
@@ -306,6 +353,7 @@ export const lifeShapeSettingsSchema = z
       sleep: '21:30',
     },
     lowCapacityPreference: 'protect-evening',
+    timeBlocks: [],
   });
 
 export const settingsSchema = z
@@ -548,6 +596,7 @@ export const appExportSchema = z
 export type Settings = z.infer<typeof settingsSchema>;
 export type StartBoostSafetySettings = z.infer<typeof startBoostSafetySettingsSchema>;
 export type LifeShapeSettings = z.infer<typeof lifeShapeSettingsSchema>;
+export type LifeShapeTimeBlock = z.infer<typeof lifeShapeTimeBlockSchema>;
 export type RhythmTemplate = z.infer<typeof rhythmTemplateSchema>;
 export type ActiveTask = z.infer<typeof activeTaskSchema>;
 export type ActiveTaskStatus = z.infer<typeof activeTaskStatusSchema>;

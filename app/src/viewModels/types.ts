@@ -185,6 +185,16 @@ export type LifeShapeSettingsViewModel = {
     sleep: string;
   };
   lowCapacityPreference: 'protect-evening' | 'lighter-morning' | 'minimum-first';
+  timeBlocks: Array<{
+    id: string;
+    label: string;
+    type: 'protectedTime' | 'recoveryTime' | 'looseTime' | 'householdFlow' | 'familyTime' | 'openCapacity';
+    days: string[];
+    start: string;
+    end: string;
+    notes?: string;
+    schedulerUse: 'unavailable' | 'askFirst' | 'available';
+  }>;
 };
 
 export type FutureModuleId =

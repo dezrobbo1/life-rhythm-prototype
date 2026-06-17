@@ -127,6 +127,40 @@ describe('settings export backup', () => {
     }
   });
 
+  it('exports saved Life Shape time blocks as settings-only data', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await saveSettings(validInput({
+        lifeShape: {
+          ...(validInput().lifeShape as Record<string, unknown>),
+          timeBlocks: [
+            {
+              days: ['Monday'],
+              end: '12:00',
+              id: 'protected-writing',
+              label: 'Protected writing space',
+              start: '10:00',
+              type: 'protectedTime',
+            },
+          ],
+        },
+      }), database);
+      const backup = await exportSettingsBackup(database, '2026-06-16T00:00:00.000Z');
+
+      expect(backup.payload.settings.lifeShape.timeBlocks).toEqual([
+        expect.objectContaining({
+          id: 'protected-writing',
+          schedulerUse: 'unavailable',
+          type: 'protectedTime',
+        }),
+      ]);
+      expect(backup.json).not.toMatch(/schedulerOutput|activeTasks|rhythmTemplates|lifeRhythm_v146/i);
+    } finally {
+      await database.delete();
+    }
+  });
+
   it('does not include app data, root legacy data, or future module data', async () => {
     const database = createTestDatabase();
 

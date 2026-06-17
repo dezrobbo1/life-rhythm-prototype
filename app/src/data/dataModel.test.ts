@@ -254,6 +254,100 @@ describe('future data schemas', () => {
       sleep: '21:30',
     });
     expect(lifeShape.lowCapacityPreference).toBe('protect-evening');
+    expect(lifeShape.timeBlocks).toEqual([]);
+  });
+
+  it('validates Life Shape protected time blocks with type-specific scheduler defaults', () => {
+    const lifeShape = lifeShapeSettingsSchema.parse({
+      timeBlocks: [
+        {
+          days: ['Monday', 'Wednesday'],
+          end: '12:00',
+          id: 'protected-writing',
+          label: 'Protected writing space',
+          start: '10:00',
+          type: 'protectedTime',
+        },
+        {
+          days: ['Saturday'],
+          end: '16:00',
+          id: 'loose-saturday',
+          label: 'Loose Saturday time',
+          start: '14:00',
+          type: 'looseTime',
+        },
+        {
+          days: ['Friday'],
+          end: '11:00',
+          id: 'open-capacity',
+          label: 'Open capacity',
+          start: '10:30',
+          type: 'openCapacity',
+        },
+      ],
+    });
+
+    expect(lifeShape.timeBlocks).toEqual([
+      expect.objectContaining({
+        id: 'protected-writing',
+        schedulerUse: 'unavailable',
+        type: 'protectedTime',
+      }),
+      expect.objectContaining({
+        id: 'loose-saturday',
+        schedulerUse: 'askFirst',
+        type: 'looseTime',
+      }),
+      expect.objectContaining({
+        id: 'open-capacity',
+        schedulerUse: 'available',
+        type: 'openCapacity',
+      }),
+    ]);
+  });
+
+  it('rejects invalid Life Shape time blocks safely', () => {
+    const invalidRange = lifeShapeSettingsSchema.safeParse({
+      timeBlocks: [
+        {
+          days: ['Monday'],
+          end: '11:00',
+          id: 'backwards',
+          label: 'Backwards',
+          start: '12:00',
+          type: 'protectedTime',
+        },
+      ],
+    });
+    const invalidDay = lifeShapeSettingsSchema.safeParse({
+      timeBlocks: [
+        {
+          days: ['Funday'],
+          end: '12:00',
+          id: 'bad-day',
+          label: 'Bad day',
+          start: '11:00',
+          type: 'looseTime',
+        },
+      ],
+    });
+    const unknownField = lifeShapeSettingsSchema.safeParse({
+      timeBlocks: [
+        {
+          days: ['Monday'],
+          end: '12:00',
+          id: 'unknown-field',
+          label: 'Unknown field',
+          scheduleIntoThis: true,
+          start: '11:00',
+          type: 'openCapacity',
+        },
+      ],
+    });
+
+    expect(invalidRange.success).toBe(false);
+    expect(invalidDay.success).toBe(false);
+    expect(unknownField.success).toBe(false);
   });
 
   it('does not call storage write APIs during settings validation', () => {

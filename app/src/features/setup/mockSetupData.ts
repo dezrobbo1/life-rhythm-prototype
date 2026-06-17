@@ -25,6 +25,17 @@ export type SetupAction = {
   helper: string;
 };
 
+export type LifeShapeTimeBlockState = {
+  id: string;
+  label: string;
+  type: 'protectedTime' | 'recoveryTime' | 'looseTime' | 'householdFlow' | 'familyTime' | 'openCapacity';
+  days: string[];
+  start: string;
+  end: string;
+  notes: string;
+  schedulerUse: 'unavailable' | 'askFirst' | 'available';
+};
+
 export type LifeShapeState = {
   workStart: string;
   workEnd: string;
@@ -37,6 +48,7 @@ export type LifeShapeState = {
   wakeAnchor: string;
   sleepAnchor: string;
   lowCapacityPreference: string;
+  timeBlocks: LifeShapeTimeBlockState[];
 };
 
 export const defaultLifeShape: LifeShapeState = {
@@ -51,12 +63,65 @@ export const defaultLifeShape: LifeShapeState = {
   wakeAnchor: '06:30',
   workEnd: '16:30',
   workStart: '09:00',
+  timeBlocks: [],
 };
 
 export const lowCapacityPreferenceOptions = [
   { label: 'Protect evening', value: 'protect-evening' },
   { label: 'Keep mornings lighter', value: 'lighter-morning' },
   { label: 'Use minimum versions first', value: 'minimum-first' },
+];
+
+export const dayOptions = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+export const timeBlockTypeOptions = [
+  {
+    label: 'Protected time',
+    value: 'protectedTime',
+  },
+  {
+    label: 'Recovery time',
+    value: 'recoveryTime',
+  },
+  {
+    label: 'Loose time',
+    value: 'looseTime',
+  },
+  {
+    label: 'Household flow',
+    value: 'householdFlow',
+  },
+  {
+    label: 'Family time',
+    value: 'familyTime',
+  },
+  {
+    label: 'Open capacity',
+    value: 'openCapacity',
+  },
+];
+
+export const schedulerUseOptions = [
+  {
+    label: 'Unavailable',
+    value: 'unavailable',
+  },
+  {
+    label: 'Ask first',
+    value: 'askFirst',
+  },
+  {
+    label: 'Available',
+    value: 'available',
+  },
 ];
 
 export const appearanceOptions: AppearanceOption[] = [
