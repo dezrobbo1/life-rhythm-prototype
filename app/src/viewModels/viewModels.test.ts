@@ -2,6 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  buildDayShapePreviewViewModel,
   buildLibraryViewModel,
   buildPlanViewModel,
   buildResetViewModel,
@@ -12,7 +13,92 @@ import {
   libraryWithEnabledDisabledRhythmsSnapshot,
   normalDayWithOneTaskSnapshot,
   planWithFixedCommitmentsSnapshot,
+  type AppDataSnapshot,
 } from './index';
+
+const dayShapeSnapshot: AppDataSnapshot = {
+  settings: {
+    theme: 'exhale',
+    lifeShape: {
+      commuteMinutes: 0,
+      fixedCommitments: [],
+      lowCapacityPreference: 'protect-evening',
+      mealAnchors: {
+        breakfast: '07:00',
+        dinner: '18:00',
+        lunch: '12:00',
+      },
+      sleepWakeAnchors: {
+        sleep: '21:30',
+        wake: '06:30',
+      },
+      timeBlocks: [
+        {
+          days: ['Monday'],
+          end: '08:00',
+          id: 'protected-morning',
+          label: 'Protected morning',
+          schedulerUse: 'unavailable',
+          start: '07:00',
+          type: 'protectedTime',
+        },
+        {
+          days: ['Monday'],
+          end: '14:00',
+          id: 'recovery-after-lunch',
+          label: 'Recovery after lunch',
+          schedulerUse: 'unavailable',
+          start: '13:00',
+          type: 'recoveryTime',
+        },
+        {
+          days: ['Monday'],
+          end: '18:00',
+          id: 'family-evening',
+          label: 'Family evening',
+          schedulerUse: 'unavailable',
+          start: '17:00',
+          type: 'familyTime',
+        },
+        {
+          days: ['Monday'],
+          end: '11:00',
+          id: 'loose-late-morning',
+          label: 'Loose late morning',
+          schedulerUse: 'askFirst',
+          start: '10:00',
+          type: 'looseTime',
+        },
+        {
+          days: ['Monday'],
+          end: '16:00',
+          id: 'household-flow',
+          label: 'Household flow',
+          schedulerUse: 'askFirst',
+          start: '15:00',
+          type: 'householdFlow',
+        },
+        {
+          days: ['Tuesday'],
+          end: '12:00',
+          id: 'tuesday-window',
+          label: 'Tuesday window',
+          notes: 'Only if the day still has room.',
+          schedulerUse: 'available',
+          start: '11:00',
+          type: 'openCapacity',
+        },
+      ],
+      transitionBufferMinutes: 10,
+      travelMinutes: 0,
+      usualWorkHours: {
+        days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+        end: '16:00',
+        start: '08:00',
+      },
+    },
+  },
+};
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -66,6 +152,38 @@ describe('read-only view model selectors', () => {
     expect(edges.map((edge) => edge.kind)).toContain('setup');
     expect(viewModel.roomMessage.body).toContain('Fixed commitments are visible');
     expect(JSON.stringify(viewModel).toLowerCase()).not.toContain('scheduler');
+  });
+
+  it('groups Day Shape blocks by leave-alone, ask-first, and open-capacity meaning', () => {
+    const viewModel = buildDayShapePreviewViewModel(dayShapeSnapshot, 'Monday');
+    const leaveAlone = viewModel.groups.find((group) => group.title === 'Time to leave alone');
+    const askFirst = viewModel.groups.find((group) => group.title === 'Ask first');
+    const openCapacity = viewModel.groups.find((group) => group.title === 'Open capacity');
+
+    expect(leaveAlone?.blocks.map((block) => block.type)).toEqual(['protectedTime', 'recoveryTime', 'familyTime']);
+    expect(askFirst?.blocks.map((block) => block.type)).toEqual(['looseTime', 'householdFlow']);
+    expect(openCapacity?.blocks).toEqual([]);
+    expect(viewModel.boundaryCopy).toContain('No tasks are placed');
+  });
+
+  it('only shows Day Shape blocks that match the selected day', () => {
+    const viewModel = buildDayShapePreviewViewModel(dayShapeSnapshot, 'Tuesday');
+    const openCapacity = viewModel.groups.find((group) => group.title === 'Open capacity');
+    const allBlockTitles = viewModel.groups.flatMap((group) => group.blocks.map((block) => block.label));
+
+    expect(openCapacity?.blocks.map((block) => block.label)).toEqual(['Tuesday window']);
+    expect(openCapacity?.blocks[0]?.notes).toBe('Only if the day still has room.');
+    expect(allBlockTitles).not.toContain('Protected morning');
+    expect(allBlockTitles).not.toContain('Household flow');
+  });
+
+  it('returns a clear Day Shape empty state without implying blank time is available', () => {
+    const viewModel = buildDayShapePreviewViewModel(dayShapeSnapshot, 'Wednesday');
+
+    expect(viewModel.groups.every((group) => group.blocks.length === 0)).toBe(true);
+    expect(viewModel.emptyState.title).toBe('No blocks defined for Wednesday.');
+    expect(viewModel.emptyState.message).toContain('Blank time stays blank');
+    expect(JSON.stringify(viewModel).toLowerCase()).not.toContain('task suggestion');
   });
 
   it('separates reusable Library rhythms from one-off Today tasks', () => {
@@ -123,6 +241,7 @@ describe('read-only view model selectors', () => {
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
 
     buildTodayViewModel(normalDayWithOneTaskSnapshot);
+    buildDayShapePreviewViewModel(dayShapeSnapshot, 'Monday');
     buildLibraryViewModel(libraryWithEnabledDisabledRhythmsSnapshot);
     buildSetupViewModel(normalDayWithOneTaskSnapshot);
 
@@ -143,6 +262,7 @@ describe('read-only view model selectors', () => {
 
     buildTodayViewModel(normalDayWithOneTaskSnapshot);
     buildPlanViewModel(planWithFixedCommitmentsSnapshot);
+    buildDayShapePreviewViewModel(dayShapeSnapshot, 'Monday');
     buildLibraryViewModel(libraryWithEnabledDisabledRhythmsSnapshot);
     buildResetViewModel(normalDayWithOneTaskSnapshot);
     buildSetupViewModel(normalDayWithOneTaskSnapshot);
