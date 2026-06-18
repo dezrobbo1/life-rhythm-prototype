@@ -982,6 +982,138 @@ describe('Today screen', () => {
     expect(cardText).not.toMatch(/overdue|late|failed|urgent|behind/);
   });
 
+  it('does not show re-entry review when no time-edge task needs review', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        dueAt: '2999-06-17T09:00:00.000Z',
+        timeConstraint: 'dueBy',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Re-entry review' })).toBeNull();
+  });
+
+  it('shows a read-only re-entry review for a dueBy task whose useful window changed', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        dueAt: '2000-06-17T09:00:00.000Z',
+        minimumStillUsefulAfterDeadline: true,
+        missedPolicy: 'minimumOnly',
+        timeConstraint: 'dueBy',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(screen.getByText('Some tasks may need a calm review because their useful window changed.')).toBeTruthy();
+    expect(screen.getByText('Nothing has moved.')).toBeTruthy();
+    expect(screen.getByText('No catch-up pile.')).toBeTruthy();
+    expect(screen.getByText('Choose later when you are ready.')).toBeTruthy();
+    expect(screen.getByText('Useful-before time has passed; choose what still helps.')).toBeTruthy();
+    expect(screen.getByText('Minimum still helps.')).toBeTruthy();
+    expect(screen.getByText('The minimum version may be enough now.')).toBeTruthy();
+
+    const options = screen.getByLabelText('Gentle options for Pay water bill');
+    expect(within(options).getByText('Move later')).toBeTruthy();
+    expect(within(options).getByText('Park safely')).toBeTruthy();
+    expect(within(options).getByText('Try the minimum')).toBeTruthy();
+    expect(within(options).getByText('Mark not today')).toBeTruthy();
+    expect(within(options).getByText('No longer needed')).toBeTruthy();
+    expect(within(options).queryByRole('button')).toBeNull();
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
+  });
+
+  it('shows minimum-oriented re-entry review copy after latest useful start', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        latestUsefulStartAt: '2000-06-17T09:00:00.000Z',
+        notUsefulAfter: '2999-06-17T09:00:00.000Z',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(screen.getByText('Minimum may be the useful version now.')).toBeTruthy();
+  });
+
+  it('shows calm re-entry review copy after notUsefulAfter has passed', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        notUsefulAfter: '2000-06-17T09:00:00.000Z',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(screen.getByText('Original useful window has passed; choose what still helps.')).toBeTruthy();
+  });
+
+  it('does not render parked or not-today tasks in the re-entry review', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        dueAt: '2000-06-17T09:00:00.000Z',
+        id: 'parked-task',
+        showToday: false,
+        status: 'parked',
+        timeConstraint: 'dueBy',
+      }),
+      persistedOneOffTask({
+        dueAt: '2000-06-17T09:00:00.000Z',
+        id: 'not-today-task',
+        showToday: false,
+        status: 'notToday',
+        timeConstraint: 'dueBy',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Re-entry review' })).toBeNull();
+    });
+  });
+
+  it('keeps forbidden pressure wording out of the re-entry review section', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        dueAt: '2000-06-17T09:00:00.000Z',
+        timeConstraint: 'dueBy',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
+    const review = await screen.findByRole('heading', { name: 'Re-entry review' });
+    const sectionText = review.closest('section')?.textContent?.toLowerCase() ?? '';
+
+    expect(sectionText).not.toMatch(/\b(overdue|late|failed|urgent|behind|missed|score|streak)\b|catch up/);
+    expect(sectionText).toContain('no catch-up pile');
+  });
+
+  it('does not use localStorage while rendering the re-entry preview', async () => {
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        dueAt: '2000-06-17T09:00:00.000Z',
+        timeConstraint: 'dueBy',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(getItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).not.toHaveBeenCalled();
+  });
+
   it('reloads persisted active Today tasks from the repository', async () => {
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
 
