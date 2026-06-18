@@ -231,9 +231,37 @@ function createOneOffActiveTask(input: MockAddTaskInput): ActiveTask {
   });
 }
 
-function ReentryReviewPreview({ preview }: { preview: TimeEdgeReentryPreviewViewModel }) {
+type ReentryReviewPreviewProps = {
+  feedbackById: Record<string, string>;
+  onMarkNotToday: (taskId: string) => void;
+  onParkSafely: (taskId: string) => void;
+  onTryMinimum: (taskId: string) => void;
+  preview: TimeEdgeReentryPreviewViewModel;
+};
+
+function ReentryReviewPreview({
+  feedbackById,
+  onMarkNotToday,
+  onParkSafely,
+  onTryMinimum,
+  preview,
+}: ReentryReviewPreviewProps) {
   if (preview.items.length === 0) {
     return null;
+  }
+
+  function handleAction(taskId: string, action: TimeEdgeReentryPreviewViewModel['items'][number]['actionOptions'][number]) {
+    if (action === 'Park safely') {
+      onParkSafely(taskId);
+      return;
+    }
+
+    if (action === 'Mark not today') {
+      onMarkNotToday(taskId);
+      return;
+    }
+
+    onTryMinimum(taskId);
   }
 
   return (
@@ -258,11 +286,18 @@ function ReentryReviewPreview({ preview }: { preview: TimeEdgeReentryPreviewView
                   <p className="reentry-review__support">{item.suggestedCopy}</p>
                 ) : null}
               </div>
-              <div aria-label={`Gentle options for ${item.title}`} className="reentry-review__options">
-                {item.gentleOptions.map((option) => (
-                  <span key={option}>{option}</span>
+              <div aria-label={`Re-entry actions for ${item.title}`} className="reentry-review__options">
+                {item.actionOptions.map((option) => (
+                  <Button key={option} onClick={() => handleAction(item.id, option)}>
+                    {option}
+                  </Button>
                 ))}
               </div>
+              {feedbackById[item.id] ? (
+                <p className="reentry-review__support" role="status">
+                  {feedbackById[item.id]}
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -285,6 +320,7 @@ export function TodayScreen() {
   const [nextActiveTask, setNextActiveTask] = useState<ActiveTask | null>(null);
   const [taskProgress, setTaskProgress] = useState<TaskProgress>('idle');
   const [completionFeedback, setCompletionFeedback] = useState('');
+  const [reentryFeedbackById, setReentryFeedbackById] = useState<Record<string, string>>({});
   const [backupFeedback, setBackupFeedback] = useState('');
   const [backupCheckJson, setBackupCheckJson] = useState('');
   const [backupCheckErrors, setBackupCheckErrors] = useState<string[]>([]);
@@ -398,6 +434,37 @@ export function TodayScreen() {
     refreshPersistedTasks(result.task, feedback);
   }
 
+  async function applyReentryStatus(
+    taskId: string,
+    status: Extract<ActiveTaskStatus, 'parked' | 'notToday'>,
+    feedback: string,
+  ) {
+    const result = await updateActiveTaskStatus(taskId, status);
+
+    if (!result.ok) {
+      setCompletionFeedback('Task state was not saved. Try again.');
+      return;
+    }
+
+    const updatedTasks = activeTasks.map((task) =>
+      task.id === result.task.id ? result.task : task,
+    );
+    const visibleTasks = updatedTasks.filter(isVisibleActiveTask);
+
+    setActiveTasks(updatedTasks);
+    setCompletionFeedback(feedback);
+    setBoostOpen(false);
+    setReentryFeedbackById((feedbackById) => {
+      const nextFeedback = { ...feedbackById };
+      delete nextFeedback[taskId];
+      return nextFeedback;
+    });
+
+    if (nextActiveTask?.id === taskId || !nextActiveTask) {
+      showPersistedTask(visibleTasks[0] ?? null);
+    }
+  }
+
   useEffect(() => {
     let active = true;
 
@@ -473,6 +540,21 @@ export function TodayScreen() {
 
   async function notToday() {
     await moveCurrentTaskOutOfToday('notToday', 'Not today. It is out of the current list. No catch-up pile.');
+  }
+
+  async function parkReentryTask(taskId: string) {
+    await applyReentryStatus(taskId, 'parked', 'Parked safely. Still safely held. No catch-up pile.');
+  }
+
+  async function markReentryTaskNotToday(taskId: string) {
+    await applyReentryStatus(taskId, 'notToday', 'Marked not today. Still safely held. No catch-up pile.');
+  }
+
+  function tryReentryMinimum(taskId: string) {
+    setReentryFeedbackById((feedbackById) => ({
+      ...feedbackById,
+      [taskId]: 'Minimum still counts. Use the task card when you are ready.',
+    }));
   }
 
   async function exportTodayTasksBackup() {
@@ -575,7 +657,13 @@ export function TodayScreen() {
               todayState={todayState}
             />
           </section>
-          <ReentryReviewPreview preview={reentryReviewPreview} />
+          <ReentryReviewPreview
+            feedbackById={reentryFeedbackById}
+            onMarkNotToday={markReentryTaskNotToday}
+            onParkSafely={parkReentryTask}
+            onTryMinimum={tryReentryMinimum}
+            preview={reentryReviewPreview}
+          />
           <Card>
             <section aria-labelledby="today-one-off-title" className="today-one-off">
               <div>

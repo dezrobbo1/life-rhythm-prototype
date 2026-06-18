@@ -434,7 +434,7 @@ textarea:focus-visible {
   gap: var(--space-2);
 }
 
-.reentry-review__options span {
+.reentry-review__options .button {
   background: var(--color-chip);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);

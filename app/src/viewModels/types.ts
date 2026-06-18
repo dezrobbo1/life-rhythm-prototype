@@ -62,9 +62,7 @@ export type TimeEdgeReentryReviewItemViewModel = {
   reason: string;
   supportingCopy: string[];
   suggestedCopy?: string;
-  gentleOptions: Array<
-    'Move later' | 'Park safely' | 'Try the minimum' | 'Mark not today' | 'No longer needed'
-  >;
+  actionOptions: Array<'Park safely' | 'Try the minimum' | 'Mark not today'>;
 };
 
 export type TimeEdgeReentryPreviewViewModel = {

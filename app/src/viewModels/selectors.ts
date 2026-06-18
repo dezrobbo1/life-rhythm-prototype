@@ -144,17 +144,15 @@ function isVisibleTodayTask(task: SnapshotActiveTask): boolean {
 
 const reentryReviewIntro = [
   'Some tasks may need a calm review because their useful window changed.',
-  'Nothing has moved.',
+  'Nothing moves unless you choose.',
   'No catch-up pile.',
   'Choose later when you are ready.',
 ];
 
-const reentryGentleOptions: TimeEdgeReentryReviewItemViewModel['gentleOptions'] = [
-  'Move later',
+const reentryActionOptions: TimeEdgeReentryReviewItemViewModel['actionOptions'] = [
   'Park safely',
   'Try the minimum',
   'Mark not today',
-  'No longer needed',
 ];
 
 function timestamp(value: string | undefined): number | null {
@@ -177,7 +175,7 @@ function optionCopyForPolicy(policy: TaskDeadlineViewModel['missedPolicy']): str
   }
 
   if (policy === 'notToday') {
-    return 'Moving it out of Today is allowed.';
+    return 'Marking not today is allowed.';
   }
 
   if (policy === 'followUpPrompt') {
@@ -185,7 +183,7 @@ function optionCopyForPolicy(policy: TaskDeadlineViewModel['missedPolicy']): str
   }
 
   if (policy === 'archiveIfExpired') {
-    return 'No longer needed is allowed.';
+    return 'Choosing when ready is allowed.';
   }
 
   return undefined;
@@ -233,7 +231,7 @@ function buildReentryReviewItem(task: SnapshotActiveTask, nowMs: number): TimeEd
   }
 
   return {
-    gentleOptions: [...reentryGentleOptions],
+    actionOptions: [...reentryActionOptions],
     id: task.id,
     reason,
     suggestedCopy: optionCopyForPolicy(deadline.missedPolicy),

@@ -270,6 +270,7 @@ describe('read-only view model selectors', () => {
 
     expect(viewModel.items[0]?.supportingCopy).toContain('Minimum still helps.');
     expect(viewModel.items[0]?.suggestedCopy).toBe('The minimum version may be enough now.');
+    expect(viewModel.items[0]?.actionOptions).toEqual(['Park safely', 'Try the minimum', 'Mark not today']);
   });
 
   it('excludes completed or removed Today task states from re-entry preview', () => {
