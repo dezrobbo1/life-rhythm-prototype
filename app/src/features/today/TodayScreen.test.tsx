@@ -587,6 +587,77 @@ describe('Today screen', () => {
     expect(screen.getByText('Choose rhythms to turn on')).toBeTruthy();
   });
 
+  it('persists Mark normal done as done and removes the task from Today', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
+    render(<TodayScreen />);
+
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(await screen.findByRole('button', { name: 'Mark minimum done' }));
+    await user.click(await screen.findByRole('button', { name: 'Keep going' }));
+    await user.click(await screen.findByRole('button', { name: 'Mark normal done' }));
+
+    await waitFor(() => {
+      expect(activeTaskRepositoryMocks.updateActiveTaskStatus.mock.calls.map((call) => call[1])).toEqual([
+        'inProgress',
+        'minimumDone',
+        'inProgress',
+        'done',
+      ]);
+    });
+    expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
+    expect(screen.getByText('Normal done. That task is out of Today. No catch-up pile.')).toBeTruthy();
+    expect(screen.getByText('Choose rhythms to turn on')).toBeTruthy();
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+  });
+
+  it('persists Mark full done as done and removes the task from Today', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
+    render(<TodayScreen />);
+
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(await screen.findByRole('button', { name: 'Mark minimum done' }));
+    await user.click(await screen.findByRole('button', { name: 'Keep going' }));
+    await user.click(await screen.findByRole('button', { name: 'Mark full done' }));
+
+    await waitFor(() => {
+      expect(activeTaskRepositoryMocks.updateActiveTaskStatus.mock.calls.map((call) => call[1])).toEqual([
+        'inProgress',
+        'minimumDone',
+        'inProgress',
+        'done',
+      ]);
+    });
+    expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
+    expect(screen.getByText('Full done. That task is out of Today. No catch-up pile.')).toBeTruthy();
+    expect(screen.getByText('Choose rhythms to turn on')).toBeTruthy();
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+  });
+
+  it('does not create new statuses for normal or full completion endpoints', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
+    render(<TodayScreen />);
+
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(await screen.findByRole('button', { name: 'Mark minimum done' }));
+    await user.click(await screen.findByRole('button', { name: 'Keep going' }));
+    await user.click(await screen.findByRole('button', { name: 'Mark normal done' }));
+
+    const statuses = activeTaskRepositoryMocks.updateActiveTaskStatus.mock.calls.map((call) => call[1]);
+
+    expect(statuses).not.toContain('normalDone');
+    expect(statuses).not.toContain('fullDone');
+    expect(statuses[statuses.length - 1]).toBe('done');
+    expect(document.body.textContent).not.toMatch(
+      /\b(overdue|late|failed|urgent|behind|score|streak|catch up|optimize|productivity score|compliance)\b/i,
+    );
+  });
+
   it('persists Park and removes the task from the next-action slot', async () => {
     const user = userEvent.setup();
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
@@ -671,8 +742,8 @@ describe('Today screen', () => {
     const user = userEvent.setup();
     render(<TodayScreen />);
 
-    expect(screen.queryByRole('button', { name: 'Do normal version' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Do full version' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Mark normal done' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Mark full done' })).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Start task' }));
     await user.click(screen.getByRole('button', { name: 'Keep going' }));
@@ -680,8 +751,8 @@ describe('Today screen', () => {
     expect(screen.getByText('Optional. Keep the minimum small, then continue only if it helps.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Normal version' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Full version' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Do normal version' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Do full version' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark normal done' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark full done' })).toBeTruthy();
   });
 
   it('keeps going after minimum done with minimum-already-counts copy', async () => {
@@ -693,9 +764,8 @@ describe('Today screen', () => {
     await user.click(screen.getByRole('button', { name: 'Keep going' }));
 
     expect(screen.getByText('Optional. Minimum already counts. Continue only if it helps.')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Do normal version' }));
-
-    expect(screen.getByText('You kept going with the normal version. Still counts either way.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark normal done' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark full done' })).toBeTruthy();
   });
 
   it('can stop after opening optional continuation', async () => {
@@ -707,7 +777,7 @@ describe('Today screen', () => {
     await user.click(screen.getByRole('button', { name: 'Stop here' }));
 
     expect(screen.queryByRole('heading', { name: 'Normal version' })).toBeNull();
-    expect(screen.getByText('Enough for now.')).toBeTruthy();
+    expect(screen.getByText('Stopped here. That task is out of Today. No catch-up pile.')).toBeTruthy();
   });
 
   it('opens Start Boost from the task card', async () => {
