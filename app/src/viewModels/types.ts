@@ -254,6 +254,38 @@ export type DayShapePreviewViewModel = {
   };
 };
 
+export type SoftScheduleSuggestionViewModel = {
+  id: string;
+  taskId: string;
+  taskTitle: string;
+  blockId: string;
+  blockLabel: string;
+  blockTimeRange: string;
+  reason: string;
+  boundaryCopy: 'No schedule created';
+};
+
+export type SoftScheduleAskFirstViewModel = {
+  id: string;
+  blockId: string;
+  blockLabel: string;
+  blockTimeRange: string;
+  typeLabel: string;
+  meaning: string;
+};
+
+export type SoftScheduleSuggestionsViewModel = {
+  title: 'Soft suggestions';
+  intro: string[];
+  selectedDay: DayName;
+  suggestions: SoftScheduleSuggestionViewModel[];
+  askFirstPossibilities: SoftScheduleAskFirstViewModel[];
+  emptyState: {
+    title: string;
+    message: string;
+  };
+};
+
 export type FutureModuleId =
   | 'rhythm-food'
   | 'rhythm-move'
