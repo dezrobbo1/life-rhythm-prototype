@@ -309,3 +309,23 @@ Recommended sequence:
 5. Add backup/export and import-validation preview before broader placement restore.
 
 Do not add scheduler ownership, calendar integration, AI integration, backend sync, notifications, import/restore execution, migration execution, or automatic task placement until those boundaries have separate approved contracts and tests.
+
+## 15. Current Backup Boundary
+
+Soft placement backup/export and backup validation preview are now approved as local-only support surfaces.
+
+The soft placement backup includes saved soft placement records only, including records whose status is `removed`. Removed records stay in the backup because `removed` is an explicit local placement state, not a deletion instruction.
+
+Soft placement backup must not include:
+
+- active tasks,
+- settings,
+- Library rhythms,
+- scheduler output,
+- calendar data or calendar event IDs,
+- AI suggestions,
+- backend or sync metadata,
+- score, streak, productivity, or compliance fields,
+- root or legacy app data.
+
+Backup validation preview remains read-only. It must not restore, import, move, edit, remove, place, or delete anything.
