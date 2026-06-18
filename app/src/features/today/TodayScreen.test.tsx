@@ -996,7 +996,7 @@ describe('Today screen', () => {
     expect(screen.queryByRole('heading', { name: 'Re-entry review' })).toBeNull();
   });
 
-  it('shows a read-only re-entry review for a dueBy task whose useful window changed', async () => {
+  it('shows re-entry review buttons for a dueBy task whose useful window changed', async () => {
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
       persistedOneOffTask({
         dueAt: '2000-06-17T09:00:00.000Z',
@@ -1010,22 +1010,94 @@ describe('Today screen', () => {
 
     expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
     expect(screen.getByText('Some tasks may need a calm review because their useful window changed.')).toBeTruthy();
-    expect(screen.getByText('Nothing has moved.')).toBeTruthy();
+    expect(screen.getByText('Nothing moves unless you choose.')).toBeTruthy();
     expect(screen.getByText('No catch-up pile.')).toBeTruthy();
     expect(screen.getByText('Choose later when you are ready.')).toBeTruthy();
     expect(screen.getByText('Useful-before time has passed; choose what still helps.')).toBeTruthy();
     expect(screen.getByText('Minimum still helps.')).toBeTruthy();
     expect(screen.getByText('The minimum version may be enough now.')).toBeTruthy();
 
-    const options = screen.getByLabelText('Gentle options for Pay water bill');
-    expect(within(options).getByText('Move later')).toBeTruthy();
-    expect(within(options).getByText('Park safely')).toBeTruthy();
-    expect(within(options).getByText('Try the minimum')).toBeTruthy();
-    expect(within(options).getByText('Mark not today')).toBeTruthy();
-    expect(within(options).getByText('No longer needed')).toBeTruthy();
-    expect(within(options).queryByRole('button')).toBeNull();
+    const actions = screen.getByLabelText('Re-entry actions for Pay water bill');
+    expect(within(actions).getByRole('button', { name: 'Park safely' })).toBeTruthy();
+    expect(within(actions).getByRole('button', { name: 'Try the minimum' })).toBeTruthy();
+    expect(within(actions).getByRole('button', { name: 'Mark not today' })).toBeTruthy();
+    expect(within(actions).queryByRole('button', { name: 'Move later' })).toBeNull();
+    expect(within(actions).queryByRole('button', { name: 'No longer needed' })).toBeNull();
     expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
     expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
+  });
+
+  it('parks a re-entry review task only after the user clicks Park safely', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        dueAt: '2000-06-17T09:00:00.000Z',
+        timeConstraint: 'dueBy',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Park safely' }));
+
+    await waitFor(() => {
+      expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenCalledWith(
+        'adhoc-pay-water-bill',
+        'parked',
+      );
+    });
+    expect(screen.getByText('Parked safely. Still safely held. No catch-up pile.')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Re-entry review' })).toBeNull();
+    expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
+  });
+
+  it('marks a re-entry review task not today only after the user clicks Mark not today', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        dueAt: '2000-06-17T09:00:00.000Z',
+        timeConstraint: 'dueBy',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Mark not today' }));
+
+    await waitFor(() => {
+      expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenCalledWith(
+        'adhoc-pay-water-bill',
+        'notToday',
+      );
+    });
+    expect(screen.getByText('Marked not today. Still safely held. No catch-up pile.')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Re-entry review' })).toBeNull();
+    expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
+  });
+
+  it('keeps Try the minimum as helper copy without writing a status', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        dueAt: '2000-06-17T09:00:00.000Z',
+        timeConstraint: 'dueBy',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Try the minimum' }));
+
+    expect(screen.getByText('Minimum still counts. Use the task card when you are ready.')).toBeTruthy();
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
   });
 
   it('shows minimum-oriented re-entry review copy after latest useful start', async () => {
