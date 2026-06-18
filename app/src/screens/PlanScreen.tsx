@@ -1,10 +1,15 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Card } from '../components';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
-import { loadSoftPlacementsForDate, saveSoftPlacement } from '../data/softPlacementRepository';
+import {
+  loadSoftPlacementsForDate,
+  markSoftPlacementRemoved,
+  saveSoftPlacement,
+} from '../data/softPlacementRepository';
 import { PlanBlock } from '../features/plan/PlanBlock';
 import { mockPlanBlocks, type PlanBlock as PlanBlockData, type PlanItem } from '../features/plan/mockPlanData';
 import { createSoftPlacementId, localDateForNextSelectedDay } from '../features/plan/softPlacementDate';
+import type { SoftPlacement } from '../data/schemas';
 import {
   buildDayShapePreviewViewModel,
   buildPlanViewModel,
@@ -20,6 +25,15 @@ import {
 type SoftPlacementFeedback = {
   kind: 'duplicate' | 'error' | 'success';
   lines: string[];
+};
+
+const visibleSoftPlacementStatuses: Array<SoftPlacement['status']> = ['planned', 'moved', 'completedFromToday'];
+
+const softPlacementStatusLabels: Record<SoftPlacement['status'], string> = {
+  completedFromToday: 'Completed from Today',
+  moved: 'Moved',
+  planned: 'Planned',
+  removed: 'Removed',
 };
 
 function toPlanBlockState(state: PlanBlockViewModel['state']): PlanBlockData['state'] {
@@ -90,6 +104,8 @@ export function PlanScreen() {
   const [selectedDay, setSelectedDay] = useState<DayName>('Monday');
   const [placementFeedback, setPlacementFeedback] = useState<SoftPlacementFeedback | null>(null);
   const [placingSuggestionId, setPlacingSuggestionId] = useState<string | null>(null);
+  const [removingPlacementId, setRemovingPlacementId] = useState<string | null>(null);
+  const [savedSoftPlacements, setSavedSoftPlacements] = useState<SoftPlacement[]>([]);
   const planViewModel = useMemo(
     () => buildPlanViewModel(planScreenSnapshotFromProvider(snapshot)),
     [snapshot],
@@ -104,8 +120,43 @@ export function PlanScreen() {
   );
   const hasDayShapeBlocks = dayShapePreview.groups.some((group) => group.blocks.length > 0);
   const hasSoftSuggestions = softSuggestions.suggestions.length > 0;
+  const selectedPlacementDate = useMemo(
+    () => localDateForNextSelectedDay(softSuggestions.selectedDay),
+    [softSuggestions.selectedDay],
+  );
+  const visibleSoftPlacements = useMemo(
+    () => savedSoftPlacements.filter((placement) => visibleSoftPlacementStatuses.includes(placement.status)),
+    [savedSoftPlacements],
+  );
+  const refreshSavedSoftPlacements = useCallback(async () => {
+    const placements = await loadSoftPlacementsForDate(selectedPlacementDate);
+    setSavedSoftPlacements(placements);
+  }, [selectedPlacementDate]);
+
+  useEffect(() => {
+    let active = true;
+
+    setSavedSoftPlacements([]);
+
+    loadSoftPlacementsForDate(selectedPlacementDate)
+      .then((placements) => {
+        if (active) {
+          setSavedSoftPlacements(placements);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setSavedSoftPlacements([]);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedPlacementDate]);
+
   const addSoftPlacement = useCallback(async (suggestion: SoftScheduleSuggestionViewModel) => {
-    const date = localDateForNextSelectedDay(softSuggestions.selectedDay);
+    const date = selectedPlacementDate;
 
     setPlacingSuggestionId(suggestion.id);
     setPlacementFeedback(null);
@@ -147,6 +198,7 @@ export function PlanScreen() {
       });
 
       if (result.ok) {
+        await refreshSavedSoftPlacements();
         setPlacementFeedback({
           kind: 'success',
           lines: ['Soft placement added.', 'No calendar event created.', 'You can remove it later.'],
@@ -174,7 +226,41 @@ export function PlanScreen() {
     } finally {
       setPlacingSuggestionId(null);
     }
-  }, [softSuggestions.selectedDay]);
+  }, [refreshSavedSoftPlacements, selectedPlacementDate]);
+
+  const removeSoftPlacement = useCallback(async (placement: SoftPlacement) => {
+    setRemovingPlacementId(placement.id);
+    setPlacementFeedback(null);
+
+    try {
+      const result = await markSoftPlacementRemoved(placement.id);
+
+      if (result.ok) {
+        setSavedSoftPlacements((currentPlacements) =>
+          currentPlacements.map((currentPlacement) =>
+            currentPlacement.id === result.placement.id ? result.placement : currentPlacement,
+          ),
+        );
+        setPlacementFeedback({
+          kind: 'success',
+          lines: ['Soft placement removed.', 'Task was not deleted.', 'No calendar event changed.'],
+        });
+        return;
+      }
+
+      setPlacementFeedback({
+        kind: 'error',
+        lines: ['Soft placement was not removed.', 'Nothing else changed.'],
+      });
+    } catch {
+      setPlacementFeedback({
+        kind: 'error',
+        lines: ['Soft placement was not removed.', 'Nothing else changed.'],
+      });
+    } finally {
+      setRemovingPlacementId(null);
+    }
+  }, []);
 
   return (
     <div className="screen-stack plan-screen">
@@ -314,6 +400,44 @@ export function PlanScreen() {
               </ul>
             </div>
           ) : null}
+        </section>
+      </Card>
+      <Card>
+        <section className="soft-placements" aria-labelledby="soft-placements-title">
+          <div className="soft-placements__header">
+            <p className="section-label">Local placement notes</p>
+            <h2 id="soft-placements-title">Soft placements</h2>
+            <p>Local only.</p>
+            <p>No calendar event created.</p>
+            <p>You can remove a placement without deleting the task.</p>
+          </div>
+
+          {visibleSoftPlacements.length > 0 ? (
+            <ul className="soft-placements__list">
+              {visibleSoftPlacements.map((placement) => (
+                <li key={placement.id}>
+                  <div>
+                    <strong>{placement.taskTitleSnapshot}</strong>
+                    <span>{placement.blockLabelSnapshot} - {placement.start}-{placement.end}</span>
+                  </div>
+                  <p>{softPlacementStatusLabels[placement.status]}</p>
+                  <p>Soft placement only</p>
+                  <Button
+                    className="soft-placements__remove-action"
+                    disabled={removingPlacementId === placement.id}
+                    onClick={() => void removeSoftPlacement(placement)}
+                  >
+                    {removingPlacementId === placement.id ? 'Removing placement' : 'Remove placement'}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="soft-placements__empty">
+              <h3>No saved soft placements for {softSuggestions.selectedDay}.</h3>
+              <p>Adding one from an open-capacity suggestion will keep it local.</p>
+            </div>
+          )}
         </section>
       </Card>
       <div className="plan-blocks" aria-label="Broad day blocks">
