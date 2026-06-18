@@ -1002,6 +1002,63 @@ textarea:focus-visible {
   padding-top: 0;
 }
 
+.soft-placements {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.soft-placements__header h2,
+.soft-placements__empty h3 {
+  line-height: 1.15;
+  margin: 0 0 var(--space-2);
+}
+
+.soft-placements__header p,
+.soft-placements__list p,
+.soft-placements__empty p {
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.soft-placements__header p + p {
+  margin-top: var(--space-1);
+}
+
+.soft-placements__list {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.soft-placements__list li,
+.soft-placements__empty {
+  background: var(--color-surface-strong);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.soft-placements__list strong,
+.soft-placements__list span {
+  display: block;
+}
+
+.soft-placements__list span {
+  color: var(--color-accent-strong);
+  font-size: 0.78rem;
+  font-weight: 850;
+  margin-top: var(--space-1);
+}
+
+.soft-placements__remove-action {
+  justify-self: start;
+  margin-top: var(--space-2);
+}
+
 .plan-blocks {
   display: grid;
   gap: var(--space-4);

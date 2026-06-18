@@ -12,7 +12,13 @@ import {
   resetCurrentLocalDataNamespace,
   setCurrentLocalDataNamespace,
 } from '../../data/localDataNamespace';
-import { loadAllSoftPlacements } from '../../data/softPlacementRepository';
+import {
+  activeTaskSchema,
+  softPlacementSchema,
+  type ActiveTask,
+  type SoftPlacement,
+} from '../../data/schemas';
+import { loadAllSoftPlacements, saveSoftPlacement } from '../../data/softPlacementRepository';
 import { PlanScreen } from '../../screens/PlanScreen';
 import { normalDayWithOneTaskSnapshot, type AppDataSnapshot } from '../../viewModels';
 import { localDateForNextSelectedDay } from './softPlacementDate';
@@ -238,6 +244,51 @@ async function defaultTableCounts() {
   };
 }
 
+function validSoftPlacement(overrides: Partial<SoftPlacement> = {}): SoftPlacement {
+  return softPlacementSchema.parse({
+    blockId: 'monday-open-capacity',
+    blockLabelSnapshot: 'Monday open capacity',
+    createdAt: '2026-06-18T00:00:00.000Z',
+    date: localDateForNextSelectedDay('Monday'),
+    end: '12:00',
+    id: 'soft-placement-send-form',
+    placementSource: 'userConfirmed',
+    start: '11:00',
+    status: 'planned',
+    taskId: 'send-form',
+    taskTitleSnapshot: 'Send the form',
+    updatedAt: '2026-06-18T00:00:00.000Z',
+    ...overrides,
+  });
+}
+
+function validActiveTask(overrides: Partial<ActiveTask> = {}): ActiveTask {
+  return activeTaskSchema.parse({
+    area: 'admin',
+    createdAt: '2026-06-18T00:00:00.000Z',
+    full: {
+      label: 'Send and file the receipt',
+      minutes: 20,
+    },
+    id: 'send-form',
+    minimum: {
+      label: 'Open the form',
+      minutes: 2,
+    },
+    normal: {
+      label: 'Send the form',
+      minutes: 10,
+    },
+    purpose: 'Keep the admin thread visible.',
+    showToday: true,
+    source: 'adhoc',
+    status: 'active',
+    title: 'Send the form',
+    updatedAt: '2026-06-18T00:00:00.000Z',
+    ...overrides,
+  });
+}
+
 beforeEach(() => {
   planNamespaceIndex += 1;
   setCurrentLocalDataNamespace(createAuthLocalDataNamespace(`plan-soft-placement-test-${planNamespaceIndex}`));
@@ -390,7 +441,7 @@ describe('Plan screen', () => {
       await user.click(screen.getByRole('button', { name: 'Add soft placement' }));
 
       expect(await screen.findByText('Soft placement added.')).toBeTruthy();
-      expect(screen.getByText('No calendar event created.')).toBeTruthy();
+      expect(screen.getAllByText('No calendar event created.').length).toBeGreaterThan(0);
       expect(screen.getByText('You can remove it later.')).toBeTruthy();
 
       const placements = await loadAllSoftPlacements();
@@ -443,6 +494,142 @@ describe('Plan screen', () => {
     expect(await screen.findByText('This soft placement already exists.')).toBeTruthy();
     expect(screen.getByText('Nothing else changed.')).toBeTruthy();
     expect(await loadAllSoftPlacements()).toHaveLength(1);
+  });
+
+  it('shows saved soft placements for the selected day only', async () => {
+    await saveSoftPlacement(validSoftPlacement());
+    await saveSoftPlacement(validSoftPlacement({
+      date: localDateForNextSelectedDay('Tuesday'),
+      id: 'soft-placement-tuesday',
+      taskId: 'tuesday-task',
+      taskTitleSnapshot: 'Tuesday paperwork',
+    }));
+
+    renderPlanWithSnapshot(softSuggestionsSnapshot);
+
+    const section = await screen.findByRole('heading', { name: 'Soft placements' });
+    const placementSection = section.closest('section');
+
+    if (!placementSection) {
+      throw new Error('Missing Soft placements section');
+    }
+
+    expect(within(placementSection).getByText('Local only.')).toBeTruthy();
+    expect(within(placementSection).getByText('No calendar event created.')).toBeTruthy();
+    expect(within(placementSection).getByText('You can remove a placement without deleting the task.')).toBeTruthy();
+    expect(await within(placementSection).findByText('Send the form')).toBeTruthy();
+    expect(await within(placementSection).findByText('Monday open capacity - 11:00-12:00')).toBeTruthy();
+    expect(within(placementSection).getByText('Planned')).toBeTruthy();
+    expect(within(placementSection).getByText('Soft placement only')).toBeTruthy();
+    expect(within(placementSection).getByRole('button', { name: 'Remove placement' })).toBeTruthy();
+    expect(within(placementSection).queryByText('Tuesday paperwork')).toBeNull();
+  });
+
+  it('does not show removed soft placements as active placements', async () => {
+    await saveSoftPlacement(validSoftPlacement({
+      id: 'soft-placement-removed',
+      status: 'removed',
+    }));
+
+    renderPlanWithSnapshot(softSuggestionsSnapshot);
+
+    const placementSection = (await screen.findByRole('heading', { name: 'Soft placements' })).closest('section');
+
+    if (!placementSection) {
+      throw new Error('Missing Soft placements section');
+    }
+
+    expect(within(placementSection).queryByText('Monday open capacity - 11:00-12:00')).toBeNull();
+    expect(within(placementSection).getByText('No saved soft placements for Monday.')).toBeTruthy();
+  });
+
+  it('removes a soft placement without deleting or changing the task', async () => {
+    const user = userEvent.setup();
+    const database = getCurrentLifeRhythmDatabase();
+    const fetchSpy = vi.fn();
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const originalFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+
+    await database.activeTasks.put(validActiveTask());
+    await saveSoftPlacement(validSoftPlacement());
+
+    try {
+      Object.defineProperty(globalThis, 'fetch', {
+        configurable: true,
+        value: fetchSpy,
+      });
+
+      renderPlanWithSnapshot(softSuggestionsSnapshot);
+
+      const placementSection = (await screen.findByRole('heading', { name: 'Soft placements' })).closest('section');
+
+      if (!placementSection) {
+        throw new Error('Missing Soft placements section');
+      }
+
+      await user.click(await within(placementSection).findByRole('button', { name: 'Remove placement' }));
+
+      expect(await screen.findByText('Soft placement removed.')).toBeTruthy();
+      expect(screen.getByText('Task was not deleted.')).toBeTruthy();
+      expect(screen.getByText('No calendar event changed.')).toBeTruthy();
+
+      const placements = await loadAllSoftPlacements();
+      const storedTask = await database.activeTasks.get('send-form');
+      const counts = await defaultTableCounts();
+
+      expect(placements).toHaveLength(1);
+      expect(placements[0]).toMatchObject({
+        id: 'soft-placement-send-form',
+        status: 'removed',
+      });
+      expect(storedTask).toMatchObject({
+        id: 'send-form',
+        status: 'active',
+        title: 'Send the form',
+      });
+      expect(within(placementSection).queryByText('Monday open capacity - 11:00-12:00')).toBeNull();
+      expect(counts).toMatchObject({
+        activeTasks: 1,
+        completionLog: 0,
+        migrationLog: 0,
+        resetLog: 0,
+        rhythmTemplates: 0,
+        settings: 0,
+        softPlacements: 1,
+        startBoostLog: 0,
+        taskHistory: 0,
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(getItemSpy).not.toHaveBeenCalled();
+      expect(setItemSpy).not.toHaveBeenCalled();
+    } finally {
+      if (originalFetch) {
+        Object.defineProperty(globalThis, 'fetch', originalFetch);
+      } else {
+        Reflect.deleteProperty(globalThis, 'fetch');
+      }
+    }
+  });
+
+  it('keeps pressure wording out of soft placements', async () => {
+    await saveSoftPlacement(validSoftPlacement());
+
+    renderPlanWithSnapshot(softSuggestionsSnapshot);
+
+    const placementSection = (await screen.findByRole('heading', { name: 'Soft placements' })).closest('section');
+
+    if (!placementSection) {
+      throw new Error('Missing Soft placements section');
+    }
+
+    expect(await within(placementSection).findByText('Monday open capacity - 11:00-12:00')).toBeTruthy();
+
+    const text = placementSection.textContent?.toLowerCase() ?? '';
+
+    expect(text).not.toMatch(
+      /\b(overdue|late|failed|urgent|behind|score|streak|optimize|productivity score|compliance)\b|catch up/,
+    );
   });
 
   it('keeps the Day Shape preview read-only while changing selected days', async () => {
