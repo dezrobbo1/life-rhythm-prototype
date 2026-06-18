@@ -8,7 +8,10 @@ import {
   parseActiveTaskBackupJson,
   serializeActiveTaskBackup,
 } from '../../data/activeTaskBackup';
+import * as libraryRhythmRepository from '../../data/libraryRhythmRepository';
 import { activeTaskSchema, type ActiveTask } from '../../data/schemas';
+import * as settingsRepository from '../../data/settingsRepository';
+import * as softPlacementRepository from '../../data/softPlacementRepository';
 
 const activeTaskRepositoryMocks = vi.hoisted(() => ({
   createActiveTaskId: vi.fn((prefix = 'active-task') => `${prefix}-test-id`),
@@ -589,6 +592,12 @@ describe('Today screen', () => {
 
   it('persists Mark normal done as done and removes the task from Today', async () => {
     const user = userEvent.setup();
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const clearSpy = vi.spyOn(Storage.prototype, 'clear');
+    const saveSettingsSpy = vi.spyOn(settingsRepository, 'saveSettings');
+    const saveLibraryRhythmSpy = vi.spyOn(libraryRhythmRepository, 'saveCustomLibraryRhythm');
+    const saveSoftPlacementSpy = vi.spyOn(softPlacementRepository, 'saveSoftPlacement');
+    const updateSoftPlacementSpy = vi.spyOn(softPlacementRepository, 'updateSoftPlacementStatus');
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
     render(<TodayScreen />);
 
@@ -606,14 +615,31 @@ describe('Today screen', () => {
         'done',
       ]);
     });
+
+    const statuses = activeTaskRepositoryMocks.updateActiveTaskStatus.mock.calls.map((call) => call[1]);
+
+    expect(statuses).not.toContain('normalDone');
+    expect(statuses).not.toContain('fullDone');
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
     expect(screen.getByText('Normal done. That task is out of Today. No catch-up pile.')).toBeTruthy();
     expect(screen.getByText('Choose rhythms to turn on')).toBeTruthy();
     expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+    expect(saveSettingsSpy).not.toHaveBeenCalled();
+    expect(saveLibraryRhythmSpy).not.toHaveBeenCalled();
+    expect(saveSoftPlacementSpy).not.toHaveBeenCalled();
+    expect(updateSoftPlacementSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(clearSpy).not.toHaveBeenCalled();
   });
 
   it('persists Mark full done as done and removes the task from Today', async () => {
     const user = userEvent.setup();
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const clearSpy = vi.spyOn(Storage.prototype, 'clear');
+    const saveSettingsSpy = vi.spyOn(settingsRepository, 'saveSettings');
+    const saveLibraryRhythmSpy = vi.spyOn(libraryRhythmRepository, 'saveCustomLibraryRhythm');
+    const saveSoftPlacementSpy = vi.spyOn(softPlacementRepository, 'saveSoftPlacement');
+    const updateSoftPlacementSpy = vi.spyOn(softPlacementRepository, 'updateSoftPlacementStatus');
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([persistedOneOffTask()]);
     render(<TodayScreen />);
 
@@ -631,10 +657,21 @@ describe('Today screen', () => {
         'done',
       ]);
     });
+
+    const statuses = activeTaskRepositoryMocks.updateActiveTaskStatus.mock.calls.map((call) => call[1]);
+
+    expect(statuses).not.toContain('normalDone');
+    expect(statuses).not.toContain('fullDone');
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
     expect(screen.getByText('Full done. That task is out of Today. No catch-up pile.')).toBeTruthy();
     expect(screen.getByText('Choose rhythms to turn on')).toBeTruthy();
     expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+    expect(saveSettingsSpy).not.toHaveBeenCalled();
+    expect(saveLibraryRhythmSpy).not.toHaveBeenCalled();
+    expect(saveSoftPlacementSpy).not.toHaveBeenCalled();
+    expect(updateSoftPlacementSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(clearSpy).not.toHaveBeenCalled();
   });
 
   it('does not create new statuses for normal or full completion endpoints', async () => {
@@ -766,6 +803,23 @@ describe('Today screen', () => {
     expect(screen.getByText('Optional. Minimum already counts. Continue only if it helps.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Mark normal done' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Mark full done' })).toBeTruthy();
+  });
+
+  it('keeps pressure wording out of the optional completion flow', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(screen.getByRole('button', { name: 'Mark minimum done' }));
+    await user.click(screen.getByRole('button', { name: 'Keep going' }));
+
+    const taskCard = screen.getByRole('article', { name: "Set tomorrow's first step" });
+    const flowText = taskCard.textContent?.toLowerCase() ?? '';
+
+    expect(flowText).toContain('optional. minimum already counts. continue only if it helps.');
+    expect(flowText).not.toMatch(
+      /\b(overdue|late|failed|urgent|behind|score|streak|optimize|compliance)\b|catch up|productivity score/,
+    );
   });
 
   it('can stop after opening optional continuation', async () => {
