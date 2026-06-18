@@ -99,6 +99,9 @@ describe('Setup screen', () => {
     expect(screen.getByRole('heading', { name: 'About Life Rhythm' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Future modules' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Advanced/ })).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(
+      /\b(overdue|late|failed|urgent|behind|score|streak|catch up|optimize|productivity score|compliance)\b/i,
+    );
   });
 
   it('renders Life shape preview controls', () => {

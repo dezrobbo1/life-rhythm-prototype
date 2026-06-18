@@ -206,6 +206,7 @@ export function AddTaskModal({ onClose, onSave, open }: AddTaskModalProps) {
           <label>
             <span>Time edge type</span>
             <select
+              aria-label="Time edge type"
               onChange={(event) => setTimeConstraint(event.target.value as NonNullable<MockAddTaskInput['timeConstraint']>)}
               value={timeConstraint}
             >
@@ -261,6 +262,7 @@ export function AddTaskModal({ onClose, onSave, open }: AddTaskModalProps) {
             <label>
               <span>If it stops being useful</span>
               <select
+                aria-label="If it stops being useful"
                 onChange={(event) => setMissedPolicy(event.target.value as NonNullable<MockAddTaskInput['missedPolicy']>)}
                 value={missedPolicy}
               >

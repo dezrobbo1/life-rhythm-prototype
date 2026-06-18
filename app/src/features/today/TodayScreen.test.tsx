@@ -814,6 +814,8 @@ describe('Today screen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add one-off' }));
     expect(screen.getByText('For today only. Saved on this device. It will not go into Library.')).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Time edge type' })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'If it stops being useful' })).toBeTruthy();
     await user.type(screen.getByLabelText('Task title'), 'Pay water bill');
     await user.clear(screen.getByLabelText('Area'));
     await user.type(screen.getByLabelText('Area'), 'Money');
