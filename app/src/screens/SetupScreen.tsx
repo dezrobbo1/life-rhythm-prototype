@@ -836,6 +836,18 @@ export function SetupScreen({
 
       <Card>
         <div className="setup-section-heading">
+          <h2>Trial limits</h2>
+          <p>Use one browser, one device, and one stable URL for the trial.</p>
+        </div>
+        <div className="setup-trial-limits">
+          <p>Life Rhythm is local-first. This browser and device store the live trial data.</p>
+          <p>Login is not cloud sync. Backups can be exported and checked, but import/restore is not enabled.</p>
+          <p>Calendar, AI, cloud sync, notifications, askFirst placement, and move/edit placement are not part of this trial.</p>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="setup-section-heading">
           <h2>Dev tickets</h2>
           <p>Local testing notes for later review.</p>
         </div>
