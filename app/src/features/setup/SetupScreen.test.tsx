@@ -95,6 +95,7 @@ describe('Setup screen', () => {
     expect(screen.getByRole('heading', { name: 'Life shape' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Start Boost safety' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Backup and recovery' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Trial limits' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Dev tickets' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'About Life Rhythm' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Future modules' })).toBeTruthy();
@@ -323,6 +324,26 @@ describe('Setup screen', () => {
     expect(clearSpy).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Import backup later' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Export dev tickets later' })).toBeTruthy();
+  });
+
+  it('renders calm personal trial limits without adding feature controls', () => {
+    render(<SetupScreen />);
+
+    expect(screen.getByRole('heading', { name: 'Trial limits' })).toBeTruthy();
+    expect(screen.getByText('Use one browser, one device, and one stable URL for the trial.')).toBeTruthy();
+    expect(screen.getByText('Life Rhythm is local-first. This browser and device store the live trial data.')).toBeTruthy();
+    expect(screen.getByText('Login is not cloud sync. Backups can be exported and checked, but import/restore is not enabled.')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Calendar, AI, cloud sync, notifications, askFirst placement, and move/edit placement are not part of this trial.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /restore/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /sync/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /calendar/i })).toBeNull();
+    expect(document.body.textContent).not.toMatch(
+      /\b(overdue|late|failed|urgent|behind|score|streak|catch up|optimize|productivity score|compliance)\b/i,
+    );
   });
 
   it('renders soft placement backup export and checker controls', () => {
