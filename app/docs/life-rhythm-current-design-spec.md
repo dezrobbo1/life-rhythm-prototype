@@ -1,7 +1,7 @@
 # Life Rhythm Current Design Spec
 Status: Living design specification
 Scope: Product direction, current implementation state, design boundaries, and near-term roadmap
-Last consolidated after: PR #55 - Auth local data handoff notice
+Last consolidated after: PR #64 - Soft placement backup export and validation preview
 ## 1. Product Identity
 Life Rhythm is a non-clinical self-management app for adults with ADHD traits or an ADHD diagnosis.
 It supports habits, rhythms, task initiation, re-entry after missed or disrupted days, protected time, and
@@ -42,7 +42,7 @@ Supporting principles:
 • Not today is allowed.
 • Blank time is not automatically task space.
 The product should help users protect their life from overfilling, not simply find more gaps to consume.
-## 3. Current Implementation State After PR #55
+## 3. Current Implementation State After PR #64
 The app now has a real local-first foundation. It is no longer only a static prototype shell.
 Implemented:
 • settings persistence
@@ -69,6 +69,18 @@ Implemented:
 • Life Shape protected/recovery/loose/household/family/open-capacity blocks
 • Setup “Time to leave alone” controls
 • read-only Day Shape preview in Plan
+• Re-entry review section in Today
+• read-only time-edge re-entry preview
+• user-confirmed Park safely and Mark not today from re-entry review
+• Try the minimum helper copy only
+• read-only Plan soft suggestions
+• openCapacity-only Add soft placement
+• saved soft placements in Plan
+• Remove placement marks a placement removed without deleting the task
+• soft placement schema and repository
+• soft placement backup export
+• soft placement backup validation preview
+• removed placements included in soft placement backups as explicit local state
 • trial account/auth boundary contract
 • opt-in Clerk auth shell
 • signed-out trial access shell
@@ -77,22 +89,26 @@ Implemented:
 • legacy local data handoff notice
 Not implemented yet:
 • missed-task detection
-• missed/re-entry behaviour
-
-• soft scheduler
-• user-confirmed task placement
+• missed status persistence
+• askFirst placement
+• move/edit soft placement
+• automatic scheduling
+• scheduler-owned placement
 • calendar load
 • iOS/native calendar integration
 • cloud sync
 • AI pattern suggestions
+• import/restore execution
+• notifications
 • full design-board visual parity
 • external tester readiness
 Current practical status:
 • A basic personal manual trial can now exercise local settings, Library rhythms, active Today tasks,
-one-off time edges, protected time, Day Shape preview, and opt-in signed-in local profiles.
-• A meaningful personal trial should still wait until missed/re-entry behaviour and a soft scheduling loop
-exist.
-• External tester readiness should wait until the daily loop, onboarding, backup confidence, Clerk
+one-off time edges, protected time, Day Shape preview, Re-entry review, read-only soft suggestions,
+user-confirmed open-capacity soft placements, soft placement backups, and opt-in signed-in local profiles.
+• A meaningful personal trial is closer, but should still wait for trial hardening, smoke QA, and a basic
+review of the soft-placement loop on mobile.
+• External tester readiness should wait until onboarding, backup confidence, Clerk
 invite-only/public-signup configuration, and visual polish are stronger.
 ## 4. PR Milestone Snapshot
 Recent key milestones:
@@ -123,6 +139,15 @@ Recent key milestones:
 • PR #53: invite-only Clerk auth shell
 • PR #54: auth-aware local data namespaces
 • PR #55: auth local data handoff notice
+• PR #56: design spec updated through auth handoff
+• PR #57: read-only time-edge re-entry preview
+• PR #58: user-confirmed re-entry actions
+• PR #59: read-only soft schedule suggestions
+• PR #60: user-confirmed soft placement contract
+• PR #61: soft placement schema and repository
+• PR #62: user-confirmed soft placement from open-capacity suggestions
+• PR #63: saved soft placements shown in Plan with safe removal
+• PR #64: soft placement backup export and read-only validation preview
 The current app foundation is deliberately staged: schema and persistence first, then read-only previews,
 then controlled user-facing behaviour, then scheduler.
 
@@ -132,6 +157,7 @@ Current approved write surfaces:
 2. Custom Library rhythms only
 3. Active Today tasks only
 4. Active task status updates only
+5. User-confirmed soft placements only
 Current settings writes include:
 • theme
 • Start Boost safety settings
@@ -143,6 +169,11 @@ Current Today writes include:
 • Add one-off Today tasks
 • Add Library rhythm to Today
 • status updates for active tasks
+Current soft placement writes include:
+• openCapacity-only user-confirmed soft placements
+• removal by marking placement status removed
+• no task deletion
+• no active task status change
 Current auth/local-profile surfaces:
 • opt-in Clerk identity shell
 • signed-out trial access screen
@@ -153,7 +184,10 @@ Current read-only or non-write surfaces:
 • settings backup validation preview
 • Library rhythm backup validation preview
 • active task backup validation preview
+• soft placement backup validation preview
 • Day Shape preview
+• Re-entry review preview
+• read-only soft suggestions
 • scheduler contracts
 • deadline/re-entry contracts
 • protected-time contract
@@ -256,6 +290,10 @@ Today supports:
 • optional Time edge section in Add one-off
 • one-off flexible/dueBy/fixedAt/expiresAfter capture
 • calm time-edge display copy on Today cards
+• Re-entry review for tasks whose useful windows may need calm review
+• user-confirmed Park safely from Re-entry review
+• user-confirmed Mark not today from Re-entry review
+• Try the minimum helper copy only
 • minimum / normal / full versions
 • Start
 • Pause
@@ -286,11 +324,14 @@ Today rules:
 • When one task leaves Today, another task can appear only if it already exists and is safe to show.
 • Task state should be practical, not moral.
 • Time-edge data describes usefulness; it must not schedule anything by itself.
+• Re-entry review does not mark tasks missed by itself.
+• Re-entry actions are user-confirmed only.
 One-off tasks are currently the safest place for deadline/time-edge controls because they are explicitly
 user-created and today-scoped.
 ## 8. Deadline and Time-Edge Model
 Deadline and time-edge schema support now exists for active tasks, and Add one-off now exposes optional
-time-edge controls. Full missed-task detection and deadline-aware re-entry behaviour are not implemented yet.
+time-edge controls. Today also has a read-only time-edge re-entry preview with user-confirmed Park safely
+and Mark not today actions. Full missed-task detection and missed status persistence are not implemented yet.
 Supported fields:
 • timeConstraint
 • dueAt
@@ -344,12 +385,20 @@ Use wording such as:
 • No schedule created
 • Move, park, or mark not today
 • No longer needed is allowed
-Next expected step: missed-task detection and calm re-entry behaviour.
+Next expected step: trial hardening and smoke QA before expanding re-entry further.
 ## 9. Re-Entry Model
 Re-entry is core to Life Rhythm.
 The app should assume that disruption is normal. Missed, skipped, parked, or not-today tasks should be
 safely held, not treated as evidence of failure.
-Future re-entry should offer choices such as:
+Current implemented re-entry behaviour:
+• Today can show a Re-entry review section for active tasks whose time-edge data suggests their useful
+window may need review.
+• Re-entry review copy says nothing has moved and there is no catch-up pile.
+• Park safely and Mark not today are user-confirmed actions.
+• Try the minimum is helper copy only; it does not create a new state.
+• These actions use existing active task status updates.
+• No automatic missed-task persistence exists yet.
+Future re-entry may offer more choices such as:
 • do the minimum version
 • move later
 • park safely
@@ -363,11 +412,30 @@ Re-entry rules:
 • Skipped tasks must not be shown as failure.
 • Parked tasks should remain safe and findable.
 • Minimum done counts.
+• Nothing moves unless the user chooses.
 • No re-entry flow should imply penalty, judgement, or duty-to-perform.
 • Re-entry should happen at sensible moments, not every time the app opens.
 The product should not ask the user to “catch up”. It should help them re-enter.
-## 10. Scheduler Direction
-Scheduler is future work.
+## 10. Scheduler and Soft Placement Direction
+Scheduler-owned placement is future work.
+The current app has read-only Plan soft suggestions and user-confirmed open-capacity soft placements, but it
+does not have an automatic scheduler.
+Current implemented soft-placement-adjacent behaviour:
+• Plan can show read-only soft suggestions.
+• Soft suggestions are not placements.
+• Blank time is not treated as available.
+• Suggestions only use openCapacity blocks as addable placement targets.
+• askFirst blocks may appear as possibilities, but are not accepted yet.
+• protectedTime, recoveryTime, and familyTime remain unavailable by default.
+• Users can add a soft placement only from an openCapacity suggestion.
+• Soft placement is local only.
+• Soft placement is not a calendar event.
+• Saved soft placements appear in Plan for the selected day.
+• Remove placement marks the placement removed without deleting the task.
+• Removed placements are included in backup as explicit local state.
+• Soft placement backup export exists.
+• Soft placement backup checking is read-only.
+• No soft placement restore exists yet.
 The future scheduler must be soft, explainable, user-led, and respectful of protected/loose/open capacity.
 The scheduler may eventually:
 • suggest broad placement windows
@@ -392,6 +460,14 @@ The scheduler must not:
 • auto-create active tasks from enabled rhythms
 • expose internal debug metadata in the daily UI
 Scheduler output must remain separate from persisted task state until the user explicitly accepts or edits it.
+Soft placement rules:
+• Placement is user-confirmed only.
+• A placement is not a deadline.
+• A placement is not compliance tracking.
+• A placement must be removable without deleting the task.
+• A placement must not imply failure if it is removed or changed.
+• There is no catch-up pile.
+• There is no scoring, streak, or compliance model.
 
 The correct model is:
 The scheduler suggests.
@@ -485,17 +561,19 @@ Auth should not be added casually. It changes privacy expectations.
 ## 13. Trial Readiness
 There are three trial levels.
 Basic personal manual trial
-Closer, but still not representative of the intended product.
+Closer, and now representative enough for focused smoke QA.
 The app can already support local settings, Library, Today tasks, task states, backups, protected time blocks,
-Day Shape preview, Add one-off time edges, and opt-in local signed-in profiles. However, it does not yet have
-missed-task behaviour or a soft scheduler loop.
+Day Shape preview, Add one-off time edges, Re-entry review, read-only soft suggestions, user-confirmed
+open-capacity soft placements, saved soft placements, soft placement backups, and opt-in local signed-in
+profiles. However, it does not yet have missed-task detection, askFirst placement, move/edit placement,
+calendar integration, AI suggestions, import/restore execution, or external tester readiness.
 Meaningful personal trial
 Likely after:
-• missed/re-entry behaviour
-• read-only soft scheduler suggestions
-• user-confirmed soft placement
-• trial hardening
+• trial hardening / smoke QA
 • basic mobile pass
+• review of one-week backup/export confidence
+• optional move/edit soft placement decision
+• Clerk invite-only/public-signup operational verification if auth is enabled
 This is the point where the app can be used for a week and produce useful learning.
 External tester trial
 Should wait until:
@@ -523,9 +601,9 @@ Future design-board alignment sequence:
 6. Mobile and tap-target polish
 7. Calm empty-state and error-state copy pass
 Design-board work should happen after:
-• missed/re-entry behaviour
-• soft scheduler loop
 • trial hardening
+• the current soft-placement loop has been reviewed on mobile
+• askFirst and move/edit placement boundaries are decided
 The visual direction should preserve:
 • calm surfaces
 • low visual pressure
@@ -554,16 +632,15 @@ Do not use it for:
 The main GitHub repo remains the trusted implementation path.
 ## 16. Current Near-Term Roadmap
 Recommended next sequence:
-1. Update current design spec through auth handoff
-2. Missed/re-entry behaviour
-3. Read-only soft scheduler suggestions
-4. User-confirmed soft placement
-5. Trial hardening
+1. Update design spec through soft placement backup
+2. Trial hardening / smoke QA
+3. Optional move/edit soft placement contract or implementation
+4. Ask-first placement contract before any askFirst acceptance
+5. Personal trial readiness pass
 6. Visual design-board alignment
-7. Personal trial
-8. Clerk invite-only/public-signup operational verification before external testers
-9. External tester preparation
-10. Cloud sync contract only if later trial learning shows a clear need
+7. Clerk invite-only/public-signup operational verification
+8. External tester preparation
+9. Cloud sync contract only if later trial learning shows a clear need
 Cloud sync remains intentionally unimplemented.
 ## 17. Open Decisions
 Open product and implementation decisions:
@@ -573,6 +650,8 @@ Open product and implementation decisions:
 • Should AI wait until after scheduler/calendar basics?
 • When should ADHD professional review be requested?
 • Should external testers be invite-only from the start?
+• Should move/edit soft placement be contracted or implemented next?
+• What exact confirmation should be required before accepting askFirst placement?
 • Should calendar load begin with manual blocks only, read-only .ics , or native integration later?
 • When should import/restore execution be enabled, if ever?
 • Should task history/completion logs exist before AI pattern observations?
@@ -588,7 +667,7 @@ Allowed current/future categories:
 • backup validation preview
 • read-only view model
 • read-only scheduler suggestion
-• user-confirmed scheduler write
+• user-confirmed soft placement write
 • auth identity only
 • cloud sync
 • calendar read-only
@@ -602,6 +681,8 @@ High-risk categories require explicit contract first:
 
 • calendar integration
 • scheduler writes
+• askFirst placement
+• move/edit placement
 • AI writes
 • import/restore execution
 • migrations
@@ -618,6 +699,7 @@ with calm task initiation,
 protected time,
 backup-safe persistence,
 opt-in signed-in local profiles,
+user-confirmed local soft placements,
 and future soft scheduling.
 It is not:
 a medical app
