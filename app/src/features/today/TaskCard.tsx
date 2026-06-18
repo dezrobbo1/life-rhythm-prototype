@@ -7,7 +7,9 @@ export type TaskProgress = 'idle' | 'inProgress' | 'paused' | 'minimumDone';
 
 type TaskCardProps = {
   onKeepGoing: () => void;
+  onMarkFullDone: () => void;
   onMarkMinimumDone: () => void;
+  onMarkNormalDone: () => void;
   onNotToday: () => void;
   onParkTask: () => void;
   onPauseTask: () => void;
@@ -85,7 +87,9 @@ function timeEdgeLines(task: MockTask): string[] {
 
 export function TaskCard({
   onKeepGoing,
+  onMarkFullDone,
   onMarkMinimumDone,
+  onMarkNormalDone,
   onNotToday,
   onParkTask,
   onPauseTask,
@@ -100,7 +104,6 @@ export function TaskCard({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [keepGoingOpen, setKeepGoingOpen] = useState(false);
   const [continuedAfterMinimum, setContinuedAfterMinimum] = useState(false);
-  const [continuationFeedback, setContinuationFeedback] = useState('');
   const visibleChips = task.chips.slice(0, 2);
   const visibleTimeEdgeLines = timeEdgeLines(task);
   const isInProgress = progress === 'inProgress';
@@ -110,16 +113,7 @@ export function TaskCard({
   useEffect(() => {
     setKeepGoingOpen(false);
     setContinuedAfterMinimum(false);
-    setContinuationFeedback('');
   }, [task.id]);
-
-  function chooseContinuation(version: 'normal' | 'full') {
-    setContinuationFeedback(
-      version === 'normal'
-        ? 'You kept going with the normal version. Still counts either way.'
-        : 'You kept going with the full version. Still counts either way.',
-    );
-  }
 
   function toggleKeepGoing() {
     if (isMinimumDone) {
@@ -128,16 +122,6 @@ export function TaskCard({
     }
 
     setKeepGoingOpen((isOpen) => !isOpen);
-  }
-
-  function stopHere() {
-    if (continuedAfterMinimum) {
-      onStopHere();
-      return;
-    }
-
-    setKeepGoingOpen(false);
-    setContinuationFeedback('Enough for now.');
   }
 
   return (
@@ -168,11 +152,6 @@ export function TaskCard({
       {isMinimumDone ? (
         <p className="task-card__status task-card__status--done" role="status">
           Minimum done. That counts.
-        </p>
-      ) : null}
-      {continuationFeedback ? (
-        <p className="task-card__status task-card__status--done" role="status">
-          {continuationFeedback}
         </p>
       ) : null}
       <div className="chip-row task-card__chips" aria-label="Task cues">
@@ -229,15 +208,15 @@ export function TaskCard({
             <article>
               <h4>Normal version</h4>
               <p>{task.normalVersion}</p>
-              <Button onClick={() => chooseContinuation('normal')}>Do normal version</Button>
+              <Button onClick={onMarkNormalDone}>Mark normal done</Button>
             </article>
             <article>
               <h4>Full version</h4>
               <p>{task.fullVersion}</p>
-              <Button onClick={() => chooseContinuation('full')}>Do full version</Button>
+              <Button onClick={onMarkFullDone}>Mark full done</Button>
             </article>
           </div>
-          {!isMinimumDone || continuedAfterMinimum ? <Button onClick={stopHere}>Stop here</Button> : null}
+          {!isMinimumDone || continuedAfterMinimum ? <Button onClick={onStopHere}>Stop here</Button> : null}
         </section>
       ) : null}
       {detailsOpen ? (

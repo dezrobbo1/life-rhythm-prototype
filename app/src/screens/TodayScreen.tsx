@@ -534,6 +534,14 @@ export function TodayScreen() {
     await moveCurrentTaskOutOfToday('done', 'Stopped here. That task is out of Today. No catch-up pile.');
   }
 
+  async function markNormalDone() {
+    await moveCurrentTaskOutOfToday('done', 'Normal done. That task is out of Today. No catch-up pile.');
+  }
+
+  async function markFullDone() {
+    await moveCurrentTaskOutOfToday('done', 'Full done. That task is out of Today. No catch-up pile.');
+  }
+
   async function parkTask() {
     await moveCurrentTaskOutOfToday('parked', 'Parked. It is safely held. No catch-up pile.');
   }
@@ -644,7 +652,9 @@ export function TodayScreen() {
             </div>
             <TaskCard
               onKeepGoing={keepGoing}
+              onMarkFullDone={markFullDone}
               onMarkMinimumDone={markMinimumDone}
+              onMarkNormalDone={markNormalDone}
               onNotToday={notToday}
               onParkTask={parkTask}
               onPauseTask={pauseTask}
