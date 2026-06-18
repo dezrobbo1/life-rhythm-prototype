@@ -3,6 +3,7 @@ import { z } from 'zod';
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 const isoDateTime = z.string().min(1, 'Expected an ISO timestamp');
 const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:MM');
+const strictIsoDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
 const strictIsoDateTimePattern =
   /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,3}))?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
 
@@ -74,6 +75,8 @@ export const activeTaskStatusSchema = z.enum([
   'skipped',
   'notToday',
 ]);
+export const softPlacementSourceSchema = z.literal('userConfirmed');
+export const softPlacementStatusSchema = z.enum(['planned', 'moved', 'removed', 'completedFromToday']);
 export const startBarrierSchema = z.enum([
   'none',
   'big',
@@ -127,6 +130,26 @@ function minutesFromTime(value: string): number {
   return hours * 60 + minutes;
 }
 
+function isValidIsoLocalDate(value: string): boolean {
+  const match = strictIsoDatePattern.exec(value);
+
+  if (!match) {
+    return false;
+  }
+
+  const [, yearValue, monthValue, dayValue] = match;
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
 function isValidStrictIsoDateTime(value: string): boolean {
   const match = strictIsoDateTimePattern.exec(value);
 
@@ -159,6 +182,11 @@ export const activeTaskDeadlineIsoDateTimeSchema = z
   .string()
   .regex(strictIsoDateTimePattern, 'Expected a valid ISO timestamp')
   .refine(isValidStrictIsoDateTime, 'Expected a valid ISO timestamp');
+
+export const softPlacementDateSchema = z
+  .string()
+  .regex(strictIsoDatePattern, 'Expected YYYY-MM-DD')
+  .refine(isValidIsoLocalDate, 'Expected a valid local date');
 
 type ActiveTaskDeadlineFields = {
   dueAt?: string;
@@ -474,6 +502,39 @@ export const activeTaskSchema = z
     validateActiveTaskDeadlineFields(task, context);
   });
 
+export const softPlacementSchema = z
+  .object({
+    id: idSchema,
+    taskId: idSchema,
+    taskTitleSnapshot: z.string().min(1),
+    date: softPlacementDateSchema,
+    blockId: idSchema,
+    blockLabelSnapshot: z.string().min(1),
+    start: timeOfDay,
+    end: timeOfDay,
+    placementSource: softPlacementSourceSchema,
+    createdAt: activeTaskDeadlineIsoDateTimeSchema,
+    updatedAt: activeTaskDeadlineIsoDateTimeSchema,
+    status: softPlacementStatusSchema,
+  })
+  .strict()
+  .superRefine((placement, context) => {
+    const startTime = timeOfDay.safeParse(placement.start);
+    const endTime = timeOfDay.safeParse(placement.end);
+
+    if (
+      startTime.success &&
+      endTime.success &&
+      minutesFromTime(placement.start) >= minutesFromTime(placement.end)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'start must be before end.',
+        path: ['end'],
+      });
+    }
+  });
+
 export const taskHistorySchema = z
   .object({
     id: idSchema,
@@ -600,6 +661,8 @@ export type LifeShapeTimeBlock = z.infer<typeof lifeShapeTimeBlockSchema>;
 export type RhythmTemplate = z.infer<typeof rhythmTemplateSchema>;
 export type ActiveTask = z.infer<typeof activeTaskSchema>;
 export type ActiveTaskStatus = z.infer<typeof activeTaskStatusSchema>;
+export type SoftPlacement = z.infer<typeof softPlacementSchema>;
+export type SoftPlacementStatus = z.infer<typeof softPlacementStatusSchema>;
 export type TaskHistory = z.infer<typeof taskHistorySchema>;
 export type CompletionLog = z.infer<typeof completionLogSchema>;
 export type ResetLog = z.infer<typeof resetLogSchema>;
