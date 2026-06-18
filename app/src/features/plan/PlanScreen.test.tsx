@@ -1,12 +1,21 @@
 // @vitest-environment jsdom
 
+import 'fake-indexeddb/auto';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { AppSnapshotProvider } from '../../data/AppSnapshotProvider';
+import { getCurrentLifeRhythmDatabase } from '../../data/localDataNamespace';
+import {
+  createAuthLocalDataNamespace,
+  resetCurrentLocalDataNamespace,
+  setCurrentLocalDataNamespace,
+} from '../../data/localDataNamespace';
+import { loadAllSoftPlacements } from '../../data/softPlacementRepository';
 import { PlanScreen } from '../../screens/PlanScreen';
 import { normalDayWithOneTaskSnapshot, type AppDataSnapshot } from '../../viewModels';
+import { localDateForNextSelectedDay } from './softPlacementDate';
 
 const dayShapeSnapshot: AppDataSnapshot = {
   ...normalDayWithOneTaskSnapshot,
@@ -211,8 +220,34 @@ function sectionForHeading(name: string): HTMLElement {
   return section;
 }
 
+let planNamespaceIndex = 0;
+
+async function defaultTableCounts() {
+  const database = getCurrentLifeRhythmDatabase();
+
+  return {
+    activeTasks: await database.activeTasks.count(),
+    completionLog: await database.completionLog.count(),
+    migrationLog: await database.migrationLog.count(),
+    resetLog: await database.resetLog.count(),
+    rhythmTemplates: await database.rhythmTemplates.count(),
+    settings: await database.settings.count(),
+    softPlacements: await database.softPlacements.count(),
+    startBoostLog: await database.startBoostLog.count(),
+    taskHistory: await database.taskHistory.count(),
+  };
+}
+
+beforeEach(() => {
+  planNamespaceIndex += 1;
+  setCurrentLocalDataNamespace(createAuthLocalDataNamespace(`plan-soft-placement-test-${planNamespaceIndex}`));
+});
+
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  resetCurrentLocalDataNamespace();
 });
 
 describe('Plan screen', () => {
@@ -263,7 +298,7 @@ describe('Plan screen', () => {
     expect(screen.queryByText('Protected morning')).toBeNull();
   });
 
-  it('renders read-only soft suggestions from open capacity blocks', () => {
+  it('renders soft suggestions from open capacity blocks with user-confirmed placement action', () => {
     renderPlanWithSnapshot(softSuggestionsSnapshot);
 
     const section = sectionForHeading('Soft suggestions');
@@ -276,13 +311,18 @@ describe('Plan screen', () => {
     expect(within(section).getByText('Monday open capacity - 11:00-12:00')).toBeTruthy();
     expect(within(section).getByText(/Usefulness window is visible/i)).toBeTruthy();
     expect(within(section).getByText('No schedule created')).toBeTruthy();
-    expect(within(section).queryByRole('button')).toBeNull();
+    expect(within(section).getByRole('button', { name: 'Add soft placement' })).toBeTruthy();
   });
 
   it('shows ask-first blocks as context without placing tasks there', () => {
     renderPlanWithSnapshot(softSuggestionsSnapshot);
 
     const section = sectionForHeading('Soft suggestions');
+    const askFirst = within(section).getByRole('heading', { name: 'Ask first possibilities' }).closest('div');
+
+    if (!askFirst) {
+      throw new Error('Missing ask-first section');
+    }
 
     expect(within(section).getByRole('heading', { name: 'Ask first possibilities' })).toBeTruthy();
     expect(within(section).getByText('Loose morning')).toBeTruthy();
@@ -291,6 +331,16 @@ describe('Plan screen', () => {
     expect(within(section).queryByText('Protected morning - 07:00-08:00')).toBeNull();
     expect(within(section).queryByText('Recovery after lunch - 13:00-14:00')).toBeNull();
     expect(within(section).queryByText('Family evening - 17:00-18:00')).toBeNull();
+    expect(within(askFirst).queryByRole('button', { name: 'Add soft placement' })).toBeNull();
+  });
+
+  it('does not show placement buttons for unavailable Day Shape blocks', () => {
+    renderPlanWithSnapshot(softSuggestionsSnapshot);
+
+    const leaveAlone = sectionForHeading('Time to leave alone');
+
+    expect(within(leaveAlone).getByText('Protected morning')).toBeTruthy();
+    expect(within(leaveAlone).queryByRole('button', { name: 'Add soft placement' })).toBeNull();
   });
 
   it('does not show completed or removed task states in soft suggestions', () => {
@@ -315,12 +365,93 @@ describe('Plan screen', () => {
     expect(within(section).getByText('Life Rhythm is not treating blank time as available.')).toBeTruthy();
   });
 
+  it('maps selected weekday to the next matching local date', () => {
+    const thursday = new Date(2026, 5, 18, 9, 0, 0);
+
+    expect(localDateForNextSelectedDay('Thursday', thursday)).toBe('2026-06-18');
+    expect(localDateForNextSelectedDay('Monday', thursday)).toBe('2026-06-22');
+  });
+
+  it('creates one local soft placement only after the user confirms an open-capacity suggestion', async () => {
+    const user = userEvent.setup();
+    const expectedDate = localDateForNextSelectedDay('Monday');
+    const fetchSpy = vi.fn();
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const originalFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+
+    try {
+      Object.defineProperty(globalThis, 'fetch', {
+        configurable: true,
+        value: fetchSpy,
+      });
+      renderPlanWithSnapshot(softSuggestionsSnapshot);
+
+      await user.click(screen.getByRole('button', { name: 'Add soft placement' }));
+
+      expect(await screen.findByText('Soft placement added.')).toBeTruthy();
+      expect(screen.getByText('No calendar event created.')).toBeTruthy();
+      expect(screen.getByText('You can remove it later.')).toBeTruthy();
+
+      const placements = await loadAllSoftPlacements();
+      const counts = await defaultTableCounts();
+
+      expect(placements).toHaveLength(1);
+      expect(placements[0]).toMatchObject({
+        blockId: 'monday-open-capacity',
+        blockLabelSnapshot: 'Monday open capacity',
+        date: expectedDate,
+        end: '12:00',
+        placementSource: 'userConfirmed',
+        start: '11:00',
+        status: 'planned',
+        taskId: 'send-form',
+        taskTitleSnapshot: 'Send the form',
+      });
+      expect(counts).toMatchObject({
+        activeTasks: 0,
+        completionLog: 0,
+        migrationLog: 0,
+        resetLog: 0,
+        rhythmTemplates: 0,
+        settings: 0,
+        softPlacements: 1,
+        startBoostLog: 0,
+        taskHistory: 0,
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(getItemSpy).not.toHaveBeenCalled();
+      expect(setItemSpy).not.toHaveBeenCalled();
+    } finally {
+      if (originalFetch) {
+        Object.defineProperty(globalThis, 'fetch', originalFetch);
+      } else {
+        Reflect.deleteProperty(globalThis, 'fetch');
+      }
+    }
+  });
+
+  it('does not create duplicate placements for the same task, block and date', async () => {
+    const user = userEvent.setup();
+    renderPlanWithSnapshot(softSuggestionsSnapshot);
+
+    await user.click(screen.getByRole('button', { name: 'Add soft placement' }));
+    expect(await screen.findByText('Soft placement added.')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Add soft placement' }));
+
+    expect(await screen.findByText('This soft placement already exists.')).toBeTruthy();
+    expect(screen.getByText('Nothing else changed.')).toBeTruthy();
+    expect(await loadAllSoftPlacements()).toHaveLength(1);
+  });
+
   it('keeps the Day Shape preview read-only while changing selected days', async () => {
     const user = userEvent.setup();
     const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
     const openSpy = vi.fn();
     const deleteDatabaseSpy = vi.fn();
+    const originalIndexedDb = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
     Object.defineProperty(globalThis, 'indexedDB', {
       configurable: true,
       value: {
@@ -336,6 +467,10 @@ describe('Plan screen', () => {
     expect(setItemSpy).not.toHaveBeenCalled();
     expect(openSpy).not.toHaveBeenCalled();
     expect(deleteDatabaseSpy).not.toHaveBeenCalled();
+
+    if (originalIndexedDb) {
+      Object.defineProperty(globalThis, 'indexedDB', originalIndexedDb);
+    }
   });
 
   it('renders fixed commitments before flexible rhythm items in a block', () => {

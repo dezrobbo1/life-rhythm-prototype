@@ -423,6 +423,8 @@ function toSoftSuggestion(
   return {
     blockId: block.id,
     blockLabel: block.label,
+    blockEnd: block.end,
+    blockStart: block.start,
     blockTimeRange: `${block.start}-${block.end}`,
     boundaryCopy: 'No schedule created',
     id: `${task.id}-${block.id}`,

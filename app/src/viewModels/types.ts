@@ -260,6 +260,8 @@ export type SoftScheduleSuggestionViewModel = {
   taskTitle: string;
   blockId: string;
   blockLabel: string;
+  blockStart: string;
+  blockEnd: string;
   blockTimeRange: string;
   reason: string;
   boundaryCopy: 'No schedule created';

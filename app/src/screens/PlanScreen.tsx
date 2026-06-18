@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
-import { Card } from '../components';
+import { useCallback, useMemo, useState } from 'react';
+import { Button, Card } from '../components';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
+import { loadSoftPlacementsForDate, saveSoftPlacement } from '../data/softPlacementRepository';
 import { PlanBlock } from '../features/plan/PlanBlock';
 import { mockPlanBlocks, type PlanBlock as PlanBlockData, type PlanItem } from '../features/plan/mockPlanData';
+import { createSoftPlacementId, localDateForNextSelectedDay } from '../features/plan/softPlacementDate';
 import {
   buildDayShapePreviewViewModel,
   buildPlanViewModel,
@@ -12,7 +14,13 @@ import {
   type DayName,
   type PlanBlockViewModel,
   type PlanItemViewModel,
+  type SoftScheduleSuggestionViewModel,
 } from '../viewModels';
+
+type SoftPlacementFeedback = {
+  kind: 'duplicate' | 'error' | 'success';
+  lines: string[];
+};
 
 function toPlanBlockState(state: PlanBlockViewModel['state']): PlanBlockData['state'] {
   if (state === 'heavy' || state === 'fixed') {
@@ -80,6 +88,8 @@ function planScreenSnapshotFromProvider(snapshot: AppDataSnapshot): AppDataSnaps
 export function PlanScreen() {
   const { snapshot } = useAppSnapshot();
   const [selectedDay, setSelectedDay] = useState<DayName>('Monday');
+  const [placementFeedback, setPlacementFeedback] = useState<SoftPlacementFeedback | null>(null);
+  const [placingSuggestionId, setPlacingSuggestionId] = useState<string | null>(null);
   const planViewModel = useMemo(
     () => buildPlanViewModel(planScreenSnapshotFromProvider(snapshot)),
     [snapshot],
@@ -94,6 +104,77 @@ export function PlanScreen() {
   );
   const hasDayShapeBlocks = dayShapePreview.groups.some((group) => group.blocks.length > 0);
   const hasSoftSuggestions = softSuggestions.suggestions.length > 0;
+  const addSoftPlacement = useCallback(async (suggestion: SoftScheduleSuggestionViewModel) => {
+    const date = localDateForNextSelectedDay(softSuggestions.selectedDay);
+
+    setPlacingSuggestionId(suggestion.id);
+    setPlacementFeedback(null);
+
+    try {
+      const existingPlacements = await loadSoftPlacementsForDate(date);
+      const alreadyExists = existingPlacements.some((placement) =>
+        placement.taskId === suggestion.taskId &&
+        placement.blockId === suggestion.blockId &&
+        placement.date === date,
+      );
+
+      if (alreadyExists) {
+        setPlacementFeedback({
+          kind: 'duplicate',
+          lines: ['This soft placement already exists.', 'Nothing else changed.'],
+        });
+        return;
+      }
+
+      const timestamp = new Date().toISOString();
+      const result = await saveSoftPlacement({
+        blockId: suggestion.blockId,
+        blockLabelSnapshot: suggestion.blockLabel,
+        createdAt: timestamp,
+        date,
+        end: suggestion.blockEnd,
+        id: createSoftPlacementId({
+          blockId: suggestion.blockId,
+          date,
+          taskId: suggestion.taskId,
+        }),
+        placementSource: 'userConfirmed',
+        start: suggestion.blockStart,
+        status: 'planned',
+        taskId: suggestion.taskId,
+        taskTitleSnapshot: suggestion.taskTitle,
+        updatedAt: timestamp,
+      });
+
+      if (result.ok) {
+        setPlacementFeedback({
+          kind: 'success',
+          lines: ['Soft placement added.', 'No calendar event created.', 'You can remove it later.'],
+        });
+        return;
+      }
+
+      if (result.errors.some((error) => error.includes('already exists'))) {
+        setPlacementFeedback({
+          kind: 'duplicate',
+          lines: ['This soft placement already exists.', 'Nothing else changed.'],
+        });
+        return;
+      }
+
+      setPlacementFeedback({
+        kind: 'error',
+        lines: ['Soft placement was not added.', 'Nothing else changed.'],
+      });
+    } catch {
+      setPlacementFeedback({
+        kind: 'error',
+        lines: ['Soft placement was not added.', 'Nothing else changed.'],
+      });
+    } finally {
+      setPlacingSuggestionId(null);
+    }
+  }, [softSuggestions.selectedDay]);
 
   return (
     <div className="screen-stack plan-screen">
@@ -194,6 +275,13 @@ export function PlanScreen() {
                   </div>
                   <p>{suggestion.reason}</p>
                   <p>{suggestion.boundaryCopy}</p>
+                  <Button
+                    className="soft-suggestions__placement-action"
+                    disabled={placingSuggestionId === suggestion.id}
+                    onClick={() => void addSoftPlacement(suggestion)}
+                  >
+                    {placingSuggestionId === suggestion.id ? 'Adding placement' : 'Add soft placement'}
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -203,6 +291,14 @@ export function PlanScreen() {
               <p>{softSuggestions.emptyState.message}</p>
             </div>
           )}
+
+          {placementFeedback ? (
+            <div className={`soft-suggestions__feedback soft-suggestions__feedback--${placementFeedback.kind}`} role="status">
+              {placementFeedback.lines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+            </div>
+          ) : null}
 
           {softSuggestions.askFirstPossibilities.length > 0 ? (
             <div className="soft-suggestions__ask-first">
