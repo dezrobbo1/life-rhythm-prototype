@@ -6,6 +6,7 @@ import { mockPlanBlocks, type PlanBlock as PlanBlockData, type PlanItem } from '
 import {
   buildDayShapePreviewViewModel,
   buildPlanViewModel,
+  buildSoftScheduleSuggestionsViewModel,
   dayShapePreviewDays,
   type AppDataSnapshot,
   type DayName,
@@ -87,7 +88,12 @@ export function PlanScreen() {
     () => buildDayShapePreviewViewModel(snapshot, selectedDay),
     [selectedDay, snapshot],
   );
+  const softSuggestions = useMemo(
+    () => buildSoftScheduleSuggestionsViewModel(snapshot, selectedDay),
+    [selectedDay, snapshot],
+  );
   const hasDayShapeBlocks = dayShapePreview.groups.some((group) => group.blocks.length > 0);
+  const hasSoftSuggestions = softSuggestions.suggestions.length > 0;
 
   return (
     <div className="screen-stack plan-screen">
@@ -166,6 +172,52 @@ export function PlanScreen() {
               <p>{dayShapePreview.emptyState.message}</p>
             </div>
           )}
+        </section>
+      </Card>
+      <Card>
+        <section className="soft-suggestions" aria-labelledby="soft-suggestions-title">
+          <div className="soft-suggestions__header">
+            <p className="section-label">Read-only planning context</p>
+            <h2 id="soft-suggestions-title">{softSuggestions.title}</h2>
+            {softSuggestions.intro.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </div>
+
+          {hasSoftSuggestions ? (
+            <ul className="soft-suggestions__list">
+              {softSuggestions.suggestions.map((suggestion) => (
+                <li key={suggestion.id}>
+                  <div>
+                    <strong>{suggestion.taskTitle}</strong>
+                    <span>{suggestion.blockLabel} - {suggestion.blockTimeRange}</span>
+                  </div>
+                  <p>{suggestion.reason}</p>
+                  <p>{suggestion.boundaryCopy}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="soft-suggestions__empty">
+              <h3>{softSuggestions.emptyState.title}</h3>
+              <p>{softSuggestions.emptyState.message}</p>
+            </div>
+          )}
+
+          {softSuggestions.askFirstPossibilities.length > 0 ? (
+            <div className="soft-suggestions__ask-first">
+              <h3>Ask first possibilities</h3>
+              <ul>
+                {softSuggestions.askFirstPossibilities.map((possibility) => (
+                  <li key={possibility.id}>
+                    <strong>{possibility.blockLabel}</strong>
+                    <span>{possibility.typeLabel} - {possibility.blockTimeRange}</span>
+                    <p>{possibility.meaning}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
       </Card>
       <div className="plan-blocks" aria-label="Broad day blocks">

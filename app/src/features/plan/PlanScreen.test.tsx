@@ -93,6 +93,106 @@ const dayShapeSnapshot: AppDataSnapshot = {
   },
 };
 
+const softSuggestionsSnapshot: AppDataSnapshot = {
+  ...dayShapeSnapshot,
+  activeTasks: [
+    {
+      ...normalDayWithOneTaskSnapshot.activeTasks?.[0],
+      deadline: {
+        dueAt: '2026-06-18T15:00:00.000Z',
+        timeConstraint: 'dueBy',
+      },
+      id: 'send-form',
+      showToday: true,
+      status: 'active',
+      title: 'Send the form',
+    },
+    {
+      ...normalDayWithOneTaskSnapshot.activeTasks?.[0],
+      id: 'done-task',
+      showToday: true,
+      status: 'done',
+      title: 'Already done',
+    },
+    {
+      ...normalDayWithOneTaskSnapshot.activeTasks?.[0],
+      id: 'parked-task',
+      showToday: true,
+      status: 'parked',
+      title: 'Parked task',
+    },
+    {
+      ...normalDayWithOneTaskSnapshot.activeTasks?.[0],
+      id: 'not-today-task',
+      showToday: true,
+      status: 'notToday',
+      title: 'Not today task',
+    },
+  ],
+  settings: {
+    ...dayShapeSnapshot.settings,
+    lifeShape: {
+      ...dayShapeSnapshot.settings?.lifeShape,
+      timeBlocks: [
+        {
+          days: ['Monday'],
+          end: '08:00',
+          id: 'protected-morning',
+          label: 'Protected morning',
+          schedulerUse: 'unavailable',
+          start: '07:00',
+          type: 'protectedTime',
+        },
+        {
+          days: ['Monday'],
+          end: '14:00',
+          id: 'recovery-after-lunch',
+          label: 'Recovery after lunch',
+          schedulerUse: 'unavailable',
+          start: '13:00',
+          type: 'recoveryTime',
+        },
+        {
+          days: ['Monday'],
+          end: '18:00',
+          id: 'family-evening',
+          label: 'Family evening',
+          schedulerUse: 'unavailable',
+          start: '17:00',
+          type: 'familyTime',
+        },
+        {
+          days: ['Monday'],
+          end: '11:00',
+          id: 'loose-morning',
+          label: 'Loose morning',
+          schedulerUse: 'askFirst',
+          start: '10:00',
+          type: 'looseTime',
+        },
+        {
+          days: ['Monday'],
+          end: '16:00',
+          id: 'household-flow',
+          label: 'Household flow',
+          schedulerUse: 'askFirst',
+          start: '15:00',
+          type: 'householdFlow',
+        },
+        {
+          days: ['Monday'],
+          end: '12:00',
+          id: 'monday-open-capacity',
+          label: 'Monday open capacity',
+          schedulerUse: 'available',
+          start: '11:00',
+          type: 'openCapacity',
+        },
+      ],
+    } as NonNullable<NonNullable<AppDataSnapshot['settings']>['lifeShape']>,
+  },
+};
+
 function renderPlanWithSnapshot(snapshot: AppDataSnapshot = dayShapeSnapshot) {
   return render(
     <AppSnapshotProvider snapshot={snapshot}>
@@ -161,6 +261,58 @@ describe('Plan screen', () => {
     expect(screen.getAllByText('Open capacity').length).toBeGreaterThan(0);
     expect(screen.getByText('Only if the day still has room.')).toBeTruthy();
     expect(screen.queryByText('Protected morning')).toBeNull();
+  });
+
+  it('renders read-only soft suggestions from open capacity blocks', () => {
+    renderPlanWithSnapshot(softSuggestionsSnapshot);
+
+    const section = sectionForHeading('Soft suggestions');
+
+    expect(within(section).getByText('Suggestions only.')).toBeTruthy();
+    expect(within(section).getByText('Nothing is placed from here.')).toBeTruthy();
+    expect(within(section).getByText('Protected and loose time are respected.')).toBeTruthy();
+    expect(within(section).getByText('Blank time is not treated as available.')).toBeTruthy();
+    expect(within(section).getByText('Send the form')).toBeTruthy();
+    expect(within(section).getByText('Monday open capacity - 11:00-12:00')).toBeTruthy();
+    expect(within(section).getByText(/Usefulness window is visible/i)).toBeTruthy();
+    expect(within(section).getByText('No schedule created')).toBeTruthy();
+    expect(within(section).queryByRole('button')).toBeNull();
+  });
+
+  it('shows ask-first blocks as context without placing tasks there', () => {
+    renderPlanWithSnapshot(softSuggestionsSnapshot);
+
+    const section = sectionForHeading('Soft suggestions');
+
+    expect(within(section).getByRole('heading', { name: 'Ask first possibilities' })).toBeTruthy();
+    expect(within(section).getByText('Loose morning')).toBeTruthy();
+    expect(within(section).getByText('Loose time - 10:00-11:00')).toBeTruthy();
+    expect(within(section).getAllByText('Ask first before treating this as usable.')).toHaveLength(2);
+    expect(within(section).queryByText('Protected morning - 07:00-08:00')).toBeNull();
+    expect(within(section).queryByText('Recovery after lunch - 13:00-14:00')).toBeNull();
+    expect(within(section).queryByText('Family evening - 17:00-18:00')).toBeNull();
+  });
+
+  it('does not show completed or removed task states in soft suggestions', () => {
+    renderPlanWithSnapshot(softSuggestionsSnapshot);
+
+    const section = sectionForHeading('Soft suggestions');
+
+    expect(within(section).queryByText('Already done')).toBeNull();
+    expect(within(section).queryByText('Parked task')).toBeNull();
+    expect(within(section).queryByText('Not today task')).toBeNull();
+  });
+
+  it('keeps blank time unavailable when no open capacity blocks match the day', async () => {
+    const user = userEvent.setup();
+    renderPlanWithSnapshot(softSuggestionsSnapshot);
+
+    await user.selectOptions(screen.getByLabelText('Selected day'), 'Wednesday');
+
+    const section = sectionForHeading('Soft suggestions');
+
+    expect(within(section).getByText('No open capacity blocks for this day.')).toBeTruthy();
+    expect(within(section).getByText('Life Rhythm is not treating blank time as available.')).toBeTruthy();
   });
 
   it('keeps the Day Shape preview read-only while changing selected days', async () => {
@@ -234,6 +386,17 @@ describe('Plan screen', () => {
     expect(screen.queryByText(/debug/i)).toBeNull();
     expect(screen.queryByText(/score/i)).toBeNull();
     expect(screen.queryByText(/productivity/i)).toBeNull();
+  });
+
+  it('keeps pressure wording out of soft suggestions', () => {
+    renderPlanWithSnapshot(softSuggestionsSnapshot);
+
+    const section = sectionForHeading('Soft suggestions');
+    const text = section.textContent?.toLowerCase() ?? '';
+
+    expect(text).not.toMatch(
+      /\b(overdue|late|failed|urgent|behind|score|streak|optimize|productivity score)\b|catch up/,
+    );
   });
 
   it('keeps the bottom navigation available in the app shell', async () => {

@@ -7,6 +7,7 @@ import {
   buildPlanViewModel,
   buildResetViewModel,
   buildSetupViewModel,
+  buildSoftScheduleSuggestionsViewModel,
   buildTimeEdgeReentryPreviewViewModel,
   buildTodayViewModel,
   emptyAppSnapshot,
@@ -104,6 +105,7 @@ const dayShapeSnapshot: AppDataSnapshot = {
 const reviewNow = '2026-06-18T12:00:00.000Z';
 
 type SnapshotActiveTaskForTest = NonNullable<AppDataSnapshot['activeTasks']>[number];
+type TimeBlockForTest = NonNullable<NonNullable<AppDataSnapshot['settings']>['lifeShape']>['timeBlocks'][number];
 
 function timeEdgeTask(overrides: Partial<SnapshotActiveTaskForTest> = {}): SnapshotActiveTaskForTest {
   const {
@@ -125,6 +127,98 @@ function timeEdgeTask(overrides: Partial<SnapshotActiveTaskForTest> = {}): Snaps
     showToday,
     status,
     title,
+  };
+}
+
+function timeBlock(overrides: Partial<TimeBlockForTest>): TimeBlockForTest {
+  return {
+    days: ['Monday'],
+    end: '12:00',
+    id: 'block',
+    label: 'Block',
+    schedulerUse: 'available',
+    start: '11:00',
+    type: 'openCapacity',
+    ...overrides,
+  };
+}
+
+function softScheduleSnapshot(overrides: Partial<AppDataSnapshot> = {}): AppDataSnapshot {
+  return {
+    activeTasks: [
+      timeEdgeTask({
+        deadline: {
+          dueAt: '2026-06-18T15:00:00.000Z',
+          timeConstraint: 'dueBy',
+        },
+        id: 'send-form',
+        title: 'Send the form',
+      }),
+      timeEdgeTask({
+        id: 'done-task',
+        status: 'done',
+        title: 'Already done',
+      }),
+      timeEdgeTask({
+        id: 'parked-task',
+        status: 'parked',
+        title: 'Parked task',
+      }),
+      timeEdgeTask({
+        id: 'not-today-task',
+        status: 'notToday',
+        title: 'Not today task',
+      }),
+    ],
+    settings: {
+      theme: 'exhale',
+      lifeShape: {
+        ...dayShapeSnapshot.settings?.lifeShape,
+        timeBlocks: [
+          timeBlock({
+            id: 'protected-morning',
+            label: 'Protected morning',
+            schedulerUse: 'unavailable',
+            start: '07:00',
+            end: '08:00',
+            type: 'protectedTime',
+          }),
+          timeBlock({
+            id: 'recovery-after-lunch',
+            label: 'Recovery after lunch',
+            schedulerUse: 'unavailable',
+            start: '13:00',
+            end: '14:00',
+            type: 'recoveryTime',
+          }),
+          timeBlock({
+            id: 'family-evening',
+            label: 'Family evening',
+            schedulerUse: 'unavailable',
+            start: '17:00',
+            end: '18:00',
+            type: 'familyTime',
+          }),
+          timeBlock({
+            id: 'loose-morning',
+            label: 'Loose morning',
+            schedulerUse: 'askFirst',
+            start: '10:00',
+            end: '11:00',
+            type: 'looseTime',
+          }),
+          timeBlock({
+            id: 'open-capacity',
+            label: 'Open capacity window',
+            schedulerUse: 'available',
+            start: '11:00',
+            end: '12:00',
+            type: 'openCapacity',
+          }),
+        ],
+      } as NonNullable<NonNullable<AppDataSnapshot['settings']>['lifeShape']>,
+    },
+    ...overrides,
   };
 }
 
@@ -355,6 +449,73 @@ describe('read-only view model selectors', () => {
     expect(JSON.stringify(viewModel).toLowerCase()).not.toContain('task suggestion');
   });
 
+  it('suggests visible Today tasks into user-marked open capacity blocks only', () => {
+    const viewModel = buildSoftScheduleSuggestionsViewModel(softScheduleSnapshot(), 'Monday');
+
+    expect(viewModel.suggestions).toHaveLength(1);
+    expect(viewModel.suggestions[0]).toMatchObject({
+      blockLabel: 'Open capacity window',
+      blockTimeRange: '11:00-12:00',
+      boundaryCopy: 'No schedule created',
+      taskTitle: 'Send the form',
+    });
+  });
+
+  it('does not suggest into protected, recovery, or family time', () => {
+    const viewModel = buildSoftScheduleSuggestionsViewModel(softScheduleSnapshot(), 'Monday');
+    const suggestedBlocks = viewModel.suggestions.map((suggestion) => suggestion.blockLabel);
+
+    expect(suggestedBlocks).not.toContain('Protected morning');
+    expect(suggestedBlocks).not.toContain('Recovery after lunch');
+    expect(suggestedBlocks).not.toContain('Family evening');
+  });
+
+  it('labels ask-first blocks as possibilities instead of placements', () => {
+    const viewModel = buildSoftScheduleSuggestionsViewModel(softScheduleSnapshot(), 'Monday');
+
+    expect(viewModel.askFirstPossibilities).toEqual([
+      expect.objectContaining({
+        blockLabel: 'Loose morning',
+        meaning: 'Ask first before treating this as usable.',
+        typeLabel: 'Loose time',
+      }),
+    ]);
+    expect(viewModel.suggestions.map((suggestion) => suggestion.blockLabel)).not.toContain('Loose morning');
+  });
+
+  it('does not treat blank time as available', () => {
+    const viewModel = buildSoftScheduleSuggestionsViewModel(softScheduleSnapshot(), 'Tuesday');
+
+    expect(viewModel.suggestions).toEqual([]);
+    expect(viewModel.emptyState.title).toBe('No open capacity blocks for this day.');
+    expect(viewModel.emptyState.message).toBe('Life Rhythm is not treating blank time as available.');
+  });
+
+  it('excludes completed and removed task states from soft suggestions', () => {
+    const viewModel = buildSoftScheduleSuggestionsViewModel(softScheduleSnapshot(), 'Monday');
+    const suggestionText = JSON.stringify(viewModel);
+
+    expect(suggestionText).not.toContain('Already done');
+    expect(suggestionText).not.toContain('Parked task');
+    expect(suggestionText).not.toContain('Not today task');
+  });
+
+  it('uses usefulness-window language for dueBy soft suggestion context', () => {
+    const viewModel = buildSoftScheduleSuggestionsViewModel(softScheduleSnapshot(), 'Monday');
+
+    expect(viewModel.suggestions[0]?.reason).toContain('Usefulness window');
+    expect(viewModel.suggestions[0]?.reason.toLowerCase()).toContain('choose this only if it still helps');
+  });
+
+  it('keeps forbidden pressure wording out of soft suggestions', () => {
+    const viewModel = buildSoftScheduleSuggestionsViewModel(softScheduleSnapshot(), 'Monday');
+    const text = JSON.stringify(viewModel).toLowerCase();
+
+    expect(text).not.toMatch(
+      /\b(overdue|late|failed|urgent|behind|score|streak|optimize|productivity score)\b|catch up/,
+    );
+  });
+
   it('separates reusable Library rhythms from one-off Today tasks', () => {
     const viewModel = buildLibraryViewModel(libraryWithEnabledDisabledRhythmsSnapshot);
 
@@ -411,6 +572,7 @@ describe('read-only view model selectors', () => {
 
     buildTodayViewModel(normalDayWithOneTaskSnapshot);
     buildDayShapePreviewViewModel(dayShapeSnapshot, 'Monday');
+    buildSoftScheduleSuggestionsViewModel(softScheduleSnapshot(), 'Monday');
     buildLibraryViewModel(libraryWithEnabledDisabledRhythmsSnapshot);
     buildSetupViewModel(normalDayWithOneTaskSnapshot);
 
@@ -432,6 +594,7 @@ describe('read-only view model selectors', () => {
     buildTodayViewModel(normalDayWithOneTaskSnapshot);
     buildPlanViewModel(planWithFixedCommitmentsSnapshot);
     buildDayShapePreviewViewModel(dayShapeSnapshot, 'Monday');
+    buildSoftScheduleSuggestionsViewModel(softScheduleSnapshot(), 'Monday');
     buildLibraryViewModel(libraryWithEnabledDisabledRhythmsSnapshot);
     buildResetViewModel(normalDayWithOneTaskSnapshot);
     buildSetupViewModel(normalDayWithOneTaskSnapshot);

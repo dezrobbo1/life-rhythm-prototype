@@ -23,6 +23,9 @@ import type {
   SnapshotPlanBlock,
   SnapshotResetAction,
   SnapshotRhythmTemplate,
+  SoftScheduleAskFirstViewModel,
+  SoftScheduleSuggestionViewModel,
+  SoftScheduleSuggestionsViewModel,
   TimeEdgeReentryPreviewOptions,
   TimeEdgeReentryPreviewViewModel,
   TimeEdgeReentryReviewItemViewModel,
@@ -364,6 +367,100 @@ export function buildDayShapePreviewViewModel(
     groups,
     intro: 'Not every open gap is available.',
     selectedDay: safeSelectedDay,
+  };
+}
+
+const softSuggestionIntro = [
+  'Suggestions only.',
+  'Nothing is placed from here.',
+  'Protected and loose time are respected.',
+  'Blank time is not treated as available.',
+];
+
+function softSuggestionReason(task: SnapshotActiveTask): string {
+  const deadline = task.deadline;
+
+  if (deadline?.latestUsefulStartAt) {
+    return 'The useful-start edge is visible. Minimum may be the useful version now.';
+  }
+
+  if (deadline?.timeConstraint === 'dueBy' && deadline.dueAt) {
+    return 'Usefulness window is visible. Choose this only if it still helps.';
+  }
+
+  if (deadline?.timeConstraint === 'fixedAt' && deadline.fixedAt) {
+    return 'Fixed-time context is visible. This is still only a possible place.';
+  }
+
+  if (deadline?.timeConstraint === 'expiresAfter' && deadline.expiresAfter) {
+    return 'Useful-until context is visible. Choose what still helps.';
+  }
+
+  if (deadline?.notUsefulAfter) {
+    return 'Useful-window context is visible. This does not place the task.';
+  }
+
+  return 'This is a user-marked open-capacity block, not blank time.';
+}
+
+function toSoftAskFirstBlock(
+  block: LifeShapeSettingsViewModel['timeBlocks'][number],
+): SoftScheduleAskFirstViewModel {
+  return {
+    blockId: block.id,
+    blockLabel: block.label,
+    blockTimeRange: `${block.start}-${block.end}`,
+    id: `ask-first-${block.id}`,
+    meaning: 'Ask first before treating this as usable.',
+    typeLabel: dayShapeTypeLabels[block.type],
+  };
+}
+
+function toSoftSuggestion(
+  task: SnapshotActiveTask,
+  block: LifeShapeSettingsViewModel['timeBlocks'][number],
+): SoftScheduleSuggestionViewModel {
+  return {
+    blockId: block.id,
+    blockLabel: block.label,
+    blockTimeRange: `${block.start}-${block.end}`,
+    boundaryCopy: 'No schedule created',
+    id: `${task.id}-${block.id}`,
+    reason: softSuggestionReason(task),
+    taskId: task.id,
+    taskTitle: task.title,
+  };
+}
+
+export function buildSoftScheduleSuggestionsViewModel(
+  snapshot: AppDataSnapshot = {},
+  selectedDay: DayName = 'Monday',
+): SoftScheduleSuggestionsViewModel {
+  const safeSelectedDay = dayShapePreviewDays.includes(selectedDay) ? selectedDay : 'Monday';
+  const matchingBlocks = (snapshot.settings?.lifeShape?.timeBlocks ?? []).filter((block) =>
+    block.days.includes(safeSelectedDay),
+  );
+  const openCapacityBlocks = matchingBlocks.filter((block) =>
+    block.type === 'openCapacity' && block.schedulerUse === 'available',
+  );
+  const askFirstPossibilities = matchingBlocks
+    .filter((block) => block.schedulerUse === 'askFirst')
+    .map(toSoftAskFirstBlock);
+  const visibleTasks = (snapshot.activeTasks ?? []).filter(isVisibleTodayTask);
+  const suggestions = openCapacityBlocks
+    .slice(0, visibleTasks.length)
+    .map((block, index) => toSoftSuggestion(visibleTasks[index], block));
+
+  return {
+    askFirstPossibilities,
+    emptyState: {
+      message: 'Life Rhythm is not treating blank time as available.',
+      title: 'No open capacity blocks for this day.',
+    },
+    intro: [...softSuggestionIntro],
+    selectedDay: safeSelectedDay,
+    suggestions,
+    title: 'Soft suggestions',
   };
 }
 
