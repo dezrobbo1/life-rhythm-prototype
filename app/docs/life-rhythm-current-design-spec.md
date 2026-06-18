@@ -1,7 +1,7 @@
 # Life Rhythm Current Design Spec
 Status: Living design specification
 Scope: Product direction, current implementation state, design boundaries, and near-term roadmap
-Last consolidated after: PR #49 — Read-only Day Shape preview
+Last consolidated after: PR #55 - Auth local data handoff notice
 ## 1. Product Identity
 Life Rhythm is a non-clinical self-management app for adults with ADHD traits or an ADHD diagnosis.
 It supports habits, rhythms, task initiation, re-entry after missed or disrupted days, protected time, and
@@ -42,7 +42,7 @@ Supporting principles:
 • Not today is allowed.
 • Blank time is not automatically task space.
 The product should help users protect their life from overfilling, not simply find more gaps to consume.
-## 3. Current Implementation State After PR #49
+## 3. Current Implementation State After PR #55
 The app now has a real local-first foundation. It is no longer only a static prototype shell.
 Implemented:
 • settings persistence
@@ -63,11 +63,19 @@ Implemented:
 • active task backup export
 • active task backup validation preview
 • active task deadline/time-edge schema fields
+• optional Time edge section in Add one-off
+• one-off dueBy/fixedAt/expiresAfter capture
+• calm Today card time-edge copy
 • Life Shape protected/recovery/loose/household/family/open-capacity blocks
 • Setup “Time to leave alone” controls
 • read-only Day Shape preview in Plan
+• trial account/auth boundary contract
+• opt-in Clerk auth shell
+• signed-out trial access shell
+• signed-in account bar
+• user-scoped hashed local database namespaces
+• legacy local data handoff notice
 Not implemented yet:
-• deadline/time-edge UI in Add one-off
 • missed-task detection
 • missed/re-entry behaviour
 
@@ -75,17 +83,17 @@ Not implemented yet:
 • user-confirmed task placement
 • calendar load
 • iOS/native calendar integration
-• auth/login
 • cloud sync
 • AI pattern suggestions
 • full design-board visual parity
 • external tester readiness
 Current practical status:
-• A basic personal manual trial is close, but not yet representative of the intended product.
-• A meaningful personal trial should wait until time-edge UI, missed/re-entry behaviour, and a soft
-scheduling loop exist.
-• External tester readiness should wait until the daily loop, onboarding, backup confidence, privacy/
-auth boundary, and visual polish are stronger.
+• A basic personal manual trial can now exercise local settings, Library rhythms, active Today tasks,
+one-off time edges, protected time, Day Shape preview, and opt-in signed-in local profiles.
+• A meaningful personal trial should still wait until missed/re-entry behaviour and a soft scheduling loop
+exist.
+• External tester readiness should wait until the daily loop, onboarding, backup confidence, Clerk
+invite-only/public-signup configuration, and visual polish are stronger.
 ## 4. PR Milestone Snapshot
 Recent key milestones:
 • PR #29: settings persistence with validation
@@ -109,6 +117,12 @@ Recent key milestones:
 • PR #47: active task deadline schema support
 • PR #48: Life Shape protected time schema and Setup UI
 • PR #49: read-only Day Shape preview
+• PR #50: one-off task time edge controls
+• PR #51: current design spec added
+• PR #52: trial account/auth boundary contract
+• PR #53: invite-only Clerk auth shell
+• PR #54: auth-aware local data namespaces
+• PR #55: auth local data handoff notice
 The current app foundation is deliberately staged: schema and persistence first, then read-only previews,
 then controlled user-facing behaviour, then scheduler.
 
@@ -129,6 +143,12 @@ Current Today writes include:
 • Add one-off Today tasks
 • Add Library rhythm to Today
 • status updates for active tasks
+Current auth/local-profile surfaces:
+• opt-in Clerk identity shell
+• signed-out trial access screen
+• signed-in account bar
+• hashed user-scoped local database namespaces when auth is enabled
+• legacy local setup handoff notice when existing local data is detected
 Current read-only or non-write surfaces:
 • settings backup validation preview
 • Library rhythm backup validation preview
@@ -143,8 +163,9 @@ Explicitly not implemented:
 • no AI writes
 • no backend
 • no sync
+• no cloud data upload
 • no analytics
-• no account system yet
+• no public signup in the app UI
 • no import/restore execution yet
 • no task history or completion logs yet
 • no notification system
@@ -232,6 +253,9 @@ Today supports:
 • one useful next action
 • one-off today-only tasks
 • Add to Today from Library
+• optional Time edge section in Add one-off
+• one-off flexible/dueBy/fixedAt/expiresAfter capture
+• calm time-edge display copy on Today cards
 • minimum / normal / full versions
 • Start
 • Pause
@@ -261,12 +285,13 @@ Today rules:
 • One visible action is usually better than many simultaneous demands.
 • When one task leaves Today, another task can appear only if it already exists and is safe to show.
 • Task state should be practical, not moral.
-One-off tasks are currently the safest place to introduce deadline/time-edge controls because they are
-explicitly user-created and today-scoped.
+• Time-edge data describes usefulness; it must not schedule anything by itself.
+One-off tasks are currently the safest place for deadline/time-edge controls because they are explicitly
+user-created and today-scoped.
 ## 8. Deadline and Time-Edge Model
-Deadline and time-edge schema support now exists for active tasks, but full UI behaviour is not yet
-implemented.
-Supported future fields:
+Deadline and time-edge schema support now exists for active tasks, and Add one-off now exposes optional
+time-edge controls. Full missed-task detection and deadline-aware re-entry behaviour are not implemented yet.
+Supported fields:
 • timeConstraint
 • dueAt
 • fixedAt
@@ -280,6 +305,15 @@ Supported time constraints:
 • dueBy
 • fixedAt
 • expiresAfter
+Current Add one-off UI supports:
+• Flexible
+• Due by
+• Fixed at
+• Expires after
+• optional latest useful start
+• optional not useful after
+• minimum still useful after deadline
+• missed policy selection for future re-entry behaviour
 Supported missed policies:
 • ask
 • park
@@ -310,7 +344,7 @@ Use wording such as:
 • No schedule created
 • Move, park, or mark not today
 • No longer needed is allowed
-Next expected step: add time-edge controls to Add one-off Today tasks.
+Next expected step: missed-task detection and calm re-entry behaviour.
 ## 9. Re-Entry Model
 Re-entry is core to Life Rhythm.
 The app should assume that disruption is normal. Missed, skipped, parked, or not-today tasks should be
@@ -406,46 +440,57 @@ High-value AI use cases:
 • re-entry option suggestions
 AI should not be introduced until the core daily loop and scheduler boundaries are stable.
 ## 12. Trial Account and Login Direction
-Auth/login is future work and is useful for multi-person trials.
+Auth/login shell support now exists for trial access, behind opt-in environment configuration.
 Important distinction:
 Login is not the same as cloud sync.
 A login system identifies a user. It does not automatically mean Life Rhythm data should be uploaded.
-Future account direction:
-• invite-only trial access preferred
+Current account direction:
+• Clerk is the first auth-shell provider
+• auth activates only when enabled and configured
+• signed-out users see a calm trial access shell
+• signed-in users see a minimal account bar
+• signed-in users use hashed user-scoped local database namespaces
+• legacy local setup handoff notice appears when existing legacy local data is detected
+• invite-only trial access remains the intended operational model
 • no public signup by default
-• identity/access layer first
+• identity/access layer first, not cloud sync
 • local-first data remains local unless a later sync contract explicitly approves upload
-• user-scoped local data namespace
 • no admin reading personal task data by default
 • no analytics by default
 • backup/export remains user-controlled
-• account deletion/export requirements should be defined before external trials
+• sign-out does not delete local data
+• sign-in does not silently merge existing local data
+• pre-auth/local legacy data remains untouched
+• account deletion/export requirements should be defined before broader external trials
 • cloud sync requires a separate contract and privacy/security review
 Core rule:
 Login may identify the user. Login must not silently upload Life Rhythm data.
 
-Likely future provider direction:
-• Clerk is likely the first auth-shell option for trial login.
+Provider direction:
+• Clerk is the current first auth-shell option for trial login.
+• Clerk dashboard invite-only/public-signup configuration still needs operational verification before
+external testers.
 • Supabase should be considered only if/when cloud data and Postgres-backed sync are approved.
-• Firebase/Auth0/other providers remain alternatives but should not be added without an auth
-boundary contract.
-Recommended auth sequence:
+• Firebase/Auth0/other providers remain alternatives but should not be added without a separate review.
+Completed auth sequence:
 1. Auth and trial account boundary contract
 2. Invite-only login shell
 3. User-scoped local data namespace
-4. Account-aware backup/export wording
-5. Cloud sync only after a separate sync contract
+4. Legacy local setup handoff notice
+Remaining auth-adjacent work:
+1. Operational Clerk invite-only/public-signup verification
+2. Account-aware backup/export wording
+3. Cloud sync only after a separate sync contract, if needed at all
 Auth should not be added casually. It changes privacy expectations.
 ## 13. Trial Readiness
 There are three trial levels.
 Basic personal manual trial
-Close, but not yet representative.
+Closer, but still not representative of the intended product.
 The app can already support local settings, Library, Today tasks, task states, backups, protected time blocks,
-and Day Shape preview. However, it does not yet have the intended time-edge UI, missed-task behaviour, or
-soft scheduler loop.
+Day Shape preview, Add one-off time edges, and opt-in local signed-in profiles. However, it does not yet have
+missed-task behaviour or a soft scheduler loop.
 Meaningful personal trial
 Likely after:
-• one-off time-edge controls
 • missed/re-entry behaviour
 • read-only soft scheduler suggestions
 • user-confirmed soft placement
@@ -458,7 +503,7 @@ Should wait until:
 
 • onboarding is clearer
 • backup/export is trustworthy
-• auth/privacy boundary exists
+• auth/privacy boundary exists and Clerk invite-only/public-signup settings are operationally verified
 • visual polish is closer to the design boards
 • at least one personal trial has been completed
 • language has had a non-clinical safety pass
@@ -478,7 +523,6 @@ Future design-board alignment sequence:
 6. Mobile and tap-target polish
 7. Calm empty-state and error-state copy pass
 Design-board work should happen after:
-• time-edge controls
 • missed/re-entry behaviour
 • soft scheduler loop
 • trial hardening
@@ -510,30 +554,20 @@ Do not use it for:
 The main GitHub repo remains the trusted implementation path.
 ## 16. Current Near-Term Roadmap
 Recommended next sequence:
-1. Update current design spec
-2. Auth/trial account boundary contract
-3. One-off task time-edge controls
-4. Missed/re-entry behaviour
-5. Read-only soft scheduler suggestions
-6. User-confirmed soft placement
-7. Trial hardening
-8. Visual design-board alignment
-9. Personal trial
-10. External tester preparation
-Alternative sequence if trial login is deprioritised:
-1. One-off task time-edge controls
+1. Update current design spec through auth handoff
 2. Missed/re-entry behaviour
 3. Read-only soft scheduler suggestions
 4. User-confirmed soft placement
-5. Auth/trial account boundary contract
-6. Trial hardening
-
-7. Visual alignment
-Decision needed: whether auth boundary comes before time-edge UI.
+5. Trial hardening
+6. Visual design-board alignment
+7. Personal trial
+8. Clerk invite-only/public-signup operational verification before external testers
+9. External tester preparation
+10. Cloud sync contract only if later trial learning shows a clear need
+Cloud sync remains intentionally unimplemented.
 ## 17. Open Decisions
 Open product and implementation decisions:
-• Should auth boundary be added before one-off time-edge UI?
-• Should Clerk be the first auth-shell provider?
+• What operational Clerk invite-only settings are required before external testers?
 • Should cloud sync be deferred until after personal trial?
 • How much design-board polish is needed before personal trial?
 • Should AI wait until after scheduler/calendar basics?
@@ -583,6 +617,7 @@ A local-first ADHD-optimised rhythm and re-entry app
 with calm task initiation,
 protected time,
 backup-safe persistence,
+opt-in signed-in local profiles,
 and future soft scheduling.
 It is not:
 a medical app
@@ -590,6 +625,7 @@ a compliance app
 a gamified productivity app
 a calendar replacement
 an AI coach
+a cloud-synced app yet
 a public accountability system
 a full scheduler yet
 The target user experience is:
