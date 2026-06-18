@@ -7,6 +7,7 @@ import {
   buildPlanViewModel,
   buildResetViewModel,
   buildSetupViewModel,
+  buildTimeEdgeReentryPreviewViewModel,
   buildTodayViewModel,
   emptyAppSnapshot,
   futureModulesDisabledSnapshot,
@@ -100,6 +101,33 @@ const dayShapeSnapshot: AppDataSnapshot = {
   },
 };
 
+const reviewNow = '2026-06-18T12:00:00.000Z';
+
+type SnapshotActiveTaskForTest = NonNullable<AppDataSnapshot['activeTasks']>[number];
+
+function timeEdgeTask(overrides: Partial<SnapshotActiveTaskForTest> = {}): SnapshotActiveTaskForTest {
+  const {
+    id = 'time-edge-task',
+    minimum = {
+      label: 'Do the smallest useful version.',
+      minutes: 5,
+    },
+    showToday = true,
+    status = 'active',
+    title = 'Review form',
+    ...rest
+  } = overrides;
+
+  return {
+    ...rest,
+    id,
+    minimum,
+    showToday,
+    status,
+    title,
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -131,6 +159,146 @@ describe('read-only view model selectors', () => {
     expect(viewModel.nextUsefulAction?.versions.full.text).toBe(
       "Review tomorrow's top three and clear one hidden edge.",
     );
+  });
+
+  it('returns no re-entry preview when no time-edge task needs review', () => {
+    const viewModel = buildTimeEdgeReentryPreviewViewModel({
+      activeTasks: [
+        timeEdgeTask({
+          deadline: {
+            dueAt: '2026-06-18T18:00:00.000Z',
+            timeConstraint: 'dueBy',
+          },
+        }),
+      ],
+    }, { now: reviewNow });
+
+    expect(viewModel.items).toEqual([]);
+  });
+
+  it('flags dueBy tasks after their useful-before time', () => {
+    const viewModel = buildTimeEdgeReentryPreviewViewModel({
+      activeTasks: [
+        timeEdgeTask({
+          deadline: {
+            dueAt: '2026-06-18T09:00:00.000Z',
+            timeConstraint: 'dueBy',
+          },
+        }),
+      ],
+    }, { now: reviewNow });
+
+    expect(viewModel.items[0]).toMatchObject({
+      reason: 'Useful-before time has passed; choose what still helps.',
+      title: 'Review form',
+    });
+  });
+
+  it('flags fixedAt tasks after their fixed-time point', () => {
+    const viewModel = buildTimeEdgeReentryPreviewViewModel({
+      activeTasks: [
+        timeEdgeTask({
+          deadline: {
+            fixedAt: '2026-06-18T09:00:00.000Z',
+            timeConstraint: 'fixedAt',
+          },
+        }),
+      ],
+    }, { now: reviewNow });
+
+    expect(viewModel.items[0]?.reason).toBe('The fixed-time point has passed; choose what still helps.');
+  });
+
+  it('flags expiresAfter tasks after their useful-until time', () => {
+    const viewModel = buildTimeEdgeReentryPreviewViewModel({
+      activeTasks: [
+        timeEdgeTask({
+          deadline: {
+            expiresAfter: '2026-06-18T09:00:00.000Z',
+            timeConstraint: 'expiresAfter',
+          },
+        }),
+      ],
+    }, { now: reviewNow });
+
+    expect(viewModel.items[0]?.reason).toBe('This was useful until an earlier time; choose what still helps.');
+  });
+
+  it('uses minimum-oriented copy after latestUsefulStartAt but before notUsefulAfter', () => {
+    const viewModel = buildTimeEdgeReentryPreviewViewModel({
+      activeTasks: [
+        timeEdgeTask({
+          deadline: {
+            latestUsefulStartAt: '2026-06-18T11:00:00.000Z',
+            notUsefulAfter: '2026-06-18T15:00:00.000Z',
+          },
+        }),
+      ],
+    }, { now: reviewNow });
+
+    expect(viewModel.items[0]?.reason).toBe('Minimum may be the useful version now.');
+  });
+
+  it('uses calm review copy after notUsefulAfter has passed', () => {
+    const viewModel = buildTimeEdgeReentryPreviewViewModel({
+      activeTasks: [
+        timeEdgeTask({
+          deadline: {
+            latestUsefulStartAt: '2026-06-18T09:00:00.000Z',
+            notUsefulAfter: '2026-06-18T10:00:00.000Z',
+          },
+        }),
+      ],
+    }, { now: reviewNow });
+
+    expect(viewModel.items[0]?.reason).toBe('Original useful window has passed; choose what still helps.');
+  });
+
+  it('keeps minimum-still-helps copy when the field is present', () => {
+    const viewModel = buildTimeEdgeReentryPreviewViewModel({
+      activeTasks: [
+        timeEdgeTask({
+          deadline: {
+            dueAt: '2026-06-18T09:00:00.000Z',
+            minimumStillUsefulAfterDeadline: true,
+            missedPolicy: 'minimumOnly',
+            timeConstraint: 'dueBy',
+          },
+        }),
+      ],
+    }, { now: reviewNow });
+
+    expect(viewModel.items[0]?.supportingCopy).toContain('Minimum still helps.');
+    expect(viewModel.items[0]?.suggestedCopy).toBe('The minimum version may be enough now.');
+  });
+
+  it('excludes completed or removed Today task states from re-entry preview', () => {
+    const viewModel = buildTimeEdgeReentryPreviewViewModel({
+      activeTasks: [
+        timeEdgeTask({ id: 'done-task', status: 'done', deadline: { dueAt: '2026-06-18T09:00:00.000Z', timeConstraint: 'dueBy' } }),
+        timeEdgeTask({ id: 'parked-task', status: 'parked', deadline: { dueAt: '2026-06-18T09:00:00.000Z', timeConstraint: 'dueBy' } }),
+        timeEdgeTask({ id: 'not-today-task', status: 'notToday', deadline: { dueAt: '2026-06-18T09:00:00.000Z', timeConstraint: 'dueBy' } }),
+      ],
+    }, { now: reviewNow });
+
+    expect(viewModel.items).toEqual([]);
+  });
+
+  it('keeps forbidden pressure wording out of re-entry preview copy', () => {
+    const viewModel = buildTimeEdgeReentryPreviewViewModel({
+      activeTasks: [
+        timeEdgeTask({
+          deadline: {
+            dueAt: '2026-06-18T09:00:00.000Z',
+            timeConstraint: 'dueBy',
+          },
+        }),
+      ],
+    }, { now: reviewNow });
+    const text = JSON.stringify(viewModel).toLowerCase();
+
+    expect(text).not.toMatch(/\b(overdue|late|failed|urgent|behind|missed|score|streak)\b|catch up/);
+    expect(text).toContain('no catch-up pile');
   });
 
   it('separates fixed commitments from flexible rhythms in Plan', () => {

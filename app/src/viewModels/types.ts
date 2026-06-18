@@ -56,6 +56,23 @@ export type TodayViewModel = {
   };
 };
 
+export type TimeEdgeReentryReviewItemViewModel = {
+  id: string;
+  title: string;
+  reason: string;
+  supportingCopy: string[];
+  suggestedCopy?: string;
+  gentleOptions: Array<
+    'Move later' | 'Park safely' | 'Try the minimum' | 'Mark not today' | 'No longer needed'
+  >;
+};
+
+export type TimeEdgeReentryPreviewViewModel = {
+  title: 'Re-entry review';
+  intro: string[];
+  items: TimeEdgeReentryReviewItemViewModel[];
+};
+
 export type HiddenEdgeKind =
   | 'prep'
   | 'travel'
@@ -353,4 +370,8 @@ export type AppDataSnapshot = {
 export type ViewModelOptions = {
   todayState?: TodayState;
   maxTodayRhythms?: number;
+};
+
+export type TimeEdgeReentryPreviewOptions = {
+  now?: Date | string;
 };

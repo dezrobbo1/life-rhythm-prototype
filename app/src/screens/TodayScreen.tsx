@@ -24,7 +24,10 @@ import { AddTaskModal, type MockAddTaskInput } from '../features/today/AddTaskMo
 import { StartBoost } from '../features/today/StartBoost';
 import { TaskCard, type TaskProgress } from '../features/today/TaskCard';
 import {
+  buildTimeEdgeReentryPreviewViewModel,
   buildTodayViewModel,
+  type SnapshotActiveTask,
+  type TimeEdgeReentryPreviewViewModel,
   type TaskViewModel,
 } from '../viewModels';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
@@ -126,6 +129,32 @@ function taskFromActiveTask(task: ActiveTask): MockTask {
   };
 }
 
+function snapshotFromActiveTask(task: ActiveTask): SnapshotActiveTask {
+  return {
+    area: areaLabels[task.area],
+    deadline: {
+      dueAt: task.dueAt,
+      expiresAfter: task.expiresAfter,
+      fixedAt: task.fixedAt,
+      latestUsefulStartAt: task.latestUsefulStartAt,
+      minimumStillUsefulAfterDeadline: task.minimumStillUsefulAfterDeadline,
+      missedPolicy: task.missedPolicy,
+      notUsefulAfter: task.notUsefulAfter,
+      timeConstraint: task.timeConstraint,
+    },
+    full: task.full,
+    id: task.id,
+    minimum: task.minimum,
+    normal: task.normal,
+    purpose: task.purpose,
+    showToday: task.showToday,
+    source: task.source,
+    status: task.status,
+    templateId: task.templateId,
+    title: task.title,
+  };
+}
+
 function progressFromActiveTaskStatus(status: VisibleActiveTaskStatus): TaskProgress {
   if (status === 'inProgress') return 'inProgress';
   if (status === 'paused') return 'paused';
@@ -202,6 +231,46 @@ function createOneOffActiveTask(input: MockAddTaskInput): ActiveTask {
   });
 }
 
+function ReentryReviewPreview({ preview }: { preview: TimeEdgeReentryPreviewViewModel }) {
+  if (preview.items.length === 0) {
+    return null;
+  }
+
+  return (
+    <Card>
+      <section aria-labelledby="reentry-review-title" className="reentry-review">
+        <div className="library-subheading">
+          <h2 id="reentry-review-title">{preview.title}</h2>
+          {preview.intro.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+        <ul className="reentry-review__items">
+          {preview.items.map((item) => (
+            <li key={item.id} className="reentry-review__item">
+              <div>
+                <h3>{item.title}</h3>
+                <p>{item.reason}</p>
+                {item.supportingCopy.map((line) => (
+                  <p key={line} className="reentry-review__support">{line}</p>
+                ))}
+                {item.suggestedCopy ? (
+                  <p className="reentry-review__support">{item.suggestedCopy}</p>
+                ) : null}
+              </div>
+              <div aria-label={`Gentle options for ${item.title}`} className="reentry-review__options">
+                {item.gentleOptions.map((option) => (
+                  <span key={option}>{option}</span>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </Card>
+  );
+}
+
 export function TodayScreen() {
   const { snapshot } = useAppSnapshot();
   const initialTodayViewModel = useMemo(() => buildTodayViewModel(snapshot), [snapshot]);
@@ -223,6 +292,13 @@ export function TodayScreen() {
   const todayViewModel = useMemo(
     () => buildTodayViewModel(snapshot, { todayState }),
     [snapshot, todayState],
+  );
+  const reentryReviewPreview = useMemo(
+    () =>
+      buildTimeEdgeReentryPreviewViewModel({
+        activeTasks: activeTasks.map(snapshotFromActiveTask),
+      }),
+    [activeTasks],
   );
   const todayLabel = useMemo(
     () =>
@@ -499,6 +575,7 @@ export function TodayScreen() {
               todayState={todayState}
             />
           </section>
+          <ReentryReviewPreview preview={reentryReviewPreview} />
           <Card>
             <section aria-labelledby="today-one-off-title" className="today-one-off">
               <div>

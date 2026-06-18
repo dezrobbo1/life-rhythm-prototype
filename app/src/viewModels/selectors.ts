@@ -23,6 +23,10 @@ import type {
   SnapshotPlanBlock,
   SnapshotResetAction,
   SnapshotRhythmTemplate,
+  TimeEdgeReentryPreviewOptions,
+  TimeEdgeReentryPreviewViewModel,
+  TimeEdgeReentryReviewItemViewModel,
+  TaskDeadlineViewModel,
   TaskVersionViewModel,
   TaskViewModel,
   TodayState,
@@ -136,6 +140,124 @@ function isVisibleTodayTask(task: SnapshotActiveTask): boolean {
       task.status === 'paused' ||
       task.status === 'minimumDone')
   );
+}
+
+const reentryReviewIntro = [
+  'Some tasks may need a calm review because their useful window changed.',
+  'Nothing has moved.',
+  'No catch-up pile.',
+  'Choose later when you are ready.',
+];
+
+const reentryGentleOptions: TimeEdgeReentryReviewItemViewModel['gentleOptions'] = [
+  'Move later',
+  'Park safely',
+  'Try the minimum',
+  'Mark not today',
+  'No longer needed',
+];
+
+function timestamp(value: string | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Date.parse(value);
+
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function optionCopyForPolicy(policy: TaskDeadlineViewModel['missedPolicy']): string | undefined {
+  if (policy === 'minimumOnly') {
+    return 'The minimum version may be enough now.';
+  }
+
+  if (policy === 'park' || policy === 'hideUntilReview') {
+    return 'Parking it safely is allowed.';
+  }
+
+  if (policy === 'notToday') {
+    return 'Moving it out of Today is allowed.';
+  }
+
+  if (policy === 'followUpPrompt') {
+    return 'A follow-up choice can wait until you are ready.';
+  }
+
+  if (policy === 'archiveIfExpired') {
+    return 'No longer needed is allowed.';
+  }
+
+  return undefined;
+}
+
+function buildReentryReviewItem(task: SnapshotActiveTask, nowMs: number): TimeEdgeReentryReviewItemViewModel | null {
+  const deadline = task.deadline;
+
+  if (!isVisibleTodayTask(task) || !deadline) {
+    return null;
+  }
+
+  const dueAt = timestamp(deadline.dueAt);
+  const fixedAt = timestamp(deadline.fixedAt);
+  const expiresAfter = timestamp(deadline.expiresAfter);
+  const latestUsefulStartAt = timestamp(deadline.latestUsefulStartAt);
+  const notUsefulAfter = timestamp(deadline.notUsefulAfter);
+  const supportingCopy: string[] = [];
+  let reason = '';
+
+  if (notUsefulAfter !== null && notUsefulAfter < nowMs) {
+    reason = 'Original useful window has passed; choose what still helps.';
+  } else if (
+    latestUsefulStartAt !== null &&
+    latestUsefulStartAt < nowMs &&
+    (notUsefulAfter === null || notUsefulAfter >= nowMs)
+  ) {
+    reason = 'Minimum may be the useful version now.';
+  } else if (deadline.timeConstraint === 'dueBy' && dueAt !== null && dueAt < nowMs) {
+    reason = 'Useful-before time has passed; choose what still helps.';
+  } else if (deadline.timeConstraint === 'fixedAt' && fixedAt !== null && fixedAt < nowMs) {
+    reason = 'The fixed-time point has passed; choose what still helps.';
+  } else if (deadline.timeConstraint === 'expiresAfter' && expiresAfter !== null && expiresAfter < nowMs) {
+    reason = 'This was useful until an earlier time; choose what still helps.';
+  }
+
+  if (!reason) {
+    return null;
+  }
+
+  supportingCopy.push('Still safely held.');
+
+  if (deadline.minimumStillUsefulAfterDeadline) {
+    supportingCopy.push('Minimum still helps.');
+  }
+
+  return {
+    gentleOptions: [...reentryGentleOptions],
+    id: task.id,
+    reason,
+    suggestedCopy: optionCopyForPolicy(deadline.missedPolicy),
+    supportingCopy,
+    title: task.title,
+  };
+}
+
+export function buildTimeEdgeReentryPreviewViewModel(
+  snapshot: AppDataSnapshot = {},
+  options: TimeEdgeReentryPreviewOptions = {},
+): TimeEdgeReentryPreviewViewModel {
+  const nowMs = options.now ? new Date(options.now).getTime() : Date.now();
+  const safeNowMs = Number.isNaN(nowMs) ? Date.now() : nowMs;
+
+  return {
+    intro: [...reentryReviewIntro],
+    items: (snapshot.activeTasks ?? []).flatMap((task) => {
+      const item = buildReentryReviewItem(task, safeNowMs);
+
+      return item ? [item] : [];
+    }),
+    title: 'Re-entry review',
+  };
 }
 
 function rhythmPreviewFromTemplates(templates: SnapshotRhythmTemplate[] | undefined, limit: number): string[] {

@@ -390,6 +390,60 @@ textarea:focus-visible {
   margin: 0;
 }
 
+.reentry-review {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.reentry-review__items {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.reentry-review__item {
+  background: var(--color-surface-strong);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.reentry-review__item h3 {
+  font-size: 1rem;
+  margin: 0 0 var(--space-1);
+}
+
+.reentry-review__item p {
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.reentry-review__support {
+  color: var(--color-accent-strong) !important;
+  font-weight: 800;
+  margin-top: var(--space-2) !important;
+}
+
+.reentry-review__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.reentry-review__options span {
+  background: var(--color-chip);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  color: var(--color-accent-strong);
+  font-size: 0.78rem;
+  font-weight: 850;
+  padding: 0.3rem 0.55rem;
+}
+
 .today-action-heading .section-label {
   margin: 0;
 }
