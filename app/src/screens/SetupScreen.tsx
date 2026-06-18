@@ -432,7 +432,10 @@ export function SetupScreen({
               rows={3}
               value={lifeShape.fixedCommitments}
             />
-            <small>Appointments, care, school runs, or other fixed edges.</small>
+            <small>
+              Notes only for now. These do not place tasks or affect Plan yet. Use Time to leave alone blocks for
+              protected, recovery, family, loose, household, or open-capacity time.
+            </small>
           </label>
 
           <label className="life-shape-control">
@@ -525,6 +528,7 @@ export function SetupScreen({
             <div className="setup-subheading">
               <h3 id="time-to-leave-alone-title">Time to leave alone</h3>
               <p>Not every open gap is available.</p>
+              <p>Use these blocks for time the app should leave alone, ask first about, or treat as open capacity.</p>
               <p>Life Rhythm will not place tasks here unless you allow it. Loose time can stay loose.</p>
             </div>
             <div className="setup-action-row">

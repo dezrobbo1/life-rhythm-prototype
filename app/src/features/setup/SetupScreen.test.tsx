@@ -113,6 +113,11 @@ describe('Setup screen', () => {
     expect(screen.getByLabelText('Work ends')).toBeTruthy();
     expect(screen.getByLabelText('Commute / travel time')).toBeTruthy();
     expect(screen.getByLabelText('Fixed commitments')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Notes only for now. These do not place tasks or affect Plan yet. Use Time to leave alone blocks for protected, recovery, family, loose, household, or open-capacity time.',
+      ),
+    ).toBeTruthy();
     expect(screen.getByLabelText('Transition buffer')).toBeTruthy();
     expect(screen.getByLabelText('Breakfast anchor')).toBeTruthy();
     expect(screen.getByLabelText('Lunch anchor')).toBeTruthy();
@@ -122,8 +127,14 @@ describe('Setup screen', () => {
     expect(screen.getByLabelText('Low-capacity day preference')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Time to leave alone' })).toBeTruthy();
     expect(screen.getByText('Not every open gap is available.')).toBeTruthy();
+    expect(
+      screen.getByText('Use these blocks for time the app should leave alone, ask first about, or treat as open capacity.'),
+    ).toBeTruthy();
     expect(screen.getByText('Life Rhythm will not place tasks here unless you allow it. Loose time can stay loose.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Add block' })).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(
+      /\b(overdue|late|failed|urgent|behind|score|streak|catch up|optimize|productivity score|compliance)\b/i,
+    );
   });
 
   it('changes Life shape controls without saving until Save settings is used', async () => {
