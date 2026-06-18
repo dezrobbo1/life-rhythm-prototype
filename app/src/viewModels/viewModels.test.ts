@@ -455,6 +455,8 @@ describe('read-only view model selectors', () => {
     expect(viewModel.suggestions).toHaveLength(1);
     expect(viewModel.suggestions[0]).toMatchObject({
       blockLabel: 'Open capacity window',
+      blockEnd: '12:00',
+      blockStart: '11:00',
       blockTimeRange: '11:00-12:00',
       boundaryCopy: 'No schedule created',
       taskTitle: 'Send the form',
