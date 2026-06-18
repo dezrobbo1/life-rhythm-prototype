@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { settingsSchema, type Settings } from '../data/schemas';
 import { buildSettingsBackupPayload } from '../data/settingsExport';
+import { buildSoftPlacementBackupPayload } from '../data/softPlacementBackup';
 import type { SettingsWriteInput } from '../data/settingsRepository';
 
 const settingsMocks = vi.hoisted(() => ({
@@ -15,6 +16,10 @@ const settingsMocks = vi.hoisted(() => ({
 
 const settingsExportMocks = vi.hoisted(() => ({
   exportSettingsBackup: vi.fn(),
+}));
+
+const softPlacementBackupMocks = vi.hoisted(() => ({
+  exportSoftPlacementBackup: vi.fn(),
 }));
 
 vi.mock('../data/settingsRepository', async (importOriginal) => {
@@ -34,6 +39,15 @@ vi.mock('../data/settingsExport', async (importOriginal) => {
   return {
     ...actual,
     exportSettingsBackup: settingsExportMocks.exportSettingsBackup,
+  };
+});
+
+vi.mock('../data/softPlacementBackup', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/softPlacementBackup')>();
+
+  return {
+    ...actual,
+    exportSoftPlacementBackup: softPlacementBackupMocks.exportSoftPlacementBackup,
   };
 });
 
@@ -247,5 +261,56 @@ describe('App settings persistence wiring', () => {
     expect(settingsMocks.saveSettings).not.toHaveBeenCalled();
     expect(settingsMocks.resetSettingsToDefaults).not.toHaveBeenCalled();
     expect(settingsExportMocks.exportSettingsBackup).not.toHaveBeenCalled();
+  });
+
+  it('exports a soft placement backup from Setup without saving settings', async () => {
+    settingsMocks.loadSettings.mockResolvedValue(makeSettings());
+    softPlacementBackupMocks.exportSoftPlacementBackup.mockResolvedValue({
+      fileName: 'life-rhythm-soft-placements-backup-2026-06-18.json',
+      json: '{}',
+      payload: buildSoftPlacementBackupPayload([
+        {
+          blockId: 'monday-open-capacity',
+          blockLabelSnapshot: 'Monday open capacity',
+          createdAt: '2026-06-18T00:00:00.000Z',
+          date: '2026-06-18',
+          end: '12:00',
+          id: 'soft-placement-send-form',
+          placementSource: 'userConfirmed',
+          start: '11:00',
+          status: 'planned',
+          taskId: 'send-form',
+          taskTitleSnapshot: 'Send the form',
+          updatedAt: '2026-06-18T00:00:00.000Z',
+        },
+      ], '2026-06-18T01:00:00.000Z'),
+      placementCount: 1,
+    });
+    const createObjectUrl = vi.fn(() => 'blob:soft-placement-backup');
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: createObjectUrl,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: revokeObjectUrl,
+    });
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    await user.click(screen.getByRole('button', { name: 'Export soft placement backup' }));
+
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Soft placement backup created on this device.'));
+    expect(softPlacementBackupMocks.exportSoftPlacementBackup).toHaveBeenCalledTimes(1);
+    expect(settingsMocks.saveSettings).not.toHaveBeenCalled();
+    expect(settingsMocks.resetSettingsToDefaults).not.toHaveBeenCalled();
+    expect(settingsExportMocks.exportSettingsBackup).not.toHaveBeenCalled();
+    expect(createObjectUrl).toHaveBeenCalledTimes(1);
+    expect(anchorClick).toHaveBeenCalledTimes(1);
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:soft-placement-backup');
   });
 });

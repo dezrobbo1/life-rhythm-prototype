@@ -18,9 +18,12 @@ import {
   type SettingsWriteResult,
 } from './data/settingsRepository';
 import { exportSettingsBackup, type SettingsBackupExport } from './data/settingsExport';
+import { exportSoftPlacementBackup, type SoftPlacementBackupExport } from './data/softPlacementBackup';
 import { normalDayWithOneTaskSnapshot, type AppDataSnapshot } from './viewModels';
 
-function downloadJsonBackup(backup: SettingsBackupExport) {
+type JsonBackupExport = Pick<SettingsBackupExport | SoftPlacementBackupExport, 'fileName' | 'json'>;
+
+function downloadJsonBackup(backup: JsonBackupExport) {
   if (
     typeof document === 'undefined' ||
     typeof Blob === 'undefined' ||
@@ -88,6 +91,16 @@ export default function App() {
     return backup;
   }
 
+  async function handleExportSoftPlacementBackup(): Promise<SoftPlacementBackupExport | null> {
+    const backup = await exportSoftPlacementBackup();
+
+    if (backup) {
+      downloadJsonBackup(backup);
+    }
+
+    return backup;
+  }
+
   const appSnapshot = useMemo<AppDataSnapshot>(
     () => ({
       ...normalDayWithOneTaskSnapshot,
@@ -109,6 +122,7 @@ export default function App() {
     setup: (
       <SetupScreen
         onExportSettingsBackup={handleExportSettingsBackup}
+        onExportSoftPlacementBackup={handleExportSoftPlacementBackup}
         onResetSettings={handleResetSettings}
         onSaveSettings={handleSaveSettings}
         onThemeChange={setTheme}

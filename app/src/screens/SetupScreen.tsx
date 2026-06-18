@@ -13,6 +13,11 @@ import {
   type SettingsBackupPreview,
 } from '../data/settingsImportValidation';
 import {
+  parseSoftPlacementBackupJson,
+  type SoftPlacementBackupExport,
+  type SoftPlacementBackupPreview,
+} from '../data/softPlacementBackup';
+import {
   aboutRows,
   advancedRows,
   appearanceOptions,
@@ -36,6 +41,7 @@ import { buildSetupViewModel } from '../viewModels';
 
 type SetupScreenProps = {
   onExportSettingsBackup?: () => Promise<SettingsBackupExport>;
+  onExportSoftPlacementBackup?: () => Promise<SoftPlacementBackupExport | null>;
   onResetSettings?: () => Promise<Settings>;
   onSaveSettings?: (settings: SettingsWriteInput) => Promise<SettingsWriteResult>;
   onThemeChange?: (theme: ThemeName) => void;
@@ -57,6 +63,7 @@ const defaultSchedulerUseByTimeBlockType: Record<
 
 export function SetupScreen({
   onExportSettingsBackup,
+  onExportSoftPlacementBackup,
   onResetSettings,
   onSaveSettings,
   onThemeChange,
@@ -73,6 +80,9 @@ export function SetupScreen({
   const [settingsBackupErrors, setSettingsBackupErrors] = useState<string[]>([]);
   const [settingsBackupJson, setSettingsBackupJson] = useState('');
   const [settingsBackupPreview, setSettingsBackupPreview] = useState<SettingsBackupPreview | null>(null);
+  const [softPlacementBackupErrors, setSoftPlacementBackupErrors] = useState<string[]>([]);
+  const [softPlacementBackupJson, setSoftPlacementBackupJson] = useState('');
+  const [softPlacementBackupPreview, setSoftPlacementBackupPreview] = useState<SoftPlacementBackupPreview | null>(null);
   const [status, setStatus] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -240,6 +250,21 @@ export function SetupScreen({
     }
   }
 
+  async function exportSoftPlacementsBackup() {
+    if (!onExportSoftPlacementBackup) {
+      setStatus('Soft placement backup export is not connected in this render.');
+      return;
+    }
+
+    try {
+      const backup = await onExportSoftPlacementBackup();
+
+      setStatus(backup ? 'Soft placement backup created on this device.' : 'No saved soft placements to export yet.');
+    } catch {
+      setStatus('Soft placement backup was not created.');
+    }
+  }
+
   function checkSettingsBackup() {
     const result = parseSettingsBackupImportJson(settingsBackupJson);
 
@@ -253,6 +278,21 @@ export function SetupScreen({
     setSettingsBackupErrors(result.errors);
     setSettingsBackupPreview(null);
     setStatus('Backup check found an issue. Nothing changed on this device.');
+  }
+
+  function checkSoftPlacementBackup() {
+    const result = parseSoftPlacementBackupJson(softPlacementBackupJson);
+
+    if (result.ok) {
+      setSoftPlacementBackupErrors([]);
+      setSoftPlacementBackupPreview(result.preview);
+      setStatus('Soft placement backup looks valid. Restore is not connected yet.');
+      return;
+    }
+
+    setSoftPlacementBackupErrors(result.errors);
+    setSoftPlacementBackupPreview(null);
+    setStatus('This soft placement backup could not be used.');
   }
 
   async function readSettingsBackupFile(event: ChangeEvent<HTMLInputElement>) {
@@ -269,6 +309,23 @@ export function SetupScreen({
       setSettingsBackupErrors(['backup: Settings backup file could not be read.']);
       setSettingsBackupPreview(null);
       setStatus('Backup check found an issue. Nothing changed on this device.');
+    }
+  }
+
+  async function readSoftPlacementBackupFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+
+    if (!file) return;
+
+    try {
+      setSoftPlacementBackupJson(await file.text());
+      setSoftPlacementBackupErrors([]);
+      setSoftPlacementBackupPreview(null);
+      setStatus('Soft placement backup loaded. Choose Check soft placement backup.');
+    } catch {
+      setSoftPlacementBackupErrors(['backup: Soft placement backup file could not be read.']);
+      setSoftPlacementBackupPreview(null);
+      setStatus('This soft placement backup could not be used.');
     }
   }
 
@@ -683,6 +740,81 @@ export function SetupScreen({
               <p>Nothing changed on this device. The first items to review are below.</p>
               <ul aria-label="Settings backup errors" className="setup-validation-list">
                 {settingsBackupErrors.slice(0, 3).map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+        <div className="setup-backup-panel">
+          <div className="setup-subheading">
+            <h3>Export soft placements</h3>
+            <p>This backup includes saved soft placements only, including removed placement records.</p>
+            <p>It does not include tasks or calendar events. No calendar events are created.</p>
+          </div>
+          <div className="setup-action-row">
+            <Button onClick={exportSoftPlacementsBackup}>Export soft placement backup</Button>
+          </div>
+        </div>
+        <div className="setup-backup-checker" aria-labelledby="soft-placement-backup-check-title">
+          <div className="setup-subheading">
+            <h3 id="soft-placement-backup-check-title">Check soft placement backup</h3>
+            <p>This checks the file only. Nothing is restored.</p>
+            <p>No calendar events are created.</p>
+          </div>
+          <label className="life-shape-control life-shape-control--wide">
+            <span>Soft placement backup JSON</span>
+            <textarea
+              aria-label="Soft placement backup JSON"
+              onChange={(event) => {
+                setSoftPlacementBackupJson(event.target.value);
+                setSoftPlacementBackupErrors([]);
+                setSoftPlacementBackupPreview(null);
+              }}
+              placeholder="Paste a soft placement backup JSON file here."
+              rows={6}
+              value={softPlacementBackupJson}
+            />
+            <small>This checks soft placement backups only. It does not restore placements.</small>
+          </label>
+          <div className="setup-action-row">
+            <label className="setup-file-picker">
+              <span>Select soft placement backup file</span>
+              <input
+                accept="application/json,.json"
+                aria-label="Select soft placement backup file"
+                onChange={readSoftPlacementBackupFile}
+                type="file"
+              />
+            </label>
+            <Button onClick={checkSoftPlacementBackup}>Check soft placement backup</Button>
+          </div>
+          {softPlacementBackupPreview ? (
+            <dl aria-label="Soft placement backup preview" className="setup-about-list">
+              <div>
+                <dt>Placements</dt>
+                <dd>{softPlacementBackupPreview.placementCount}</dd>
+              </div>
+              <div>
+                <dt>Statuses</dt>
+                <dd>{softPlacementBackupPreview.statusSummary}</dd>
+              </div>
+              <div>
+                <dt>Titles</dt>
+                <dd>{softPlacementBackupPreview.placementTitles.join(', ') || 'No placement titles in backup.'}</dd>
+              </div>
+              <div>
+                <dt>Exported</dt>
+                <dd>{softPlacementBackupPreview.exportedAt}</dd>
+              </div>
+            </dl>
+          ) : null}
+          {softPlacementBackupErrors.length > 0 ? (
+            <div className="setup-validation-summary">
+              <strong>Backup check notes</strong>
+              <p>Nothing changed on this device. The first items to review are below.</p>
+              <ul aria-label="Soft placement backup errors" className="setup-validation-list">
+                {softPlacementBackupErrors.slice(0, 3).map((error) => (
                   <li key={error}>{error}</li>
                 ))}
               </ul>

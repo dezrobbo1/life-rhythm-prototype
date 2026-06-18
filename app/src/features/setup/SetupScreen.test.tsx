@@ -6,8 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { themeBackgrounds } from '../../app/theme';
 import { buildSettingsBackupPayload } from '../../data/settingsExport';
+import { buildSoftPlacementBackupPayload } from '../../data/softPlacementBackup';
 import type { SettingsWriteInput, SettingsWriteResult } from '../../data/settingsRepository';
-import { settingsSchema } from '../../data/schemas';
+import { settingsSchema, softPlacementSchema, type SoftPlacement } from '../../data/schemas';
 import { SetupScreen } from '../../screens/SetupScreen';
 
 afterEach(() => {
@@ -54,6 +55,35 @@ function validSettingsBackupJson() {
   });
 
   return JSON.stringify(buildSettingsBackupPayload(settings, '2026-06-16T00:00:00.000Z'));
+}
+
+function validSoftPlacement(overrides: Partial<SoftPlacement> = {}): SoftPlacement {
+  return softPlacementSchema.parse({
+    blockId: 'monday-open-capacity',
+    blockLabelSnapshot: 'Monday open capacity',
+    createdAt: '2026-06-18T00:00:00.000Z',
+    date: '2026-06-18',
+    end: '12:00',
+    id: 'soft-placement-send-form',
+    placementSource: 'userConfirmed',
+    start: '11:00',
+    status: 'planned',
+    taskId: 'send-form',
+    taskTitleSnapshot: 'Send the form',
+    updatedAt: '2026-06-18T00:00:00.000Z',
+    ...overrides,
+  });
+}
+
+function validSoftPlacementBackupJson() {
+  return JSON.stringify(buildSoftPlacementBackupPayload([
+    validSoftPlacement(),
+    validSoftPlacement({
+      id: 'soft-placement-removed',
+      status: 'removed',
+      taskTitleSnapshot: 'Removed placement',
+    }),
+  ], '2026-06-18T01:00:00.000Z'));
 }
 
 describe('Setup screen', () => {
@@ -279,6 +309,138 @@ describe('Setup screen', () => {
     expect(clearSpy).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Import backup later' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Export dev tickets later' })).toBeTruthy();
+  });
+
+  it('renders soft placement backup export and checker controls', () => {
+    render(<SetupScreen />);
+
+    expect(screen.getByRole('heading', { name: 'Export soft placements' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Export soft placement backup' })).toBeTruthy();
+    expect(screen.getByText('This backup includes saved soft placements only, including removed placement records.')).toBeTruthy();
+    expect(screen.getByText('It does not include tasks or calendar events. No calendar events are created.')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Check soft placement backup' })).toBeTruthy();
+    expect(screen.getByLabelText('Soft placement backup JSON')).toBeTruthy();
+    expect(screen.getByLabelText('Select soft placement backup file')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Check soft placement backup' })).toBeTruthy();
+    expect(screen.getByText('This checks the file only. Nothing is restored.')).toBeTruthy();
+  });
+
+  it('exports a soft placement backup through the connected handler', async () => {
+    const user = userEvent.setup();
+    const onExportSoftPlacementBackup = vi.fn(async () => ({
+      fileName: 'life-rhythm-soft-placements-backup-2026-06-18.json',
+      json: '{}',
+      payload: buildSoftPlacementBackupPayload([validSoftPlacement()], '2026-06-18T01:00:00.000Z'),
+      placementCount: 1,
+    }));
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+
+    render(<SetupScreen onExportSoftPlacementBackup={onExportSoftPlacementBackup} />);
+
+    await user.click(screen.getByRole('button', { name: 'Export soft placement backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('Soft placement backup created on this device.');
+    expect(onExportSoftPlacementBackup).toHaveBeenCalledTimes(1);
+    expect(setItemSpy).not.toHaveBeenCalled();
+  });
+
+  it('shows an empty soft placement backup export message', async () => {
+    const user = userEvent.setup();
+    const onExportSoftPlacementBackup = vi.fn(async () => null);
+
+    render(<SetupScreen onExportSoftPlacementBackup={onExportSoftPlacementBackup} />);
+
+    await user.click(screen.getByRole('button', { name: 'Export soft placement backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('No saved soft placements to export yet.');
+    expect(onExportSoftPlacementBackup).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows valid soft placement backup preview feedback without writing', async () => {
+    const user = userEvent.setup();
+    const onSaveSettings = vi.fn();
+    const onResetSettings = vi.fn();
+    const onExportSettingsBackup = vi.fn();
+    const onExportSoftPlacementBackup = vi.fn();
+    const fetchSpy = vi.fn();
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    const originalFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+
+    try {
+      Object.defineProperty(globalThis, 'fetch', {
+        configurable: true,
+        value: fetchSpy,
+      });
+      render(
+        <SetupScreen
+          onExportSettingsBackup={onExportSettingsBackup}
+          onExportSoftPlacementBackup={onExportSoftPlacementBackup}
+          onResetSettings={onResetSettings}
+          onSaveSettings={onSaveSettings}
+        />,
+      );
+
+      fireEvent.change(screen.getByLabelText('Soft placement backup JSON'), {
+        target: {
+          value: validSoftPlacementBackupJson(),
+        },
+      });
+      await user.click(screen.getByRole('button', { name: 'Check soft placement backup' }));
+
+      expect(screen.getByRole('status').textContent).toContain('Soft placement backup looks valid. Restore is not connected yet.');
+      const preview = screen.getByLabelText('Soft placement backup preview');
+      expect(preview.textContent).toContain('Placements');
+      expect(preview.textContent).toContain('2');
+      expect(preview.textContent).toContain('1 planned, 1 removed');
+      expect(preview.textContent).toContain('Send the form, Removed placement');
+      expect(onSaveSettings).not.toHaveBeenCalled();
+      expect(onResetSettings).not.toHaveBeenCalled();
+      expect(onExportSettingsBackup).not.toHaveBeenCalled();
+      expect(onExportSoftPlacementBackup).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(getItemSpy).not.toHaveBeenCalled();
+      expect(setItemSpy).not.toHaveBeenCalled();
+    } finally {
+      if (originalFetch) {
+        Object.defineProperty(globalThis, 'fetch', originalFetch);
+      } else {
+        Reflect.deleteProperty(globalThis, 'fetch');
+      }
+    }
+  });
+
+  it('shows invalid soft placement backup feedback', async () => {
+    const user = userEvent.setup();
+    render(<SetupScreen />);
+
+    fireEvent.change(screen.getByLabelText('Soft placement backup JSON'), {
+      target: {
+        value: '{ not json',
+      },
+    });
+    await user.click(screen.getByRole('button', { name: 'Check soft placement backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('This soft placement backup could not be used.');
+    expect(screen.getByRole('list', { name: 'Soft placement backup errors' })).toBeTruthy();
+    expect(screen.getByText('backup: Soft placement backup JSON is malformed.')).toBeTruthy();
+  });
+
+  it('loads a selected soft placement backup file and validates it', async () => {
+    const user = userEvent.setup();
+    render(<SetupScreen />);
+    const file = new File([validSoftPlacementBackupJson()], 'soft-placements.json', {
+      type: 'application/json',
+    });
+
+    await user.upload(screen.getByLabelText('Select soft placement backup file'), file);
+
+    expect(screen.getByRole('status').textContent).toContain('Soft placement backup loaded. Choose Check soft placement backup.');
+
+    await user.click(screen.getByRole('button', { name: 'Check soft placement backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('Soft placement backup looks valid. Restore is not connected yet.');
+    expect(screen.getByLabelText('Soft placement backup preview').textContent).toContain('Send the form');
   });
 
   it('shows valid settings backup preview feedback', async () => {
