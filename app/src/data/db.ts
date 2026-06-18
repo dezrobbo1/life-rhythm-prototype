@@ -7,12 +7,13 @@ import type {
   ResetLog,
   RhythmTemplate,
   Settings,
+  SoftPlacement,
   StartBoostLog,
   TaskHistory,
 } from './schemas';
 
 export const DATABASE_NAME = 'life-rhythm-app';
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 2;
 
 export class LifeRhythmDatabase extends Dexie {
   settings!: Table<Settings, string>;
@@ -24,6 +25,7 @@ export class LifeRhythmDatabase extends Dexie {
   startBoostLog!: Table<StartBoostLog, string>;
   devTickets!: Table<DevTicket, string>;
   migrationLog!: Table<MigrationLog, string>;
+  softPlacements!: Table<SoftPlacement, string>;
 
   constructor(databaseName = DATABASE_NAME) {
     super(databaseName);
@@ -38,6 +40,7 @@ export class LifeRhythmDatabase extends Dexie {
       startBoostLog: 'id, taskId, templateId, barrier, supportId, usedAt',
       devTickets: 'id, status, priority, area, createdAt, updatedAt',
       migrationLog: 'id, sourceKey, status, inspectedAt',
+      softPlacements: 'id, taskId, date, blockId, status, placementSource, updatedAt',
     });
   }
 }
@@ -45,4 +48,3 @@ export class LifeRhythmDatabase extends Dexie {
 export function createLifeRhythmDatabase(databaseName?: string) {
   return new LifeRhythmDatabase(databaseName);
 }
-

@@ -7,6 +7,7 @@ import {
   appExportSchema,
   lifeShapeSettingsSchema,
   rhythmTemplateSchema,
+  softPlacementSchema,
   settingsSchema,
   startBoostSafetySettingsSchema,
   themeNameSchema,
@@ -52,6 +53,21 @@ const activeTask = activeTaskSchema.parse({
   showToday: true,
   createdAt: now,
   updatedAt: now,
+});
+
+const softPlacement = softPlacementSchema.parse({
+  id: 'placement-1',
+  taskId: activeTask.id,
+  taskTitleSnapshot: activeTask.title,
+  date: today,
+  blockId: 'open-capacity-morning',
+  blockLabelSnapshot: 'Open capacity',
+  start: '10:00',
+  end: '10:30',
+  placementSource: 'userConfirmed',
+  createdAt: now,
+  updatedAt: now,
+  status: 'planned',
 });
 
 const validExport: AppExport = appExportSchema.parse({
@@ -142,6 +158,7 @@ describe('future data schemas', () => {
     expect(settings.lifeShape.transitionBufferMinutes).toBe(10);
     expect(rhythmTemplate.enabled).toBe(true);
     expect(activeTask.source).toBe('library');
+    expect(softPlacement.placementSource).toBe('userConfirmed');
   });
 
   it('validates theme preferences', () => {
@@ -528,6 +545,34 @@ describe('future data schemas', () => {
     }
   });
 
+  it('validates soft placement records without task-placement side effects', () => {
+    const valid = softPlacementSchema.safeParse({
+      ...softPlacement,
+      id: 'placement-valid-copy',
+    });
+    const invalidRange = softPlacementSchema.safeParse({
+      ...softPlacement,
+      end: '10:00',
+      id: 'placement-invalid-range',
+      start: '10:30',
+    });
+    const invalidSource = softPlacementSchema.safeParse({
+      ...softPlacement,
+      id: 'placement-invalid-source',
+      placementSource: 'scheduler',
+    });
+    const unknownField = softPlacementSchema.safeParse({
+      ...softPlacement,
+      id: 'placement-unknown-field',
+      calendarEventId: 'calendar-event',
+    });
+
+    expect(valid.success).toBe(true);
+    expect(invalidRange.success).toBe(false);
+    expect(invalidSource.success).toBe(false);
+    expect(unknownField.success).toBe(false);
+  });
+
   it('defines Dexie tables for each schema group', () => {
     const db = createLifeRhythmDatabase('life-rhythm-test-schema-only');
 
@@ -539,6 +584,7 @@ describe('future data schemas', () => {
       'resetLog',
       'rhythmTemplates',
       'settings',
+      'softPlacements',
       'startBoostLog',
       'taskHistory',
     ]);
