@@ -175,7 +175,7 @@ export const safetyToggles: SafetyToggle[] = [
   },
   {
     id: 'avoidStreakPressure',
-    label: 'Avoid streak pressure',
+    label: 'Avoid daily-run pressure',
     helper: 'Keeps progress-pressure language out of the app.',
     defaultEnabled: true,
   },

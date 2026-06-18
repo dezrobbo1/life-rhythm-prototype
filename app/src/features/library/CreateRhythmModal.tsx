@@ -115,7 +115,11 @@ export function CreateRhythmModal({ onClose, onSave, open }: CreateRhythmModalPr
         </label>
         <label>
           <span>Category</span>
-          <select onChange={(event) => setCategory(event.target.value as RhythmCategory)} value={category}>
+          <select
+            aria-label="Category"
+            onChange={(event) => setCategory(event.target.value as RhythmCategory)}
+            value={category}
+          >
             {rhythmCategories.map((item) => (
               <option key={item} value={item}>
                 {item}

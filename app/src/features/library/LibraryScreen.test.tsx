@@ -229,6 +229,7 @@ describe('Library screen', () => {
     expect(screen.getByText('Reusable rhythm. Saved on this device. Enablement and Add to Today are preview-only.')).toBeTruthy();
     expect(screen.getByLabelText('Rhythm title')).toBeTruthy();
     expect(screen.getByLabelText('Category')).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Category' })).toBeTruthy();
     expect(screen.getByLabelText('Purpose')).toBeTruthy();
     expect(screen.getByLabelText('Minimum version')).toBeTruthy();
     expect(screen.getByRole('checkbox', { name: /Enabled/ })).toBeTruthy();
