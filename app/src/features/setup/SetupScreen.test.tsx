@@ -222,6 +222,27 @@ describe('Setup screen', () => {
     expect(setItemSpy).not.toHaveBeenCalled();
   });
 
+  it('keeps generated Life Shape block labels aligned with the selected type', async () => {
+    const user = userEvent.setup();
+    render(<SetupScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Add block' }));
+
+    expect((screen.getByLabelText('Time block 1 label') as HTMLInputElement).value).toBe('Protected time');
+
+    await user.selectOptions(screen.getByLabelText('Time block 1 type'), 'openCapacity');
+
+    expect((screen.getByLabelText('Time block 1 label') as HTMLInputElement).value).toBe('Open capacity');
+    expect((screen.getByLabelText('Time block 1 scheduler use') as HTMLSelectElement).value).toBe('available');
+
+    await user.clear(screen.getByLabelText('Time block 1 label'));
+    await user.type(screen.getByLabelText('Time block 1 label'), 'My open window');
+    await user.selectOptions(screen.getByLabelText('Time block 1 type'), 'recoveryTime');
+
+    expect((screen.getByLabelText('Time block 1 label') as HTMLInputElement).value).toBe('My open window');
+    expect((screen.getByLabelText('Time block 1 scheduler use') as HTMLSelectElement).value).toBe('unavailable');
+  });
+
   it('removes a Life Shape time block before saving', async () => {
     const user = userEvent.setup();
     const onSaveSettings = vi.fn(async (input: SettingsWriteInput): Promise<SettingsWriteResult> => ({
