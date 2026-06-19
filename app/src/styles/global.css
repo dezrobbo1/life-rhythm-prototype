@@ -14,6 +14,8 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
   line-height: 1.45;
+  --icon-badge-radius: 0.85rem;
+  --icon-badge-size: 2.25rem;
   --bottom-nav-height: 4.25rem;
   --bottom-nav-safe-space: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
 }
@@ -336,7 +338,7 @@ textarea:focus-visible {
 .library-hero h1,
 .reset-hero h1,
 .setup-hero h1 {
-  font-size: clamp(2rem, 8vw, 3.5rem);
+  font-size: 3.25rem;
   letter-spacing: 0;
   line-height: 0.95;
   margin: 0;
@@ -344,17 +346,17 @@ textarea:focus-visible {
 
 .screen-hero__mark {
   align-items: center;
-  background: var(--color-chip);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--color-accent) 13%, var(--color-chip)), var(--color-chip));
   border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-line));
   border-radius: 1.1rem;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-surface-strong) 65%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-surface-strong) 65%, transparent),
+    0 10px 22px color-mix(in srgb, var(--color-accent) 9%, transparent);
   color: var(--color-accent-strong);
   display: inline-flex;
-  font-size: 1rem;
-  font-weight: 950;
   height: 3.75rem;
   justify-content: center;
-  letter-spacing: 0.04em;
   width: 3.75rem;
 }
 
@@ -607,7 +609,7 @@ textarea:focus-visible {
 .button--primary {
   background: linear-gradient(135deg, var(--color-accent), var(--color-accent-strong));
   border-color: var(--color-accent);
-  box-shadow: 0 10px 22px color-mix(in srgb, var(--color-accent) 24%, transparent);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--color-accent) 18%, transparent);
   color: white;
 }
 
@@ -653,14 +655,16 @@ textarea:focus-visible {
 
 .task-card__marker {
   align-items: center;
-  background: var(--color-chip);
-  border: 1px solid var(--color-line);
-  border-radius: 0.85rem;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--color-accent) 9%, var(--color-chip)), var(--color-chip));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 24%, var(--color-line));
+  border-radius: var(--icon-badge-radius);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-surface-strong) 58%, transparent);
   color: var(--color-accent-strong);
   display: inline-flex;
-  height: 2rem;
+  height: 2.05rem;
   justify-content: center;
-  width: 2rem;
+  width: 2.05rem;
 }
 
 .task-card__header {
@@ -668,6 +672,10 @@ textarea:focus-visible {
   display: grid;
   gap: var(--space-3);
   grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.task-card__header > div {
+  min-width: 0;
 }
 
 .task-card__header h2 {
@@ -1239,15 +1247,17 @@ textarea:focus-visible {
 .library-card__icon,
 .reset-card__icon {
   align-items: center;
-  background: var(--color-chip);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--color-accent) 9%, var(--color-chip)), var(--color-chip));
   border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-line));
-  border-radius: 0.85rem;
+  border-radius: var(--icon-badge-radius);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-surface-strong) 58%, transparent);
   color: var(--color-accent-strong);
   display: inline-flex;
   flex: 0 0 auto;
-  height: 2.25rem;
+  height: var(--icon-badge-size);
   justify-content: center;
-  width: 2.25rem;
+  width: var(--icon-badge-size);
 }
 
 .plan-item__icon {
@@ -2599,6 +2609,7 @@ textarea:focus-visible {
   padding: var(--space-2) max(var(--space-2), env(safe-area-inset-left)) calc(var(--space-2) + env(safe-area-inset-bottom)) max(var(--space-2), env(safe-area-inset-right));
   position: fixed;
   right: 0;
+  z-index: 3;
 }
 
 .bottom-nav__button {
@@ -2670,8 +2681,17 @@ textarea:focus-visible {
     width: 2.45rem;
   }
 
+  .brand-copy p:last-child {
+    display: none;
+  }
+
   .theme-control {
-    min-width: 7rem;
+    font-size: 0.7rem;
+    min-width: 6.75rem;
+  }
+
+  .theme-control select {
+    padding: 0.38rem 0.65rem;
   }
 
   .auth-card {
@@ -2713,7 +2733,7 @@ textarea:focus-visible {
   .library-hero h1,
   .reset-hero h1,
   .setup-hero h1 {
-    font-size: 2.4rem;
+    font-size: 2.2rem;
   }
 
   .today-hero,
@@ -2722,13 +2742,18 @@ textarea:focus-visible {
   .reset-hero,
   .setup-hero {
     gap: var(--space-3);
-    padding: var(--space-4);
+    padding: var(--space-3);
   }
 
   .screen-hero__mark {
     border-radius: 0.9rem;
-    height: 3rem;
-    width: 3rem;
+    height: 2.75rem;
+    width: 2.75rem;
+  }
+
+  .screen-hero__mark .app-icon {
+    height: 1.35rem;
+    width: 1.35rem;
   }
 
   .section-heading {
