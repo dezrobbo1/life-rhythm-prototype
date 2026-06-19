@@ -313,7 +313,7 @@ textarea:focus-visible {
 .library-screen,
 .reset-screen,
 .setup-screen {
-  gap: var(--space-5);
+  gap: var(--space-4);
 }
 
 .today-hero,
@@ -328,9 +328,9 @@ textarea:focus-visible {
   border-radius: calc(var(--radius-card) + 0.25rem);
   box-shadow: var(--shadow-lift);
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   grid-template-columns: auto minmax(0, 1fr);
-  padding: var(--space-5);
+  padding: var(--space-4);
 }
 
 .today-hero h1,
@@ -338,7 +338,7 @@ textarea:focus-visible {
 .library-hero h1,
 .reset-hero h1,
 .setup-hero h1 {
-  font-size: 3.25rem;
+  font-size: 2.85rem;
   letter-spacing: 0;
   line-height: 0.95;
   margin: 0;
@@ -377,8 +377,14 @@ textarea:focus-visible {
 .reset-hero p:last-child,
 .setup-hero p:last-child {
   color: var(--color-muted);
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   margin: 0;
+}
+
+.today-screen > .card:first-of-type {
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-bg));
+  box-shadow: none;
+  padding: var(--space-4);
 }
 
 .today-state-panel {
@@ -474,8 +480,18 @@ textarea:focus-visible {
 
 .plan-adjusted {
   color: var(--color-accent-strong);
-  font-weight: 800;
-  margin: var(--space-3) 0 0;
+  font-size: 0.92rem;
+  font-weight: 780;
+  margin: var(--space-2) 0 0;
+}
+
+.today-screen [aria-label='Next useful action'] {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.today-screen [aria-label='Next useful action'] .section-label {
+  color: var(--color-accent-strong);
 }
 
 .today-feedback {
@@ -634,8 +650,10 @@ textarea:focus-visible {
 }
 
 .task-card {
-  background: var(--color-surface);
-  border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-line));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 4%, var(--color-surface)) 0, var(--color-surface) 42%),
+    var(--color-surface);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 34%, var(--color-line));
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-lift);
   display: grid;
@@ -754,6 +772,13 @@ textarea:focus-visible {
 
 .task-card__actions .button--primary {
   flex: 1 1 12rem;
+  min-height: 2.95rem;
+}
+
+.task-card__actions .button:not(.button--primary) {
+  background: color-mix(in srgb, var(--color-surface-strong) 78%, transparent);
+  box-shadow: none;
+  min-height: 2.4rem;
 }
 
 .task-card__continuation {
@@ -790,6 +815,13 @@ textarea:focus-visible {
   display: grid;
   gap: var(--space-3);
   padding: var(--space-4);
+}
+
+.task-card__version-options .button {
+  background: var(--color-chip);
+  border-color: color-mix(in srgb, var(--color-accent) 36%, var(--color-line));
+  color: var(--color-accent-strong);
+  justify-self: start;
 }
 
 .task-card__details {
@@ -1055,6 +1087,19 @@ textarea:focus-visible {
   margin: 0;
 }
 
+.soft-suggestions__header p:not(.section-label),
+.soft-placements__header p:not(.section-label) {
+  background: color-mix(in srgb, var(--color-chip) 58%, transparent);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  color: var(--color-accent-strong);
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 850;
+  margin: var(--space-1) var(--space-1) 0 0;
+  padding: 0.35rem 0.6rem;
+}
+
 .soft-suggestions__header p + p {
   margin-top: var(--space-1);
 }
@@ -1071,7 +1116,7 @@ textarea:focus-visible {
 .soft-suggestions__list li,
 .soft-suggestions__empty,
 .soft-suggestions__ask-first {
-  background: var(--color-surface-strong);
+  background: color-mix(in srgb, var(--color-surface-strong) 86%, var(--color-bg));
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   padding: var(--space-4);
@@ -1169,7 +1214,7 @@ textarea:focus-visible {
 
 .soft-placements__list li,
 .soft-placements__empty {
-  background: var(--color-surface-strong);
+  background: color-mix(in srgb, var(--color-surface-strong) 86%, var(--color-bg));
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -1440,7 +1485,7 @@ textarea:focus-visible {
 .library-create-card {
   align-items: center;
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
@@ -1452,7 +1497,7 @@ textarea:focus-visible {
 }
 
 .library-backup-checker {
-  background: var(--color-surface-strong);
+  background: color-mix(in srgb, var(--color-surface-strong) 76%, var(--color-bg));
   border: 1px solid var(--color-line);
   border-radius: 0.9rem;
   display: grid;
@@ -1485,7 +1530,7 @@ textarea:focus-visible {
 }
 
 .library-backup-field span {
-  color: var(--color-accent-strong);
+  color: var(--color-text);
   font-size: 0.85rem;
   font-weight: 850;
 }
@@ -1668,8 +1713,8 @@ textarea:focus-visible {
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-soft);
   display: grid;
-  gap: var(--space-4);
-  padding: var(--space-5);
+  gap: var(--space-3);
+  padding: var(--space-4);
 }
 
 .quick-pack h3,
@@ -1751,7 +1796,7 @@ textarea:focus-visible {
 }
 
 .library-card__size {
-  background: var(--color-surface-strong);
+  background: color-mix(in srgb, var(--color-surface-strong) 82%, var(--color-bg));
   border: 1px solid var(--color-line);
   border-radius: 0.9rem;
   display: grid;
@@ -1841,6 +1886,17 @@ textarea:focus-visible {
   padding: var(--space-5);
 }
 
+.reset-card {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-chip) 36%, var(--color-surface)) 0, var(--color-surface) 64%),
+    var(--color-surface);
+}
+
+.reset-secondary {
+  background: color-mix(in srgb, var(--color-surface-strong) 72%, var(--color-surface));
+  box-shadow: none;
+}
+
 .reset-card--destructive,
 .reset-danger-zone {
   border-color: color-mix(in srgb, var(--color-danger-line) 35%, var(--color-line));
@@ -1882,6 +1938,8 @@ textarea:focus-visible {
   background: var(--color-surface-strong);
   border: 1px solid var(--color-line);
   border-radius: 0.85rem;
+  color: var(--color-accent-strong) !important;
+  font-weight: 800;
   padding: var(--space-3);
 }
 
@@ -1930,6 +1988,8 @@ textarea:focus-visible {
 
 .reset-danger-zone {
   background: color-mix(in srgb, var(--color-surface) 86%, var(--color-danger-bg));
+  box-shadow: none;
+  opacity: 0.92;
 }
 
 .reset-danger-zone label {
@@ -2042,7 +2102,7 @@ textarea:focus-visible {
 
 .life-shape-control,
 .life-shape-fieldset {
-  background: var(--color-surface-strong);
+  background: color-mix(in srgb, var(--color-surface-strong) 84%, var(--color-bg));
   border: 1px solid var(--color-line);
   border-radius: 0.9rem;
   display: grid;
@@ -2172,7 +2232,7 @@ textarea:focus-visible {
 
 .setup-toggle {
   align-items: start;
-  background: var(--color-surface-strong);
+  background: color-mix(in srgb, var(--color-surface-strong) 84%, var(--color-bg));
   border: 1px solid var(--color-line);
   border-radius: 0.9rem;
   display: grid;
@@ -2215,13 +2275,17 @@ textarea:focus-visible {
 
 .setup-backup-panel,
 .setup-backup-checker {
-  background: var(--color-surface-strong);
+  background: color-mix(in srgb, var(--color-surface-strong) 72%, var(--color-bg));
   border: 1px solid var(--color-line);
   border-radius: 0.9rem;
   display: grid;
   gap: var(--space-3);
   margin-top: var(--space-4);
   padding: var(--space-4);
+}
+
+.setup-backup-checker {
+  opacity: 0.94;
 }
 
 .setup-subheading {
@@ -2294,6 +2358,30 @@ textarea:focus-visible {
   gap: var(--space-2);
   margin-top: var(--space-4);
   padding-top: var(--space-4);
+}
+
+.setup-later-actions .button {
+  background: transparent;
+}
+
+.setup-trial-limits {
+  background: color-mix(in srgb, var(--color-chip) 44%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 24%, var(--color-line));
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+}
+
+.setup-trial-limits p {
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.setup-trial-limits p:first-child {
+  color: var(--color-accent-strong);
+  font-weight: 850;
 }
 
 .setup-dev-card {
@@ -2733,7 +2821,7 @@ textarea:focus-visible {
   .library-hero h1,
   .reset-hero h1,
   .setup-hero h1 {
-    font-size: 2.2rem;
+    font-size: 1.95rem;
   }
 
   .today-hero,
@@ -2741,8 +2829,16 @@ textarea:focus-visible {
   .library-hero,
   .reset-hero,
   .setup-hero {
-    gap: var(--space-3);
+    gap: var(--space-2);
     padding: var(--space-3);
+  }
+
+  .today-hero p:last-child,
+  .plan-hero p:last-child,
+  .library-hero p:last-child,
+  .reset-hero p:last-child,
+  .setup-hero p:last-child {
+    font-size: 0.9rem;
   }
 
   .screen-hero__mark {
@@ -2799,6 +2895,23 @@ textarea:focus-visible {
 
   .library-create-card__actions {
     justify-content: start;
+  }
+
+  .task-card__actions .button,
+  .task-card__version-options .button,
+  .setup-action-row .button,
+  .library-backup-actions .button {
+    flex: 1 1 9rem;
+  }
+
+  .library-backup-preview div {
+    grid-template-columns: 1fr;
+  }
+
+  .setup-backup-panel,
+  .setup-backup-checker,
+  .life-shape-time-block {
+    padding: var(--space-3);
   }
 
   .plan-room-message span,

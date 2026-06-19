@@ -150,7 +150,7 @@ describe('Library screen', () => {
     expect(screen.getByRole('button', { name: 'Export Library rhythms backup' })).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Create pack later' }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/Create rhythm makes a reusable template/)).toBeTruthy();
-    expect(screen.getByText('Export creates a local JSON backup file for saved custom Library rhythms only.')).toBeTruthy();
+    expect(screen.getByText('Export creates a local backup file for saved custom Library rhythms only.')).toBeTruthy();
     expect(screen.getByText('It does not include Today tasks, settings, enablement, or packs.')).toBeTruthy();
     const card = screen.getByRole('article', { name: 'Breakfast reset' });
     expect(within(card).getByText('Food')).toBeTruthy();
@@ -305,10 +305,10 @@ describe('Library screen', () => {
     expect(screen.getByLabelText('Library rhythm backup JSON')).toBeTruthy();
     expect(screen.getByLabelText('Select Library backup file')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Check Library rhythms backup' })).toBeTruthy();
-    expect(screen.getByText('Export creates a local JSON backup file for saved custom Library rhythms only.')).toBeTruthy();
+    expect(screen.getByText('Export creates a local backup file for saved custom Library rhythms only.')).toBeTruthy();
     expect(screen.getByText('It does not include Today tasks, settings, enablement, or packs.')).toBeTruthy();
-    expect(screen.getByText('Read-only check. It validates a pasted or selected Library rhythms backup.')).toBeTruthy();
-    expect(screen.getByText('Restore/import is not connected yet.')).toBeTruthy();
+    expect(screen.getByText('Check only. Paste or select a Library rhythms backup.')).toBeTruthy();
+    expect(screen.getByText('Restore is not connected yet.')).toBeTruthy();
     expect(screen.getByText('Checking does not restore rhythms or change this device.')).toBeTruthy();
   });
 
@@ -321,7 +321,7 @@ describe('Library screen', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid. Restore/import is not connected yet.');
+    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid. Restore is not connected yet.');
     const preview = screen.getByLabelText('Library rhythm backup preview');
     expect(within(preview).getByText('1')).toBeTruthy();
     expect(within(preview).getByText('Backup paperwork rhythm')).toBeTruthy();
@@ -357,7 +357,7 @@ describe('Library screen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid. Restore/import is not connected yet.');
+    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid. Restore is not connected yet.');
     expect(screen.getByLabelText('Library rhythm backup preview').textContent).toContain('Backup paperwork rhythm');
   });
 

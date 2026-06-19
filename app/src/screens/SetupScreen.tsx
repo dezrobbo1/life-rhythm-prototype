@@ -286,7 +286,7 @@ export function SetupScreen({
     if (result.ok) {
       setSettingsBackupErrors([]);
       setSettingsBackupPreview(result.preview);
-      setStatus('Settings backup looks valid. Restore/import is not connected yet.');
+      setStatus('Settings backup looks valid. Restore is not connected yet.');
       return;
     }
 
@@ -301,7 +301,7 @@ export function SetupScreen({
     if (result.ok) {
       setSoftPlacementBackupErrors([]);
       setSoftPlacementBackupPreview(result.preview);
-      setStatus('Soft placement backup looks valid. Restore/import is not connected yet.');
+      setStatus('Soft placement backup looks valid. Restore is not connected yet.');
       return;
     }
 
@@ -361,7 +361,7 @@ export function SetupScreen({
     <div className="screen-stack setup-screen">
       <ScreenHero
         className="setup-hero"
-        eyebrow="Control room"
+        eyebrow="Local settings"
         icon="setup"
         tagline="Adjust the app without changing your whole day."
         title="Setup"
@@ -691,13 +691,13 @@ export function SetupScreen({
       <Card>
         <div className="setup-section-heading">
           <h2>Backup and recovery</h2>
-          <p>Export local JSON backups or check backup JSON. Checking does not restore or change this device.</p>
+          <p>Export backup files or check a backup. Checking does not restore or change this device.</p>
         </div>
         <p className="setup-note">{setupViewModel.dataPreview.copy}</p>
         <div className="setup-backup-panel">
           <div className="setup-subheading">
             <h3>Export settings</h3>
-            <p>Creates a local JSON backup file for settings and Life Shape only.</p>
+            <p>Creates a local backup file for settings and Life Shape only.</p>
             <p>It does not include Today tasks, Library rhythms, or soft placements.</p>
           </div>
           <div className="setup-action-row">
@@ -707,11 +707,11 @@ export function SetupScreen({
         <div className="setup-backup-checker" aria-labelledby="settings-backup-check-title">
           <div className="setup-subheading">
             <h3 id="settings-backup-check-title">Check settings backup</h3>
-            <p>Read-only check. It validates a pasted or selected settings backup.</p>
-            <p>Restore/import is not connected yet.</p>
+            <p>Check only. Paste or select a settings backup.</p>
+            <p>Restore is not connected yet.</p>
           </div>
           <label className="life-shape-control life-shape-control--wide">
-            <span>Settings backup JSON</span>
+            <span>Paste backup text</span>
             <textarea
               aria-label="Settings backup JSON"
               onChange={(event) => {
@@ -719,7 +719,7 @@ export function SetupScreen({
                 setSettingsBackupErrors([]);
                 setSettingsBackupPreview(null);
               }}
-              placeholder="Paste a settings backup JSON file here."
+              placeholder="Paste a settings backup file here."
               rows={6}
               value={settingsBackupJson}
             />
@@ -772,7 +772,7 @@ export function SetupScreen({
         <div className="setup-backup-panel">
           <div className="setup-subheading">
             <h3>Export soft placements</h3>
-            <p>Creates a local JSON backup file for saved soft placements, including removed placement state.</p>
+            <p>Creates a local backup file for saved soft placements, including removed placement state.</p>
             <p>It does not include tasks, settings, Library rhythms, or calendar events.</p>
           </div>
           <div className="setup-action-row">
@@ -782,11 +782,11 @@ export function SetupScreen({
         <div className="setup-backup-checker" aria-labelledby="soft-placement-backup-check-title">
           <div className="setup-subheading">
             <h3 id="soft-placement-backup-check-title">Check soft placement backup</h3>
-            <p>Read-only check. It validates a pasted or selected soft placement backup.</p>
-            <p>Restore/import is not connected yet. No calendar events are created.</p>
+            <p>Check only. Paste or select a soft placement backup.</p>
+            <p>Restore is not connected yet. No calendar events are created.</p>
           </div>
           <label className="life-shape-control life-shape-control--wide">
-            <span>Soft placement backup JSON</span>
+            <span>Paste backup text</span>
             <textarea
               aria-label="Soft placement backup JSON"
               onChange={(event) => {
@@ -794,7 +794,7 @@ export function SetupScreen({
                 setSoftPlacementBackupErrors([]);
                 setSoftPlacementBackupPreview(null);
               }}
-              placeholder="Paste a soft placement backup JSON file here."
+              placeholder="Paste a soft placement backup file here."
               rows={6}
               value={softPlacementBackupJson}
             />

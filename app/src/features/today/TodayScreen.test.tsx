@@ -197,7 +197,7 @@ describe('Today screen', () => {
 
     expect(screen.getByRole('heading', { name: 'Today task backup' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Export Today tasks backup' })).toBeTruthy();
-    expect(screen.getByText('Creates a local JSON backup file for active Today tasks only.')).toBeTruthy();
+    expect(screen.getByText('Creates a local backup file for Today tasks only.')).toBeTruthy();
     expect(screen.getByText('It does not include Library rhythms, settings, or soft placements.')).toBeTruthy();
   });
 
@@ -208,8 +208,8 @@ describe('Today screen', () => {
     expect(screen.getByLabelText('Today task backup JSON')).toBeTruthy();
     expect(screen.getByLabelText('Select Today tasks backup file')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Check Today tasks backup' })).toBeTruthy();
-    expect(screen.getByText('Read-only check. It validates a pasted or selected Today tasks backup.')).toBeTruthy();
-    expect(screen.getByText('Restore/import is not connected yet.')).toBeTruthy();
+    expect(screen.getByText('Check only. Paste or select a Today tasks backup.')).toBeTruthy();
+    expect(screen.getByText('Restore is not connected yet.')).toBeTruthy();
     expect(screen.getByText('Checking does not restore tasks or change this device.')).toBeTruthy();
   });
 
@@ -377,7 +377,7 @@ describe('Today screen', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Check Today tasks backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('Today tasks backup looks valid. Restore/import is not connected yet.');
+    expect(screen.getByRole('status').textContent).toContain('Today tasks backup looks valid. Restore is not connected yet.');
     const preview = screen.getByLabelText('Today task backup preview');
     expect(preview.textContent).toContain('Pay water bill (paused)');
     expect(preview.textContent).toContain('Tasks');
@@ -415,7 +415,7 @@ describe('Today screen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Check Today tasks backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('Today tasks backup looks valid. Restore/import is not connected yet.');
+    expect(screen.getByRole('status').textContent).toContain('Today tasks backup looks valid. Restore is not connected yet.');
     expect(screen.getByLabelText('Today task backup preview').textContent).toContain('Pay water bill (minimumDone)');
   });
 

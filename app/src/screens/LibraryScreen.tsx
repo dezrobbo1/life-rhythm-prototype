@@ -372,7 +372,7 @@ export function LibraryScreen() {
     if (result.ok) {
       setBackupErrors([]);
       setBackupPreview(result.preview);
-      setConfirmation('Library rhythms backup looks valid. Restore/import is not connected yet.');
+      setConfirmation('Library rhythms backup looks valid. Restore is not connected yet.');
       return;
     }
 
@@ -441,7 +441,7 @@ export function LibraryScreen() {
           <div>
             <h2 id="library-create-title">Create reusable support</h2>
             <p>Create rhythm makes a reusable template. Add to Today now is only for a one-off today action.</p>
-            <p>Export creates a local JSON backup file for saved custom Library rhythms only.</p>
+            <p>Export creates a local backup file for saved custom Library rhythms only.</p>
             <p>It does not include Today tasks, settings, enablement, or packs.</p>
           </div>
           <div className="library-create-card__actions">
@@ -456,11 +456,11 @@ export function LibraryScreen() {
         <section aria-labelledby="library-backup-check-title" className="library-backup-checker">
           <div className="library-subheading">
             <h2 id="library-backup-check-title">Check Library rhythms backup</h2>
-            <p>Read-only check. It validates a pasted or selected Library rhythms backup.</p>
-            <p>Restore/import is not connected yet.</p>
+            <p>Check only. Paste or select a Library rhythms backup.</p>
+            <p>Restore is not connected yet.</p>
           </div>
           <label className="library-backup-field">
-            <span>Library rhythm backup JSON</span>
+            <span>Paste backup text</span>
             <textarea
               aria-label="Library rhythm backup JSON"
               onChange={(event) => {
@@ -468,7 +468,7 @@ export function LibraryScreen() {
                 setBackupErrors([]);
                 setBackupPreview(null);
               }}
-              placeholder="Paste a Library rhythms backup JSON file here."
+              placeholder="Paste a Library rhythms backup file here."
               rows={6}
               value={backupJson}
             />
