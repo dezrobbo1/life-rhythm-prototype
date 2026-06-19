@@ -205,7 +205,7 @@ describe('Today screen', () => {
     render(<TodayScreen />);
 
     expect(screen.getByRole('heading', { name: 'Check Today tasks backup' })).toBeTruthy();
-    expect(screen.getByLabelText('Today task backup JSON')).toBeTruthy();
+    expect(screen.getByLabelText('Today task backup text')).toBeTruthy();
     expect(screen.getByLabelText('Select Today tasks backup file')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Check Today tasks backup' })).toBeTruthy();
     expect(screen.getByText('Check only. Paste or select a Today tasks backup.')).toBeTruthy();
@@ -372,7 +372,7 @@ describe('Today screen', () => {
     const user = userEvent.setup();
     render(<TodayScreen />);
 
-    fireEvent.change(screen.getByLabelText('Today task backup JSON'), {
+    fireEvent.change(screen.getByLabelText('Today task backup text'), {
       target: { value: validActiveTaskBackupJson({ status: 'paused' }) },
     });
     await user.click(screen.getByRole('button', { name: 'Check Today tasks backup' }));
@@ -390,7 +390,7 @@ describe('Today screen', () => {
     const user = userEvent.setup();
     render(<TodayScreen />);
 
-    fireEvent.change(screen.getByLabelText('Today task backup JSON'), {
+    fireEvent.change(screen.getByLabelText('Today task backup text'), {
       target: { value: '{ not json' },
     });
     await user.click(screen.getByRole('button', { name: 'Check Today tasks backup' }));
@@ -448,7 +448,7 @@ describe('Today screen', () => {
 
     expect(await screen.findByRole('article', { name: 'Pay water bill' })).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText('Today task backup JSON'), {
+    fireEvent.change(screen.getByLabelText('Today task backup text'), {
       target: { value: validActiveTaskBackupJson({ title: 'Different saved task' }) },
     });
     await user.click(screen.getByRole('button', { name: 'Check Today tasks backup' }));

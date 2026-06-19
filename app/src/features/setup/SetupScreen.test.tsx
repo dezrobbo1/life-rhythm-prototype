@@ -375,7 +375,7 @@ describe('Setup screen', () => {
     expect(screen.getByText('Creates a local backup file for saved soft placements, including removed placement state.')).toBeTruthy();
     expect(screen.getByText('It does not include tasks, settings, Library rhythms, or calendar events.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Check soft placement backup' })).toBeTruthy();
-    expect(screen.getByLabelText('Soft placement backup JSON')).toBeTruthy();
+    expect(screen.getByLabelText('Soft placement backup text')).toBeTruthy();
     expect(screen.getByLabelText('Select soft placement backup file')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Check soft placement backup' })).toBeTruthy();
     expect(screen.getByText('Check only. Paste or select a soft placement backup.')).toBeTruthy();
@@ -439,7 +439,7 @@ describe('Setup screen', () => {
         />,
       );
 
-      fireEvent.change(screen.getByLabelText('Soft placement backup JSON'), {
+      fireEvent.change(screen.getByLabelText('Soft placement backup text'), {
         target: {
           value: validSoftPlacementBackupJson(),
         },
@@ -472,7 +472,7 @@ describe('Setup screen', () => {
     const user = userEvent.setup();
     render(<SetupScreen />);
 
-    fireEvent.change(screen.getByLabelText('Soft placement backup JSON'), {
+    fireEvent.change(screen.getByLabelText('Soft placement backup text'), {
       target: {
         value: '{ not json',
       },
@@ -505,7 +505,7 @@ describe('Setup screen', () => {
     const user = userEvent.setup();
     render(<SetupScreen />);
 
-    fireEvent.change(screen.getByLabelText('Settings backup JSON'), {
+    fireEvent.change(screen.getByLabelText('Settings backup text'), {
       target: {
         value: validSettingsBackupJson(),
       },
@@ -526,7 +526,7 @@ describe('Setup screen', () => {
     const user = userEvent.setup();
     render(<SetupScreen />);
 
-    fireEvent.change(screen.getByLabelText('Settings backup JSON'), {
+    fireEvent.change(screen.getByLabelText('Settings backup text'), {
       target: {
         value: '{ not json',
       },

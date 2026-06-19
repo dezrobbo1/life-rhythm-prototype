@@ -462,7 +462,7 @@ export function LibraryScreen() {
           <label className="library-backup-field">
             <span>Paste backup text</span>
             <textarea
-              aria-label="Library rhythm backup JSON"
+              aria-label="Library rhythm backup text"
               onChange={(event) => {
                 setBackupJson(event.target.value);
                 setBackupErrors([]);

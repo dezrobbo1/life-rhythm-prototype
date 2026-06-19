@@ -1,7 +1,7 @@
 # Life Rhythm Current Design Spec
 Status: Living design specification
 Scope: Product direction, current implementation state, design boundaries, and near-term roadmap
-Last consolidated after: PR #64 - Soft placement backup export and validation preview
+Last consolidated after: PR #81 - Personal-trial visual polish
 ## 1. Product Identity
 Life Rhythm is a non-clinical self-management app for adults with ADHD traits or an ADHD diagnosis.
 It supports habits, rhythms, task initiation, re-entry after missed or disrupted days, protected time, and
@@ -42,7 +42,7 @@ Supporting principles:
 • Not today is allowed.
 • Blank time is not automatically task space.
 The product should help users protect their life from overfilling, not simply find more gaps to consume.
-## 3. Current Implementation State After PR #64
+## 3. Current Implementation State After PR #81
 The app now has a real local-first foundation. It is no longer only a static prototype shell.
 Implemented:
 • settings persistence
@@ -59,6 +59,7 @@ Implemented:
 • Add Library rhythm to Today
 • active task status persistence
 • Start / Pause / Resume / Minimum done
+• Minimum, normal, and full completion endpoints through existing task statuses
 • Stop here / Park / Not today
 • active task backup export
 • active task backup validation preview
@@ -68,6 +69,7 @@ Implemented:
 • calm Today card time-edge copy
 • Life Shape protected/recovery/loose/household/family/open-capacity blocks
 • Setup “Time to leave alone” controls
+• fixed commitments notes-only clarity for trial
 • read-only Day Shape preview in Plan
 • Re-entry review section in Today
 • read-only time-edge re-entry preview
@@ -87,6 +89,17 @@ Implemented:
 • signed-in account bar
 • user-scoped hashed local database namespaces
 • legacy local data handoff notice
+• Trial limits note in Setup
+• final personal-trial smoke QA completed
+• mobile trial polish pass completed
+• backup confidence copy pass completed
+• Reset relief-valve actions functional for trial
+• Narrow Today marks extra visible Today tasks notToday
+• Park extras safely marks extra visible Today tasks parked
+• Restart with one action surfaces the first visible Today task
+• Restore hidden items remains preview-only
+• Full app reset remains disabled and non-destructive
+• design-board visual alignment and polish passes through PR #81
 Not implemented yet:
 • missed-task detection
 • missed status persistence
@@ -105,9 +118,11 @@ Not implemented yet:
 Current practical status:
 • A basic personal manual trial can now exercise local settings, Library rhythms, active Today tasks,
 one-off time edges, protected time, Day Shape preview, Re-entry review, read-only soft suggestions,
-user-confirmed open-capacity soft placements, soft placement backups, and opt-in signed-in local profiles.
-• A meaningful personal trial is closer, but should still wait for trial hardening, smoke QA, and a basic
-review of the soft-placement loop on mobile.
+user-confirmed open-capacity soft placements, soft placement backups, Reset relief-valve actions, and
+opt-in signed-in local profiles.
+• A basic personal manual trial is ready with one browser, one device, and one stable URL.
+• Post-PR81 smoke confirmation is being added in the readiness report to reflect Reset functionality and
+visual/design-board polish.
 • External tester readiness should wait until onboarding, backup confidence, Clerk
 invite-only/public-signup configuration, and visual polish are stronger.
 ## 4. PR Milestone Snapshot
@@ -148,6 +163,19 @@ Recent key milestones:
 • PR #62: user-confirmed soft placement from open-capacity suggestions
 • PR #63: saved soft placements shown in Plan with safe removal
 • PR #64: soft placement backup export and read-only validation preview
+• PR #65: design spec updated through soft placement backup
+• PR #66: trial hardening smoke QA pass
+• PR #67: personal trial checklist
+• PR #68: personal trial launch note
+• PR #69: fixed commitments trial clarity
+• PR #70/#71: task completion endpoint clarity
+• PR #75: final personal trial smoke QA
+• PR #76: personal trial readiness report
+• PR #77: design-board visual alignment pass
+• PR #78: icon and brand system alignment
+• PR #79: design-board component rhythm polish
+• PR #80: Reset relief-valve actions trial-functional
+• PR #81: personal-trial visual polish
 The current app foundation is deliberately staged: schema and persistence first, then read-only previews,
 then controlled user-facing behaviour, then scheduler.
 
@@ -213,7 +241,7 @@ Life Shape currently includes:
 • usual work hours
 • meal anchors
 • sleep/wake anchors
-• fixed commitments
+• fixed commitments notes-only for trial
 • commute/travel
 • transition buffers
 • low-capacity preference
@@ -561,17 +589,24 @@ Auth should not be added casually. It changes privacy expectations.
 ## 13. Trial Readiness
 There are three trial levels.
 Basic personal manual trial
-Closer, and now representative enough for focused smoke QA.
+Ready for a basic personal manual trial with one browser, one device, and one stable URL.
 The app can already support local settings, Library, Today tasks, task states, backups, protected time blocks,
 Day Shape preview, Add one-off time edges, Re-entry review, read-only soft suggestions, user-confirmed
-open-capacity soft placements, saved soft placements, soft placement backups, and opt-in local signed-in
-profiles. However, it does not yet have missed-task detection, askFirst placement, move/edit placement,
+open-capacity soft placements, saved soft placements, soft placement backups, Reset relief-valve actions,
+Trial limits copy, fixed-commitments notes-only clarity, and opt-in local signed-in profiles. However, it does
+not yet have missed-task detection, askFirst placement, move/edit placement,
 calendar integration, AI suggestions, import/restore execution, or external tester readiness.
 Meaningful personal trial
-Likely after:
+The next useful step is to run the personal trial and review what breaks or feels confusing after real use.
+The app has completed:
 • trial hardening / smoke QA
-• basic mobile pass
+• basic mobile polish
+• Reset relief-valve functionality for safe Today-task narrowing and parking
+• backup confidence copy pass
+• design-board visual polish passes through PR #81
+Meaningful learning should come from:
 • review of one-week backup/export confidence
+• review of Reset relief-valve usefulness
 • optional move/edit soft placement decision
 • Clerk invite-only/public-signup operational verification if auth is enabled
 This is the point where the app can be used for a week and produce useful learning.
@@ -587,24 +622,20 @@ Should wait until:
 • language has had a non-clinical safety pass
 The app should not be given to external ADHD testers while major daily-loop assumptions are still unstable.
 ## 14. Design-Board Parity
-The app currently has stronger foundations than visual polish.
-It does not yet fully match the design boards. That is expected because the build sequence deliberately
-prioritised persistence, schema boundaries, backup safety, and behaviour before visual parity.
-Do not chase full design-board parity before the daily loop is stable. Otherwise the team may polish screens
-that still need structural changes.
-Future design-board alignment sequence:
-1. App shell / navigation / spacing / typography pass
-2. Today screen alignment
-3. Plan and Day Shape visual alignment
-4. Library screen alignment
-5. Setup / backup / recovery alignment
-6. Mobile and tap-target polish
-7. Calm empty-state and error-state copy pass
-Design-board work should happen after:
-• trial hardening
-• the current soft-placement loop has been reviewed on mobile
-• askFirst and move/edit placement boundaries are decided
-The visual direction should preserve:
+The app now has several design-board alignment passes applied through PR #81.
+Those passes improved:
+• app shell, navigation, spacing, and typography
+• icon and brand system alignment
+• Today one-action-first hierarchy
+• Task Card action hierarchy
+• Plan soft suggestions and saved placement scanning
+• Library catalogue hierarchy
+• Reset relief-valve feel
+• Setup density and backup/check hierarchy
+• mobile spacing and tap-target polish
+It still does not claim full design-board parity. That remains a separate quality pass after real personal-trial
+learning, especially once askFirst and move/edit placement boundaries are decided.
+Remaining design-board alignment work should preserve:
 • calm surfaces
 • low visual pressure
 • no competitive/gamified status
@@ -632,15 +663,14 @@ Do not use it for:
 The main GitHub repo remains the trusted implementation path.
 ## 16. Current Near-Term Roadmap
 Recommended next sequence:
-1. Update design spec through soft placement backup
-2. Trial hardening / smoke QA
-3. Optional move/edit soft placement contract or implementation
-4. Ask-first placement contract before any askFirst acceptance
-5. Personal trial readiness pass
-6. Visual design-board alignment
-7. Clerk invite-only/public-signup operational verification
-8. External tester preparation
-9. Cloud sync contract only if later trial learning shows a clear need
+1. Post-PR81 trial readiness reconciliation
+2. Start the basic personal manual trial
+3. Review the one-week issue log and backup/export confidence
+4. Decide whether move/edit soft placement needs a contract or implementation next
+5. Add an askFirst placement contract before any askFirst acceptance
+6. Operationally verify Clerk invite-only/public-signup settings before external testers
+7. Prepare external testers only after personal trial learning
+8. Add a cloud sync contract only if later trial learning shows a clear need
 Cloud sync remains intentionally unimplemented.
 ## 17. Open Decisions
 Open product and implementation decisions:

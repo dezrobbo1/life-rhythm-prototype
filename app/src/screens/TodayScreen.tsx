@@ -725,7 +725,7 @@ export function TodayScreen() {
           <label className="library-backup-field">
             <span>Paste backup text</span>
             <textarea
-              aria-label="Today task backup JSON"
+              aria-label="Today task backup text"
               onChange={(event) => {
                 setBackupCheckJson(event.target.value);
                 setBackupCheckErrors([]);
