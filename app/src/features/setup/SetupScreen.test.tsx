@@ -336,7 +336,7 @@ describe('Setup screen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Export settings backup' }));
 
-    expect(screen.getByText('Creates a local JSON backup file for settings and Life Shape only.')).toBeTruthy();
+    expect(screen.getByText('Creates a local backup file for settings and Life Shape only.')).toBeTruthy();
     expect(screen.getByText('It does not include Today tasks, Library rhythms, or soft placements.')).toBeTruthy();
     expect(screen.getByText('Export settings')).toBeTruthy();
     expect(screen.getByRole('status').textContent).toContain('Settings backup created on this device.');
@@ -372,14 +372,14 @@ describe('Setup screen', () => {
 
     expect(screen.getByRole('heading', { name: 'Export soft placements' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Export soft placement backup' })).toBeTruthy();
-    expect(screen.getByText('Creates a local JSON backup file for saved soft placements, including removed placement state.')).toBeTruthy();
+    expect(screen.getByText('Creates a local backup file for saved soft placements, including removed placement state.')).toBeTruthy();
     expect(screen.getByText('It does not include tasks, settings, Library rhythms, or calendar events.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Check soft placement backup' })).toBeTruthy();
     expect(screen.getByLabelText('Soft placement backup JSON')).toBeTruthy();
     expect(screen.getByLabelText('Select soft placement backup file')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Check soft placement backup' })).toBeTruthy();
-    expect(screen.getByText('Read-only check. It validates a pasted or selected soft placement backup.')).toBeTruthy();
-    expect(screen.getByText('Restore/import is not connected yet. No calendar events are created.')).toBeTruthy();
+    expect(screen.getByText('Check only. Paste or select a soft placement backup.')).toBeTruthy();
+    expect(screen.getByText('Restore is not connected yet. No calendar events are created.')).toBeTruthy();
     expect(screen.getByText('Checking does not restore placements or change this device.')).toBeTruthy();
   });
 
@@ -446,7 +446,7 @@ describe('Setup screen', () => {
       });
       await user.click(screen.getByRole('button', { name: 'Check soft placement backup' }));
 
-      expect(screen.getByRole('status').textContent).toContain('Soft placement backup looks valid. Restore/import is not connected yet.');
+      expect(screen.getByRole('status').textContent).toContain('Soft placement backup looks valid. Restore is not connected yet.');
       const preview = screen.getByLabelText('Soft placement backup preview');
       expect(preview.textContent).toContain('Placements');
       expect(preview.textContent).toContain('2');
@@ -497,7 +497,7 @@ describe('Setup screen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Check soft placement backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('Soft placement backup looks valid. Restore/import is not connected yet.');
+    expect(screen.getByRole('status').textContent).toContain('Soft placement backup looks valid. Restore is not connected yet.');
     expect(screen.getByLabelText('Soft placement backup preview').textContent).toContain('Send the form');
   });
 
@@ -512,9 +512,9 @@ describe('Setup screen', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Check settings backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('Settings backup looks valid. Restore/import is not connected yet.');
-    expect(screen.getByText('Read-only check. It validates a pasted or selected settings backup.')).toBeTruthy();
-    expect(screen.getByText('Restore/import is not connected yet.')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toContain('Settings backup looks valid. Restore is not connected yet.');
+    expect(screen.getByText('Check only. Paste or select a settings backup.')).toBeTruthy();
+    expect(screen.getByText('Restore is not connected yet.')).toBeTruthy();
     expect(screen.getByText('Theme')).toBeTruthy();
     expect(screen.getByText('clear')).toBeTruthy();
     expect(screen.getByText('4 safety choices on')).toBeTruthy();

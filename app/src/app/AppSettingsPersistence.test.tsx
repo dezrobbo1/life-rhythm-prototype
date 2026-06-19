@@ -257,7 +257,7 @@ describe('App settings persistence wiring', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Check settings backup' }));
 
-    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Settings backup looks valid. Restore/import is not connected yet.'));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Settings backup looks valid. Restore is not connected yet.'));
     expect(settingsMocks.saveSettings).not.toHaveBeenCalled();
     expect(settingsMocks.resetSettingsToDefaults).not.toHaveBeenCalled();
     expect(settingsExportMocks.exportSettingsBackup).not.toHaveBeenCalled();

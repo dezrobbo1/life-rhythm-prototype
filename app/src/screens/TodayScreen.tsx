@@ -597,7 +597,7 @@ export function TodayScreen() {
           title: task.title,
         })),
       });
-      setBackupFeedback('Today tasks backup looks valid. Restore/import is not connected yet.');
+      setBackupFeedback('Today tasks backup looks valid. Restore is not connected yet.');
       return;
     }
 
@@ -711,7 +711,7 @@ export function TodayScreen() {
         <section aria-labelledby="today-backup-title" className="today-one-off">
           <div>
             <h2 id="today-backup-title">Today task backup</h2>
-            <p>Creates a local JSON backup file for active Today tasks only.</p>
+            <p>Creates a local backup file for Today tasks only.</p>
             <p>It does not include Library rhythms, settings, or soft placements.</p>
           </div>
           <Button onClick={exportTodayTasksBackup}>Export Today tasks backup</Button>
@@ -719,11 +719,11 @@ export function TodayScreen() {
         <section aria-labelledby="today-backup-check-title" className="library-backup-checker">
           <div className="library-subheading">
             <h2 id="today-backup-check-title">Check Today tasks backup</h2>
-            <p>Read-only check. It validates a pasted or selected Today tasks backup.</p>
-            <p>Restore/import is not connected yet.</p>
+            <p>Check only. Paste or select a Today tasks backup.</p>
+            <p>Restore is not connected yet.</p>
           </div>
           <label className="library-backup-field">
-            <span>Today task backup JSON</span>
+            <span>Paste backup text</span>
             <textarea
               aria-label="Today task backup JSON"
               onChange={(event) => {
@@ -731,7 +731,7 @@ export function TodayScreen() {
                 setBackupCheckErrors([]);
                 setBackupCheckPreview(null);
               }}
-              placeholder="Paste a Today tasks backup JSON file here."
+              placeholder="Paste a Today tasks backup file here."
               rows={6}
               value={backupCheckJson}
             />
