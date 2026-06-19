@@ -4,7 +4,7 @@ import type { ResetAction } from './mockResetData';
 
 type ResetActionCardProps = {
   action: ResetAction;
-  onRunAction: (action: ResetAction) => void;
+  onRunAction: (action: ResetAction) => void | Promise<void>;
 };
 
 const resetActionIcons: Record<ResetAction['id'], AppIconName> = {
@@ -29,7 +29,7 @@ export function ResetActionCard({ action, onRunAction }: ResetActionCardProps) {
             <p>{action.purpose}</p>
           </div>
         </div>
-        <span>{action.affectedMockItemCount === 1 ? '1 mock item' : `${action.affectedMockItemCount} mock items`}</span>
+        <span>{action.destructive ? 'Not enabled' : 'Today support'}</span>
       </div>
       <p className="reset-card__when">{action.recommendedWhen}</p>
       <p className="reset-card__boundary">{action.boundaryNote}</p>

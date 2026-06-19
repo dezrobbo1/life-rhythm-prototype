@@ -133,9 +133,17 @@ export const resetActions: SnapshotResetAction[] = [
   {
     id: 'tooMuchToday',
     group: 'main',
-    title: 'Too much today',
-    purpose: 'Hide the extras so the next step can breathe.',
-    confirmationCopy: 'Hidden, not deleted.',
+    title: 'Narrow Today',
+    purpose: 'Keep one next action visible and move extras out of Today.',
+    confirmationCopy: 'Today is narrowed to one next action. Extras are marked not today. No catch-up pile.',
+    destructive: false,
+  },
+  {
+    id: 'moveExtras',
+    group: 'main',
+    title: 'Park extras safely',
+    purpose: 'Hold extra Today tasks safely so one next action remains.',
+    confirmationCopy: 'Extras are parked safely. One next action remains. No catch-up pile.',
     destructive: false,
   },
   {
@@ -158,8 +166,8 @@ export const resetActions: SnapshotResetAction[] = [
     id: 'fullAppReset',
     group: 'destructive',
     title: 'Reset whole app',
-    purpose: 'Protected destructive reset placeholder.',
-    confirmationCopy: 'Mock full reset confirmed. No real data was cleared.',
+    purpose: 'Protected destructive reset placeholder for a future flow.',
+    confirmationCopy: 'Full app reset is not enabled for this trial. No data is cleared.',
     destructive: true,
   },
 ];
