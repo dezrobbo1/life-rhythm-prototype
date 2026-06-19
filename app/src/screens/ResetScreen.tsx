@@ -88,9 +88,12 @@ export function ResetScreen() {
   return (
     <div className="screen-stack reset-screen">
       <section className="reset-hero" aria-labelledby="reset-title">
-        <p className="eyebrow">Re-entry surface</p>
-        <h1 id="reset-title">Reset</h1>
-        <p>{resetViewModel.headline}</p>
+        <span className="screen-hero__mark" aria-hidden="true">R</span>
+        <div className="screen-hero__content">
+          <p className="eyebrow">Re-entry surface</p>
+          <h1 id="reset-title">Reset</h1>
+          <p>{resetViewModel.headline}</p>
+        </div>
       </section>
 
       {confirmation ? <p className="reset-confirmation" role="status">{confirmation}</p> : null}

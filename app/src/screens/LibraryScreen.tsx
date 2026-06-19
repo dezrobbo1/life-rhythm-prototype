@@ -428,9 +428,12 @@ export function LibraryScreen() {
   return (
     <div className="screen-stack library-screen">
       <section className="library-hero" aria-labelledby="library-title">
-        <p className="eyebrow">Rhythm catalogue</p>
-        <h1 id="library-title">Library</h1>
-        <p>Turn on rhythms when they are useful. Today only shows what fits.</p>
+        <span className="screen-hero__mark" aria-hidden="true">L</span>
+        <div className="screen-hero__content">
+          <p className="eyebrow">Rhythm catalogue</p>
+          <h1 id="library-title">Library</h1>
+          <p>Turn on rhythms when they are useful. Today only shows what fits.</p>
+        </div>
       </section>
 
       <Card>

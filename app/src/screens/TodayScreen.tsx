@@ -626,9 +626,12 @@ export function TodayScreen() {
   return (
     <div className="screen-stack today-screen">
       <section className="today-hero" aria-labelledby="today-title">
-        <p className="eyebrow">{todayLabel}</p>
-        <h1 id="today-title">Today</h1>
-        <p>One useful next action. The rest can stay light.</p>
+        <span className="screen-hero__mark" aria-hidden="true">T</span>
+        <div className="screen-hero__content">
+          <p className="eyebrow">{todayLabel}</p>
+          <h1 id="today-title">Today</h1>
+          <p>One useful next action. The rest can stay light.</p>
+        </div>
       </section>
 
       <Card>
