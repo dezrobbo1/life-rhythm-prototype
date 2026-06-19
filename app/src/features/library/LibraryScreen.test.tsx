@@ -150,7 +150,8 @@ describe('Library screen', () => {
     expect(screen.getByRole('button', { name: 'Export Library rhythms backup' })).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Create pack later' }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/Create rhythm makes a reusable template/)).toBeTruthy();
-    expect(screen.getByText(/This backup includes saved custom Library rhythms only. It does not include Today tasks./)).toBeTruthy();
+    expect(screen.getByText('Export creates a local JSON backup file for saved custom Library rhythms only.')).toBeTruthy();
+    expect(screen.getByText('It does not include Today tasks, settings, enablement, or packs.')).toBeTruthy();
     const card = screen.getByRole('article', { name: 'Breakfast reset' });
     expect(within(card).getByText('Food')).toBeTruthy();
     expect(within(card).getByText('Make the first food step visible and small.')).toBeTruthy();
@@ -304,7 +305,11 @@ describe('Library screen', () => {
     expect(screen.getByLabelText('Library rhythm backup JSON')).toBeTruthy();
     expect(screen.getByLabelText('Select Library backup file')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Check Library rhythms backup' })).toBeTruthy();
-    expect(screen.getByText('Checking a backup does not change anything on this device. Restore is not connected yet.')).toBeTruthy();
+    expect(screen.getByText('Export creates a local JSON backup file for saved custom Library rhythms only.')).toBeTruthy();
+    expect(screen.getByText('It does not include Today tasks, settings, enablement, or packs.')).toBeTruthy();
+    expect(screen.getByText('Read-only check. It validates a pasted or selected Library rhythms backup.')).toBeTruthy();
+    expect(screen.getByText('Restore/import is not connected yet.')).toBeTruthy();
+    expect(screen.getByText('Checking does not restore rhythms or change this device.')).toBeTruthy();
   });
 
   it('validates pasted Library backup JSON and shows a preview without saving', async () => {
@@ -316,7 +321,7 @@ describe('Library screen', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid. Restore is not connected yet.');
+    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid. Restore/import is not connected yet.');
     const preview = screen.getByLabelText('Library rhythm backup preview');
     expect(within(preview).getByText('1')).toBeTruthy();
     expect(within(preview).getByText('Backup paperwork rhythm')).toBeTruthy();
@@ -334,7 +339,7 @@ describe('Library screen', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('This Library rhythms backup could not be used.');
+    expect(screen.getByRole('status').textContent).toContain('This Library rhythms backup could not be used. Nothing changed on this device.');
     expect(screen.getByRole('list', { name: 'Library rhythm backup errors' }).textContent).toContain('malformed');
     expect(screen.queryByRole('article', { name: 'Backup paperwork rhythm' })).toBeNull();
     expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
@@ -352,7 +357,7 @@ describe('Library screen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid. Restore is not connected yet.');
+    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid. Restore/import is not connected yet.');
     expect(screen.getByLabelText('Library rhythm backup preview').textContent).toContain('Backup paperwork rhythm');
   });
 
@@ -366,7 +371,7 @@ describe('Library screen', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('This Library rhythms backup could not be used.');
+    expect(screen.getByRole('status').textContent).toContain('This Library rhythms backup could not be used. Nothing changed on this device.');
     expect(screen.getByRole('list', { name: 'Library rhythm backup errors' }).textContent).toContain('malformed');
   });
 

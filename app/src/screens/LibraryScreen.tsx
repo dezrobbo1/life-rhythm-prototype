@@ -372,13 +372,13 @@ export function LibraryScreen() {
     if (result.ok) {
       setBackupErrors([]);
       setBackupPreview(result.preview);
-      setConfirmation('Library rhythms backup looks valid. Restore is not connected yet.');
+      setConfirmation('Library rhythms backup looks valid. Restore/import is not connected yet.');
       return;
     }
 
     setBackupErrors(result.errors);
     setBackupPreview(null);
-    setConfirmation('This Library rhythms backup could not be used.');
+    setConfirmation('This Library rhythms backup could not be used. Nothing changed on this device.');
   }
 
   async function readLibraryRhythmBackupFile(event: ChangeEvent<HTMLInputElement>) {
@@ -394,7 +394,7 @@ export function LibraryScreen() {
     } catch {
       setBackupErrors(['backup: Library rhythms backup file could not be read.']);
       setBackupPreview(null);
-      setConfirmation('This Library rhythms backup could not be used.');
+      setConfirmation('This Library rhythms backup could not be used. Nothing changed on this device.');
     }
   }
 
@@ -437,10 +437,9 @@ export function LibraryScreen() {
         <section aria-labelledby="library-create-title" className="library-create-card">
           <div>
             <h2 id="library-create-title">Create reusable support</h2>
-            <p>
-              Create rhythm makes a reusable template. Add to Today now is only for a one-off today action.
-              This backup includes saved custom Library rhythms only. It does not include Today tasks.
-            </p>
+            <p>Create rhythm makes a reusable template. Add to Today now is only for a one-off today action.</p>
+            <p>Export creates a local JSON backup file for saved custom Library rhythms only.</p>
+            <p>It does not include Today tasks, settings, enablement, or packs.</p>
           </div>
           <div className="library-create-card__actions">
             <Button onClick={() => setCreateRhythmOpen(true)} variant="primary">Create rhythm</Button>
@@ -454,7 +453,8 @@ export function LibraryScreen() {
         <section aria-labelledby="library-backup-check-title" className="library-backup-checker">
           <div className="library-subheading">
             <h2 id="library-backup-check-title">Check Library rhythms backup</h2>
-            <p>Checking a backup does not change anything on this device. Restore is not connected yet.</p>
+            <p>Read-only check. It validates a pasted or selected Library rhythms backup.</p>
+            <p>Restore/import is not connected yet.</p>
           </div>
           <label className="library-backup-field">
             <span>Library rhythm backup JSON</span>
@@ -469,7 +469,7 @@ export function LibraryScreen() {
               rows={6}
               value={backupJson}
             />
-            <small>This checks saved custom Library rhythm backups only. It does not restore rhythms.</small>
+            <small>Checking does not restore rhythms or change this device.</small>
           </label>
           <div className="library-backup-actions">
             <label className="library-file-picker">
