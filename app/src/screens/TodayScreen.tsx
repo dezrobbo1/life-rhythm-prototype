@@ -597,13 +597,13 @@ export function TodayScreen() {
           title: task.title,
         })),
       });
-      setBackupFeedback('Today tasks backup looks valid. Restore is not connected yet.');
+      setBackupFeedback('Today tasks backup looks valid. Restore/import is not connected yet.');
       return;
     }
 
     setBackupCheckErrors(result.errors);
     setBackupCheckPreview(null);
-    setBackupFeedback('This Today tasks backup could not be used.');
+    setBackupFeedback('This Today tasks backup could not be used. Nothing changed on this device.');
   }
 
   async function readTodayTasksBackupFile(event: ChangeEvent<HTMLInputElement>) {
@@ -619,7 +619,7 @@ export function TodayScreen() {
     } catch {
       setBackupCheckErrors(['backup: Today tasks backup file could not be read.']);
       setBackupCheckPreview(null);
-      setBackupFeedback('This Today tasks backup could not be used.');
+      setBackupFeedback('This Today tasks backup could not be used. Nothing changed on this device.');
     }
   }
 
@@ -708,14 +708,16 @@ export function TodayScreen() {
         <section aria-labelledby="today-backup-title" className="today-one-off">
           <div>
             <h2 id="today-backup-title">Today task backup</h2>
-            <p>This backup includes Today tasks only. It does not include Library rhythms or settings.</p>
+            <p>Creates a local JSON backup file for active Today tasks only.</p>
+            <p>It does not include Library rhythms, settings, or soft placements.</p>
           </div>
           <Button onClick={exportTodayTasksBackup}>Export Today tasks backup</Button>
         </section>
         <section aria-labelledby="today-backup-check-title" className="library-backup-checker">
           <div className="library-subheading">
             <h2 id="today-backup-check-title">Check Today tasks backup</h2>
-            <p>Checking a backup does not change anything on this device. Restore is not connected yet.</p>
+            <p>Read-only check. It validates a pasted or selected Today tasks backup.</p>
+            <p>Restore/import is not connected yet.</p>
           </div>
           <label className="library-backup-field">
             <span>Today task backup JSON</span>
@@ -730,7 +732,7 @@ export function TodayScreen() {
               rows={6}
               value={backupCheckJson}
             />
-            <small>This checks Today task backups only. It does not restore tasks.</small>
+            <small>Checking does not restore tasks or change this device.</small>
           </label>
           <div className="library-backup-actions">
             <label className="library-file-picker">
