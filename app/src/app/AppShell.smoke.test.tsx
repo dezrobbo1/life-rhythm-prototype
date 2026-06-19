@@ -21,26 +21,34 @@ describe('five-tab app shell', () => {
     expect(screen.getByText('Personal trial')).toBeTruthy();
     expect(screen.getByText('Start small. Keep rhythm.')).toBeTruthy();
     expect(document.querySelector('.brand-mark')).toBeTruthy();
+    expect(document.querySelector('.brand-mark svg')).toBeTruthy();
     expect(document.querySelectorAll('.bottom-nav__icon')).toHaveLength(5);
+    expect(document.querySelectorAll('.bottom-nav__icon .app-icon')).toHaveLength(5);
 
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
     expect(screen.getByText('Next useful action')).toBeTruthy();
     expect(document.querySelector('.today-hero .screen-hero__mark')).toBeTruthy();
+    expect(document.querySelector('.today-hero .screen-hero__mark .app-icon')).toBeTruthy();
+    expect(document.querySelector('.task-card__marker .app-icon')).toBeTruthy();
 
     await user.click(within(nav).getByRole('button', { name: 'Plan' }));
     expect(screen.getByRole('heading', { name: 'Plan' })).toBeTruthy();
     expect(screen.getByLabelText('Broad day blocks')).toBeTruthy();
     expect(document.querySelector('.plan-hero .screen-hero__mark')).toBeTruthy();
+    expect(document.querySelector('.plan-block__icon .app-icon')).toBeTruthy();
+    expect(document.querySelector('.plan-item__icon .app-icon')).toBeTruthy();
 
     await user.click(within(nav).getByRole('button', { name: 'Library' }));
     expect(screen.getByRole('heading', { name: 'Library' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Quick packs' })).toBeTruthy();
     expect(document.querySelector('.library-hero .screen-hero__mark')).toBeTruthy();
+    expect(document.querySelector('.library-card__icon .app-icon')).toBeTruthy();
 
     await user.click(within(nav).getByRole('button', { name: 'Reset' }));
     expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Daily reset actions' })).toBeTruthy();
     expect(document.querySelector('.reset-hero .screen-hero__mark')).toBeTruthy();
+    expect(document.querySelector('.reset-card__icon .app-icon')).toBeTruthy();
 
     await user.click(within(nav).getByRole('button', { name: 'Setup' }));
     expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();

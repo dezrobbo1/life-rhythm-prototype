@@ -1,14 +1,16 @@
 import type { ReactNode } from 'react';
 import { themeLabels, themes, type ThemeName } from '../../app/theme';
+import { AppIcon, type AppIconName } from '../AppIcon/AppIcon';
+import { BrandMark } from '../BrandMark/BrandMark';
 
 export type ScreenId = 'today' | 'plan' | 'library' | 'reset' | 'setup';
 
-const navItems: Array<{ id: ScreenId; icon: string; label: string }> = [
-  { id: 'today', icon: 'T', label: 'Today' },
-  { id: 'plan', icon: 'P', label: 'Plan' },
-  { id: 'library', icon: 'L', label: 'Library' },
-  { id: 'reset', icon: 'R', label: 'Reset' },
-  { id: 'setup', icon: 'S', label: 'Setup' },
+const navItems: Array<{ id: ScreenId; icon: AppIconName; label: string }> = [
+  { id: 'today', icon: 'today', label: 'Today' },
+  { id: 'plan', icon: 'plan', label: 'Plan' },
+  { id: 'library', icon: 'library', label: 'Library' },
+  { id: 'reset', icon: 'reset', label: 'Reset' },
+  { id: 'setup', icon: 'setup', label: 'Setup' },
 ];
 
 type AppShellProps = {
@@ -30,11 +32,7 @@ export function AppShell({
     <div className="app-shell" data-theme={theme}>
       <header className="app-header">
         <div className="brand-lockup">
-          <span className="brand-mark" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
+          <BrandMark />
           <div className="brand-copy">
             <p className="eyebrow">Personal trial</p>
             <h1>Life Rhythm</h1>
@@ -63,7 +61,7 @@ export function AppShell({
             type="button"
           >
             <span className="bottom-nav__icon" aria-hidden="true">
-              {item.icon}
+              <AppIcon name={item.icon} size={18} />
             </span>
             <span className="bottom-nav__label">
               {item.label}

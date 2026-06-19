@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Card } from '../components';
+import { Button, Card, ScreenHero } from '../components';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import { ResetActionCard } from '../features/reset/ResetActionCard';
 import {
@@ -87,14 +87,14 @@ export function ResetScreen() {
 
   return (
     <div className="screen-stack reset-screen">
-      <section className="reset-hero" aria-labelledby="reset-title">
-        <span className="screen-hero__mark" aria-hidden="true">R</span>
-        <div className="screen-hero__content">
-          <p className="eyebrow">Re-entry surface</p>
-          <h1 id="reset-title">Reset</h1>
-          <p>{resetViewModel.headline}</p>
-        </div>
-      </section>
+      <ScreenHero
+        className="reset-hero"
+        eyebrow="Re-entry surface"
+        icon="reset"
+        tagline={resetViewModel.headline}
+        title="Reset"
+        titleId="reset-title"
+      />
 
       {confirmation ? <p className="reset-confirmation" role="status">{confirmation}</p> : null}
 

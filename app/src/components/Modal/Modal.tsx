@@ -1,5 +1,6 @@
 import { useEffect, useId } from 'react';
 import type { ReactNode } from 'react';
+import { AppIcon } from '../AppIcon/AppIcon';
 
 type ModalProps = {
   children: ReactNode;
@@ -32,7 +33,8 @@ export function Modal({ children, onClose, open, title }: ModalProps) {
         <div className="modal__header">
           <h2 id={titleId}>{title}</h2>
           <button aria-label={`Close ${title}`} className="modal__close" onClick={onClose} type="button">
-            Close
+            <AppIcon name="x" size={18} />
+            <span>Close</span>
           </button>
         </div>
         {children}

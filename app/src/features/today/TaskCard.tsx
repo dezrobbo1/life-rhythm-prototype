@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Button, Chip } from '../../components';
+import { AppIcon, Button, Chip } from '../../components';
+import type { AppIconName } from '../../components/AppIcon/AppIcon';
 import type { MockTask, TodayState } from './mockTodayData';
 import { stateActionTone } from './mockTodayData';
 
@@ -31,6 +32,24 @@ const missedPolicyLabels: Record<NonNullable<NonNullable<MockTask['timeEdge']>['
   notToday: 'Not today',
   park: 'Park',
 };
+
+function taskIconName(task: MockTask): AppIconName {
+  const marker = `${task.areaIcon} ${task.area}`.toLowerCase();
+
+  if (marker.includes('food') || marker.includes('meal')) return 'food';
+  if (marker.includes('home') || marker.includes('house')) return 'home';
+  if (marker.includes('work')) return 'work';
+  if (marker.includes('move') || marker.includes('movement')) return 'movement';
+  if (marker.includes('money')) return 'money';
+  if (marker.includes('health') || marker.includes('sleep')) return 'health';
+  if (marker.includes('emotion') || marker.includes('recovery')) return 'emotion';
+  if (marker.includes('sensory')) return 'sensory';
+  if (marker.includes('social')) return 'social';
+  if (marker.includes('scroll') || marker.includes('phone')) return 'antiDrift';
+  if (marker.includes('admin')) return 'admin';
+
+  return 'task';
+}
 
 function formatTimeEdgeDate(value: string): string {
   const date = new Date(value);
@@ -128,7 +147,7 @@ export function TaskCard({
     <article className="task-card" aria-labelledby={`${task.id}-title`}>
       <div className="task-card__area">
         <span className="task-card__marker" aria-hidden="true">
-          {task.areaIcon}
+          <AppIcon name={taskIconName(task)} size={18} />
         </span>
         <span>{task.area}</span>
       </div>

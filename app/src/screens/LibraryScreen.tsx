@@ -1,5 +1,5 @@
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
-import { Button, Card, EmptyState } from '../components';
+import { Button, Card, EmptyState, ScreenHero } from '../components';
 import {
   createActiveTaskId,
   saveActiveTodayTask,
@@ -427,14 +427,14 @@ export function LibraryScreen() {
 
   return (
     <div className="screen-stack library-screen">
-      <section className="library-hero" aria-labelledby="library-title">
-        <span className="screen-hero__mark" aria-hidden="true">L</span>
-        <div className="screen-hero__content">
-          <p className="eyebrow">Rhythm catalogue</p>
-          <h1 id="library-title">Library</h1>
-          <p>Turn on rhythms when they are useful. Today only shows what fits.</p>
-        </div>
-      </section>
+      <ScreenHero
+        className="library-hero"
+        eyebrow="Rhythm catalogue"
+        icon="library"
+        tagline="Turn on rhythms when they are useful. Today only shows what fits."
+        title="Library"
+        titleId="library-title"
+      />
 
       <Card>
         <section aria-labelledby="library-create-title" className="library-create-card">

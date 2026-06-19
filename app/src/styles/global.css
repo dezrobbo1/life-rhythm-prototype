@@ -80,30 +80,38 @@ textarea:focus-visible {
   width: 3rem;
 }
 
-.brand-mark span {
-  background: var(--color-accent);
-  border-radius: 999px;
-  height: 0.32rem;
-  left: 0.72rem;
-  position: absolute;
-  width: 1.55rem;
+.brand-mark svg {
+  display: block;
+  height: 100%;
+  width: 100%;
 }
 
-.brand-mark span:nth-child(1) {
-  top: 0.82rem;
-  transform: rotate(-10deg);
+.brand-mark__sky {
+  fill: color-mix(in srgb, var(--color-surface) 78%, var(--color-chip));
 }
 
-.brand-mark span:nth-child(2) {
-  top: 1.34rem;
-  transform: rotate(6deg);
-  width: 1.3rem;
+.brand-mark__sun {
+  fill: color-mix(in srgb, var(--color-chip) 68%, var(--color-accent));
 }
 
-.brand-mark span:nth-child(3) {
-  top: 1.86rem;
-  transform: rotate(-4deg);
-  width: 1.75rem;
+.brand-mark__hill--back {
+  fill: color-mix(in srgb, var(--color-accent) 36%, var(--color-surface));
+}
+
+.brand-mark__hill--front {
+  fill: var(--color-accent);
+}
+
+.brand-mark__wave {
+  fill: none;
+  stroke: color-mix(in srgb, var(--color-surface) 82%, white);
+  stroke-linecap: round;
+  stroke-width: 3.25;
+}
+
+.app-icon {
+  display: block;
+  flex-shrink: 0;
 }
 
 .brand-copy {
@@ -348,6 +356,11 @@ textarea:focus-visible {
   justify-content: center;
   letter-spacing: 0.04em;
   width: 3.75rem;
+}
+
+.screen-hero__mark .app-icon {
+  height: 1.65rem;
+  width: 1.65rem;
 }
 
 .screen-hero__content {
@@ -639,14 +652,15 @@ textarea:focus-visible {
 }
 
 .task-card__marker {
+  align-items: center;
   background: var(--color-chip);
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-pill);
+  border-radius: 0.85rem;
   color: var(--color-accent-strong);
   display: inline-flex;
-  font-size: 0.7rem;
-  font-weight: 900;
-  padding: 0.18rem 0.5rem;
+  height: 2rem;
+  justify-content: center;
+  width: 2rem;
 }
 
 .task-card__header {
@@ -828,6 +842,9 @@ textarea:focus-visible {
 .boost-option,
 .support-option,
 .modal__close {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
   background: var(--color-surface-strong);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
@@ -1198,6 +1215,45 @@ textarea:focus-visible {
   display: grid;
   gap: var(--space-3);
   grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.plan-block__title-row,
+.plan-item__title-row,
+.library-card__title-row,
+.reset-card__title-row {
+  align-items: start;
+  display: flex;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.plan-block__title-row > div,
+.plan-item__title-row > div,
+.library-card__title-row > div,
+.reset-card__title-row > div {
+  min-width: 0;
+}
+
+.plan-block__icon,
+.plan-item__icon,
+.library-card__icon,
+.reset-card__icon {
+  align-items: center;
+  background: var(--color-chip);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-line));
+  border-radius: 0.85rem;
+  color: var(--color-accent-strong);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 2.25rem;
+  justify-content: center;
+  width: 2.25rem;
+}
+
+.plan-item__icon {
+  background: var(--color-surface);
+  height: 2rem;
+  width: 2rem;
 }
 
 .plan-block__header h2 {
@@ -1654,6 +1710,10 @@ textarea:focus-visible {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.library-card__title-row {
+  align-items: start;
+}
+
 .library-card__category {
   color: var(--color-accent-strong);
   font-size: 0.78rem;
@@ -1797,7 +1857,7 @@ textarea:focus-visible {
   margin: var(--space-2) 0 0;
 }
 
-.reset-card__header span {
+.reset-card__header > span {
   background: var(--color-chip);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
@@ -2572,6 +2632,11 @@ textarea:focus-visible {
   width: 1.65rem;
 }
 
+.bottom-nav__icon .app-icon {
+  height: 1rem;
+  width: 1rem;
+}
+
 .bottom-nav__label {
   line-height: 1.1;
 }
@@ -2603,26 +2668,6 @@ textarea:focus-visible {
     border-radius: 0.85rem;
     height: 2.45rem;
     width: 2.45rem;
-  }
-
-  .brand-mark span {
-    height: 0.26rem;
-    left: 0.58rem;
-    width: 1.22rem;
-  }
-
-  .brand-mark span:nth-child(1) {
-    top: 0.67rem;
-  }
-
-  .brand-mark span:nth-child(2) {
-    top: 1.07rem;
-    width: 1rem;
-  }
-
-  .brand-mark span:nth-child(3) {
-    top: 1.47rem;
-    width: 1.35rem;
   }
 
   .theme-control {
@@ -2733,7 +2778,7 @@ textarea:focus-visible {
 
   .plan-room-message span,
   .library-card__state,
-  .reset-card__header span,
+  .reset-card__header > span,
   .plan-item__range,
   .task-card__size,
   .setup-advanced-toggle em {
