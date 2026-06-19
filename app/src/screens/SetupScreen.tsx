@@ -713,7 +713,7 @@ export function SetupScreen({
           <label className="life-shape-control life-shape-control--wide">
             <span>Paste backup text</span>
             <textarea
-              aria-label="Settings backup JSON"
+              aria-label="Settings backup text"
               onChange={(event) => {
                 setSettingsBackupJson(event.target.value);
                 setSettingsBackupErrors([]);
@@ -788,7 +788,7 @@ export function SetupScreen({
           <label className="life-shape-control life-shape-control--wide">
             <span>Paste backup text</span>
             <textarea
-              aria-label="Soft placement backup JSON"
+              aria-label="Soft placement backup text"
               onChange={(event) => {
                 setSoftPlacementBackupJson(event.target.value);
                 setSoftPlacementBackupErrors([]);

@@ -250,7 +250,7 @@ describe('App settings persistence wiring', () => {
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: 'Setup' }));
-    fireEvent.change(screen.getByLabelText('Settings backup JSON'), {
+    fireEvent.change(screen.getByLabelText('Settings backup text'), {
       target: {
         value: backupJson,
       },

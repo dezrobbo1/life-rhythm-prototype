@@ -2,7 +2,7 @@
 
 Status: Ready for a basic personal manual trial
 
-Scope: Local-first Life Rhythm `/app` through PR #75
+Scope: Local-first Life Rhythm `/app` through PR #81
 
 This report is the final readiness note before starting a basic personal manual trial. It does not approve external tester onboarding, cloud sync, import/restore, calendar integration, AI suggestions, automatic scheduling, or public signup.
 
@@ -12,7 +12,7 @@ Life Rhythm is ready for a basic personal manual trial with one browser, one dev
 
 The trial should be treated as product learning. It is ready to answer whether the current loop feels calm, understandable, recoverable, and useful in ordinary daily use.
 
-The app is not ready for external tester rollout yet. External trials should wait for operational Clerk invite-only verification, stronger onboarding, visual design-board alignment, and at least one completed personal trial.
+The app is not ready for external tester rollout yet. External trials should wait for operational Clerk invite-only verification, stronger onboarding, continued design-board review, and at least one completed personal trial.
 
 ## 2. Trial URL And Device Discipline
 
@@ -50,6 +50,10 @@ The following areas are ready to test in a personal manual trial:
 - Park safely
 - Mark not today
 - Try the minimum helper copy
+- Reset relief-valve actions
+- Narrow Today
+- Park extras safely
+- Restart with one action
 - Library custom rhythm creation
 - Plan Day Shape preview
 - read-only Plan soft suggestions
@@ -88,6 +92,8 @@ These areas remain out of scope for the personal trial:
 - analytics
 - external tester onboarding
 - public signup
+- Restore hidden items as a real restore action
+- full app reset or destructive reset execution
 
 If any of these feel missing during the trial, log them as future work rather than current defects.
 
@@ -135,14 +141,44 @@ The final smoke QA pass before this report fixed a trial-blocking clarity issue 
 
 The smoke QA pass also confirmed the trial path at mobile width with no console warnings or errors at the time of review.
 
-This report PR should still pass the normal verification commands before merge.
+PR #80 then made the safe Reset relief-valve actions trial-functional:
 
-## 8. Known Risks For The Personal Trial
+- Narrow Today keeps the first visible Today task and marks extra visible Today tasks `notToday`.
+- Park extras safely keeps the first visible Today task and marks extra visible Today tasks `parked`.
+- Restart with one action surfaces the first visible Today task when available.
+- Restore hidden items remains preview-only and not connected.
+- Full app reset remains disabled and non-destructive for the trial.
+
+PR #81 then applied a focused visual/design-board polish pass:
+
+- Today hierarchy is more one-action-first.
+- Task Card actions have clearer primary and secondary hierarchy.
+- Setup backup/check areas are visually secondary.
+- Library cards read more like a calm catalogue.
+- Plan soft suggestions and placements are easier to scan.
+- Reset relief actions read less like administration.
+- Mobile hero, spacing, and backup preview layout were tightened.
+
+## 8. Post-PR81 Smoke Confirmation
+
+The current trial-ready surface now includes:
+
+- minimum, normal, and full task completion endpoints through existing task statuses
+- fixed commitments clarity as notes-only for trial
+- Trial limits copy in Setup
+- mobile trial polish
+- backup copy confidence pass
+- Reset relief-valve functionality
+- visual polish/design-board alignment pass through PR #81
+
+This remains a personal manual trial surface, not an external tester release surface.
+
+## 9. Known Risks For The Personal Trial
 
 Known risks that should be watched closely:
 
-- The design spec is a living document and may lag the most recent trial-hardening PRs.
-- The app has stronger product boundaries than visual polish.
+- The design spec is a living document and needs periodic reconciliation after trial-hardening PRs.
+- Visual polish is stronger after PR #81, but full design-board parity remains future work.
 - Vercel preview URLs may fragment local trial data.
 - Backup checking may feel similar to restore even though restore is not connected.
 - Auth may create a "where did my setup go" feeling if the user forgets signed-in profiles are separate.
@@ -152,7 +188,7 @@ Known risks that should be watched closely:
 
 None of these block a basic personal trial, but each should be logged if it causes friction.
 
-## 9. Before Day 1
+## 10. Before Day 1
 
 Before starting the trial:
 
@@ -170,9 +206,10 @@ Before starting the trial:
 12. Check the settings backup.
 13. Create one Library rhythm if Library persistence should be tested.
 14. Add one Today task.
-15. Confirm the bottom nav and primary actions are comfortable on the trial device.
+15. Open Reset and confirm Narrow Today, Park extras safely, and Restart with one action are understandable.
+16. Confirm the bottom nav and primary actions are comfortable on the trial device.
 
-## 10. Daily Trial Routine
+## 11. Daily Trial Routine
 
 Use the short routine from `app/docs/personal-trial-launch-note.md`.
 
@@ -192,7 +229,7 @@ Minimum daily pass:
 
 No daily action should become a performance target.
 
-## 11. Stop Conditions
+## 12. Stop Conditions
 
 Pause the trial and log the issue if:
 
@@ -208,7 +245,7 @@ Pause the trial and log the issue if:
 
 Stopping early is still useful product learning.
 
-## 12. Success Criteria
+## 13. Success Criteria
 
 The personal trial is successful enough to continue if:
 
@@ -223,7 +260,7 @@ The personal trial is successful enough to continue if:
 - auth, if used, feels clearly local-first
 - no copy suggests failure, pressure, scoring, streaks, or compliance
 
-## 13. Recommended Next Step After The Trial
+## 14. Recommended Next Step After The Trial
 
 After the first personal trial week, review the issue log before adding new product scope.
 

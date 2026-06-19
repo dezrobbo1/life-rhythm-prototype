@@ -302,7 +302,7 @@ describe('Library screen', () => {
     render(<LibraryScreen />);
 
     expect(screen.getByRole('heading', { name: 'Check Library rhythms backup' })).toBeTruthy();
-    expect(screen.getByLabelText('Library rhythm backup JSON')).toBeTruthy();
+    expect(screen.getByLabelText('Library rhythm backup text')).toBeTruthy();
     expect(screen.getByLabelText('Select Library backup file')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Check Library rhythms backup' })).toBeTruthy();
     expect(screen.getByText('Export creates a local backup file for saved custom Library rhythms only.')).toBeTruthy();
@@ -316,7 +316,7 @@ describe('Library screen', () => {
     const user = userEvent.setup();
     render(<LibraryScreen />);
 
-    fireEvent.change(screen.getByLabelText('Library rhythm backup JSON'), {
+    fireEvent.change(screen.getByLabelText('Library rhythm backup text'), {
       target: { value: validLibraryBackupJson() },
     });
     await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
@@ -334,7 +334,7 @@ describe('Library screen', () => {
 
     expect(screen.queryByRole('article', { name: 'Backup paperwork rhythm' })).toBeNull();
 
-    fireEvent.change(screen.getByLabelText('Library rhythm backup JSON'), {
+    fireEvent.change(screen.getByLabelText('Library rhythm backup text'), {
       target: { value: '{ not json' },
     });
     await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
@@ -396,7 +396,7 @@ describe('Library screen', () => {
 
     try {
       render(<LibraryScreen />);
-      fireEvent.change(screen.getByLabelText('Library rhythm backup JSON'), {
+      fireEvent.change(screen.getByLabelText('Library rhythm backup text'), {
         target: { value: validLibraryBackupJson() },
       });
       await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
@@ -425,7 +425,7 @@ describe('Library screen', () => {
 
     expect(within(card).getByText('Enabled')).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText('Library rhythm backup JSON'), {
+    fireEvent.change(screen.getByLabelText('Library rhythm backup text'), {
       target: { value: validLibraryBackupJson() },
     });
     await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
