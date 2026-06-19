@@ -7,6 +7,8 @@ import App from '../App';
 
 afterEach(() => {
   cleanup();
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 });
 });
 
 describe('five-tab app shell', () => {
@@ -39,5 +41,27 @@ describe('five-tab app shell', () => {
     expect(document.querySelector('.bottom-nav')).toBe(nav);
 
     expect(screen.queryByText(/placeholder/i)).toBeNull();
+  });
+
+  it('keeps core Setup trial surfaces available at phone width', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 });
+    window.dispatchEvent(new Event('resize'));
+    render(<App />);
+
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    await user.click(within(nav).getByRole('button', { name: 'Setup' }));
+
+    expect(within(nav).getByRole('button', { name: 'Today' })).toBeTruthy();
+    expect(within(nav).getByRole('button', { name: 'Plan' })).toBeTruthy();
+    expect(within(nav).getByRole('button', { name: 'Library' })).toBeTruthy();
+    expect(within(nav).getByRole('button', { name: 'Reset' })).toBeTruthy();
+    expect(within(nav).getByRole('button', { name: 'Setup' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Trial limits' })).toBeTruthy();
+    expect(screen.getByText('Use one browser, one device, and one stable URL for the trial.')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Time to leave alone' })).toBeTruthy();
+    expect(screen.getByLabelText('Select settings backup file')).toBeTruthy();
+    expect(screen.getByLabelText('Select soft placement backup file')).toBeTruthy();
   });
 });
