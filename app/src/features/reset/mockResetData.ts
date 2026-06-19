@@ -27,23 +27,23 @@ export type RestartChoice = {
 export const mainResetActions: ResetAction[] = [
   {
     id: 'tooMuchToday',
-    title: 'Too much today',
-    purpose: 'Hide the extras so the next step can breathe.',
+    title: 'Narrow Today',
+    purpose: 'Keep one next action visible and move extras out of Today.',
     recommendedWhen: 'Use when the list feels bigger than the day.',
-    confirmationCopy: 'Hidden, not deleted.',
+    confirmationCopy: 'Today is narrowed to one next action. Extras are marked not today. No catch-up pile.',
     affectedMockItemCount: 4,
     destructive: false,
-    boundaryNote: 'Items stay available for later review.',
+    boundaryNote: 'Tasks are not deleted. Extras are marked not today.',
   },
   {
     id: 'moveExtras',
-    title: 'Move extras',
-    purpose: 'Move flexible items out of today without making a catch-up pile.',
+    title: 'Park extras safely',
+    purpose: 'Hold extra Today tasks safely so one next action remains.',
     recommendedWhen: 'Use when fixed commitments already fill the day.',
-    confirmationCopy: 'Moved out of today.',
+    confirmationCopy: 'Extras are parked safely. One next action remains. No catch-up pile.',
     affectedMockItemCount: 3,
     destructive: false,
-    boundaryNote: 'Fixed commitments stay visible. Flexible items can return later.',
+    boundaryNote: 'Tasks are not deleted. Parked tasks stay safely held.',
   },
   {
     id: 'restartOneAction',
@@ -71,24 +71,24 @@ export const secondaryResetActions: ResetAction[] = [
   {
     id: 'restoreHidden',
     title: 'Restore hidden items',
-    purpose: 'Bring hidden items back into view when there is room.',
+    purpose: 'Preview a future restore path when there is room.',
     recommendedWhen: 'Use when the day feels lighter again.',
-    confirmationCopy: 'Hidden items are visible again.',
+    confirmationCopy: 'Restore is not connected yet. Nothing changed.',
     affectedMockItemCount: 4,
     destructive: false,
-    boundaryNote: 'Restoring is optional and does not add items to Today automatically.',
+    boundaryNote: 'Preview only for this trial. Nothing is restored.',
   },
 ];
 
 export const fullResetAction: ResetAction = {
   id: 'fullAppReset',
   title: 'Reset whole app',
-  purpose: 'Protected destructive reset placeholder.',
+  purpose: 'Protected destructive reset placeholder for a future flow.',
   recommendedWhen: 'Use only when intentionally clearing app data in a future real flow.',
-  confirmationCopy: 'Mock full reset confirmed. No real data was cleared.',
+  confirmationCopy: 'Full app reset is not enabled for this trial. No data is cleared.',
   affectedMockItemCount: 0,
   destructive: true,
-  boundaryNote: 'This mock action never clears storage, IndexedDB, exports, or settings.',
+  boundaryNote: 'Full app reset is not enabled for this trial. No data is cleared.',
 };
 
 export const restartChoices: RestartChoice[] = [
