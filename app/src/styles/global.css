@@ -38,14 +38,16 @@ textarea:focus-visible {
 }
 
 .app-shell {
-  background: var(--color-bg);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 38%, var(--color-bg)) 0, var(--color-bg) 18rem),
+    var(--color-bg);
   color: var(--color-text);
   min-height: 100vh;
 }
 
 .app-header {
   align-items: center;
-  background: color-mix(in srgb, var(--color-bg) 92%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 94%, var(--color-bg));
   border-bottom: 1px solid var(--color-line);
   display: flex;
   gap: var(--space-4);
@@ -56,10 +58,69 @@ textarea:focus-visible {
   z-index: 2;
 }
 
+.brand-lockup {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.brand-mark {
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--color-accent) 18%, var(--color-surface)), var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 32%, var(--color-line));
+  border-radius: 1rem;
+  box-shadow: var(--shadow-soft);
+  display: inline-grid;
+  flex: 0 0 auto;
+  height: 3rem;
+  overflow: hidden;
+  place-items: center;
+  position: relative;
+  width: 3rem;
+}
+
+.brand-mark span {
+  background: var(--color-accent);
+  border-radius: 999px;
+  height: 0.32rem;
+  left: 0.72rem;
+  position: absolute;
+  width: 1.55rem;
+}
+
+.brand-mark span:nth-child(1) {
+  top: 0.82rem;
+  transform: rotate(-10deg);
+}
+
+.brand-mark span:nth-child(2) {
+  top: 1.34rem;
+  transform: rotate(6deg);
+  width: 1.3rem;
+}
+
+.brand-mark span:nth-child(3) {
+  top: 1.86rem;
+  transform: rotate(-4deg);
+  width: 1.75rem;
+}
+
+.brand-copy {
+  min-width: 0;
+}
+
 .app-header h1 {
   font-size: 1.25rem;
   line-height: 1.1;
   margin: 0;
+}
+
+.brand-copy p:last-child {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin: var(--space-1) 0 0;
 }
 
 .eyebrow {
@@ -203,7 +264,20 @@ textarea:focus-visible {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-soft);
+  overflow: hidden;
   padding: var(--space-5);
+  position: relative;
+}
+
+.card::before,
+.empty-state::before {
+  background: linear-gradient(90deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 18%, transparent));
+  content: '';
+  height: 3px;
+  inset: 0 0 auto;
+  opacity: 0.72;
+  pointer-events: none;
+  position: absolute;
 }
 
 .empty-state {
@@ -237,9 +311,16 @@ textarea:focus-visible {
 .library-hero,
 .reset-hero,
 .setup-hero {
+  align-items: center;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 11%, var(--color-surface)), var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 24%, var(--color-line));
+  border-radius: calc(var(--radius-card) + 0.25rem);
+  box-shadow: var(--shadow-lift);
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
+  gap: var(--space-4);
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: var(--space-5);
 }
 
 .today-hero h1,
@@ -251,6 +332,28 @@ textarea:focus-visible {
   letter-spacing: 0;
   line-height: 0.95;
   margin: 0;
+}
+
+.screen-hero__mark {
+  align-items: center;
+  background: var(--color-chip);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-line));
+  border-radius: 1.1rem;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-surface-strong) 65%, transparent);
+  color: var(--color-accent-strong);
+  display: inline-flex;
+  font-size: 1rem;
+  font-weight: 950;
+  height: 3.75rem;
+  justify-content: center;
+  letter-spacing: 0.04em;
+  width: 3.75rem;
+}
+
+.screen-hero__content {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
 }
 
 .today-hero p:last-child,
@@ -481,11 +584,17 @@ textarea:focus-visible {
   font-weight: 850;
   min-height: 2.6rem;
   padding: 0.55rem 0.9rem;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .button--primary {
-  background: var(--color-accent);
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-strong));
   border-color: var(--color-accent);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--color-accent) 24%, transparent);
   color: white;
 }
 
@@ -511,12 +620,13 @@ textarea:focus-visible {
 
 .task-card {
   background: var(--color-surface);
-  border: 1px solid var(--color-line);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-line));
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-lift);
   display: grid;
   gap: var(--space-4);
   padding: var(--space-5);
+  position: relative;
 }
 
 .task-card__area {
@@ -2432,16 +2542,38 @@ textarea:focus-visible {
 }
 
 .bottom-nav__button {
+  align-items: center;
   background: transparent;
   border: 0;
   border-radius: 0.8rem;
   color: var(--color-muted);
   cursor: pointer;
+  display: grid;
   font-size: 0.75rem;
   font-weight: 850;
+  gap: 0.12rem;
+  justify-items: center;
   min-height: 2.75rem;
   overflow-wrap: anywhere;
   padding: 0 var(--space-1);
+}
+
+.bottom-nav__icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-chip) 72%, var(--color-surface));
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  color: var(--color-accent-strong);
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 950;
+  height: 1.45rem;
+  justify-content: center;
+  width: 1.65rem;
+}
+
+.bottom-nav__label {
+  line-height: 1.1;
 }
 
 .bottom-nav__button[aria-current='page'] {
@@ -2450,10 +2582,47 @@ textarea:focus-visible {
   color: var(--color-accent-strong);
 }
 
+.bottom-nav__button[aria-current='page'] .bottom-nav__icon {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: white;
+}
+
 @media (max-width: 35rem) {
   .app-header {
     align-items: start;
     padding: var(--space-3);
+  }
+
+  .brand-lockup {
+    align-items: start;
+    gap: var(--space-2);
+  }
+
+  .brand-mark {
+    border-radius: 0.85rem;
+    height: 2.45rem;
+    width: 2.45rem;
+  }
+
+  .brand-mark span {
+    height: 0.26rem;
+    left: 0.58rem;
+    width: 1.22rem;
+  }
+
+  .brand-mark span:nth-child(1) {
+    top: 0.67rem;
+  }
+
+  .brand-mark span:nth-child(2) {
+    top: 1.07rem;
+    width: 1rem;
+  }
+
+  .brand-mark span:nth-child(3) {
+    top: 1.47rem;
+    width: 1.35rem;
   }
 
   .theme-control {
@@ -2500,6 +2669,21 @@ textarea:focus-visible {
   .reset-hero h1,
   .setup-hero h1 {
     font-size: 2.4rem;
+  }
+
+  .today-hero,
+  .plan-hero,
+  .library-hero,
+  .reset-hero,
+  .setup-hero {
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+
+  .screen-hero__mark {
+    border-radius: 0.9rem;
+    height: 3rem;
+    width: 3rem;
   }
 
   .section-heading {
@@ -2565,5 +2749,11 @@ textarea:focus-visible {
     border-radius: 0.65rem;
     font-size: 0.68rem;
     min-height: 2.55rem;
+  }
+
+  .bottom-nav__icon {
+    border-radius: 0.6rem;
+    height: 1.25rem;
+    width: 1.45rem;
   }
 }

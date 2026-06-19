@@ -3,12 +3,12 @@ import { themeLabels, themes, type ThemeName } from '../../app/theme';
 
 export type ScreenId = 'today' | 'plan' | 'library' | 'reset' | 'setup';
 
-const navItems: Array<{ id: ScreenId; label: string }> = [
-  { id: 'today', label: 'Today' },
-  { id: 'plan', label: 'Plan' },
-  { id: 'library', label: 'Library' },
-  { id: 'reset', label: 'Reset' },
-  { id: 'setup', label: 'Setup' },
+const navItems: Array<{ id: ScreenId; icon: string; label: string }> = [
+  { id: 'today', icon: 'T', label: 'Today' },
+  { id: 'plan', icon: 'P', label: 'Plan' },
+  { id: 'library', icon: 'L', label: 'Library' },
+  { id: 'reset', icon: 'R', label: 'Reset' },
+  { id: 'setup', icon: 'S', label: 'Setup' },
 ];
 
 type AppShellProps = {
@@ -29,9 +29,17 @@ export function AppShell({
   return (
     <div className="app-shell" data-theme={theme}>
       <header className="app-header">
-        <div>
-          <p className="eyebrow">Architecture scaffold</p>
-          <h1>Life Rhythm</h1>
+        <div className="brand-lockup">
+          <span className="brand-mark" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+          <div className="brand-copy">
+            <p className="eyebrow">Personal trial</p>
+            <h1>Life Rhythm</h1>
+            <p>Start small. Keep rhythm.</p>
+          </div>
         </div>
         <label className="theme-control">
           <span>Theme</span>
@@ -54,11 +62,15 @@ export function AppShell({
             onClick={() => onScreenChange(item.id)}
             type="button"
           >
-            {item.label}
+            <span className="bottom-nav__icon" aria-hidden="true">
+              {item.icon}
+            </span>
+            <span className="bottom-nav__label">
+              {item.label}
+            </span>
           </button>
         ))}
       </nav>
     </div>
   );
 }
-

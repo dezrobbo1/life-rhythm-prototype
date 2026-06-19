@@ -360,9 +360,12 @@ export function SetupScreen({
   return (
     <div className="screen-stack setup-screen">
       <section className="setup-hero" aria-labelledby="setup-title">
-        <p className="eyebrow">Control room</p>
-        <h1 id="setup-title">Setup</h1>
-        <p>Adjust the app without changing your whole day.</p>
+        <span className="screen-hero__mark" aria-hidden="true">S</span>
+        <div className="screen-hero__content">
+          <p className="eyebrow">Control room</p>
+          <h1 id="setup-title">Setup</h1>
+          <p>Adjust the app without changing your whole day.</p>
+        </div>
       </section>
 
       {status ? <p className="setup-confirmation" role="status">{status}</p> : null}

@@ -265,9 +265,12 @@ export function PlanScreen() {
   return (
     <div className="screen-stack plan-screen">
       <section className="plan-hero" aria-labelledby="plan-title">
-        <p className="eyebrow">Soft rhythm scaffold</p>
-        <h1 id="plan-title">Plan</h1>
-        <p>Plan the shape of your day, not every minute.</p>
+        <span className="screen-hero__mark" aria-hidden="true">P</span>
+        <div className="screen-hero__content">
+          <p className="eyebrow">Soft rhythm scaffold</p>
+          <h1 id="plan-title">Plan</h1>
+          <p>Plan the shape of your day, not every minute.</p>
+        </div>
       </section>
       <Card>
         <div className="plan-room-message">
