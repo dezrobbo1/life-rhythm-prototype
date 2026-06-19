@@ -61,6 +61,17 @@ const defaultSchedulerUseByTimeBlockType: Record<
   recoveryTime: 'unavailable',
 };
 
+const defaultLabelByTimeBlockType: Record<LifeShapeTimeBlockState['type'], string> = {
+  familyTime: 'Family time',
+  householdFlow: 'Household flow',
+  looseTime: 'Loose time',
+  openCapacity: 'Open capacity',
+  protectedTime: 'Protected time',
+  recoveryTime: 'Recovery time',
+};
+
+const defaultTimeBlockLabels = new Set(Object.values(defaultLabelByTimeBlockType));
+
 export function SetupScreen({
   onExportSettingsBackup,
   onExportSoftPlacementBackup,
@@ -168,6 +179,10 @@ export function SetupScreen({
         block.id === blockId
           ? {
               ...block,
+              label:
+                block.label.trim().length === 0 || defaultTimeBlockLabels.has(block.label)
+                  ? defaultLabelByTimeBlockType[type]
+                  : block.label,
               schedulerUse: defaultSchedulerUseByTimeBlockType[type],
               type,
             }
