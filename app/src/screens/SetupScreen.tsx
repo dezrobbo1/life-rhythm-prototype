@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { Button, Card, Chip } from '../components';
+import { Button, Card, Chip, ScreenHero } from '../components';
 import type { ThemeName } from '../app/theme';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import type {
@@ -359,14 +359,14 @@ export function SetupScreen({
 
   return (
     <div className="screen-stack setup-screen">
-      <section className="setup-hero" aria-labelledby="setup-title">
-        <span className="screen-hero__mark" aria-hidden="true">S</span>
-        <div className="screen-hero__content">
-          <p className="eyebrow">Control room</p>
-          <h1 id="setup-title">Setup</h1>
-          <p>Adjust the app without changing your whole day.</p>
-        </div>
-      </section>
+      <ScreenHero
+        className="setup-hero"
+        eyebrow="Control room"
+        icon="setup"
+        tagline="Adjust the app without changing your whole day."
+        title="Setup"
+        titleId="setup-title"
+      />
 
       {status ? <p className="setup-confirmation" role="status">{status}</p> : null}
 

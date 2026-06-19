@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { Button, Card, EmptyState, Modal } from '../components';
+import { Button, Card, EmptyState, Modal, ScreenHero } from '../components';
 import {
   createActiveTaskId,
   loadActiveTodayTasks,
@@ -625,14 +625,14 @@ export function TodayScreen() {
 
   return (
     <div className="screen-stack today-screen">
-      <section className="today-hero" aria-labelledby="today-title">
-        <span className="screen-hero__mark" aria-hidden="true">T</span>
-        <div className="screen-hero__content">
-          <p className="eyebrow">{todayLabel}</p>
-          <h1 id="today-title">Today</h1>
-          <p>One useful next action. The rest can stay light.</p>
-        </div>
-      </section>
+      <ScreenHero
+        className="today-hero"
+        eyebrow={todayLabel}
+        icon="today"
+        tagline="One useful next action. The rest can stay light."
+        title="Today"
+        titleId="today-title"
+      />
 
       <Card>
         <section aria-labelledby="today-state-summary" className="today-state-summary">

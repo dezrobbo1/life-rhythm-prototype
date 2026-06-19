@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Button, Chip } from '../../components';
+import { AppIcon, Button, Chip } from '../../components';
+import type { AppIconName } from '../../components/AppIcon/AppIcon';
 import type { LibraryRhythm } from './mockLibraryData';
 
 type LibraryRhythmCardProps = {
@@ -7,6 +8,21 @@ type LibraryRhythmCardProps = {
   onAddToday: (rhythm: LibraryRhythm) => void;
   onToggleEnabled: (rhythmId: string) => void;
   rhythm: LibraryRhythm;
+};
+
+const categoryIcons: Record<LibraryRhythm['category'], AppIconName> = {
+  'Anti-scroll': 'antiDrift',
+  'Emotional recovery': 'emotion',
+  Food: 'food',
+  Household: 'home',
+  Money: 'money',
+  Motivation: 'startBoost',
+  Movement: 'movement',
+  'Sensory load': 'sensory',
+  Sleep: 'sleep',
+  'Social support': 'social',
+  'Start Boost': 'startBoost',
+  'Work focus': 'work',
 };
 
 export function LibraryRhythmCard({
@@ -21,10 +37,15 @@ export function LibraryRhythmCard({
   return (
     <article className="library-card" aria-labelledby={`${rhythm.id}-title`}>
       <div className="library-card__header">
-        <div>
-          <p className="library-card__category">{rhythm.category}</p>
-          <h3 id={`${rhythm.id}-title`}>{rhythm.title}</h3>
-          <p>{rhythm.purpose}</p>
+        <div className="library-card__title-row">
+          <span className="library-card__icon" aria-hidden="true">
+            <AppIcon name={categoryIcons[rhythm.category]} size={20} />
+          </span>
+          <div>
+            <p className="library-card__category">{rhythm.category}</p>
+            <h3 id={`${rhythm.id}-title`}>{rhythm.title}</h3>
+            <p>{rhythm.purpose}</p>
+          </div>
         </div>
         <span className={`library-card__state ${enabled ? 'is-enabled' : ''}`}>
           {enabled ? 'Enabled' : 'Disabled'}

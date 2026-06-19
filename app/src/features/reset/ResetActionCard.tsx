@@ -1,4 +1,5 @@
-import { Button } from '../../components';
+import { AppIcon, Button } from '../../components';
+import type { AppIconName } from '../../components/AppIcon/AppIcon';
 import type { ResetAction } from './mockResetData';
 
 type ResetActionCardProps = {
@@ -6,13 +7,27 @@ type ResetActionCardProps = {
   onRunAction: (action: ResetAction) => void;
 };
 
+const resetActionIcons: Record<ResetAction['id'], AppIconName> = {
+  moveExtras: 'backup',
+  fullAppReset: 'delete',
+  restartOneAction: 'restart',
+  restoreHidden: 'complete',
+  reviewTomorrow: 'today',
+  tooMuchToday: 'windDown',
+};
+
 export function ResetActionCard({ action, onRunAction }: ResetActionCardProps) {
   return (
     <article className={`reset-card ${action.destructive ? 'reset-card--destructive' : ''}`} aria-labelledby={`${action.id}-title`}>
       <div className="reset-card__header">
-        <div>
-          <h3 id={`${action.id}-title`}>{action.title}</h3>
-          <p>{action.purpose}</p>
+        <div className="reset-card__title-row">
+          <span className="reset-card__icon" aria-hidden="true">
+            <AppIcon name={resetActionIcons[action.id]} size={20} />
+          </span>
+          <div>
+            <h3 id={`${action.id}-title`}>{action.title}</h3>
+            <p>{action.purpose}</p>
+          </div>
         </div>
         <span>{action.affectedMockItemCount === 1 ? '1 mock item' : `${action.affectedMockItemCount} mock items`}</span>
       </div>

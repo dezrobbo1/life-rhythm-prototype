@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Card } from '../components';
+import { Button, Card, ScreenHero } from '../components';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import {
   loadSoftPlacementsForDate,
@@ -264,14 +264,14 @@ export function PlanScreen() {
 
   return (
     <div className="screen-stack plan-screen">
-      <section className="plan-hero" aria-labelledby="plan-title">
-        <span className="screen-hero__mark" aria-hidden="true">P</span>
-        <div className="screen-hero__content">
-          <p className="eyebrow">Soft rhythm scaffold</p>
-          <h1 id="plan-title">Plan</h1>
-          <p>Plan the shape of your day, not every minute.</p>
-        </div>
-      </section>
+      <ScreenHero
+        className="plan-hero"
+        eyebrow="Soft rhythm scaffold"
+        icon="plan"
+        tagline="Plan the shape of your day, not every minute."
+        title="Plan"
+        titleId="plan-title"
+      />
       <Card>
         <div className="plan-room-message">
           <div>
