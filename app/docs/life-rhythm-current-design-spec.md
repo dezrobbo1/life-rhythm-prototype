@@ -1,7 +1,7 @@
 # Life Rhythm Current Design Spec
 Status: Living design specification
 Scope: Product direction, current implementation state, design boundaries, and near-term roadmap
-Last consolidated after: PR #81 - Personal-trial visual polish
+Last consolidated after: PR #82 plus soft scheduling loop contract draft
 ## 1. Product Identity
 Life Rhythm is a non-clinical self-management app for adults with ADHD traits or an ADHD diagnosis.
 It supports habits, rhythms, task initiation, re-entry after missed or disrupted days, protected time, and
@@ -42,6 +42,9 @@ Supporting principles:
 • Not today is allowed.
 • Blank time is not automatically task space.
 The product should help users protect their life from overfilling, not simply find more gaps to consume.
+The intended product spine is:
+capture → hold safely → find soft window → user confirms → re-enter later if missed or deferred → respect usefulness windows.
+See `app/docs/soft-scheduling-loop-contract.md` for the current contract.
 ## 3. Current Implementation State After PR #81
 The app now has a real local-first foundation. It is no longer only a static prototype shell.
 Implemented:
@@ -101,6 +104,10 @@ Implemented:
 • Full app reset remains disabled and non-destructive
 • design-board visual alignment and polish passes through PR #81
 Not implemented yet:
+• task pool / inbox
+• capture into task pool without adding to Today
+• repeating rhythm instances
+• resurfacing parked, not today, and deferred tasks as suggestions
 • missed-task detection
 • missed status persistence
 • askFirst placement
@@ -120,9 +127,9 @@ Current practical status:
 one-off time edges, protected time, Day Shape preview, Re-entry review, read-only soft suggestions,
 user-confirmed open-capacity soft placements, soft placement backups, Reset relief-valve actions, and
 opt-in signed-in local profiles.
-• A basic personal manual trial is ready with one browser, one device, and one stable URL.
-• Post-PR81 smoke confirmation is being added in the readiness report to reflect Reset functionality and
-visual/design-board polish.
+• A basic shell/usability trial is ready with one browser, one device, and one stable URL.
+• A meaningful test of the full intended soft scheduling product should wait until task pool, soft window finder,
+and calm resurfacing exist.
 • External tester readiness should wait until onboarding, backup confidence, Clerk
 invite-only/public-signup configuration, and visual polish are stronger.
 ## 4. PR Milestone Snapshot
@@ -176,6 +183,7 @@ Recent key milestones:
 • PR #79: design-board component rhythm polish
 • PR #80: Reset relief-valve actions trial-functional
 • PR #81: personal-trial visual polish
+• PR #82: post-PR81 trial readiness reconciliation
 The current app foundation is deliberately staged: schema and persistence first, then read-only previews,
 then controlled user-facing behaviour, then scheduler.
 
@@ -444,8 +452,18 @@ Re-entry rules:
 • No re-entry flow should imply penalty, judgement, or duty-to-perform.
 • Re-entry should happen at sensible moments, not every time the app opens.
 The product should not ask the user to “catch up”. It should help them re-enter.
-## 10. Scheduler and Soft Placement Direction
-Scheduler-owned placement is future work.
+## 10. Soft Scheduling Loop Direction
+The soft scheduling loop is future product spine work.
+It is defined in `app/docs/soft-scheduling-loop-contract.md`.
+
+The intended loop is:
+capture → hold safely → find soft window → user confirms → re-enter later if missed or deferred → respect usefulness windows.
+
+Life Rhythm is not a rigid scheduler. It should capture ad hoc tasks and repeating rhythm instances into a safe
+task pool, hold parked/not today/deferred items without turning them into a guilt list, use explicit open capacity
+for soft suggestions, and bring items back calmly when there is a plausible window.
+
+Scheduler-owned placement is not implemented.
 The current app has read-only Plan soft suggestions and user-confirmed open-capacity soft placements, but it
 does not have an automatic scheduler.
 Current implemented soft-placement-adjacent behaviour:
@@ -464,8 +482,12 @@ Current implemented soft-placement-adjacent behaviour:
 • Soft placement backup export exists.
 • Soft placement backup checking is read-only.
 • No soft placement restore exists yet.
-The future scheduler must be soft, explainable, user-led, and respectful of protected/loose/open capacity.
-The scheduler may eventually:
+The future soft window finder must be explainable, user-led, and respectful of protected/loose/open capacity.
+The soft window finder may eventually:
+• hold captured tasks outside Today
+• suggest from a task pool / inbox
+• suggest repeating rhythm instances without streak debt
+• resurface parked, not today, deferred, or unfinished tasks as calm suggestions
 • suggest broad placement windows
 • suggest shrinking to the minimum version
 • suggest moving something later
@@ -475,7 +497,7 @@ The scheduler may eventually:
 • respect Life Shape blocks
 • respect time edges
 • surface schedule options for user confirmation
-The scheduler must not:
+The soft window finder must not:
 • silently fill the day
 • treat blank time as available
 • schedule into protected time by default
@@ -487,7 +509,7 @@ The scheduler must not:
 • write calendar events
 • auto-create active tasks from enabled rhythms
 • expose internal debug metadata in the daily UI
-Scheduler output must remain separate from persisted task state until the user explicitly accepts or edits it.
+Candidate-window output must remain separate from persisted task state until the user explicitly accepts or edits it.
 Soft placement rules:
 • Placement is user-confirmed only.
 • A placement is not a deadline.
@@ -498,10 +520,10 @@ Soft placement rules:
 • There is no scoring, streak, or compliance model.
 
 The correct model is:
-The scheduler suggests.
+Life Rhythm suggests.
 The user decides.
 not:
-The scheduler owns the day.
+Life Rhythm owns the day.
 ## 11. AI Direction
 AI is future work.
 AI should be background support, not the app’s core system. The app must remain useful without AI.
@@ -589,27 +611,33 @@ Auth should not be added casually. It changes privacy expectations.
 ## 13. Trial Readiness
 There are three trial levels.
 Basic personal manual trial
-Ready for a basic personal manual trial with one browser, one device, and one stable URL.
+Ready for a limited shell/usability trial with one browser, one device, and one stable URL.
 The app can already support local settings, Library, Today tasks, task states, backups, protected time blocks,
 Day Shape preview, Add one-off time edges, Re-entry review, read-only soft suggestions, user-confirmed
 open-capacity soft placements, saved soft placements, soft placement backups, Reset relief-valve actions,
 Trial limits copy, fixed-commitments notes-only clarity, and opt-in local signed-in profiles. However, it does
 not yet have missed-task detection, askFirst placement, move/edit placement,
 calendar integration, AI suggestions, import/restore execution, or external tester readiness.
+It is also not yet sufficient to test the full intended soft scheduling loop because task pool, repeating rhythm
+instances, soft window finder v1, and calm resurfacing are not implemented.
 Meaningful personal trial
-The next useful step is to run the personal trial and review what breaks or feels confusing after real use.
+The next useful step is to run a limited shell/usability trial and review what breaks or feels confusing after real use.
 The app has completed:
 • trial hardening / smoke QA
 • basic mobile polish
 • Reset relief-valve functionality for safe Today-task narrowing and parking
 • backup confidence copy pass
 • design-board visual polish passes through PR #81
-Meaningful learning should come from:
-• review of one-week backup/export confidence
-• review of Reset relief-valve usefulness
-• optional move/edit soft placement decision
+Meaningful full-product trial should wait for:
+• task pool / inbox
+• capture into task pool without adding to Today
+• soft window finder v1 from openCapacity blocks
+• resurfacing for parked, not today, and deferred tasks
+• repeating rhythm instance suggestions
+• deadline and usefulness salience
+• backup support for task pool and rhythm instances
 • Clerk invite-only/public-signup operational verification if auth is enabled
-This is the point where the app can be used for a week and produce useful learning.
+That is the point where Life Rhythm can test the full capture-hold-suggest-re-enter loop.
 External tester trial
 Should wait until:
 • the daily loop is stable
@@ -663,20 +691,30 @@ Do not use it for:
 The main GitHub repo remains the trusted implementation path.
 ## 16. Current Near-Term Roadmap
 Recommended next sequence:
-1. Post-PR81 trial readiness reconciliation
-2. Start the basic personal manual trial
-3. Review the one-week issue log and backup/export confidence
-4. Decide whether move/edit soft placement needs a contract or implementation next
-5. Add an askFirst placement contract before any askFirst acceptance
-6. Operationally verify Clerk invite-only/public-signup settings before external testers
-7. Prepare external testers only after personal trial learning
-8. Add a cloud sync contract only if later trial learning shows a clear need
+1. Soft scheduling loop contract
+2. Task pool schema and repository
+3. Capture ad hoc tasks into the task pool
+4. Show task pool in Plan
+5. Soft window finder v1 from openCapacity blocks
+6. User-confirmed soft placement from task pool
+7. Repeating rhythm instance contract
+8. Repeating rhythm instance suggestions
+9. Re-entry resurfacing for parked, not today, and deferred tasks
+10. Deadline and usefulness salience
+11. Move/edit soft placement
+12. Backup support for task pool and rhythm instances
+13. Final non-AI prototype smoke QA
+14. Operationally verify Clerk invite-only/public-signup settings before external testers
+15. Add a cloud sync contract only if later trial learning shows a clear need
 Cloud sync remains intentionally unimplemented.
 ## 17. Open Decisions
 Open product and implementation decisions:
+• What minimum task pool fields are required before capture can move out of Today?
+• How should repeating rhythm instances be generated without backlog or streak debt?
+• How should resurfacing limits avoid alert fatigue?
 • What operational Clerk invite-only settings are required before external testers?
-• Should cloud sync be deferred until after personal trial?
-• How much design-board polish is needed before personal trial?
+• Should cloud sync be deferred until after a meaningful soft-scheduling product trial?
+• How much design-board polish is needed before external trial?
 • Should AI wait until after scheduler/calendar basics?
 • When should ADHD professional review be requested?
 • Should external testers be invite-only from the start?
@@ -730,10 +768,10 @@ protected time,
 backup-safe persistence,
 opt-in signed-in local profiles,
 user-confirmed local soft placements,
-and future soft scheduling.
+and a future soft scheduling loop based on task pool, open capacity, user confirmation, resurfacing, and usefulness windows.
 It is not:
 a medical app
-a compliance app
+a required-adherence app
 a gamified productivity app
 a calendar replacement
 an AI coach

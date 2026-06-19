@@ -1,16 +1,18 @@
 # Personal Trial Readiness Report
 
-Status: Ready for a basic personal manual trial
+Status: Ready for a limited shell/usability trial
 
 Scope: Local-first Life Rhythm `/app` through PR #81
 
-This report is the final readiness note before starting a basic personal manual trial. It does not approve external tester onboarding, cloud sync, import/restore, calendar integration, AI suggestions, automatic scheduling, or public signup.
+This report is the readiness note for a limited shell/usability trial. It does not approve a full soft-scheduling product trial, external tester onboarding, cloud sync, import/restore, calendar integration, AI suggestions, automatic scheduling, or public signup.
 
 ## 1. Readiness Verdict
 
-Life Rhythm is ready for a basic personal manual trial with one browser, one device, and one stable URL.
+Life Rhythm is ready for a limited shell/usability trial with one browser, one device, and one stable URL.
 
-The trial should be treated as product learning. It is ready to answer whether the current loop feels calm, understandable, recoverable, and useful in ordinary daily use.
+The trial should be treated as product learning about the current shell: Today, Reset, Library, Plan previews, backups, local-first behaviour, mobile layout, and copy. It is not ready to validate the full intended soft scheduling loop.
+
+A meaningful product trial should wait until the app has a task pool, soft window finder, and calm resurfacing for parked, not today, deferred, and rhythm-instance tasks.
 
 The app is not ready for external tester rollout yet. External trials should wait for operational Clerk invite-only verification, stronger onboarding, continued design-board review, and at least one completed personal trial.
 
@@ -70,12 +72,20 @@ The following areas are ready to test in a personal manual trial:
 - legacy local setup handoff notice, if auth is enabled and legacy local data exists
 - mobile layout basics
 
+These areas test shell usability and confidence. They do not yet test the full intended product spine: capture, hold safely, find soft windows, user confirmation, later re-entry, and usefulness windows.
+
 ## 4. Not Ready To Test Yet
 
 These areas remain out of scope for the personal trial:
 
 - `askFirst` placement acceptance
 - move or edit soft placement
+- task pool / inbox
+- capture into task pool without adding to Today
+- soft window finder from task pool
+- repeating rhythm instances
+- resurfacing parked, not today, and deferred tasks as suggestions
+- deadline/usefulness salience beyond the current Today task fields
 - automatic scheduling
 - scheduler-owned placement
 - missed-task detection
@@ -179,6 +189,9 @@ Known risks that should be watched closely:
 
 - The design spec is a living document and needs periodic reconciliation after trial-hardening PRs.
 - Visual polish is stronger after PR #81, but full design-board parity remains future work.
+- The current app does not have a task pool yet, so capture still mostly enters Today or Library.
+- Soft suggestions are currently based on existing Today tasks and open capacity, not a broader safe holding pool.
+- Re-entry remains partial until parked, not today, deferred, and rhythm-instance tasks can resurface as suggestions.
 - Vercel preview URLs may fragment local trial data.
 - Backup checking may feel similar to restore even though restore is not connected.
 - Auth may create a "where did my setup go" feeling if the user forgets signed-in profiles are separate.
@@ -186,7 +199,7 @@ Known risks that should be watched closely:
 - Mobile backup textareas and Setup controls should be watched for cramped interaction.
 - No automatic missed-task handling exists yet, so re-entry remains user-led and partial.
 
-None of these block a basic personal trial, but each should be logged if it causes friction.
+None of these block a limited shell/usability trial, but each should be logged if it causes friction.
 
 ## 10. Before Day 1
 
@@ -258,19 +271,24 @@ The personal trial is successful enough to continue if:
 - soft placements feel removable and non-punitive
 - backup/export/check flows feel understandable
 - auth, if used, feels clearly local-first
-- no copy suggests failure, pressure, scoring, streaks, or compliance
+- no copy suggests failure, pressure, scoring, streaks, or required-adherence tracking
+- the trial clarifies what task pool, soft window finder, and resurfacing need to do next
 
 ## 14. Recommended Next Step After The Trial
 
-After the first personal trial week, review the issue log before adding new product scope.
+After the limited shell/usability trial, review the issue log before adding new product scope.
 
 Likely next decisions:
 
-- whether mobile layout needs another polish pass
-- whether backup confidence is strong enough for a longer personal trial
-- whether move/edit soft placement needs a contract or implementation
-- whether `askFirst` placement should be contracted
+- what minimum task pool model is needed
+- how captured ad hoc tasks should be held before Today
+- how repeating rhythm instances should avoid backlog or streak debt
+- how soft window finder v1 should use open capacity
+- how parked, not today, and deferred items should resurface
+- whether backup confidence is strong enough for task pool and rhythm-instance backups later
+- whether `askFirst` placement should be contracted before acceptance
 - whether Clerk invite-only settings should be operationally verified for external testers
-- whether visual design-board alignment should happen before any broader trial
+
+The next implementation direction is task pool / inbox, not another polish-first pass.
 
 Do not start cloud sync, calendar integration, AI suggestions, import/restore execution, or external tester onboarding from this report alone.
