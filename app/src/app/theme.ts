@@ -27,15 +27,15 @@ export const visualThemeDescriptions: Record<VisualThemeName, string> = {
 };
 
 export const themeLabels: Record<ThemeName, string> = {
-  exhale: visualThemeLabels.paper,
-  clear: visualThemeLabels.tide,
-  grounded: visualThemeLabels.clay,
+  exhale: 'Exhale',
+  clear: 'Clear',
+  grounded: 'Grounded',
 };
 
 export const themeDescriptions: Record<ThemeName, string> = {
-  exhale: visualThemeDescriptions.paper,
-  clear: visualThemeDescriptions.tide,
-  grounded: visualThemeDescriptions.clay,
+  exhale: 'Warm, clear, and paper-adjacent without extra texture.',
+  clear: 'Cool blue-green calm with clear separation.',
+  grounded: 'Grounded earth warmth without productivity colour cues.',
 };
 
 export const visualThemeBackgrounds: Record<VisualThemeName, string> = {
