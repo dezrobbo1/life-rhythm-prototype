@@ -75,6 +75,17 @@ export const activeTaskStatusSchema = z.enum([
   'skipped',
   'notToday',
 ]);
+export const taskPoolItemStatusSchema = z.enum([
+  'captured',
+  'suggested',
+  'softPlaced',
+  'today',
+  'parked',
+  'notToday',
+  'deferred',
+  'noLongerNeeded',
+]);
+export const taskPoolItemSourceSchema = z.enum(['adhoc', 'rhythm', 'library', 'custom']);
 export const softPlacementSourceSchema = z.literal('userConfirmed');
 export const softPlacementStatusSchema = z.enum(['planned', 'moved', 'removed', 'completedFromToday']);
 export const startBarrierSchema = z.enum([
@@ -502,6 +513,37 @@ export const activeTaskSchema = z
     validateActiveTaskDeadlineFields(task, context);
   });
 
+export const taskPoolItemSchema = z
+  .object({
+    id: idSchema,
+    title: z.string().min(1),
+    area: areaSchema,
+    source: taskPoolItemSourceSchema,
+    status: taskPoolItemStatusSchema.default('captured'),
+    createdAt: isoDateTime,
+    updatedAt: isoDateTime,
+    minimum: taskVersionSchema,
+    normal: taskVersionSchema,
+    full: taskVersionSchema,
+    purpose: z.string().max(240).optional(),
+    notes: z.string().max(500).optional(),
+    templateId: idSchema.optional(),
+    rhythmInstanceId: idSchema.optional(),
+    timeConstraint: timeConstraintSchema.optional(),
+    dueAt: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    fixedAt: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    expiresAfter: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    latestUsefulStartAt: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    notUsefulAfter: activeTaskDeadlineIsoDateTimeSchema.optional(),
+    minimumStillUsefulAfterDeadline: z.boolean().optional(),
+    missedPolicy: missedPolicySchema.optional(),
+    bringBackAfter: activeTaskDeadlineIsoDateTimeSchema.optional(),
+  })
+  .strict()
+  .superRefine((item, context) => {
+    validateActiveTaskDeadlineFields(item, context);
+  });
+
 export const softPlacementSchema = z
   .object({
     id: idSchema,
@@ -661,6 +703,8 @@ export type LifeShapeTimeBlock = z.infer<typeof lifeShapeTimeBlockSchema>;
 export type RhythmTemplate = z.infer<typeof rhythmTemplateSchema>;
 export type ActiveTask = z.infer<typeof activeTaskSchema>;
 export type ActiveTaskStatus = z.infer<typeof activeTaskStatusSchema>;
+export type TaskPoolItem = z.infer<typeof taskPoolItemSchema>;
+export type TaskPoolItemStatus = z.infer<typeof taskPoolItemStatusSchema>;
 export type SoftPlacement = z.infer<typeof softPlacementSchema>;
 export type SoftPlacementStatus = z.infer<typeof softPlacementStatusSchema>;
 export type TaskHistory = z.infer<typeof taskHistorySchema>;

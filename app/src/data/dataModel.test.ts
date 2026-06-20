@@ -10,6 +10,7 @@ import {
   softPlacementSchema,
   settingsSchema,
   startBoostSafetySettingsSchema,
+  taskPoolItemSchema,
   themeNameSchema,
   type AppExport,
 } from './schemas';
@@ -68,6 +69,19 @@ const softPlacement = softPlacementSchema.parse({
   createdAt: now,
   updatedAt: now,
   status: 'planned',
+});
+
+const taskPoolItem = taskPoolItemSchema.parse({
+  id: 'task-pool-1',
+  source: 'adhoc',
+  title: 'Captured admin task',
+  area: 'admin',
+  status: 'captured',
+  minimum: version,
+  normal: version,
+  full: version,
+  createdAt: now,
+  updatedAt: now,
 });
 
 const validExport: AppExport = appExportSchema.parse({
@@ -159,6 +173,7 @@ describe('future data schemas', () => {
     expect(rhythmTemplate.enabled).toBe(true);
     expect(activeTask.source).toBe('library');
     expect(softPlacement.placementSource).toBe('userConfirmed');
+    expect(taskPoolItem.status).toBe('captured');
   });
 
   it('validates theme preferences', () => {
@@ -587,6 +602,7 @@ describe('future data schemas', () => {
       'softPlacements',
       'startBoostLog',
       'taskHistory',
+      'taskPoolItems',
     ]);
 
     db.close();

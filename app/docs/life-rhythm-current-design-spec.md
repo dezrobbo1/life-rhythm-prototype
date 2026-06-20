@@ -67,6 +67,8 @@ Implemented:
 • active task backup export
 • active task backup validation preview
 • active task deadline/time-edge schema fields
+• task pool / inbox schema and repository
+• task pool Dexie table for local-first captured/deferred items
 • optional Time edge section in Add one-off
 • one-off dueBy/fixedAt/expiresAfter capture
 • calm Today card time-edge copy
@@ -104,7 +106,7 @@ Implemented:
 • Full app reset remains disabled and non-destructive
 • design-board visual alignment and polish passes through PR #81
 Not implemented yet:
-• task pool / inbox
+• task pool UI
 • capture into task pool without adding to Today
 • repeating rhythm instances
 • resurfacing parked, not today, and deferred tasks as suggestions
@@ -128,8 +130,9 @@ one-off time edges, protected time, Day Shape preview, Re-entry review, read-onl
 user-confirmed open-capacity soft placements, soft placement backups, Reset relief-valve actions, and
 opt-in signed-in local profiles.
 • A basic shell/usability trial is ready with one browser, one device, and one stable URL.
-• A meaningful test of the full intended soft scheduling product should wait until task pool, soft window finder,
-and calm resurfacing exist.
+• Task pool storage exists, but no capture UI or Plan pool display exists yet.
+• A meaningful test of the full intended soft scheduling product should wait until capture into task pool,
+soft window finder, and calm resurfacing exist.
 • External tester readiness should wait until onboarding, backup confidence, Clerk
 invite-only/public-signup configuration, and visual polish are stronger.
 ## 4. PR Milestone Snapshot
@@ -185,6 +188,7 @@ Recent key milestones:
 • PR #81: personal-trial visual polish
 • PR #82: post-PR81 trial readiness reconciliation
 • PR #83: soft scheduling loop contract and design-spec update
+• Current branch: task pool schema and repository foundation
 The current app foundation is deliberately staged: schema and persistence first, then read-only previews,
 then controlled user-facing behaviour, then scheduler.
 
@@ -691,22 +695,23 @@ Do not use it for:
 • trusted schema source
 The main GitHub repo remains the trusted implementation path.
 ## 16. Current Near-Term Roadmap
+Completed foundation:
+• Soft scheduling loop contract
+• Task pool schema and repository
 Recommended next sequence:
-1. Soft scheduling loop contract
-2. Task pool schema and repository
-3. Capture ad hoc tasks into the task pool
-4. Show task pool in Plan
-5. Soft window finder v1 from openCapacity blocks
-6. User-confirmed soft placement from task pool
-7. Repeating rhythm instance contract
-8. Repeating rhythm instance suggestions
-9. Re-entry resurfacing for parked, not today, and deferred tasks
-10. Deadline and usefulness salience
-11. Move/edit soft placement
-12. Backup support for task pool and rhythm instances
-13. Final non-AI prototype smoke QA
-14. Operationally verify Clerk invite-only/public-signup settings before external testers
-15. Add a cloud sync contract only if later trial learning shows a clear need
+1. Capture ad hoc tasks into the task pool
+2. Show task pool in Plan
+3. Soft window finder v1 from openCapacity blocks
+4. User-confirmed soft placement from task pool
+5. Repeating rhythm instance contract
+6. Repeating rhythm instance suggestions
+7. Re-entry resurfacing for parked, not today, and deferred tasks
+8. Deadline and usefulness salience
+9. Move/edit soft placement
+10. Backup support for task pool and rhythm instances
+11. Final non-AI prototype smoke QA
+12. Operationally verify Clerk invite-only/public-signup settings before external testers
+13. Add a cloud sync contract only if later trial learning shows a clear need
 Cloud sync remains intentionally unimplemented.
 ## 17. Open Decisions
 Open product and implementation decisions:
