@@ -12,7 +12,7 @@ Life Rhythm is ready for a limited shell/usability trial with one browser, one d
 
 The trial should be treated as product learning about the current shell: Today, Reset, Library, Plan previews, backups, local-first behaviour, mobile layout, and copy. It is not ready to validate the full intended soft scheduling loop.
 
-A meaningful product trial should wait until the app has a task pool, soft window finder, and calm resurfacing for parked, not today, deferred, and rhythm-instance tasks.
+A meaningful product trial should wait until the app has task pool capture UI, Plan pool display, soft window finder, and calm resurfacing for parked, not today, deferred, and rhythm-instance tasks.
 
 The app is not ready for external tester rollout yet. External trials should wait for operational Clerk invite-only verification, stronger onboarding, continued design-board review, and at least one completed personal trial.
 
@@ -73,6 +73,7 @@ The following areas are ready to test in a personal manual trial:
 - mobile layout basics
 
 These areas test shell usability and confidence. They do not yet test the full intended product spine: capture, hold safely, find soft windows, user confirmation, later re-entry, and usefulness windows.
+Task pool schema and repository now exist, but there is no user-facing capture flow or task pool screen yet.
 
 ## 4. Not Ready To Test Yet
 
@@ -80,7 +81,7 @@ These areas remain out of scope for the personal trial:
 
 - `askFirst` placement acceptance
 - move or edit soft placement
-- task pool / inbox
+- task pool / inbox UI
 - capture into task pool without adding to Today
 - soft window finder from task pool
 - repeating rhythm instances
@@ -189,7 +190,7 @@ Known risks that should be watched closely:
 
 - The design spec is a living document and needs periodic reconciliation after trial-hardening PRs.
 - Visual polish is stronger after PR #81, but full design-board parity remains future work.
-- The current app does not have a task pool yet, so capture still mostly enters Today or Library.
+- The current app has task pool storage, but no capture UI yet, so capture still mostly enters Today or Library.
 - Soft suggestions are currently based on existing Today tasks and open capacity, not a broader safe holding pool.
 - Re-entry remains partial until parked, not today, deferred, and rhythm-instance tasks can resurface as suggestions.
 - Vercel preview URLs may fragment local trial data.
@@ -280,8 +281,7 @@ After the limited shell/usability trial, review the issue log before adding new 
 
 Likely next decisions:
 
-- what minimum task pool model is needed
-- how captured ad hoc tasks should be held before Today
+- how captured ad hoc tasks should enter the task pool before Today
 - how repeating rhythm instances should avoid backlog or streak debt
 - how soft window finder v1 should use open capacity
 - how parked, not today, and deferred items should resurface

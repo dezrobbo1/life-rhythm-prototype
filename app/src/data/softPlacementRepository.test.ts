@@ -56,6 +56,7 @@ async function expectOnlySoftPlacementsWritten(
   expect(await database.startBoostLog.count()).toBe(0);
   expect(await database.devTickets.count()).toBe(0);
   expect(await database.migrationLog.count()).toBe(0);
+  expect(await database.taskPoolItems.count()).toBe(0);
 }
 
 afterEach(() => {
