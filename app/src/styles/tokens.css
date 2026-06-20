@@ -25,3 +25,85 @@
   --border-soft: 1px solid var(--stroke-soft, rgb(217 205 187));
   --border-strong: 1px solid var(--stroke-strong, rgb(174 156 132));
 }
+
+.surface-quiet-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.surface-primary-object {
+  background: var(--surface-primary-object, var(--color-surface));
+  border: var(--border-soft);
+  border-radius: var(--radius-primary);
+  box-shadow: var(--shadow-surface);
+  color: var(--fg-primary, var(--color-text));
+  padding: var(--space-5);
+}
+
+.surface-holding-tray {
+  background: var(--surface-tray, var(--color-surface));
+  border: var(--border-soft);
+  border-radius: var(--radius-surface);
+  color: var(--fg-primary, var(--color-text));
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.surface-ledger-row {
+  align-items: flex-start;
+  background: var(--surface-ledger-row, var(--color-surface));
+  border-bottom: 1px solid var(--stroke-soft, var(--color-line));
+  color: var(--fg-primary, var(--color-text));
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  min-width: 0;
+  padding: var(--space-3) 0;
+}
+
+.surface-ledger-row:last-child {
+  border-bottom: 0;
+}
+
+.surface-day-band {
+  background: var(--surface-day-band, var(--color-surface));
+  border: var(--border-soft);
+  border-radius: var(--radius-surface);
+  color: var(--fg-primary, var(--color-text));
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.surface-day-band-open,
+.surface-day-band--open {
+  background: var(--bg-band-open, var(--surface-day-band));
+}
+
+.surface-day-band-protected,
+.surface-day-band--protected {
+  background: var(--bg-band-protected, var(--surface-day-band));
+  border-color: var(--stroke-strong, var(--color-line));
+}
+
+.surface-day-band-askFirst,
+.surface-day-band--askFirst {
+  background: var(--bg-band-ask-first, var(--surface-day-band));
+}
+
+.surface-day-band-recovery,
+.surface-day-band--recovery {
+  background: var(--bg-band-recovery, var(--surface-day-band));
+}
+
+.surface-relief-sheet {
+  background: var(--surface-sheet, var(--color-surface));
+  border: var(--border-soft);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  box-shadow: var(--shadow-sheet);
+  color: var(--fg-primary, var(--color-text));
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
