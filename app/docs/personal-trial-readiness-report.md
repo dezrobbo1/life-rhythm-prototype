@@ -2,7 +2,7 @@
 
 Status: Ready for a limited shell/usability trial
 
-Scope: Local-first Life Rhythm `/app` through PR #81
+Scope: Local-first Life Rhythm `/app` through PR #83
 
 This report is the readiness note for a limited shell/usability trial. It does not approve a full soft-scheduling product trial, external tester onboarding, cloud sync, import/restore, calendar integration, AI suggestions, automatic scheduling, or public signup.
 

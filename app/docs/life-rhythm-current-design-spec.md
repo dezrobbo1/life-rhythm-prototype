@@ -1,7 +1,7 @@
 # Life Rhythm Current Design Spec
 Status: Living design specification
 Scope: Product direction, current implementation state, design boundaries, and near-term roadmap
-Last consolidated after: PR #82 plus soft scheduling loop contract draft
+Last consolidated after: PR #83 - Soft scheduling loop contract
 ## 1. Product Identity
 Life Rhythm is a non-clinical self-management app for adults with ADHD traits or an ADHD diagnosis.
 It supports habits, rhythms, task initiation, re-entry after missed or disrupted days, protected time, and
@@ -45,7 +45,7 @@ The product should help users protect their life from overfilling, not simply fi
 The intended product spine is:
 capture → hold safely → find soft window → user confirms → re-enter later if missed or deferred → respect usefulness windows.
 See `app/docs/soft-scheduling-loop-contract.md` for the current contract.
-## 3. Current Implementation State After PR #81
+## 3. Current Implementation State After PR #83
 The app now has a real local-first foundation. It is no longer only a static prototype shell.
 Implemented:
 • settings persistence
@@ -184,6 +184,7 @@ Recent key milestones:
 • PR #80: Reset relief-valve actions trial-functional
 • PR #81: personal-trial visual polish
 • PR #82: post-PR81 trial readiness reconciliation
+• PR #83: soft scheduling loop contract and design-spec update
 The current app foundation is deliberately staged: schema and persistence first, then read-only previews,
 then controlled user-facing behaviour, then scheduler.
 
