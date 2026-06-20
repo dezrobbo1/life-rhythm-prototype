@@ -69,6 +69,8 @@ Implemented:
 • active task deadline/time-edge schema fields
 • task pool / inbox schema and repository
 • task pool Dexie table for local-first captured/deferred items
+• task pool capture UI in Plan
+• Plan task pool list for safely held captured/deferred items
 • optional Time edge section in Add one-off
 • one-off dueBy/fixedAt/expiresAfter capture
 • calm Today card time-edge copy
@@ -106,8 +108,7 @@ Implemented:
 • Full app reset remains disabled and non-destructive
 • design-board visual alignment and polish passes through PR #81
 Not implemented yet:
-• task pool UI
-• capture into task pool without adding to Today
+• soft window finder from task pool
 • repeating rhythm instances
 • resurfacing parked, not today, and deferred tasks as suggestions
 • missed-task detection
@@ -130,9 +131,10 @@ one-off time edges, protected time, Day Shape preview, Re-entry review, read-onl
 user-confirmed open-capacity soft placements, soft placement backups, Reset relief-valve actions, and
 opt-in signed-in local profiles.
 • A basic shell/usability trial is ready with one browser, one device, and one stable URL.
-• Task pool storage exists, but no capture UI or Plan pool display exists yet.
-• A meaningful test of the full intended soft scheduling product should wait until capture into task pool,
-soft window finder, and calm resurfacing exist.
+• Task pool capture now exists in Plan, and captured ad hoc tasks can be safely held outside Today.
+• Plan can show basic task pool items, but captured tasks are not scheduled and are not automatically added to Today.
+• A meaningful test of the full intended soft scheduling product should wait until the soft window finder,
+calm resurfacing, and repeating rhythm instances exist.
 • External tester readiness should wait until onboarding, backup confidence, Clerk
 invite-only/public-signup configuration, and visual polish are stronger.
 ## 4. PR Milestone Snapshot
@@ -188,7 +190,7 @@ Recent key milestones:
 • PR #81: personal-trial visual polish
 • PR #82: post-PR81 trial readiness reconciliation
 • PR #83: soft scheduling loop contract and design-spec update
-• Current branch: task pool schema and repository foundation
+• Current branch: task pool capture UI and Plan inbox list
 The current app foundation is deliberately staged: schema and persistence first, then read-only previews,
 then controlled user-facing behaviour, then scheduler.
 
@@ -620,10 +622,10 @@ Ready for a limited shell/usability trial with one browser, one device, and one 
 The app can already support local settings, Library, Today tasks, task states, backups, protected time blocks,
 Day Shape preview, Add one-off time edges, Re-entry review, read-only soft suggestions, user-confirmed
 open-capacity soft placements, saved soft placements, soft placement backups, Reset relief-valve actions,
-Trial limits copy, fixed-commitments notes-only clarity, and opt-in local signed-in profiles. However, it does
+Trial limits copy, fixed-commitments notes-only clarity, task pool capture in Plan, and opt-in local signed-in profiles. However, it does
 not yet have missed-task detection, askFirst placement, move/edit placement,
 calendar integration, AI suggestions, import/restore execution, or external tester readiness.
-It is also not yet sufficient to test the full intended soft scheduling loop because task pool, repeating rhythm
+It is also not yet sufficient to test the full intended soft scheduling loop because repeating rhythm
 instances, soft window finder v1, and calm resurfacing are not implemented.
 Meaningful personal trial
 The next useful step is to run a limited shell/usability trial and review what breaks or feels confusing after real use.
@@ -634,9 +636,8 @@ The app has completed:
 • backup confidence copy pass
 • design-board visual polish passes through PR #81
 Meaningful full-product trial should wait for:
-• task pool / inbox
-• capture into task pool without adding to Today
 • soft window finder v1 from openCapacity blocks
+• user-confirmed soft placement from task pool
 • resurfacing for parked, not today, and deferred tasks
 • repeating rhythm instance suggestions
 • deadline and usefulness salience
@@ -698,24 +699,23 @@ The main GitHub repo remains the trusted implementation path.
 Completed foundation:
 • Soft scheduling loop contract
 • Task pool schema and repository
+• Task pool capture UI and Plan inbox list
 Recommended next sequence:
-1. Capture ad hoc tasks into the task pool
-2. Show task pool in Plan
-3. Soft window finder v1 from openCapacity blocks
-4. User-confirmed soft placement from task pool
-5. Repeating rhythm instance contract
-6. Repeating rhythm instance suggestions
-7. Re-entry resurfacing for parked, not today, and deferred tasks
-8. Deadline and usefulness salience
-9. Move/edit soft placement
-10. Backup support for task pool and rhythm instances
-11. Final non-AI prototype smoke QA
-12. Operationally verify Clerk invite-only/public-signup settings before external testers
-13. Add a cloud sync contract only if later trial learning shows a clear need
+1. Soft window finder v1 from openCapacity blocks
+2. User-confirmed soft placement from task pool
+3. Repeating rhythm instance contract
+4. Repeating rhythm instance suggestions
+5. Re-entry resurfacing for parked, not today, and deferred tasks
+6. Deadline and usefulness salience
+7. Move/edit soft placement
+8. Backup support for task pool and rhythm instances
+9. Final non-AI prototype smoke QA
+10. Operationally verify Clerk invite-only/public-signup settings before external testers
+11. Add a cloud sync contract only if later trial learning shows a clear need
 Cloud sync remains intentionally unimplemented.
 ## 17. Open Decisions
 Open product and implementation decisions:
-• What minimum task pool fields are required before capture can move out of Today?
+• How should captured task pool items feed the first open-capacity soft window finder?
 • How should repeating rhythm instances be generated without backlog or streak debt?
 • How should resurfacing limits avoid alert fatigue?
 • What operational Clerk invite-only settings are required before external testers?
