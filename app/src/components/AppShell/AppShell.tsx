@@ -3,14 +3,13 @@ import { themeLabels, themes, type ThemeName } from '../../app/theme';
 import { AppIcon, type AppIconName } from '../AppIcon/AppIcon';
 import { BrandMark } from '../BrandMark/BrandMark';
 
-export type ScreenId = 'today' | 'plan' | 'library' | 'reset' | 'setup';
+export type ScreenId = 'today' | 'plan' | 'pool' | 'library' | 'reset' | 'setup';
 
 const navItems: Array<{ id: ScreenId; icon: AppIconName; label: string }> = [
   { id: 'today', icon: 'today', label: 'Today' },
   { id: 'plan', icon: 'plan', label: 'Plan' },
+  { id: 'pool', icon: 'pool', label: 'Pool' },
   { id: 'library', icon: 'library', label: 'Library' },
-  { id: 'reset', icon: 'reset', label: 'Reset' },
-  { id: 'setup', icon: 'setup', label: 'Setup' },
 ];
 
 type AppShellProps = {
@@ -39,16 +38,36 @@ export function AppShell({
             <p>Start small. Keep rhythm.</p>
           </div>
         </div>
-        <label className="theme-control">
-          <span>Theme</span>
-          <select value={theme} onChange={(event) => onThemeChange(event.target.value as ThemeName)}>
-            {themes.map((item) => (
-              <option key={item} value={item}>
-                {themeLabels[item]}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="app-header__actions">
+          <label className="theme-control">
+            <span>Theme</span>
+            <select value={theme} onChange={(event) => onThemeChange(event.target.value as ThemeName)}>
+              {themes.map((item) => (
+                <option key={item} value={item}>
+                  {themeLabels[item]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <nav className="secondary-nav" aria-label="Secondary">
+            <button
+              aria-current={activeScreen === 'reset' ? 'page' : undefined}
+              onClick={() => onScreenChange('reset')}
+              type="button"
+            >
+              <AppIcon name="reset" size={15} />
+              <span>Reset</span>
+            </button>
+            <button
+              aria-current={activeScreen === 'setup' ? 'page' : undefined}
+              onClick={() => onScreenChange('setup')}
+              type="button"
+            >
+              <AppIcon name="setup" size={15} />
+              <span>Settings</span>
+            </button>
+          </nav>
+        </div>
       </header>
       <main className="app-main">{children}</main>
       <nav className="bottom-nav" aria-label="Primary">

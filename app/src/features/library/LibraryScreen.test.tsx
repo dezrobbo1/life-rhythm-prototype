@@ -562,7 +562,7 @@ describe('Library screen', () => {
     await user.click(screen.getByRole('button', { name: 'Reset' }));
     expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
     expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Appearance' })).toBeTruthy();
   });
@@ -576,9 +576,14 @@ describe('Library screen', () => {
     const nav = screen.getByRole('navigation', { name: 'Primary' });
     expect(within(nav).getByRole('button', { name: 'Today' })).toBeTruthy();
     expect(within(nav).getByRole('button', { name: 'Plan' })).toBeTruthy();
+    expect(within(nav).getByRole('button', { name: 'Pool' })).toBeTruthy();
     expect(within(nav).getByRole('button', { name: 'Library' })).toBeTruthy();
-    expect(within(nav).getByRole('button', { name: 'Reset' })).toBeTruthy();
-    expect(within(nav).getByRole('button', { name: 'Setup' })).toBeTruthy();
+    expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
+    expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();
+
+    const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
+    expect(within(secondaryNav).getByRole('button', { name: 'Reset' })).toBeTruthy();
+    expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Library' })).toBeTruthy();
   });
 });

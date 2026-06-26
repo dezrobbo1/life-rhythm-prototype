@@ -106,24 +106,31 @@ describe('AppSnapshotProvider', () => {
     expect(deleteDatabaseSpy).not.toHaveBeenCalled();
   });
 
-  it('keeps all five tabs rendering through the provider path', async () => {
+  it('keeps primary and secondary surfaces rendering through the provider path', async () => {
     const user = userEvent.setup();
     render(<App />);
 
     const nav = screen.getByRole('navigation', { name: 'Primary' });
+    const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
 
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
 
     await user.click(within(nav).getByRole('button', { name: 'Plan' }));
     expect(screen.getByRole('heading', { name: 'Plan' })).toBeTruthy();
 
+    await user.click(within(nav).getByRole('button', { name: 'Pool' }));
+    expect(screen.getByRole('heading', { name: 'Pool' })).toBeTruthy();
+
     await user.click(within(nav).getByRole('button', { name: 'Library' }));
     expect(screen.getByRole('heading', { name: 'Library' })).toBeTruthy();
 
-    await user.click(within(nav).getByRole('button', { name: 'Reset' }));
+    expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
+    expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();
+
+    await user.click(within(secondaryNav).getByRole('button', { name: 'Reset' }));
     expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
 
-    await user.click(within(nav).getByRole('button', { name: 'Setup' }));
+    await user.click(within(secondaryNav).getByRole('button', { name: 'Settings' }));
     expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
   });
 });

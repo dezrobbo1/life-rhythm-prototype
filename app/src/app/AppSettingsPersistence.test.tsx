@@ -129,7 +129,7 @@ describe('App settings persistence wiring', () => {
     render(<App />);
 
     await waitFor(() => expect(document.querySelector('.app-shell')?.getAttribute('data-theme')).toBe('clear'));
-    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
 
     expect((screen.getByLabelText('Commute / travel time') as HTMLInputElement).value).toBe('35');
     expect((screen.getByLabelText('Transition buffer') as HTMLSelectElement).value).toBe('20');
@@ -154,7 +154,7 @@ describe('App settings persistence wiring', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
     await user.click(screen.getByRole('radio', { name: /Clear/ }));
     await user.click(screen.getByRole('checkbox', { name: /Avoid food rewards/ }));
     await user.clear(screen.getByLabelText('Commute / travel time'));
@@ -200,7 +200,7 @@ describe('App settings persistence wiring', () => {
     render(<App />);
 
     await waitFor(() => expect(document.querySelector('.app-shell')?.getAttribute('data-theme')).toBe('clear'));
-    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
     await user.click(screen.getByRole('button', { name: 'Reset settings to defaults' }));
 
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Settings reset to defaults on this device.'));
@@ -230,7 +230,7 @@ describe('App settings persistence wiring', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
     await user.click(screen.getByRole('button', { name: 'Export settings backup' }));
 
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Settings backup created on this device.'));
@@ -249,7 +249,7 @@ describe('App settings persistence wiring', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
     fireEvent.change(screen.getByLabelText('Settings backup text'), {
       target: {
         value: backupJson,
@@ -301,7 +301,7 @@ describe('App settings persistence wiring', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
     await user.click(screen.getByRole('button', { name: 'Export soft placement backup' }));
 
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Soft placement backup created on this device.'));
