@@ -15,13 +15,10 @@ import {
 import {
   activeTaskSchema,
   softPlacementSchema,
-  taskPoolItemSchema,
   type ActiveTask,
   type SoftPlacement,
-  type TaskPoolItem,
 } from '../../data/schemas';
 import { loadAllSoftPlacements, saveSoftPlacement } from '../../data/softPlacementRepository';
-import { getTaskPoolItem, loadTaskPoolItems, saveTaskPoolItem } from '../../data/taskPoolRepository';
 import { PlanScreen } from '../../screens/PlanScreen';
 import { normalDayWithOneTaskSnapshot, type AppDataSnapshot } from '../../viewModels';
 import { localDateForNextSelectedDay } from './softPlacementDate';
@@ -293,31 +290,6 @@ function validActiveTask(overrides: Partial<ActiveTask> = {}): ActiveTask {
   });
 }
 
-function validTaskPoolItem(overrides: Partial<TaskPoolItem> = {}): TaskPoolItem {
-  return taskPoolItemSchema.parse({
-    area: 'admin',
-    createdAt: '2026-06-18T00:00:00.000Z',
-    full: {
-      label: 'File the form and close the tab',
-      minutes: 20,
-    },
-    id: 'task-pool-captured-form',
-    minimum: {
-      label: 'Open the form',
-      minutes: 5,
-    },
-    normal: {
-      label: 'Fill in the first section',
-      minutes: 10,
-    },
-    source: 'adhoc',
-    status: 'captured',
-    title: 'Captured form task',
-    updatedAt: '2026-06-18T00:00:00.000Z',
-    ...overrides,
-  });
-}
-
 beforeEach(() => {
   planNamespaceIndex += 1;
   setCurrentLocalDataNamespace(createAuthLocalDataNamespace(`plan-soft-placement-test-${planNamespaceIndex}`));
@@ -336,236 +308,12 @@ describe('Plan screen', () => {
 
     expect(screen.getByText('Life shape preview: work hours, buffers, and protected blocks will shape future planning.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Day Shape preview' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Task pool' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Capture task' })).toBeTruthy();
-    expect(screen.getByText('No captured tasks yet.')).toBeTruthy();
-    expect(screen.getByText('Capture something here without adding it to Today.')).toBeTruthy();
     expect(screen.getByText('No blocks defined for Monday.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Morning' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Midday' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Afternoon' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Evening' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Late evening' })).toBeTruthy();
-  });
-
-  it('opens the task pool capture modal and keeps required fields required', async () => {
-    const user = userEvent.setup();
-
-    renderPlanWithSnapshot();
-
-    await user.click(screen.getByRole('button', { name: 'Capture task' }));
-
-    const dialog = screen.getByRole('dialog', { name: 'Capture task' });
-    const saveButton = within(dialog).getByRole('button', { name: 'Save captured task' });
-
-    expect(within(dialog).getByText('Safely held for later. This does not add it to Today.')).toBeTruthy();
-    expect((saveButton as HTMLButtonElement).disabled).toBe(true);
-    expect(dialog.textContent?.toLowerCase() ?? '').not.toContain('calendar');
-  });
-
-  it('captures a valid task into the task pool and refreshes the Plan list only', async () => {
-    const user = userEvent.setup();
-    const fetchSpy = vi.fn();
-    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
-    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
-    const originalFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
-
-    try {
-      Object.defineProperty(globalThis, 'fetch', {
-        configurable: true,
-        value: fetchSpy,
-      });
-      renderPlanWithSnapshot();
-
-      await user.click(screen.getByRole('button', { name: 'Capture task' }));
-      await user.type(screen.getByLabelText('Task title'), 'Order school shirts');
-      await user.selectOptions(screen.getByLabelText('Area'), 'admin');
-      await user.type(screen.getByLabelText('Minimum version'), 'Write the size list');
-      await user.click(screen.getByRole('button', { name: /Optional details/ }));
-      await user.type(screen.getByLabelText('Normal version'), 'Check prices and sizes');
-      await user.type(screen.getByLabelText('Full version'), 'Order shirts and save the confirmation');
-      await user.type(screen.getByLabelText('Purpose'), 'Keep the school order visible.');
-      await user.type(screen.getByLabelText('Notes'), 'Use the saved size note.');
-      await user.click(screen.getByRole('button', { name: /Optional useful window/ }));
-      await user.type(screen.getByLabelText('Useful before'), '2026-06-20T10:30');
-      await user.type(screen.getByLabelText('Useful until'), '2026-06-21T10:30');
-      await user.click(screen.getByLabelText('Minimum still helps'));
-      await user.click(screen.getByRole('button', { name: 'Save captured task' }));
-
-      expect(await screen.findByText('Task captured. It is safely held.')).toBeTruthy();
-      expect(screen.queryByRole('dialog', { name: 'Capture task' })).toBeNull();
-
-      const taskPoolSection = sectionForHeading('Task pool');
-
-      expect(await within(taskPoolSection).findByText('Order school shirts')).toBeTruthy();
-      expect(within(taskPoolSection).getByText('Admin - Safely held')).toBeTruthy();
-      expect(within(taskPoolSection).getByText('Minimum: Write the size list')).toBeTruthy();
-      expect(within(taskPoolSection).getByText(/Useful before/)).toBeTruthy();
-      expect(within(taskPoolSection).getByText(/Useful until/)).toBeTruthy();
-      expect(within(taskPoolSection).getByText('Minimum still helps')).toBeTruthy();
-
-      const items = await loadTaskPoolItems();
-      const placements = await loadAllSoftPlacements();
-      const counts = await defaultTableCounts();
-
-      expect(items).toHaveLength(1);
-      expect(items[0]).toMatchObject({
-        area: 'admin',
-        minimum: {
-          label: 'Write the size list',
-        },
-        normal: {
-          label: 'Check prices and sizes',
-        },
-        source: 'adhoc',
-        status: 'captured',
-        timeConstraint: 'dueBy',
-        title: 'Order school shirts',
-      });
-      expect(items[0].minimumStillUsefulAfterDeadline).toBe(true);
-      expect(placements).toHaveLength(0);
-      expect(counts).toMatchObject({
-        activeTasks: 0,
-        completionLog: 0,
-        migrationLog: 0,
-        resetLog: 0,
-        rhythmTemplates: 0,
-        settings: 0,
-        softPlacements: 0,
-        startBoostLog: 0,
-        taskHistory: 0,
-        taskPoolItems: 1,
-      });
-      expect(fetchSpy).not.toHaveBeenCalled();
-      expect(getItemSpy).not.toHaveBeenCalled();
-      expect(setItemSpy).not.toHaveBeenCalled();
-    } finally {
-      if (originalFetch) {
-        Object.defineProperty(globalThis, 'fetch', originalFetch);
-      } else {
-        Reflect.deleteProperty(globalThis, 'fetch');
-      }
-    }
-  });
-
-  it('does not add a captured task to Today', async () => {
-    const user = userEvent.setup();
-
-    render(<App />);
-
-    await user.click(screen.getByRole('button', { name: 'Plan' }));
-    await user.click(screen.getByRole('button', { name: 'Capture task' }));
-    await user.type(screen.getByLabelText('Task title'), 'Task held outside Today');
-    await user.type(screen.getByLabelText('Minimum version'), 'Write the first note');
-    await user.click(screen.getByRole('button', { name: 'Save captured task' }));
-
-    expect(await screen.findByText('Task captured. It is safely held.')).toBeTruthy();
-
-    await user.click(screen.getByRole('button', { name: 'Today' }));
-
-    expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
-    expect(screen.queryByText('Task held outside Today')).toBeNull();
-    expect(await loadTaskPoolItems()).toHaveLength(1);
-    expect(await getCurrentLifeRhythmDatabase().activeTasks.count()).toBe(0);
-  });
-
-  it('shows saved task pool items and hides no-longer-needed items', async () => {
-    await saveTaskPoolItem(validTaskPoolItem({
-      dueAt: '2026-06-20T10:30:00.000Z',
-      minimumStillUsefulAfterDeadline: true,
-      notUsefulAfter: '2026-06-21T10:30:00.000Z',
-      timeConstraint: 'dueBy',
-    }));
-    await saveTaskPoolItem(validTaskPoolItem({
-      id: 'task-pool-no-longer-needed',
-      status: 'noLongerNeeded',
-      title: 'Hidden pool item',
-    }));
-
-    renderPlanWithSnapshot();
-
-    const taskPoolSection = sectionForHeading('Task pool');
-
-    expect(await within(taskPoolSection).findByText('Captured form task')).toBeTruthy();
-    expect(within(taskPoolSection).getByText('Admin - Safely held')).toBeTruthy();
-    expect(within(taskPoolSection).getByText('Minimum: Open the form')).toBeTruthy();
-    expect(within(taskPoolSection).getByText(/Useful before/)).toBeTruthy();
-    expect(within(taskPoolSection).getByText(/Useful until/)).toBeTruthy();
-    expect(within(taskPoolSection).getByText('Minimum still helps')).toBeTruthy();
-    expect(within(taskPoolSection).queryByText('Hidden pool item')).toBeNull();
-  });
-
-  it('marks a task pool item no longer needed without deleting or touching other data', async () => {
-    const user = userEvent.setup();
-    const fetchSpy = vi.fn();
-    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
-    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
-    const originalFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
-
-    await saveTaskPoolItem(validTaskPoolItem());
-
-    try {
-      Object.defineProperty(globalThis, 'fetch', {
-        configurable: true,
-        value: fetchSpy,
-      });
-
-      renderPlanWithSnapshot();
-
-      const taskPoolSection = sectionForHeading('Task pool');
-
-      expect(await within(taskPoolSection).findByText('Captured form task')).toBeTruthy();
-
-      await user.click(within(taskPoolSection).getByRole('button', { name: 'No longer needed' }));
-
-      expect(await screen.findByText('Marked no longer needed. Nothing else changed.')).toBeTruthy();
-      expect(within(taskPoolSection).queryByText('Captured form task')).toBeNull();
-
-      const item = await getTaskPoolItem('task-pool-captured-form');
-      const counts = await defaultTableCounts();
-
-      expect(item).toMatchObject({
-        id: 'task-pool-captured-form',
-        status: 'noLongerNeeded',
-      });
-      expect(counts).toMatchObject({
-        activeTasks: 0,
-        completionLog: 0,
-        migrationLog: 0,
-        resetLog: 0,
-        rhythmTemplates: 0,
-        settings: 0,
-        softPlacements: 0,
-        startBoostLog: 0,
-        taskHistory: 0,
-        taskPoolItems: 1,
-      });
-      expect(fetchSpy).not.toHaveBeenCalled();
-      expect(getItemSpy).not.toHaveBeenCalled();
-      expect(setItemSpy).not.toHaveBeenCalled();
-    } finally {
-      if (originalFetch) {
-        Object.defineProperty(globalThis, 'fetch', originalFetch);
-      } else {
-        Reflect.deleteProperty(globalThis, 'fetch');
-      }
-    }
-  });
-
-  it('keeps pressure wording out of the task pool section', async () => {
-    await saveTaskPoolItem(validTaskPoolItem());
-
-    renderPlanWithSnapshot();
-
-    const taskPoolSection = sectionForHeading('Task pool');
-
-    expect(await within(taskPoolSection).findByText('Captured form task')).toBeTruthy();
-
-    const text = taskPoolSection.textContent?.toLowerCase() ?? '';
-
-    expect(text).not.toMatch(
-      /\b(overdue|late|failed|urgent|behind|score|streak|optimize|productivity score|compliance)\b|catch up/,
-    );
   });
 
   it('groups read-only Day Shape blocks into planning categories', () => {
@@ -983,9 +731,14 @@ describe('Plan screen', () => {
     const nav = screen.getByRole('navigation', { name: 'Primary' });
     expect(within(nav).getByRole('button', { name: 'Today' })).toBeTruthy();
     expect(within(nav).getByRole('button', { name: 'Plan' })).toBeTruthy();
+    expect(within(nav).getByRole('button', { name: 'Pool' })).toBeTruthy();
     expect(within(nav).getByRole('button', { name: 'Library' })).toBeTruthy();
-    expect(within(nav).getByRole('button', { name: 'Reset' })).toBeTruthy();
-    expect(within(nav).getByRole('button', { name: 'Setup' })).toBeTruthy();
+    expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
+    expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();
+
+    const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
+    expect(within(secondaryNav).getByRole('button', { name: 'Reset' })).toBeTruthy();
+    expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Plan' })).toBeTruthy();
   });
 });
