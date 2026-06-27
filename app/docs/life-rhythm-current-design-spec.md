@@ -1,794 +1,1025 @@
 # Life Rhythm Current Design Spec
+
 Status: Living design specification
-Scope: Product direction, current implementation state, design boundaries, and near-term roadmap
-Last consolidated after: PR #83 - Soft scheduling loop contract
+Scope: Product direction, current implementation state, design boundaries, source authority, and near-term roadmap
+Last consolidated after: PR #89 - Research source governance and design-spec consolidation
+
 ## 1. Product Identity
+
 Life Rhythm is a non-clinical self-management app for adults with ADHD traits or an ADHD diagnosis.
-It supports habits, rhythms, task initiation, re-entry after missed or disrupted days, protected time, and
-daily life maintenance. The app is designed for people who often benefit from rhythm and structure but
-may resist rigid scheduling, external pressure, shame-based productivity systems, or tools that turn daily
-life into a timetable.
-Life Rhythm is not a medical product. It must not diagnose, treat, monitor clinical compliance, claim medical
-outcomes, replace therapy, or present itself as clinical care.
+
+It supports rhythms, task initiation, task capture, safe holding, re-entry after missed or disrupted days, protected time, and soft planning. The app is designed for people who often benefit from rhythm and structure but may resist rigid scheduling, external pressure, shame-based productivity systems, or tools that turn daily life into a timetable.
+
+Life Rhythm is not a medical product. It must not diagnose, treat, monitor clinical compliance, claim medical outcomes, replace therapy, replace coaching, replace occupational therapy, provide crisis support, provide medication advice, provide financial advice, or present itself as clinical care.
+
 Life Rhythm must avoid:
-• diagnosis or treatment language
-• medical outcome claims
-• therapy or coach-authority framing
-• compliance monitoring
-• shame or failure language
-• scores
-• streak pressure
-• public accountability
-• coercive reminders
-• productivity punishment
-• dopamine-hack language
-• gamified pressure
-• “you are behind” framing
-The product should remain calm, practical, and user-led.
+
+- diagnosis or treatment language
+- medical outcome claims
+- therapy or coach-authority framing
+- compliance monitoring
+- shame or failure language
+- scores
+- streak pressure
+- public accountability
+- coercive reminders
+- productivity punishment
+- dopamine-hack language
+- gamified pressure
+- “you are behind” framing
+- productivity dashboards
+- missed-task dashboards
+- automatic scheduling claims
+- calendar ownership of the day
+
+The product should remain calm, practical, private, local-first, and user-led.
+
 ## 2. Core Product Principle
+
 The central product principle is:
-Power underneath. Calm on the surface.
-Life Rhythm can have strong modelling, validation, persistence, backup, and planning logic underneath, but
-the user-facing experience should stay light, forgiving, and non-coercive.
+
+> Power underneath. Calm on the surface.
+
+Life Rhythm can have strong modelling, validation, persistence, backup, and planning logic underneath, but the user-facing experience should stay light, forgiving, and non-coercive.
 
 Supporting principles:
-• Rhythm without capture.
-• Structure without ownership of the whole day.
-• Re-entry without punishment.
-• Planning without life becoming a timetable.
-• Not every unscheduled gap is available.
-• Minimum done counts.
-• Parked is safe, not failed.
-• Not today is allowed.
-• Blank time is not automatically task space.
-The product should help users protect their life from overfilling, not simply find more gaps to consume.
-The intended product spine is:
-capture → hold safely → find soft window → user confirms → re-enter later if missed or deferred → respect usefulness windows.
-See `app/docs/soft-scheduling-loop-contract.md` for the current contract.
-## 3. Current Implementation State After PR #83
-The app now has a real local-first foundation. It is no longer only a static prototype shell.
-Implemented:
-• settings persistence
-• theme persistence
-• Start Boost safety persistence
-• Life Shape persistence
-• settings backup export
-• settings backup validation preview
-• custom Library rhythm persistence
-• Library rhythm backup export
-• Library rhythm backup validation preview
-• active Today task persistence
-• Add one-off Today tasks
-• Add Library rhythm to Today
-• active task status persistence
-• Start / Pause / Resume / Minimum done
-• Minimum, normal, and full completion endpoints through existing task statuses
-• Stop here / Park / Not today
-• active task backup export
-• active task backup validation preview
-• active task deadline/time-edge schema fields
-• task pool / inbox schema and repository
-• task pool Dexie table for local-first captured/deferred items
-• task pool capture UI in Plan
-• Plan task pool list for safely held captured/deferred items
-• optional Time edge section in Add one-off
-• one-off dueBy/fixedAt/expiresAfter capture
-• calm Today card time-edge copy
-• Life Shape protected/recovery/loose/household/family/open-capacity blocks
-• Setup “Time to leave alone” controls
-• fixed commitments notes-only clarity for trial
-• read-only Day Shape preview in Plan
-• Re-entry review section in Today
-• read-only time-edge re-entry preview
-• user-confirmed Park safely and Mark not today from re-entry review
-• Try the minimum helper copy only
-• read-only Plan soft suggestions
-• openCapacity-only Add soft placement
-• saved soft placements in Plan
-• Remove placement marks a placement removed without deleting the task
-• soft placement schema and repository
-• soft placement backup export
-• soft placement backup validation preview
-• removed placements included in soft placement backups as explicit local state
-• trial account/auth boundary contract
-• opt-in Clerk auth shell
-• signed-out trial access shell
-• signed-in account bar
-• user-scoped hashed local database namespaces
-• legacy local data handoff notice
-• Trial limits note in Setup
-• final personal-trial smoke QA completed
-• mobile trial polish pass completed
-• backup confidence copy pass completed
-• Reset relief-valve actions functional for trial
-• Narrow Today marks extra visible Today tasks notToday
-• Park extras safely marks extra visible Today tasks parked
-• Restart with one action surfaces the first visible Today task
-• Restore hidden items remains preview-only
-• Full app reset remains disabled and non-destructive
-• design-board visual alignment and polish passes through PR #81
-Not implemented yet:
-• soft window finder from task pool
-• repeating rhythm instances
-• resurfacing parked, not today, and deferred tasks as suggestions
-• missed-task detection
-• missed status persistence
-• askFirst placement
-• move/edit soft placement
-• automatic scheduling
-• scheduler-owned placement
-• calendar load
-• iOS/native calendar integration
-• cloud sync
-• AI pattern suggestions
-• import/restore execution
-• notifications
-• full design-board visual parity
-• external tester readiness
-Current practical status:
-• A basic personal manual trial can now exercise local settings, Library rhythms, active Today tasks,
-one-off time edges, protected time, Day Shape preview, Re-entry review, read-only soft suggestions,
-user-confirmed open-capacity soft placements, soft placement backups, Reset relief-valve actions, and
-opt-in signed-in local profiles.
-• A basic shell/usability trial is ready with one browser, one device, and one stable URL.
-• Task pool capture now exists in Plan, and captured ad hoc tasks can be safely held outside Today.
-• Plan can show basic task pool items, but captured tasks are not scheduled and are not automatically added to Today.
-• A meaningful test of the full intended soft scheduling product should wait until the soft window finder,
-calm resurfacing, and repeating rhythm instances exist.
-• External tester readiness should wait until onboarding, backup confidence, Clerk
-invite-only/public-signup configuration, and visual polish are stronger.
-## 4. PR Milestone Snapshot
-Recent key milestones:
-• PR #29: settings persistence with validation
-• PR #30: settings backup export
-• PR #31: settings backup import validation preview
-• PR #32: settings backup/recovery UX polish
-• PR #33: Library rhythm persistence contract
-• PR #34: Library rhythm backup validation scaffolding
-• PR #35: user-created Library rhythm persistence
-• PR #36: create rhythm save failure handling
-• PR #37: Library rhythm export backup action
-• PR #38: Library rhythm import validation preview
-• PR #39: Today active task persistence contract
-• PR #40: Add to Today and one-off active task persistence
-• PR #41: Today completion and re-entry states
-• PR #42: active task backup validation scaffolding
-• PR #43: active task export backup action
-• PR #44: active task backup import validation preview
-• PR #45: soft scheduling and protected time contract
-• PR #46: deadline and re-entry contract
-• PR #47: active task deadline schema support
-• PR #48: Life Shape protected time schema and Setup UI
-• PR #49: read-only Day Shape preview
-• PR #50: one-off task time edge controls
-• PR #51: current design spec added
-• PR #52: trial account/auth boundary contract
-• PR #53: invite-only Clerk auth shell
-• PR #54: auth-aware local data namespaces
-• PR #55: auth local data handoff notice
-• PR #56: design spec updated through auth handoff
-• PR #57: read-only time-edge re-entry preview
-• PR #58: user-confirmed re-entry actions
-• PR #59: read-only soft schedule suggestions
-• PR #60: user-confirmed soft placement contract
-• PR #61: soft placement schema and repository
-• PR #62: user-confirmed soft placement from open-capacity suggestions
-• PR #63: saved soft placements shown in Plan with safe removal
-• PR #64: soft placement backup export and read-only validation preview
-• PR #65: design spec updated through soft placement backup
-• PR #66: trial hardening smoke QA pass
-• PR #67: personal trial checklist
-• PR #68: personal trial launch note
-• PR #69: fixed commitments trial clarity
-• PR #70/#71: task completion endpoint clarity
-• PR #75: final personal trial smoke QA
-• PR #76: personal trial readiness report
-• PR #77: design-board visual alignment pass
-• PR #78: icon and brand system alignment
-• PR #79: design-board component rhythm polish
-• PR #80: Reset relief-valve actions trial-functional
-• PR #81: personal-trial visual polish
-• PR #82: post-PR81 trial readiness reconciliation
-• PR #83: soft scheduling loop contract and design-spec update
-• Current branch: task pool capture UI and Plan inbox list
-The current app foundation is deliberately staged: schema and persistence first, then read-only previews,
-then controlled user-facing behaviour, then scheduler.
 
-## 5. Data and Write Boundaries
+- Rhythm without capture.
+- Structure without ownership of the whole day.
+- Re-entry without punishment.
+- Planning without life becoming a timetable.
+- Not every unscheduled gap is available.
+- Minimum done counts.
+- Parked is safe, not failed.
+- Not today is allowed.
+- Blank time is not automatically task space.
+- Captured does not mean due today.
+- Held does not mean forgotten.
+- A soft placement is not a calendar event.
+
+The intended product spine is:
+
+> capture → hold safely → find soft window → user confirms → re-enter later if missed or deferred → respect usefulness windows.
+
+The product should help users protect their life from overfilling, not simply find more gaps to consume.
+
+## 3. Source Authority and Research Governance
+
+The current repo design spec is the implementation authority.
+
+The project-source additions from 2026-06-26 are source-governance documents. They define how research packets, Packet V3 upgrades, NotebookLM drafts, benchmark sources, and Codex UI/UX guardrails should be interpreted.
+
+Current source hierarchy:
+
+1. Canonical product direction: this design spec and current repo contracts.
+2. Canonical V3 packet direction: Packet 1 V3 is current for re-entry and missed-task recovery.
+3. Source-library evidence: existing packets, especially 1, 4, 11, 12, 19, 20, and 25.
+4. Provisional audit / triage: the full-library validation audit is a useful priority map, not complete line-by-line verification of every packet and citation.
+5. Non-canonical ideation: NotebookLM v1.2 documents, commercial benchmark articles, coaching heuristics, Reddit/community sources, and internal speculative syntheses.
+6. Quarantined speculative material: medication-window mapping, biometric capacity prediction, crisis detection, automatic rescheduling, AI coach authority, sync/telemetry assumptions, and neurochemical activation claims.
+
+NotebookLM v1.2 documents are not implementation specifications. They may be mined for ideas only after source classification and safety review.
+
+Commercial app benchmark pages, Reddit/community sources, INCUP/coaching material, product blogs, and internal neuro-computational syntheses are not evidence anchors. They can suggest research questions, competitor patterns, and copy warnings. They cannot validate adult-ADHD product claims.
+
+Packet 1 V3 is the current source-library anchor for re-entry and missed-task recovery. It establishes this evidence standard:
+
+- strong support for non-clinical and product-boundary caution
+- moderate indirect support for low-friction re-entry mechanics
+- sparse direct adult-ADHD interface evidence
+- exact wording, timing, thresholds, menus, and algorithms remain prototype hypotheses
+
+Corrected packet grouping:
+
+| Role | Packets |
+| --- | --- |
+| MVP core | 1, 4, 11, 12, 19, 25 |
+| MVP supporting | 9, 20 |
+| Guardrail-only | 10, 24 |
+| Merge before product use | 2 + 21 + 24, 3 + 15, 6 + 14 |
+| Source-only / later | 6, 7, 13, 14, 16, 17, 18, 22, 23 |
+
+Corrected V3 packet order:
+
+1. Packet 4 — Right-Sized Tasks
+2. Packet 12 — Task Initiation / Avoidance / Time Estimation
+3. Packet 25 — Calendar Load / Soft Scheduling Boundaries
+4. Packet 20 — Emotional Regulation / Shame / Failure Recovery
+5. Packet 9 — Retention / Re-entry / Notifications
+6. Packet 19 — Work Focus / Context Switching / Re-entry
+7. Merge Packets 2 + 21 + 24
+8. Merge Packets 3 + 15
+9. Merge Packets 6 + 14
+10. Refresh Packet 10
+
+## 4. Current Implementation State After PR #89
+
+The app has a real local-first foundation. It is no longer a static prototype shell.
+
+Implemented:
+
+- settings persistence
+- theme persistence
+- Start Boost safety persistence
+- Life Shape persistence
+- settings backup export
+- settings backup validation preview
+- custom Library rhythm persistence
+- Library rhythm backup export
+- Library rhythm backup validation preview
+- active Today task persistence
+- Add one-off Today tasks
+- Add Library rhythm to Today
+- active task status persistence
+- Start / Pause / Resume / Minimum done
+- Minimum, normal, and full completion endpoints through existing task statuses
+- Stop here / Park / Not today
+- active task backup export
+- active task backup validation preview
+- active task deadline/time-edge schema fields
+- optional Time edge section in Add one-off
+- one-off flexible/dueBy/fixedAt/expiresAfter capture
+- calm Today card time-edge copy
+- Re-entry review section in Today
+- read-only time-edge re-entry preview
+- user-confirmed Park safely and Mark not today from re-entry review
+- Try the minimum helper copy only
+- Task Pool / Inbox schema and repository
+- task pool Dexie table for local-first captured/deferred items
+- task pool capture UI in Plan
+- Plan task pool list for safely held captured/deferred items
+- No longer needed action for task pool items
+- Life Shape protected/recovery/loose/household/family/open-capacity blocks
+- Setup “Time to leave alone” controls
+- fixed commitments notes-only clarity for trial
+- read-only Day Shape preview in Plan
+- read-only Plan soft suggestions
+- openCapacity-only Add soft placement
+- saved soft placements in Plan
+- Remove placement marks a placement removed without deleting the task
+- soft placement schema and repository
+- soft placement backup export
+- soft placement backup validation preview
+- removed placements included in soft placement backups as explicit local state
+- trial account/auth boundary contract
+- opt-in Clerk auth shell
+- signed-out trial access shell
+- signed-in account bar
+- user-scoped hashed local database namespaces
+- legacy local data handoff notice
+- Trial limits note in Setup
+- final personal-trial smoke QA completed
+- mobile trial polish pass completed
+- backup confidence copy pass completed
+- Reset relief-valve actions functional for trial
+- Narrow Today marks extra visible Today tasks notToday
+- Park extras safely marks extra visible Today tasks parked
+- Restart with one action surfaces the first visible Today task
+- Restore hidden items remains preview-only
+- Full app reset remains disabled and non-destructive
+- visual design system contracts
+- Soft Ledger / Holding Tray visual direction contract
+- navigation redesign contract
+- object grammar spec
+- theme system contract
+- semantic visual theme tokens
+- low-level surface class primitives
+- research source governance docs
+
+Not implemented yet:
+
+- first-class Pool screen
+- four-tab post-onboarding shell: Today / Plan / Pool / Library
+- Reset as contextual relief rather than persistent primary tab
+- Setup moved under Settings after onboarding
+- Pool ledger-row / Holding Tray visual implementation
+- broad card-soup / pill-chip reduction across Plan and other screens
+- soft window finder from task pool
+- repeating rhythm instances
+- resurfacing parked, not today, and deferred tasks as suggestions
+- missed-task detection
+- missed status persistence
+- askFirst placement
+- move/edit soft placement
+- automatic scheduling
+- scheduler-owned placement
+- calendar load
+- iOS/native calendar integration
+- cloud sync
+- AI pattern suggestions
+- import/restore execution
+- notifications
+- full visual/object-grammar parity
+- external tester readiness
+
+Current practical status:
+
+- A basic shell/usability trial is possible with one browser, one device, and one stable URL.
+- A basic personal manual trial can exercise local settings, Library rhythms, active Today tasks, one-off time edges, protected time, Day Shape preview, Re-entry review, read-only soft suggestions, user-confirmed open-capacity soft placements, soft placement backups, Reset relief-valve actions, task pool capture, and opt-in signed-in local profiles.
+- Task pool capture exists in Plan, and captured ad hoc tasks can be safely held outside Today.
+- Plan can show basic task pool items, but captured tasks are not scheduled and are not automatically added to Today.
+- The current UI still has known generic AI-coded / SaaS / card-soup risks. Visual contracts exist, but they are not fully implemented.
+- A meaningful test of the full intended soft scheduling product should wait until Pool is first-class, the soft window finder exists, calm resurfacing exists, and repeating rhythm instances exist.
+- External tester readiness should wait until onboarding, backup confidence, Clerk invite-only/public-signup configuration, Pool navigation, and visual/object-grammar alignment are stronger.
+
+## 5. PR Milestone Snapshot
+
+Recent key milestones:
+
+- PR #29: settings persistence with validation
+- PR #30: settings backup export
+- PR #31: settings backup import validation preview
+- PR #32: settings backup/recovery UX polish
+- PR #33: Library rhythm persistence contract
+- PR #34: Library rhythm backup validation scaffolding
+- PR #35: user-created Library rhythm persistence
+- PR #36: create rhythm save failure handling
+- PR #37: Library rhythm export backup action
+- PR #38: Library rhythm import validation preview
+- PR #39: Today active task persistence contract
+- PR #40: Add to Today and one-off active task persistence
+- PR #41: Today completion and re-entry states
+- PR #42: active task backup validation scaffolding
+- PR #43: active task export backup action
+- PR #44: active task backup import validation preview
+- PR #45: soft scheduling and protected time contract
+- PR #46: deadline and re-entry contract
+- PR #47: active task deadline schema support
+- PR #48: Life Shape protected time schema and Setup UI
+- PR #49: read-only Day Shape preview
+- PR #50: one-off task time edge controls
+- PR #51: current design spec added
+- PR #52: trial account/auth boundary contract
+- PR #53: invite-only Clerk auth shell
+- PR #54: auth-aware local data namespaces
+- PR #55: auth local data handoff notice
+- PR #56: design spec updated through auth handoff
+- PR #57: read-only time-edge re-entry preview
+- PR #58: user-confirmed re-entry actions
+- PR #59: read-only soft schedule suggestions
+- PR #60: user-confirmed soft placement contract
+- PR #61: soft placement schema and repository
+- PR #62: user-confirmed soft placement from open-capacity suggestions
+- PR #63: saved soft placements shown in Plan with safe removal
+- PR #64: soft placement backup export and read-only validation preview
+- PR #65: design spec updated through soft placement backup
+- PR #66: trial hardening smoke QA pass
+- PR #67: personal trial checklist
+- PR #68: personal trial launch note
+- PR #69: fixed commitments trial clarity
+- PR #70/#71: task completion endpoint clarity
+- PR #75: final personal trial smoke QA
+- PR #76: personal trial readiness report
+- PR #77: design-board visual alignment pass
+- PR #78: icon and brand system alignment
+- PR #79: design-board component rhythm polish
+- PR #80: Reset relief-valve actions trial-functional
+- PR #81: personal-trial visual polish
+- PR #82: post-PR81 trial readiness reconciliation
+- PR #83: soft scheduling loop contract and design-spec update
+- PR #84: documentation label cleanup
+- PR #85: Task Pool schema and repository
+- PR #86: Task Pool capture and Plan inbox/list
+- PR #87: visual design system contracts
+- PR #88: visual token foundation
+- PR #89: research source governance and design-spec consolidation
+
+The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then scheduler. The next stage should reduce visual/product-object drift before adding more behaviour.
+
+## 6. Data and Write Boundaries
+
 Current approved write surfaces:
+
 1. Settings only
 2. Custom Library rhythms only
 3. Active Today tasks only
 4. Active task status updates only
-5. User-confirmed soft placements only
+5. Task Pool / held-item writes only
+6. User-confirmed soft placements only
+7. Auth identity shell / local namespace selection only
+
 Current settings writes include:
-• theme
-• Start Boost safety settings
-• Life Shape
-• Life Shape time blocks
+
+- theme
+- Start Boost safety settings
+- Life Shape
+- Life Shape time blocks
+
 Current Library writes include:
-• user-created custom rhythm templates only
+
+- user-created custom rhythm templates only
+
 Current Today writes include:
-• Add one-off Today tasks
-• Add Library rhythm to Today
-• status updates for active tasks
+
+- Add one-off Today tasks
+- Add Library rhythm to Today
+- status updates for active tasks
+
+Current Task Pool writes include:
+
+- captured ad hoc task pool items
+- no-longer-needed status updates
+- no automatic add-to-Today
+- no automatic scheduling
+- no automatic resurfacing
+
 Current soft placement writes include:
-• openCapacity-only user-confirmed soft placements
-• removal by marking placement status removed
-• no task deletion
-• no active task status change
+
+- openCapacity-only user-confirmed soft placements
+- removal by marking placement status removed
+- no task deletion
+- no active task status change
+- no calendar write
+
 Current auth/local-profile surfaces:
-• opt-in Clerk identity shell
-• signed-out trial access screen
-• signed-in account bar
-• hashed user-scoped local database namespaces when auth is enabled
-• legacy local setup handoff notice when existing local data is detected
+
+- opt-in Clerk identity shell
+- signed-out trial access screen
+- signed-in account bar
+- hashed user-scoped local database namespaces when auth is enabled
+- legacy local setup handoff notice when existing local data is detected
+
 Current read-only or non-write surfaces:
-• settings backup validation preview
-• Library rhythm backup validation preview
-• active task backup validation preview
-• soft placement backup validation preview
-• Day Shape preview
-• Re-entry review preview
-• read-only soft suggestions
-• scheduler contracts
-• deadline/re-entry contracts
-• protected-time contract
+
+- settings backup validation preview
+- Library rhythm backup validation preview
+- active task backup validation preview
+- soft placement backup validation preview
+- Day Shape preview
+- Re-entry review preview
+- read-only soft suggestions
+- scheduler contracts
+- deadline/re-entry contracts
+- protected-time contract
+- visual design contracts
+- research governance docs
+
 Explicitly not implemented:
-• no scheduler writes
-• no calendar writes
-• no AI writes
-• no backend
-• no sync
-• no cloud data upload
-• no analytics
-• no public signup in the app UI
-• no import/restore execution yet
-• no task history or completion logs yet
-• no notification system
 
-• no calendar integration
-• no migration execution exposed to users
+- no scheduler writes
+- no calendar writes
+- no AI writes
+- no backend
+- no sync
+- no cloud data upload
+- no analytics
+- no public signup in the app UI
+- no import/restore execution yet
+- no task history or completion logs yet
+- no notification system
+- no calendar integration
+- no migration execution exposed to users
+
 Import/check flows are validation previews only. They must not silently restore or mutate user data.
-## 6. Life Shape and Protected Time Model
+
+## 7. Life Shape and Protected Time Model
+
 Life Shape describes the user’s real day shape. It should not be treated as a productivity timetable.
+
 Life Shape currently includes:
-• usual work hours
-• meal anchors
-• sleep/wake anchors
-• fixed commitments notes-only for trial
-• commute/travel
-• transition buffers
-• low-capacity preference
-• protected time blocks
-• recovery time blocks
-• loose time blocks
-• household flow blocks
-• family time blocks
-• open capacity blocks
+
+- usual work hours
+- meal anchors
+- sleep/wake anchors
+- fixed commitments notes-only for trial
+- commute/travel
+- transition buffers
+- low-capacity preference
+- protected time blocks
+- recovery time blocks
+- loose time blocks
+- household flow blocks
+- family time blocks
+- open capacity blocks
+
 Time block meanings:
-protectedTime
-Time the user wants left alone by default.
-Default scheduler use: unavailable .
-Examples:
-• quiet morning
-• evening wind-down
-• personal decompression
-• private time
-• reading or gaming time
-• time the user does not want the app to consume
-recoveryTime
-Low-demand rest, decompression, or reset time.
-Default scheduler use: unavailable .
 
-Examples:
-• after work decompression
-• after school run
-• after meetings
-• after social load
-• low-capacity evening
-looseTime
-Unstructured time that can stay unstructured.
-Default scheduler use: askFirst .
-Examples:
-• pottering around
-• watching TV
-• slow weekend time
-• general downtime
-• flexible evening
-Loose time is not empty task space.
-householdFlow
-Home-life movement and responsibilities that may not be precisely scheduled.
-Default scheduler use: askFirst .
-Examples:
-• cooking
-• tidying around
-• kids moving through routines
-• laundry happening in the background
-• small home jobs
-familyTime
-Family, partner, parenting, care, or social time.
-Default scheduler use: unavailable .
-Examples:
-• playing with kids
+- `protectedTime`: time the user wants left alone by default. Default scheduler use: unavailable.
+- `recoveryTime`: low-demand rest, decompression, or reset time. Default scheduler use: unavailable.
+- `looseTime`: unstructured time that can stay unstructured. Default scheduler use: askFirst.
+- `householdFlow`: home-life movement and responsibilities that may not be precisely scheduled. Default scheduler use: askFirst.
+- `familyTime`: family, partner, parenting, care, or social time. Default scheduler use: unavailable.
+- `openCapacity`: time the user has explicitly marked as possible planning space. Default scheduler use: available.
 
-• partner time
-• dinner
-• bedtime routine
-• family afternoon
-openCapacity
-Time the user has explicitly marked as possible planning space.
-Default scheduler use: available .
-Open capacity is the only block type that should be treated as potentially available by default, and even then
-future scheduler output must remain suggestive and explainable.
 Core rule:
-Blank time is not automatically available.
-The future scheduler must not infer availability from empty space.
-## 7. Today Model
+
+> Blank time is not automatically available.
+
+Open capacity is the only block type that should be treated as potentially available by default, and even then scheduler output must remain suggestive, explainable, and user-confirmed.
+
+## 8. Today Model
+
 Today is the main action surface. It should show one useful next action and avoid overwhelming the user.
+
 Today supports:
-• one useful next action
-• one-off today-only tasks
-• Add to Today from Library
-• optional Time edge section in Add one-off
-• one-off flexible/dueBy/fixedAt/expiresAfter capture
-• calm time-edge display copy on Today cards
-• Re-entry review for tasks whose useful windows may need calm review
-• user-confirmed Park safely from Re-entry review
-• user-confirmed Mark not today from Re-entry review
-• Try the minimum helper copy only
-• minimum / normal / full versions
-• Start
-• Pause
-• Resume
-• Minimum done
-• Stop here
-• Park
-• Not today
+
+- one useful next action
+- one-off today-only tasks
+- Add to Today from Library
+- optional Time edge section in Add one-off
+- one-off flexible/dueBy/fixedAt/expiresAfter capture
+- calm time-edge display copy on Today cards
+- Re-entry review for tasks whose useful windows may need calm review
+- user-confirmed Park safely from Re-entry review
+- user-confirmed Mark not today from Re-entry review
+- Try the minimum helper copy only
+- minimum / normal / full versions
+- Start
+- Pause
+- Resume
+- Minimum done
+- Stop here
+- Park
+- Not today
+
 Active task statuses include:
-• active
-• inProgress
-• paused
-• minimumDone
-• done
-• parked
 
-• skipped
-• notToday
+- active
+- inProgress
+- paused
+- minimumDone
+- done
+- parked
+- skipped
+- notToday
+
 Future task statuses may include:
-• missed
-• archived
+
+- missed
+- archived
+
 Today rules:
-• Minimum done counts.
-• A task can be parked without shame.
-• Not today is allowed.
-• The app should not create a catch-up pile.
-• One visible action is usually better than many simultaneous demands.
-• When one task leaves Today, another task can appear only if it already exists and is safe to show.
-• Task state should be practical, not moral.
-• Time-edge data describes usefulness; it must not schedule anything by itself.
-• Re-entry review does not mark tasks missed by itself.
-• Re-entry actions are user-confirmed only.
-One-off tasks are currently the safest place for deadline/time-edge controls because they are explicitly
-user-created and today-scoped.
-## 8. Deadline and Time-Edge Model
-Deadline and time-edge schema support now exists for active tasks, and Add one-off now exposes optional
-time-edge controls. Today also has a read-only time-edge re-entry preview with user-confirmed Park safely
-and Mark not today actions. Full missed-task detection and missed status persistence are not implemented yet.
+
+- Minimum done counts.
+- A task can be parked without shame.
+- Not today is allowed.
+- The app should not create a catch-up pile.
+- One visible action is usually better than many simultaneous demands.
+- When one task leaves Today, another task can appear only if it already exists and is safe to show.
+- Task state should be practical, not moral.
+- Time-edge data describes usefulness; it must not schedule anything by itself.
+- Re-entry review does not mark tasks missed by itself.
+- Re-entry actions are user-confirmed only.
+
+## 9. Task Pool / Holding Tray Model
+
+Task Pool is the safe holding layer for captured, parked, not-today, deferred, and future missed/re-entry objects.
+
+Current implemented behaviour:
+
+- Task Pool schema and repository exist.
+- Task Pool Dexie table exists.
+- Captured ad hoc tasks can be saved locally.
+- Plan currently shows a basic task pool list.
+- Captured tasks do not enter Today.
+- Captured tasks do not create soft placements.
+- No scheduler writes occur from capture.
+- No calendar writes occur from capture.
+- No longer needed marks an item quiet without deleting it.
+
+Future intended behaviour:
+
+- Pool should become a first-class destination.
+- The visible label should be Pool / Task Pool / Holding Tray, not Inbox.
+- Held items should feel safely held, not backlogged, queued, late, or owed.
+- Pool should use ledger rows and holding-tray grouping, not card soup.
+- Pool should not show red counts, overdue counts, guilt totals, inbox-zero pressure, or backlog language.
+- No-longer-needed items should be quiet/collapsed, not a failure list.
+
+Pool must not become:
+
+- backlog
+- inbox-zero system
+- task debt list
+- overdue queue
+- guilt ledger
+- productivity dashboard
+- catch-up list
+
+## 10. Deadline and Time-Edge Model
+
+Deadline and time-edge schema support exists for active tasks, and Add one-off exposes optional time-edge controls. Today has a read-only time-edge re-entry preview with user-confirmed Park safely and Mark not today actions.
+
+Full missed-task detection and missed status persistence are not implemented yet.
+
 Supported fields:
-• timeConstraint
-• dueAt
-• fixedAt
-• expiresAfter
-• latestUsefulStartAt
-• notUsefulAfter
-• minimumStillUsefulAfterDeadline
-• missedPolicy
-Supported time constraints:
-• flexible
-• dueBy
-• fixedAt
-• expiresAfter
+
+- timeConstraint
+- dueAt
+- fixedAt
+- expiresAfter
+- latestUsefulStartAt
+- notUsefulAfter
+- minimumStillUsefulAfterDeadline
+- missedPolicy
+
 Current Add one-off UI supports:
-• Flexible
-• Due by
-• Fixed at
-• Expires after
-• optional latest useful start
-• optional not useful after
-• minimum still useful after deadline
-• missed policy selection for future re-entry behaviour
-Supported missed policies:
-• ask
-• park
 
-• notToday
-• minimumOnly
-• followUpPrompt
-• hideUntilReview
-• archiveIfExpired
+- Flexible
+- Due by
+- Fixed at
+- Expires after
+- optional latest useful start
+- optional not useful after
+- minimum still useful after deadline
+- missed policy selection for future re-entry behaviour
+
 Deadline principles:
-• Deadlines are usefulness windows, not pressure.
-• A time edge describes when an action is useful.
-• A task can become less useful without becoming a failure.
-• Time-edge data must not schedule anything by itself.
-• The minimum version should remain valid when it still helps.
-• After a useful window passes, the user should get calm choices.
-Avoid wording such as:
-• overdue
-• late
-• failed
-• urgent
-• behind
-Use wording such as:
-• Useful before
-• Tied to
-• Useful until
-• Minimum still helps
-• No schedule created
-• Move, park, or mark not today
-• No longer needed is allowed
-Next expected step: trial hardening and smoke QA before expanding re-entry further.
-## 9. Re-Entry Model
-Re-entry is core to Life Rhythm.
-The app should assume that disruption is normal. Missed, skipped, parked, or not-today tasks should be
-safely held, not treated as evidence of failure.
-Current implemented re-entry behaviour:
-• Today can show a Re-entry review section for active tasks whose time-edge data suggests their useful
-window may need review.
-• Re-entry review copy says nothing has moved and there is no catch-up pile.
-• Park safely and Mark not today are user-confirmed actions.
-• Try the minimum is helper copy only; it does not create a new state.
-• These actions use existing active task status updates.
-• No automatic missed-task persistence exists yet.
-Future re-entry may offer more choices such as:
-• do the minimum version
-• move later
-• park safely
-• mark not today
 
-• mark no longer needed
-• choose another task
-• review later
+- Deadlines are usefulness windows, not pressure.
+- A time edge describes when an action is useful.
+- A task can become less useful without becoming a failure.
+- Time-edge data must not schedule anything by itself.
+- The minimum version should remain valid when it still helps.
+- After a useful window passes, the user should get calm choices.
+
+Avoid wording such as:
+
+- overdue
+- late
+- failed
+- urgent
+- behind
+
+Use wording such as:
+
+- Useful before
+- Tied to
+- Useful until
+- Minimum still helps
+- No schedule created
+- Move, park, or mark not today
+- No longer needed is allowed
+
+## 11. Re-Entry Model
+
+Re-entry is core to Life Rhythm.
+
+The app should assume that disruption is normal. Missed, skipped, parked, or not-today tasks should be safely held, not treated as evidence of failure.
+
+Current implemented re-entry behaviour:
+
+- Today can show a Re-entry review section for active tasks whose time-edge data suggests their useful window may need review.
+- Re-entry review copy says nothing has moved and there is no catch-up pile.
+- Park safely and Mark not today are user-confirmed actions.
+- Try the minimum is helper copy only; it does not create a new state.
+- These actions use existing active task status updates.
+- No automatic missed-task persistence exists yet.
+
+Future re-entry may offer choices such as:
+
+- do the minimum version
+- move later
+- park safely
+- mark not today
+- mark no longer needed
+- choose another task
+- review later
+
 Re-entry rules:
-• Missed tasks must not auto-stack into Today.
-• Skipped tasks must not be shown as failure.
-• Parked tasks should remain safe and findable.
-• Minimum done counts.
-• Nothing moves unless the user chooses.
-• No re-entry flow should imply penalty, judgement, or duty-to-perform.
-• Re-entry should happen at sensible moments, not every time the app opens.
-The product should not ask the user to “catch up”. It should help them re-enter.
-## 10. Soft Scheduling Loop Direction
-The soft scheduling loop is future product spine work.
-It is defined in `app/docs/soft-scheduling-loop-contract.md`.
+
+- Missed tasks must not auto-stack into Today.
+- Skipped tasks must not be shown as failure.
+- Parked tasks should remain safe and findable.
+- Minimum done counts.
+- Nothing moves unless the user chooses.
+- No re-entry flow should imply penalty, judgement, or duty-to-perform.
+- Re-entry should happen at sensible moments, not every time the app opens.
+- The product should not ask the user to catch up. It should help them re-enter.
+
+## 12. Soft Scheduling Loop Direction
+
+The soft scheduling loop is future product spine work. It is defined in `app/docs/soft-scheduling-loop-contract.md`.
 
 The intended loop is:
-capture → hold safely → find soft window → user confirms → re-enter later if missed or deferred → respect usefulness windows.
 
-Life Rhythm is not a rigid scheduler. It should capture ad hoc tasks and repeating rhythm instances into a safe
-task pool, hold parked/not today/deferred items without turning them into a guilt list, use explicit open capacity
-for soft suggestions, and bring items back calmly when there is a plausible window.
+> capture → hold safely → find soft window → user confirms → re-enter later if missed or deferred → respect usefulness windows.
+
+Life Rhythm is not a rigid scheduler. It should capture ad hoc tasks and repeating rhythm instances into a safe task pool, hold parked/not-today/deferred items without turning them into a guilt list, use explicit open capacity for soft suggestions, and bring items back calmly when there is a plausible window.
 
 Scheduler-owned placement is not implemented.
-The current app has read-only Plan soft suggestions and user-confirmed open-capacity soft placements, but it
-does not have an automatic scheduler.
-Current implemented soft-placement-adjacent behaviour:
-• Plan can show read-only soft suggestions.
-• Soft suggestions are not placements.
-• Blank time is not treated as available.
-• Suggestions only use openCapacity blocks as addable placement targets.
-• askFirst blocks may appear as possibilities, but are not accepted yet.
-• protectedTime, recoveryTime, and familyTime remain unavailable by default.
-• Users can add a soft placement only from an openCapacity suggestion.
-• Soft placement is local only.
-• Soft placement is not a calendar event.
-• Saved soft placements appear in Plan for the selected day.
-• Remove placement marks the placement removed without deleting the task.
-• Removed placements are included in backup as explicit local state.
-• Soft placement backup export exists.
-• Soft placement backup checking is read-only.
-• No soft placement restore exists yet.
-The future soft window finder must be explainable, user-led, and respectful of protected/loose/open capacity.
-The soft window finder may eventually:
-• hold captured tasks outside Today
-• suggest from a task pool / inbox
-• suggest repeating rhythm instances without streak debt
-• resurface parked, not today, deferred, or unfinished tasks as calm suggestions
-• suggest broad placement windows
-• suggest shrinking to the minimum version
-• suggest moving something later
-• suggest parking a task
-• suggest choosing not today
-• explain why a placement might fit
-• respect Life Shape blocks
-• respect time edges
-• surface schedule options for user confirmation
-The soft window finder must not:
-• silently fill the day
-• treat blank time as available
-• schedule into protected time by default
-• schedule into loose time without asking
-• create catch-up piles
-• punish skipped or missed tasks
-• create pressure language
-• score the user
-• write calendar events
-• auto-create active tasks from enabled rhythms
-• expose internal debug metadata in the daily UI
-Candidate-window output must remain separate from persisted task state until the user explicitly accepts or edits it.
-Soft placement rules:
-• Placement is user-confirmed only.
-• A placement is not a deadline.
-• A placement is not compliance tracking.
-• A placement must be removable without deleting the task.
-• A placement must not imply failure if it is removed or changed.
-• There is no catch-up pile.
-• There is no scoring, streak, or compliance model.
 
-The correct model is:
-Life Rhythm suggests.
-The user decides.
-not:
-Life Rhythm owns the day.
-## 11. AI Direction
+Current implemented soft-placement-adjacent behaviour:
+
+- Plan can show read-only soft suggestions.
+- Soft suggestions are not placements.
+- Blank time is not treated as available.
+- Suggestions only use openCapacity blocks as addable placement targets.
+- askFirst blocks may appear as possibilities, but are not accepted yet.
+- protectedTime, recoveryTime, and familyTime remain unavailable by default.
+- Users can add a soft placement only from an openCapacity suggestion.
+- Soft placement is local only.
+- Soft placement is not a calendar event.
+- Saved soft placements appear in Plan for the selected day.
+- Remove placement marks the placement removed without deleting the task.
+- Removed placements are included in backup as explicit local state.
+- Soft placement backup export exists.
+- Soft placement backup checking is read-only.
+- No soft placement restore exists yet.
+
+The future soft window finder must be explainable, user-led, and respectful of protected/loose/open capacity.
+
+The soft window finder must not:
+
+- silently fill the day
+- treat blank time as available
+- schedule into protected time by default
+- schedule into loose time without asking
+- create catch-up piles
+- punish skipped or missed tasks
+- create pressure language
+- score the user
+- write calendar events
+- auto-create active tasks from enabled rhythms
+- expose internal debug metadata in the daily UI
+
+Candidate-window output must remain separate from persisted task state until the user explicitly accepts or edits it.
+
+Correct model:
+
+> Life Rhythm suggests. The user decides.
+
+Not:
+
+> Life Rhythm owns the day.
+
+## 13. Visual and Interaction Direction
+
+The current visual direction is:
+
+- primary direction: Soft Ledger
+- supporting metaphor: Holding Tray
+- fallback: Rhythm Notebook
+- desired feeling: “I can trust this to hold things for me without it turning my life into a dashboard.”
+
+The interface must not feel like:
+
+- generic AI chat app
+- shadcn/Tailwind demo
+- SaaS dashboard
+- productivity command centre
+- habit-streak app
+- task-manager clone
+- calendar replacement
+- clinical app
+- gamified ADHD tool
+- life optimizer
+
+Known current UI risk:
+
+The app still contains card soup, pill-chip overload, boxed panels, generic icon badges, equal-weight surfaces, and a five-tab mobile shell. The design contracts diagnose these risks, but the runtime UI is only partially aligned.
+
+Current visual contracts:
+
+- `app/docs/visual-design-direction-contract.md`
+- `app/docs/navigation-redesign-contract.md`
+- `app/docs/object-grammar-spec.md`
+- `app/docs/theme-system-contract.md`
+
+Current token foundation:
+
+- semantic visual theme tokens exist
+- low-level surface class primitives exist
+- Paper / Tide / Clay / Night token foundations exist
+- legacy theme aliases remain compatible
+
+Near-term visual implementation priority:
+
+1. Make Pool a first-class primary destination.
+2. Move the app toward Today / Plan / Pool / Library navigation.
+3. Remove Reset as a permanent primary tab where possible.
+4. Keep Setup accessible through Settings or a non-primary affordance.
+5. Reduce card wrapping around Pool and Plan content.
+6. Use ledger rows and holding-tray primitives for held items.
+7. Reduce decorative pill-chip metadata.
+8. Preserve plain labels, no badges, no counters, no urgency states.
+
+Visual PRs must not introduce:
+
+- AI surfaces
+- analytics
+- notifications
+- calendar integration
+- task history dashboards
+- completion logs
+- gamified themes
+- theme marketplaces
+- custom font experiments
+- broad animation work
+
+## 14. AI Direction
+
 AI is future work.
+
 AI should be background support, not the app’s core system. The app must remain useful without AI.
+
 Future AI may suggest:
-• hidden edges
-• rhythm packs
-• pattern observations
-• schedule preferences
-• re-entry options
-• smaller minimum versions
-• possible protected-time rules
-• wording for user review
+
+- hidden edges
+- rhythm packs
+- pattern observations
+- schedule preferences
+- re-entry options
+- smaller minimum versions
+- possible protected-time rules
+- wording for user review
+
 AI must not:
-• diagnose
-• treat
-• score
-• enforce
-• shame
-• act as therapist
-• act as coach authority
-• schedule tasks directly
-• decide what the user must do
-• write task state
-• write calendar events
-• silently alter settings
-• execute imports or restores
+
+- diagnose
+- treat
+- score
+- enforce
+- shame
+- act as therapist
+- act as coach authority
+- schedule tasks directly
+- decide what the user must do
+- write task state
+- write calendar events
+- silently alter settings
+- execute imports or restores
+- explain why the user missed something
+- infer ADHD severity, mood, reliability, productivity, or symptoms from app behaviour
+
 AI suggestions must remain pending until the user accepts, edits, or dismisses them.
+
 Best future model:
 
-Life Rhythm is the system.
-AI is a proposal layer.
+> Life Rhythm is the system. AI is a proposal layer.
+
 Not:
-AI is the system.
-Life Rhythm is just the interface.
-High-value AI use cases:
-• “Things that seem to work for you”
-• hidden edge suggestions for user-created tasks and rhythms
-• rhythm pack suggestions for user goals
-• pattern observations based on accepted local history
-• re-entry option suggestions
-AI should not be introduced until the core daily loop and scheduler boundaries are stable.
-## 12. Trial Account and Login Direction
-Auth/login shell support now exists for trial access, behind opt-in environment configuration.
+
+> AI is the system. Life Rhythm is just the interface.
+
+AI should not be introduced until the core daily loop, scheduler boundaries, data-minimisation boundaries, and user-confirmed write patterns are stable.
+
+## 15. Trial Account and Login Direction
+
+Auth/login shell support exists for trial access, behind opt-in environment configuration.
+
 Important distinction:
-Login is not the same as cloud sync.
+
+> Login is not the same as cloud sync.
+
 A login system identifies a user. It does not automatically mean Life Rhythm data should be uploaded.
+
 Current account direction:
-• Clerk is the first auth-shell provider
-• auth activates only when enabled and configured
-• signed-out users see a calm trial access shell
-• signed-in users see a minimal account bar
-• signed-in users use hashed user-scoped local database namespaces
-• legacy local setup handoff notice appears when existing legacy local data is detected
-• invite-only trial access remains the intended operational model
-• no public signup by default
-• identity/access layer first, not cloud sync
-• local-first data remains local unless a later sync contract explicitly approves upload
-• no admin reading personal task data by default
-• no analytics by default
-• backup/export remains user-controlled
-• sign-out does not delete local data
-• sign-in does not silently merge existing local data
-• pre-auth/local legacy data remains untouched
-• account deletion/export requirements should be defined before broader external trials
-• cloud sync requires a separate contract and privacy/security review
+
+- Clerk is the first auth-shell provider.
+- Auth activates only when enabled and configured.
+- Signed-out users see a calm trial access shell.
+- Signed-in users see a minimal account bar.
+- Signed-in users use hashed user-scoped local database namespaces.
+- Legacy local setup handoff notice appears when existing legacy local data is detected.
+- Invite-only trial access remains the intended operational model.
+- No public signup by default.
+- Identity/access layer first, not cloud sync.
+- Local-first data remains local unless a later sync contract explicitly approves upload.
+- No admin reading personal task data by default.
+- No analytics by default.
+- Backup/export remains user-controlled.
+- Sign-out does not delete local data.
+- Sign-in does not silently merge existing local data.
+- Pre-auth/local legacy data remains untouched.
+- Account deletion/export requirements should be defined before broader external trials.
+- Cloud sync requires a separate contract and privacy/security review.
+
 Core rule:
-Login may identify the user. Login must not silently upload Life Rhythm data.
 
-Provider direction:
-• Clerk is the current first auth-shell option for trial login.
-• Clerk dashboard invite-only/public-signup configuration still needs operational verification before
-external testers.
-• Supabase should be considered only if/when cloud data and Postgres-backed sync are approved.
-• Firebase/Auth0/other providers remain alternatives but should not be added without a separate review.
-Completed auth sequence:
-1. Auth and trial account boundary contract
-2. Invite-only login shell
-3. User-scoped local data namespace
-4. Legacy local setup handoff notice
+> Login may identify the user. Login must not silently upload Life Rhythm data.
+
 Remaining auth-adjacent work:
-1. Operational Clerk invite-only/public-signup verification
-2. Account-aware backup/export wording
-3. Cloud sync only after a separate sync contract, if needed at all
+
+1. Operational Clerk invite-only/public-signup verification.
+2. Account-aware backup/export wording.
+3. Cloud sync only after a separate sync contract, if needed at all.
+
 Auth should not be added casually. It changes privacy expectations.
-## 13. Trial Readiness
+
+## 16. Trial Readiness
+
 There are three trial levels.
-Basic personal manual trial
+
+### Basic shell/usability trial
+
 Ready for a limited shell/usability trial with one browser, one device, and one stable URL.
-The app can already support local settings, Library, Today tasks, task states, backups, protected time blocks,
-Day Shape preview, Add one-off time edges, Re-entry review, read-only soft suggestions, user-confirmed
-open-capacity soft placements, saved soft placements, soft placement backups, Reset relief-valve actions,
-Trial limits copy, fixed-commitments notes-only clarity, task pool capture in Plan, and opt-in local signed-in profiles. However, it does
-not yet have missed-task detection, askFirst placement, move/edit placement,
-calendar integration, AI suggestions, import/restore execution, or external tester readiness.
-It is also not yet sufficient to test the full intended soft scheduling loop because repeating rhythm
-instances, soft window finder v1, and calm resurfacing are not implemented.
-Meaningful personal trial
-The next useful step is to run a limited shell/usability trial and review what breaks or feels confusing after real use.
-The app has completed:
-• trial hardening / smoke QA
-• basic mobile polish
-• Reset relief-valve functionality for safe Today-task narrowing and parking
-• backup confidence copy pass
-• design-board visual polish passes through PR #81
+
+The app can already support local settings, Library, Today tasks, task states, backups, protected time blocks, Day Shape preview, Add one-off time edges, Re-entry review, read-only soft suggestions, user-confirmed open-capacity soft placements, saved soft placements, soft placement backups, Reset relief-valve actions, Trial limits copy, fixed-commitments notes-only clarity, task pool capture in Plan, and opt-in local signed-in profiles.
+
+However, it does not yet have first-class Pool navigation, missed-task detection, askFirst placement, move/edit placement, calendar integration, AI suggestions, import/restore execution, or external tester readiness.
+
+It is also not yet sufficient to test the full intended soft scheduling loop because repeating rhythm instances, soft window finder v1, and calm resurfacing are not implemented.
+
+### Meaningful personal product trial
+
 Meaningful full-product trial should wait for:
-• soft window finder v1 from openCapacity blocks
-• user-confirmed soft placement from task pool
-• resurfacing for parked, not today, and deferred tasks
-• repeating rhythm instance suggestions
-• deadline and usefulness salience
-• backup support for task pool and rhythm instances
-• Clerk invite-only/public-signup operational verification if auth is enabled
+
+- first-class Pool / Holding Tray surface
+- Today / Plan / Pool / Library navigation alignment
+- soft window finder v1 from openCapacity blocks
+- user-confirmed soft placement from task pool
+- resurfacing for parked, not today, and deferred tasks
+- repeating rhythm instance suggestions
+- deadline and usefulness salience
+- backup support for task pool and rhythm instances
+- Clerk invite-only/public-signup operational verification if auth is enabled
+- one visual/object-grammar pass to reduce generic card/pill/dashboard UI
+
 That is the point where Life Rhythm can test the full capture-hold-suggest-re-enter loop.
-External tester trial
-Should wait until:
-• the daily loop is stable
 
-• onboarding is clearer
-• backup/export is trustworthy
-• auth/privacy boundary exists and Clerk invite-only/public-signup settings are operationally verified
-• visual polish is closer to the design boards
-• at least one personal trial has been completed
-• language has had a non-clinical safety pass
+### External tester trial
+
+External tester trial should wait until:
+
+- the daily loop is stable
+- onboarding is clearer
+- backup/export is trustworthy
+- auth/privacy boundary exists and Clerk invite-only/public-signup settings are operationally verified
+- Pool navigation and Task Pool language are stable
+- visual polish is closer to the Soft Ledger / Holding Tray direction
+- at least one personal trial has been completed
+- language has had a non-clinical safety pass
+
 The app should not be given to external ADHD testers while major daily-loop assumptions are still unstable.
-## 14. Design-Board Parity
-The app now has several design-board alignment passes applied through PR #81.
-Those passes improved:
-• app shell, navigation, spacing, and typography
-• icon and brand system alignment
-• Today one-action-first hierarchy
-• Task Card action hierarchy
-• Plan soft suggestions and saved placement scanning
-• Library catalogue hierarchy
-• Reset relief-valve feel
-• Setup density and backup/check hierarchy
-• mobile spacing and tap-target polish
-It still does not claim full design-board parity. That remains a separate quality pass after real personal-trial
-learning, especially once askFirst and move/edit placement boundaries are decided.
-Remaining design-board alignment work should preserve:
-• calm surfaces
-• low visual pressure
-• no competitive/gamified status
-• clear hierarchy
-• easy tap targets
-• readable mobile layout
-• useful defaults
-• soft language
 
-## 15. Independent Preview Boundary
-The independent/local preview zip is a prototype lab reference only.
-It should not be merged as source.
+## 17. Independent Preview and Non-Canonical Source Boundary
+
+The independent/local preview zip is a prototype lab reference only. It should not be merged as source.
+
 Use it for:
-• UX inspiration
-• flow ideas
-• visual richness
-• possible scheduler concepts
-• design-board comparison
-Do not use it for:
-• production merge base
-• persistence model
-• backup/import behaviour
-• scheduler authority
-• trusted schema source
-The main GitHub repo remains the trusted implementation path.
-## 16. Current Near-Term Roadmap
-Completed foundation:
-• Soft scheduling loop contract
-• Task pool schema and repository
-• Task pool capture UI and Plan inbox list
-Recommended next sequence:
-1. Soft window finder v1 from openCapacity blocks
-2. User-confirmed soft placement from task pool
-3. Repeating rhythm instance contract
-4. Repeating rhythm instance suggestions
-5. Re-entry resurfacing for parked, not today, and deferred tasks
-6. Deadline and usefulness salience
-7. Move/edit soft placement
-8. Backup support for task pool and rhythm instances
-9. Final non-AI prototype smoke QA
-10. Operationally verify Clerk invite-only/public-signup settings before external testers
-11. Add a cloud sync contract only if later trial learning shows a clear need
-Cloud sync remains intentionally unimplemented.
-## 17. Open Decisions
-Open product and implementation decisions:
-• How should captured task pool items feed the first open-capacity soft window finder?
-• How should repeating rhythm instances be generated without backlog or streak debt?
-• How should resurfacing limits avoid alert fatigue?
-• What operational Clerk invite-only settings are required before external testers?
-• Should cloud sync be deferred until after a meaningful soft-scheduling product trial?
-• How much design-board polish is needed before external trial?
-• Should AI wait until after scheduler/calendar basics?
-• When should ADHD professional review be requested?
-• Should external testers be invite-only from the start?
-• Should move/edit soft placement be contracted or implemented next?
-• What exact confirmation should be required before accepting askFirst placement?
-• Should calendar load begin with manual blocks only, read-only .ics , or native integration later?
-• When should import/restore execution be enabled, if ever?
-• Should task history/completion logs exist before AI pattern observations?
-## 18. Guardrails for Future PRs
-Every future PR should state which boundary it touches.
-Allowed current/future categories:
-• docs only
-• settings write
-• Library rhythm write
-• active task write
-• active task status write
-• backup export
-• backup validation preview
-• read-only view model
-• read-only scheduler suggestion
-• user-confirmed soft placement write
-• auth identity only
-• cloud sync
-• calendar read-only
-• calendar write
-• AI proposal only
-• AI accepted-write path
-High-risk categories require explicit contract first:
-• auth
-• backend
-• sync
 
-• calendar integration
-• scheduler writes
-• askFirst placement
-• move/edit placement
-• AI writes
-• import/restore execution
-• migrations
-• task history/completion logs
-• analytics
-• notifications
+- UX inspiration
+- flow ideas
+- visual richness
+- possible scheduler concepts
+- design-board comparison
+
+Do not use it for:
+
+- production merge base
+- persistence model
+- backup/import behaviour
+- scheduler authority
+- trusted schema source
+
+NotebookLM v1.2 documents are also non-canonical ideation. They should not be merged into product direction without classification and safety review.
+
+Quarantined concepts from NotebookLM and benchmark sources include:
+
+- physical-therapy model framing
+- public wheelchair-model framing
+- INCUP as neuroscience proof
+- dopamine / norepinephrine / chemical-catalyst language
+- medication peak overlays
+- pharmacokinetic task scheduling
+- wearable HRV / sleep / stress energy models
+- automatic day rebuilding
+- automatic rescheduling
+- crisis detection from text or biometrics
+- AI coach / agentic authority
+- Sentry failed-SQL telemetry containing user content
+- CRDT collaboration and sync-server assumptions before sync is contracted
+
+The main GitHub repo remains the trusted implementation path.
+
+## 18. Current Near-Term Roadmap
+
+Completed foundation:
+
+- Soft scheduling loop contract
+- Task Pool schema and repository
+- Task Pool capture UI and Plan task-pool list
+- Visual design contracts
+- Visual token foundation
+- Research source governance docs
+
+Current next implementation priority:
+
+> Shell navigation and Pool surface alignment.
+
+Purpose:
+
+Reduce generic AI-coded / SaaS / dashboard UI risk and align the app with the Soft Ledger / Holding Tray direction.
+
+Next recommended sequence:
+
+1. Merge/review PR #89 source governance and design-spec consolidation.
+2. Implement shell navigation + Pool surface alignment.
+3. Make Pool a first-class primary destination.
+4. Move toward Today / Plan / Pool / Library navigation.
+5. Keep Reset contextual and keep Setup accessible through Settings/non-primary access.
+6. Reduce Pool card wrapping and render held items as ledger rows / Holding Tray groups.
+7. Reduce Plan card soup and pill-chip overload enough that Plan does not feel like a dashboard.
+8. Soft window finder v1 from openCapacity blocks.
+9. User-confirmed soft placement from task pool.
+10. Repeating rhythm instance contract.
+11. Repeating rhythm instance suggestions.
+12. Re-entry resurfacing for parked, not today, and deferred tasks.
+13. Deadline and usefulness salience.
+14. Move/edit soft placement.
+15. Backup support for task pool and rhythm instances.
+16. Final non-AI prototype smoke QA.
+17. Operationally verify Clerk invite-only/public-signup settings before external testers.
+18. Add a cloud sync contract only if later trial learning shows a clear need.
+
+Cloud sync remains intentionally unimplemented.
+
+## 19. Open Decisions
+
+Open product and implementation decisions:
+
+- How should Pool split from Plan without breaking current task-pool capture?
+- Should the first Pool screen show captured / parked / not today / deferred groups immediately, or only captured until resurfacing exists?
+- What is the minimum safe way to keep Setup accessible without a permanent primary Setup tab?
+- What is the minimum safe way to keep Reset accessible without a permanent primary Reset tab?
+- How much card/pill reduction is required before a meaningful personal product trial?
+- How should captured task pool items feed the first open-capacity soft window finder?
+- How should repeating rhythm instances be generated without backlog or streak debt?
+- How should resurfacing limits avoid alert fatigue?
+- What operational Clerk invite-only settings are required before external testers?
+- Should cloud sync be deferred until after a meaningful soft-scheduling product trial?
+- Should AI wait until after scheduler/calendar basics?
+- When should ADHD professional review be requested?
+- Should external testers be invite-only from the start?
+- Should move/edit soft placement be contracted or implemented next?
+- What exact confirmation should be required before accepting askFirst placement?
+- Should calendar load begin with manual blocks only, read-only `.ics`, or native integration later?
+- When should import/restore execution be enabled, if ever?
+- Should task history/completion logs exist before AI pattern observations?
+
+## 20. Guardrails for Future PRs
+
+Every future PR should state which boundary it touches.
+
+Allowed current/future categories:
+
+- docs only
+- visual contract / token only
+- visual shell alignment only
+- settings write
+- Library rhythm write
+- active task write
+- active task status write
+- task pool write
+- backup export
+- backup validation preview
+- read-only view model
+- read-only scheduler suggestion
+- user-confirmed soft placement write
+- auth identity only
+- cloud sync
+- calendar read-only
+- calendar write
+- AI proposal only
+- AI accepted-write path
+
+High-risk categories require explicit contract first:
+
+- auth
+- backend
+- sync
+- calendar integration
+- scheduler writes
+- askFirst placement
+- move/edit placement
+- AI writes
+- import/restore execution
+- migrations
+- task history/completion logs
+- analytics
+- notifications
+- external telemetry
+- medication, biometric, food, movement, money, crisis, or social-accountability features
+
 Default rule:
-If a PR changes where user data goes, what writes happen, or who can see the data, it needs a
-contract first.
-## 19. Current Product Definition
+
+> If a PR changes where user data goes, what writes happen, or who can see the data, it needs a contract first.
+
+Codex prompts must be object-specific and boundary-specific. Do not ask Codex to “make the UI beautiful,” “make it more ADHD-friendly,” “polish the app,” or “add cognitive prosthetic UX.” Broad prompts are likely to create generic card/pill/dashboard UI.
+
+## 21. Current Product Definition
+
 Life Rhythm is currently best understood as:
-A local-first ADHD-optimised rhythm and re-entry app
-with calm task initiation,
-protected time,
-backup-safe persistence,
-opt-in signed-in local profiles,
-user-confirmed local soft placements,
-and a future soft scheduling loop based on task pool, open capacity, user confirmation, resurfacing, and usefulness windows.
+
+> A local-first ADHD-optimised rhythm and re-entry app with calm task initiation, safe task holding, protected time, backup-safe persistence, opt-in signed-in local profiles, user-confirmed local soft placements, and a future soft scheduling loop based on task pool, open capacity, user confirmation, resurfacing, and usefulness windows.
+
 It is not:
-a medical app
-a required-adherence app
-a gamified productivity app
-a calendar replacement
-an AI coach
-a cloud-synced app yet
-a public accountability system
-a full scheduler yet
+
+- a medical app
+- a required-adherence app
+- a gamified productivity app
+- a calendar replacement
+- an AI coach
+- a cloud-synced app yet
+- a public accountability system
+- a full scheduler yet
+- a biometric energy model
+- a medication-timing system
+- a crisis-detection system
+
 The target user experience is:
-I can open the app,
-see one useful next action,
-protect parts of my life,
-do the minimum if that is what fits,
-park things without shame,
-and re-enter without a catch-up pile.
+
+> I can open the app, see one useful next action, protect parts of my life, do the minimum if that is what fits, park things without shame, and re-enter without a catch-up pile.
+
 That is the design centre.
