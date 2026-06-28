@@ -2,7 +2,7 @@
 
 Status: Living design specification
 Scope: Product direction, current implementation state, design boundaries, source authority, and near-term roadmap
-Last consolidated after: PR #89 - Research source governance and design-spec consolidation
+Last consolidated after: PR #90 - Pool navigation and shell reconciliation
 
 ## 1. Product Identity
 
@@ -112,7 +112,7 @@ Corrected V3 packet order:
 9. Merge Packets 6 + 14
 10. Refresh Packet 10
 
-## 4. Current Implementation State After PR #89
+## 4. Current Implementation State After PR #90
 
 The app has a real local-first foundation. It is no longer a static prototype shell.
 
@@ -144,10 +144,16 @@ Implemented:
 - read-only time-edge re-entry preview
 - user-confirmed Park safely and Mark not today from re-entry review
 - Try the minimum helper copy only
-- Task Pool / Inbox schema and repository
+- Task Pool schema and repository
 - task pool Dexie table for local-first captured/deferred items
-- task pool capture UI in Plan
-- Plan task pool list for safely held captured/deferred items
+- top-level Pool screen
+- four-tab primary shell: Today / Plan / Pool / Library
+- Reset removed from primary bottom navigation and available as a secondary shell action
+- Setup/Settings removed from primary bottom navigation and available as a secondary shell action
+- Task Pool UI moved out of Plan into Pool/shared Pool panel
+- visible Inbox wording removed from app UI
+- Task Pool capture UI in the Pool/shared Pool panel
+- Pool/shared Pool panel list for safely held captured/deferred items
 - No longer needed action for task pool items
 - Life Shape protected/recovery/loose/household/family/open-capacity blocks
 - Setup “Time to leave alone” controls
@@ -186,13 +192,12 @@ Implemented:
 - low-level surface class primitives
 - research source governance docs
 
+Partially implemented:
+
+- Pool ledger-row / Holding Tray visual implementation: Pool now exists as a first-class destination and uses the shared Pool panel, but the full Soft Ledger / Holding Tray visual treatment still needs refinement.
+
 Not implemented yet:
 
-- first-class Pool screen
-- four-tab post-onboarding shell: Today / Plan / Pool / Library
-- Reset as contextual relief rather than persistent primary tab
-- Setup moved under Settings after onboarding
-- Pool ledger-row / Holding Tray visual implementation
 - broad card-soup / pill-chip reduction across Plan and other screens
 - soft window finder from task pool
 - repeating rhythm instances
@@ -216,11 +221,11 @@ Current practical status:
 
 - A basic shell/usability trial is possible with one browser, one device, and one stable URL.
 - A basic personal manual trial can exercise local settings, Library rhythms, active Today tasks, one-off time edges, protected time, Day Shape preview, Re-entry review, read-only soft suggestions, user-confirmed open-capacity soft placements, soft placement backups, Reset relief-valve actions, task pool capture, and opt-in signed-in local profiles.
-- Task pool capture exists in Plan, and captured ad hoc tasks can be safely held outside Today.
-- Plan can show basic task pool items, but captured tasks are not scheduled and are not automatically added to Today.
+- Task pool capture exists in the Pool/shared Pool panel, and captured ad hoc tasks can be safely held outside Today.
+- Pool can show basic task pool items, but captured tasks are not scheduled and are not automatically added to Today.
 - The current UI still has known generic AI-coded / SaaS / card-soup risks. Visual contracts exist, but they are not fully implemented.
-- A meaningful test of the full intended soft scheduling product should wait until Pool is first-class, the soft window finder exists, calm resurfacing exists, and repeating rhythm instances exist.
-- External tester readiness should wait until onboarding, backup confidence, Clerk invite-only/public-signup configuration, Pool navigation, and visual/object-grammar alignment are stronger.
+- A meaningful test of the full intended soft scheduling product should wait until the soft window finder exists, calm resurfacing exists, repeating rhythm instances exist, and the Pool Holding Tray visual refinement is stronger.
+- External tester readiness should wait until onboarding, backup confidence, Clerk invite-only/public-signup configuration, and visual/object-grammar alignment are stronger; first-class Pool navigation is no longer the missing blocker.
 
 ## 5. PR Milestone Snapshot
 
@@ -283,8 +288,9 @@ Recent key milestones:
 - PR #87: visual design system contracts
 - PR #88: visual token foundation
 - PR #89: research source governance and design-spec consolidation
+- PR #90: first-class Pool screen and four-tab Today / Plan / Pool / Library shell
 
-The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then scheduler. The next stage should reduce visual/product-object drift before adding more behaviour.
+The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then scheduler. The next stage should reduce visual/product-object drift before adding more behaviour. Near-term implementation priority is: Pool Holding Tray visual refinement, Plan card/pill reduction, Today dominant-object refinement, then soft window finder v1.
 
 ## 6. Data and Write Boundaries
 
@@ -469,8 +475,11 @@ Current implemented behaviour:
 
 - Task Pool schema and repository exist.
 - Task Pool Dexie table exists.
+- Pool is a first-class top-level destination in the primary Today / Plan / Pool / Library shell.
 - Captured ad hoc tasks can be saved locally.
-- Plan currently shows a basic task pool list.
+- Pool/shared Pool panel shows a basic task pool list.
+- Task Pool UI has moved out of Plan into Pool/shared Pool panel.
+- Visible Inbox wording has been removed from the app UI.
 - Captured tasks do not enter Today.
 - Captured tasks do not create soft placements.
 - No scheduler writes occur from capture.
@@ -479,10 +488,8 @@ Current implemented behaviour:
 
 Future intended behaviour:
 
-- Pool should become a first-class destination.
-- The visible label should be Pool / Task Pool / Holding Tray, not Inbox.
 - Held items should feel safely held, not backlogged, queued, late, or owed.
-- Pool should use ledger rows and holding-tray grouping, not card soup.
+- Pool should continue moving toward ledger rows and holding-tray grouping, not card soup.
 - Pool should not show red counts, overdue counts, guilt totals, inbox-zero pressure, or backlog language.
 - No-longer-needed items should be quiet/collapsed, not a failure list.
 
@@ -667,7 +674,7 @@ The interface must not feel like:
 
 Known current UI risk:
 
-The app still contains card soup, pill-chip overload, boxed panels, generic icon badges, equal-weight surfaces, and a five-tab mobile shell. The design contracts diagnose these risks, but the runtime UI is only partially aligned.
+The app still contains card soup, pill-chip overload, boxed panels, generic icon badges, and equal-weight surfaces. The primary shell has moved to Today / Plan / Pool / Library, but the runtime UI is still only partially aligned with the Soft Ledger / Holding Tray object grammar.
 
 Current visual contracts:
 
@@ -685,14 +692,11 @@ Current token foundation:
 
 Near-term visual implementation priority:
 
-1. Make Pool a first-class primary destination.
-2. Move the app toward Today / Plan / Pool / Library navigation.
-3. Remove Reset as a permanent primary tab where possible.
-4. Keep Setup accessible through Settings or a non-primary affordance.
-5. Reduce card wrapping around Pool and Plan content.
-6. Use ledger rows and holding-tray primitives for held items.
-7. Reduce decorative pill-chip metadata.
-8. Preserve plain labels, no badges, no counters, no urgency states.
+1. Refine Pool toward the Holding Tray / ledger-row visual direction.
+2. Reduce card wrapping and decorative pill-chip metadata across Plan and other non-dominant screens.
+3. Refine Today around one dominant active object with quiet exits.
+4. Build soft window finder v1 from openCapacity blocks after the visual/product-object drift is reduced.
+5. Preserve plain labels, no badges, no counters, no urgency states.
 
 Visual PRs must not introduce:
 
@@ -805,9 +809,9 @@ There are three trial levels.
 
 Ready for a limited shell/usability trial with one browser, one device, and one stable URL.
 
-The app can already support local settings, Library, Today tasks, task states, backups, protected time blocks, Day Shape preview, Add one-off time edges, Re-entry review, read-only soft suggestions, user-confirmed open-capacity soft placements, saved soft placements, soft placement backups, Reset relief-valve actions, Trial limits copy, fixed-commitments notes-only clarity, task pool capture in Plan, and opt-in local signed-in profiles.
+The app can already support local settings, Library, Today tasks, task states, backups, protected time blocks, Day Shape preview, Add one-off time edges, Re-entry review, read-only soft suggestions, user-confirmed open-capacity soft placements, saved soft placements, soft placement backups, Reset relief-valve actions, Trial limits copy, fixed-commitments notes-only clarity, task pool capture in Pool, and opt-in local signed-in profiles.
 
-However, it does not yet have first-class Pool navigation, missed-task detection, askFirst placement, move/edit placement, calendar integration, AI suggestions, import/restore execution, or external tester readiness.
+However, it does not yet have missed-task detection, askFirst placement, move/edit placement, calendar integration, AI suggestions, import/restore execution, or external tester readiness.
 
 It is also not yet sufficient to test the full intended soft scheduling loop because repeating rhythm instances, soft window finder v1, and calm resurfacing are not implemented.
 
@@ -815,8 +819,9 @@ It is also not yet sufficient to test the full intended soft scheduling loop bec
 
 Meaningful full-product trial should wait for:
 
-- first-class Pool / Holding Tray surface
-- Today / Plan / Pool / Library navigation alignment
+- Pool Holding Tray / ledger-row visual refinement
+- Plan card/pill reduction
+- Today dominant-object refinement
 - soft window finder v1 from openCapacity blocks
 - user-confirmed soft placement from task pool
 - resurfacing for parked, not today, and deferred tasks
@@ -836,7 +841,7 @@ External tester trial should wait until:
 - onboarding is clearer
 - backup/export is trustworthy
 - auth/privacy boundary exists and Clerk invite-only/public-signup settings are operationally verified
-- Pool navigation and Task Pool language are stable
+- Pool Holding Tray visual treatment and Task Pool language are stable
 - visual polish is closer to the Soft Ledger / Holding Tray direction
 - at least one personal trial has been completed
 - language has had a non-clinical safety pass
@@ -889,14 +894,14 @@ Completed foundation:
 
 - Soft scheduling loop contract
 - Task Pool schema and repository
-- Task Pool capture UI and Plan task-pool list
+- Task Pool capture UI and Pool/shared Pool panel list
 - Visual design contracts
 - Visual token foundation
 - Research source governance docs
 
 Current next implementation priority:
 
-> Shell navigation and Pool surface alignment.
+> Pool Holding Tray visual refinement, Plan card/pill reduction, Today dominant-object refinement, then soft window finder v1.
 
 Purpose:
 
@@ -904,24 +909,20 @@ Reduce generic AI-coded / SaaS / dashboard UI risk and align the app with the So
 
 Next recommended sequence:
 
-1. Merge/review PR #89 source governance and design-spec consolidation.
-2. Implement shell navigation + Pool surface alignment.
-3. Make Pool a first-class primary destination.
-4. Move toward Today / Plan / Pool / Library navigation.
-5. Keep Reset contextual and keep Setup accessible through Settings/non-primary access.
-6. Reduce Pool card wrapping and render held items as ledger rows / Holding Tray groups.
-7. Reduce Plan card soup and pill-chip overload enough that Plan does not feel like a dashboard.
-8. Soft window finder v1 from openCapacity blocks.
-9. User-confirmed soft placement from task pool.
-10. Repeating rhythm instance contract.
-11. Repeating rhythm instance suggestions.
-12. Re-entry resurfacing for parked, not today, and deferred tasks.
-13. Deadline and usefulness salience.
-14. Move/edit soft placement.
-15. Backup support for task pool and rhythm instances.
-16. Final non-AI prototype smoke QA.
-17. Operationally verify Clerk invite-only/public-signup settings before external testers.
-18. Add a cloud sync contract only if later trial learning shows a clear need.
+1. Refine Pool toward the Holding Tray / ledger-row visual direction.
+2. Reduce Plan card soup and pill-chip overload enough that Plan does not feel like a dashboard.
+3. Refine Today around one dominant active object with quiet secondary exits.
+4. Soft window finder v1 from openCapacity blocks.
+5. User-confirmed soft placement from task pool.
+6. Repeating rhythm instance contract.
+7. Repeating rhythm instance suggestions.
+8. Re-entry resurfacing for parked, not today, and deferred tasks.
+9. Deadline and usefulness salience.
+10. Move/edit soft placement.
+11. Backup support for task pool and rhythm instances.
+12. Final non-AI prototype smoke QA.
+13. Operationally verify Clerk invite-only/public-signup settings before external testers.
+14. Add a cloud sync contract only if later trial learning shows a clear need.
 
 Cloud sync remains intentionally unimplemented.
 
@@ -929,10 +930,9 @@ Cloud sync remains intentionally unimplemented.
 
 Open product and implementation decisions:
 
-- How should Pool split from Plan without breaking current task-pool capture?
-- Should the first Pool screen show captured / parked / not today / deferred groups immediately, or only captured until resurfacing exists?
-- What is the minimum safe way to keep Setup accessible without a permanent primary Setup tab?
-- What is the minimum safe way to keep Reset accessible without a permanent primary Reset tab?
+- Should Pool show captured / parked / not today / deferred groups immediately, or only captured until resurfacing exists?
+- What Holding Tray row treatment best signals safely held without backlog pressure?
+- What secondary Settings/Reset affordance is calmest after removal from primary navigation?
 - How much card/pill reduction is required before a meaningful personal product trial?
 - How should captured task pool items feed the first open-capacity soft window finder?
 - How should repeating rhythm instances be generated without backlog or streak debt?
