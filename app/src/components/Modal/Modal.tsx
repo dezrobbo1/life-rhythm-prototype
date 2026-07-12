@@ -21,6 +21,8 @@ type ModalProps = {
 export function Modal({ children, onClose, open, title }: ModalProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -40,7 +42,7 @@ export function Modal({ children, onClose, open, title }: ModalProps) {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -75,7 +77,7 @@ export function Modal({ children, onClose, open, title }: ModalProps) {
       document.body.style.overflow = previousOverflow;
       previouslyFocused?.focus();
     };
-  }, [onClose, open]);
+  }, [open]);
 
   if (!open) return null;
 
