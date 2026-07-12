@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '../../components';
+import { bringTaskPoolItemToToday } from '../../data/taskLifecycleRepository';
 import {
   createTaskPoolItemId,
   loadTaskPoolItems,
@@ -14,14 +15,41 @@ type TaskPoolFeedback = {
   lines: string[];
 };
 
-const visibleTaskPoolStatuses: TaskPoolItemStatus[] = [
-  'captured',
-  'suggested',
-  'softPlaced',
-  'parked',
-  'notToday',
-  'deferred',
+type TaskPoolGroup = {
+  helper: string;
+  id: string;
+  statuses: TaskPoolItemStatus[];
+  title: string;
+};
+
+const taskPoolGroups: TaskPoolGroup[] = [
+  {
+    helper: 'Ready when you choose.',
+    id: 'safely-held',
+    statuses: ['captured', 'suggested', 'softPlaced'],
+    title: 'Safely held',
+  },
+  {
+    helper: 'Safe to return to when it fits.',
+    id: 'parked',
+    statuses: ['parked'],
+    title: 'Parked',
+  },
+  {
+    helper: 'Held for a later choice.',
+    id: 'bring-back-later',
+    statuses: ['deferred'],
+    title: 'Bring back later',
+  },
+  {
+    helper: 'Kept out of the current day.',
+    id: 'not-today',
+    statuses: ['notToday'],
+    title: 'Not today',
+  },
 ];
+
+const visibleTaskPoolStatuses = taskPoolGroups.flatMap((group) => group.statuses);
 
 const taskPoolStatusLabels: Record<TaskPoolItemStatus, string> = {
   captured: 'Safely held',
@@ -70,14 +98,30 @@ function taskPoolUsefulWindowLines(item: TaskPoolItem) {
   ].filter(Boolean);
 }
 
+function moveToTodayLabel(item: TaskPoolItem) {
+  return ['parked', 'notToday', 'deferred'].includes(item.status)
+    ? 'Bring to Today'
+    : 'Add to Today';
+}
+
 export function TaskPoolPanel() {
   const [taskPoolCaptureOpen, setTaskPoolCaptureOpen] = useState(false);
   const [taskPoolFeedback, setTaskPoolFeedback] = useState<TaskPoolFeedback | null>(null);
   const [taskPoolItems, setTaskPoolItems] = useState<TaskPoolItem[]>([]);
   const [markingTaskPoolItemId, setMarkingTaskPoolItemId] = useState<string | null>(null);
+  const [movingTaskPoolItemId, setMovingTaskPoolItemId] = useState<string | null>(null);
   const visibleTaskPoolItems = useMemo(
     () => taskPoolItems.filter((item) => visibleTaskPoolStatuses.includes(item.status)),
     [taskPoolItems],
+  );
+  const visibleGroups = useMemo(
+    () => taskPoolGroups
+      .map((group) => ({
+        ...group,
+        items: visibleTaskPoolItems.filter((item) => group.statuses.includes(item.status)),
+      }))
+      .filter((group) => group.items.length > 0),
+    [visibleTaskPoolItems],
   );
 
   const refreshTaskPoolItems = useCallback(async () => {
@@ -156,6 +200,42 @@ export function TaskPoolPanel() {
     return true;
   }, [refreshTaskPoolItems]);
 
+  const moveTaskToToday = useCallback(async (item: TaskPoolItem) => {
+    setMovingTaskPoolItemId(item.id);
+    setTaskPoolFeedback(null);
+
+    try {
+      const result = await bringTaskPoolItemToToday(item.id);
+
+      if (!result.ok) {
+        setTaskPoolFeedback({
+          kind: 'error',
+          lines: ['Task was not added to Today. Nothing else changed.'],
+        });
+        return;
+      }
+
+      setTaskPoolItems((currentItems) =>
+        currentItems.map((currentItem) =>
+          currentItem.id === result.item.id ? result.item : currentItem,
+        ),
+      );
+      setTaskPoolFeedback({
+        kind: 'success',
+        lines: result.alreadyInToday
+          ? ['This task is already in Today. Nothing else changed.']
+          : ['Added to Today.', 'Park or mark it Not today to return it here safely.'],
+      });
+    } catch {
+      setTaskPoolFeedback({
+        kind: 'error',
+        lines: ['Task was not added to Today. Nothing else changed.'],
+      });
+    } finally {
+      setMovingTaskPoolItemId(null);
+    }
+  }, []);
+
   const markCapturedTaskNoLongerNeeded = useCallback(async (item: TaskPoolItem) => {
     setMarkingTaskPoolItemId(item.id);
     setTaskPoolFeedback(null);
@@ -202,32 +282,53 @@ export function TaskPoolPanel() {
         <Button onClick={() => setTaskPoolCaptureOpen(true)} variant="primary">Capture task</Button>
       </div>
 
-      {visibleTaskPoolItems.length > 0 ? (
-        <ul className="task-pool__list">
-          {visibleTaskPoolItems.map((item) => {
-            const usefulWindowLines = taskPoolUsefulWindowLines(item);
+      {visibleGroups.length > 0 ? (
+        <div className="task-pool__groups">
+          {visibleGroups.map((group) => (
+            <section className="task-pool__group" key={group.id} aria-labelledby={`task-pool-${group.id}`}>
+              <header className="task-pool__group-header">
+                <h3 id={`task-pool-${group.id}`}>{group.title}</h3>
+                <p>{group.helper}</p>
+              </header>
+              <ul className="task-pool__list">
+                {group.items.map((item) => {
+                  const usefulWindowLines = taskPoolUsefulWindowLines(item);
+                  const moving = movingTaskPoolItemId === item.id;
 
-            return (
-              <li key={item.id}>
-                <div>
-                  <strong>{item.title}</strong>
-                  <span>{taskPoolAreaLabels[item.area]} - {taskPoolStatusLabels[item.status]}</span>
-                </div>
-                <p>Minimum: {item.minimum.label}</p>
-                {usefulWindowLines.map((line) => (
-                  <p key={line}>{line}</p>
-                ))}
-                <Button
-                  className="task-pool__item-action"
-                  disabled={markingTaskPoolItemId === item.id}
-                  onClick={() => void markCapturedTaskNoLongerNeeded(item)}
-                >
-                  {markingTaskPoolItemId === item.id ? 'Marking item' : 'No longer needed'}
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
+                  return (
+                    <li key={item.id}>
+                      <div>
+                        <strong>{item.title}</strong>
+                        <span>{taskPoolAreaLabels[item.area]} - {taskPoolStatusLabels[item.status]}</span>
+                      </div>
+                      <p>Minimum: {item.minimum.label}</p>
+                      {usefulWindowLines.map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
+                      <div className="task-pool__item-actions">
+                        <Button
+                          className="task-pool__today-action"
+                          disabled={moving || markingTaskPoolItemId === item.id}
+                          onClick={() => void moveTaskToToday(item)}
+                          variant="primary"
+                        >
+                          {moving ? 'Adding to Today' : moveToTodayLabel(item)}
+                        </Button>
+                        <Button
+                          className="task-pool__item-action"
+                          disabled={moving || markingTaskPoolItemId === item.id}
+                          onClick={() => void markCapturedTaskNoLongerNeeded(item)}
+                        >
+                          {markingTaskPoolItemId === item.id ? 'Marking item' : 'No longer needed'}
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
       ) : (
         <div className="task-pool__empty">
           <h3>No captured tasks yet.</h3>
