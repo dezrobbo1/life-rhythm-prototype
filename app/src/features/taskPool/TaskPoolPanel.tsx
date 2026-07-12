@@ -22,6 +22,10 @@ type TaskPoolGroup = {
   title: string;
 };
 
+type TaskPoolPanelProps = {
+  onOpenPlan?: () => void;
+};
+
 const taskPoolGroups: TaskPoolGroup[] = [
   {
     helper: 'Ready when you choose.',
@@ -104,7 +108,11 @@ function moveToTodayLabel(item: TaskPoolItem) {
     : 'Add to Today';
 }
 
-export function TaskPoolPanel() {
+function softWindowLabel(item: TaskPoolItem) {
+  return item.status === 'softPlaced' ? 'View in Plan' : 'Find soft window';
+}
+
+export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
   const [taskPoolCaptureOpen, setTaskPoolCaptureOpen] = useState(false);
   const [taskPoolFeedback, setTaskPoolFeedback] = useState<TaskPoolFeedback | null>(null);
   const [taskPoolItems, setTaskPoolItems] = useState<TaskPoolItem[]>([]);
@@ -314,6 +322,15 @@ export function TaskPoolPanel() {
                         >
                           {moving ? 'Adding to Today' : moveToTodayLabel(item)}
                         </Button>
+                        {onOpenPlan ? (
+                          <Button
+                            className="task-pool__plan-action"
+                            disabled={moving || markingTaskPoolItemId === item.id}
+                            onClick={onOpenPlan}
+                          >
+                            {softWindowLabel(item)}
+                          </Button>
+                        ) : null}
                         <Button
                           className="task-pool__item-action"
                           disabled={moving || markingTaskPoolItemId === item.id}
