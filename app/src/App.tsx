@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 import { AppShell, type ScreenId } from './components/AppShell/AppShell';
 import { BrandMark, Button } from './components';
 import { TodayScreen } from './screens/TodayScreen';
-import { PlanScreen } from './screens/PlanScreen';
+import { PersonalPlanScreen } from './screens/PersonalPlanScreen';
 import { PoolScreen } from './screens/PoolScreen';
 import { LibraryScreen } from './screens/LibraryScreen';
 import { ResetScreen } from './screens/ResetScreen';
@@ -215,7 +215,7 @@ export default function App() {
 
   const screens: Record<ScreenId, ReactElement> = {
     today: <TodayScreen />,
-    plan: <PlanScreen />,
+    plan: <PersonalPlanScreen />,
     pool: <PoolScreen />,
     library: <LibraryScreen />,
     reset: <ResetScreen />,
