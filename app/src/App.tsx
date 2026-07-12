@@ -85,7 +85,7 @@ function ExamplePreview({ onReturnToPersonalTrial, theme }: ExamplePreviewProps)
           <p>{exampleTask?.purpose ?? 'Keep one useful action visible and let the rest stay light.'}</p>
           <div className="trial-example__minimum">
             <span>Minimum version</span>
-            <strong>{exampleTask?.minimum.label ?? 'Do the smallest useful version.'}</strong>
+            <strong>{exampleTask?.minimum?.label ?? 'Do the smallest useful version.'}</strong>
           </div>
         </section>
 
@@ -113,7 +113,7 @@ function ExamplePreview({ onReturnToPersonalTrial, theme }: ExamplePreviewProps)
               {exampleRhythms.map((rhythm) => (
                 <li key={rhythm.id}>
                   <strong>{rhythm.title}</strong>
-                  <span>{rhythm.minimum.label}</span>
+                  <span>{rhythm.minimum?.label ?? 'Minimum version not set.'}</span>
                 </li>
               ))}
             </ul>
