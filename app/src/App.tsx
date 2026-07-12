@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
 import { AppShell, type ScreenId } from './components/AppShell/AppShell';
+import { BrandMark, Button } from './components';
 import { TodayScreen } from './screens/TodayScreen';
 import { PlanScreen } from './screens/PlanScreen';
 import { PoolScreen } from './screens/PoolScreen';
@@ -20,9 +21,18 @@ import {
 } from './data/settingsRepository';
 import { exportSettingsBackup, type SettingsBackupExport } from './data/settingsExport';
 import { exportSoftPlacementBackup, type SoftPlacementBackupExport } from './data/softPlacementBackup';
-import { normalDayWithOneTaskSnapshot, type AppDataSnapshot } from './viewModels';
+import {
+  emptyAppSnapshot,
+  normalDayWithOneTaskSnapshot,
+  type AppDataSnapshot,
+} from './viewModels';
 
 type JsonBackupExport = Pick<SettingsBackupExport | SoftPlacementBackupExport, 'fileName' | 'json'>;
+
+type ExamplePreviewProps = {
+  onReturnToPersonalTrial: () => void;
+  theme: ThemeName;
+};
 
 function downloadJsonBackup(backup: JsonBackupExport) {
   if (
@@ -44,10 +54,88 @@ function downloadJsonBackup(backup: JsonBackupExport) {
   URL.revokeObjectURL(url);
 }
 
+function ExamplePreview({ onReturnToPersonalTrial, theme }: ExamplePreviewProps) {
+  const exampleTask = normalDayWithOneTaskSnapshot.activeTasks?.[0];
+  const examplePlanBlock = normalDayWithOneTaskSnapshot.planBlocks?.[0];
+  const exampleRhythms = normalDayWithOneTaskSnapshot.rhythmTemplates?.slice(0, 2) ?? [];
+
+  return (
+    <div className="trial-example" data-theme={theme}>
+      <main className="trial-example__main" aria-labelledby="trial-example-title">
+        <header className="trial-example__header">
+          <div className="trial-example__brand">
+            <BrandMark />
+            <div>
+              <p className="eyebrow">Read-only example</p>
+              <h1 id="trial-example-title">A calm day in Life Rhythm</h1>
+            </div>
+          </div>
+          <Button onClick={onReturnToPersonalTrial} variant="primary">
+            Use my personal trial
+          </Button>
+        </header>
+
+        <p className="trial-example__boundary">
+          This example is separate from your personal trial. Nothing here is saved, scheduled, or mixed with your local data.
+        </p>
+
+        <section className="trial-example__primary" aria-labelledby="trial-example-today-title">
+          <p className="section-label">Today</p>
+          <h2 id="trial-example-today-title">{exampleTask?.title ?? 'One useful next action'}</h2>
+          <p>{exampleTask?.purpose ?? 'Keep one useful action visible and let the rest stay light.'}</p>
+          <div className="trial-example__minimum">
+            <span>Minimum version</span>
+            <strong>{exampleTask?.minimum.label ?? 'Do the smallest useful version.'}</strong>
+          </div>
+        </section>
+
+        <div className="trial-example__grid">
+          <section aria-labelledby="trial-example-pool-title">
+            <p className="section-label">Holding Tray</p>
+            <h2 id="trial-example-pool-title">Pool</h2>
+            <p>Capture something without turning it into an immediate demand.</p>
+            <p className="trial-example__quiet">Safely held · No schedule created</p>
+          </section>
+
+          <section aria-labelledby="trial-example-plan-title">
+            <p className="section-label">Soft day shape</p>
+            <h2 id="trial-example-plan-title">{examplePlanBlock?.label ?? 'Plan'}</h2>
+            <p>{examplePlanBlock?.summary ?? 'Broad bands protect the shape of the day without owning every minute.'}</p>
+            <p className="trial-example__quiet">Protected time stays protected.</p>
+          </section>
+        </div>
+
+        {exampleRhythms.length > 0 ? (
+          <section className="trial-example__rhythms" aria-labelledby="trial-example-rhythms-title">
+            <p className="section-label">Reusable support</p>
+            <h2 id="trial-example-rhythms-title">Library rhythms</h2>
+            <ul>
+              {exampleRhythms.map((rhythm) => (
+                <li key={rhythm.id}>
+                  <strong>{rhythm.title}</strong>
+                  <span>{rhythm.minimum.label}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        <footer className="trial-example__footer">
+          <p>Your personal trial starts empty and only shows data you create on this device.</p>
+          <Button onClick={onReturnToPersonalTrial} variant="primary">
+            Return to personal trial
+          </Button>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
 export default function App() {
   const [activeScreen, setActiveScreen] = useState<ScreenId>('today');
   const [theme, setTheme] = useState<ThemeName>('exhale');
   const [settings, setSettings] = useState<Settings>(() => createDefaultSettings());
+  const [exampleOpen, setExampleOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -104,9 +192,10 @@ export default function App() {
 
   const appSnapshot = useMemo<AppDataSnapshot>(
     () => ({
-      ...normalDayWithOneTaskSnapshot,
+      ...emptyAppSnapshot,
+      futureModules: [],
       settings: {
-        ...normalDayWithOneTaskSnapshot.settings,
+        ...emptyAppSnapshot.settings,
         lifeShape: settings.lifeShape,
         startBoostSafety: settings.startBoostSafety,
         theme: settings.theme,
@@ -114,6 +203,15 @@ export default function App() {
     }),
     [settings],
   );
+
+  if (exampleOpen) {
+    return (
+      <ExamplePreview
+        onReturnToPersonalTrial={() => setExampleOpen(false)}
+        theme={theme}
+      />
+    );
+  }
 
   const screens: Record<ScreenId, ReactElement> = {
     today: <TodayScreen />,
@@ -135,12 +233,12 @@ export default function App() {
   };
 
   return (
-    <AppSnapshotProvider snapshot={appSnapshot}>
+    <AppSnapshotProvider snapshot={appSnapshot} source="personal">
       <AppShell
         activeScreen={activeScreen}
         onScreenChange={setActiveScreen}
+        onShowExample={() => setExampleOpen(true)}
         theme={theme}
-        onThemeChange={setTheme}
       >
         {screens[activeScreen]}
       </AppShell>
