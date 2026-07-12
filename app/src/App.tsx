@@ -136,6 +136,7 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeName>('exhale');
   const [settings, setSettings] = useState<Settings>(() => createDefaultSettings());
   const [exampleOpen, setExampleOpen] = useState(false);
+  const [preferredPlanPlacementDate, setPreferredPlanPlacementDate] = useState<string | null>(null);
   const [preferredPlanTaskId, setPreferredPlanTaskId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -192,11 +193,13 @@ export default function App() {
   }
 
   function handleScreenChange(screen: ScreenId) {
+    setPreferredPlanPlacementDate(null);
     setPreferredPlanTaskId(null);
     setActiveScreen(screen);
   }
 
-  function openPlanForTask(taskId: string) {
+  function openPlanForTask(taskId: string, placementDate?: string) {
+    setPreferredPlanPlacementDate(placementDate ?? null);
     setPreferredPlanTaskId(taskId);
     setActiveScreen('plan');
   }
@@ -226,7 +229,12 @@ export default function App() {
 
   const screens: Record<ScreenId, ReactElement> = {
     today: <TodayScreen />,
-    plan: <PersonalPlanScreen preferredTaskId={preferredPlanTaskId} />,
+    plan: (
+      <PersonalPlanScreen
+        preferredPlacementDate={preferredPlanPlacementDate}
+        preferredTaskId={preferredPlanTaskId}
+      />
+    ),
     pool: <PoolScreen onOpenPlan={openPlanForTask} />,
     library: <LibraryScreen />,
     reset: <ResetScreen />,

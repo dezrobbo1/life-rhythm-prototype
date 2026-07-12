@@ -10,6 +10,16 @@ const dayIndexes: Record<DayName, number> = {
   Saturday: 6,
 };
 
+const dayNames: DayName[] = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
+
 function padDatePart(value: number) {
   return value.toString().padStart(2, '0');
 }
@@ -40,6 +50,14 @@ export function localDateForNextSelectedDay(selectedDay: DayName, now = new Date
   start.setDate(start.getDate() + daysUntilTarget);
 
   return localDateString(start);
+}
+
+export function dayNameForLocalDate(date: string | null | undefined): DayName | null {
+  if (!date) return null;
+
+  const parsed = new Date(`${date}T12:00:00`);
+
+  return Number.isNaN(parsed.getTime()) ? null : dayNames[parsed.getDay()];
 }
 
 export function createSoftPlacementId({

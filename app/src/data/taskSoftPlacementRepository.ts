@@ -52,11 +52,13 @@ function issuesToMessages(issues: Array<{ message: string; path: Array<string | 
 
 function fallbackPoolStatus(
   activeTask: unknown,
-): Extract<TaskPoolItem['status'], 'captured' | 'parked' | 'notToday'> {
+  item: TaskPoolItem,
+): Extract<TaskPoolItem['status'], 'captured' | 'parked' | 'notToday' | 'deferred'> {
   const parsed = activeTaskSchema.safeParse(activeTask);
 
   if (parsed.success && parsed.data.status === 'parked') return 'parked';
   if (parsed.success && parsed.data.status === 'notToday') return 'notToday';
+  if (item.bringBackAfter) return 'deferred';
   return 'captured';
 }
 
@@ -85,7 +87,10 @@ export async function confirmTaskPoolSoftPlacement(
     }
 
     const existingById = await database.softPlacements.get(input.id);
-    if (existingById) {
+    const parsedExistingById = existingById
+      ? softPlacementSchema.safeParse(existingById)
+      : null;
+    if (parsedExistingById && (!parsedExistingById.success || parsedExistingById.data.status !== 'removed')) {
       return {
         errors: ['id: This soft placement already exists.'],
         ok: false,
@@ -188,7 +193,7 @@ export async function removeTaskPoolSoftPlacement(
         const activeTask = await database.activeTasks.get(parsedItem.data.id);
         updatedItem = taskPoolItemSchema.parse({
           ...parsedItem.data,
-          status: fallbackPoolStatus(activeTask),
+          status: fallbackPoolStatus(activeTask, parsedItem.data),
           updatedAt: timestamp,
         });
       }

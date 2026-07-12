@@ -5,12 +5,13 @@ import {
   markTaskLifecycleNoLongerNeeded,
 } from '../../data/taskLifecycleRepository';
 import { deferTaskPoolItem } from '../../data/taskPoolDeferralRepository';
+import { loadAllSoftPlacements } from '../../data/softPlacementRepository';
 import {
   createTaskPoolItemId,
   loadTaskPoolItems,
   saveTaskPoolItem,
 } from '../../data/taskPoolRepository';
-import type { TaskPoolItem, TaskPoolItemStatus } from '../../data/schemas';
+import type { SoftPlacement, TaskPoolItem, TaskPoolItemStatus } from '../../data/schemas';
 import { TaskPoolCaptureModal, type TaskPoolCaptureInput } from './TaskPoolCaptureModal';
 import { TaskPoolDeferModal } from './TaskPoolDeferModal';
 import {
@@ -25,8 +26,27 @@ type TaskPoolFeedback = {
 };
 
 type TaskPoolPanelProps = {
-  onOpenPlan?: (taskId: string) => void;
+  onOpenPlan?: (taskId: string, placementDate?: string) => void;
 };
+
+const navigableSoftPlacementStatuses = new Set<SoftPlacement['status']>([
+  'planned',
+  'moved',
+  'completedFromToday',
+]);
+
+function placementDatesByTaskId(placements: SoftPlacement[]) {
+  return placements
+    .filter((placement) => navigableSoftPlacementStatuses.has(placement.status))
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    .reduce<Record<string, string>>((dates, placement) => {
+      if (!dates[placement.taskId]) {
+        dates[placement.taskId] = placement.date;
+      }
+
+      return dates;
+    }, {});
+}
 
 const taskPoolStatusLabels: Record<TaskPoolItemStatus, string> = {
   captured: 'Safely held',
@@ -100,6 +120,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
   const [taskPoolCaptureOpen, setTaskPoolCaptureOpen] = useState(false);
   const [taskPoolFeedback, setTaskPoolFeedback] = useState<TaskPoolFeedback | null>(null);
   const [taskPoolItems, setTaskPoolItems] = useState<TaskPoolItem[]>([]);
+  const [softPlacementDates, setSoftPlacementDates] = useState<Record<string, string>>({});
   const [markingTaskPoolItemId, setMarkingTaskPoolItemId] = useState<string | null>(null);
   const [movingTaskPoolItemId, setMovingTaskPoolItemId] = useState<string | null>(null);
   const [deferringTaskPoolItemId, setDeferringTaskPoolItemId] = useState<string | null>(null);
@@ -111,24 +132,33 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
   );
 
   const refreshTaskPoolItems = useCallback(async () => {
-    const items = await loadTaskPoolItems();
+    const [items, placements] = await Promise.all([
+      loadTaskPoolItems(),
+      loadAllSoftPlacements(),
+    ]);
     setTaskPoolItems(items);
+    setSoftPlacementDates(placementDatesByTaskId(placements));
     setClockMs(Date.now());
   }, []);
 
   useEffect(() => {
     let active = true;
 
-    loadTaskPoolItems()
-      .then((items) => {
+    Promise.all([
+      loadTaskPoolItems(),
+      loadAllSoftPlacements(),
+    ])
+      .then(([items, placements]) => {
         if (active) {
           setTaskPoolItems(items);
+          setSoftPlacementDates(placementDatesByTaskId(placements));
           setClockMs(Date.now());
         }
       })
       .catch(() => {
         if (active) {
           setTaskPoolItems([]);
+          setSoftPlacementDates({});
         }
       });
 
@@ -367,7 +397,10 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
                           <Button
                             className="task-pool__plan-action"
                             disabled={busy}
-                            onClick={() => onOpenPlan(item.id)}
+                            onClick={() => onOpenPlan(
+                              item.id,
+                              item.status === 'softPlaced' ? softPlacementDates[item.id] : undefined,
+                            )}
                           >
                             {softWindowLabel(item)}
                           </Button>
