@@ -16,7 +16,8 @@ type AppShellProps = {
   activeScreen: ScreenId;
   children: ReactNode;
   onScreenChange: (screen: ScreenId) => void;
-  onThemeChange: (theme: ThemeName) => void;
+  onShowExample?: () => void;
+  onThemeChange?: (theme: ThemeName) => void;
   theme: ThemeName;
 };
 
@@ -24,11 +25,12 @@ export function AppShell({
   activeScreen,
   children,
   onScreenChange,
+  onShowExample,
   onThemeChange,
   theme,
 }: AppShellProps) {
   return (
-    <div className="app-shell" data-theme={theme}>
+    <div className="app-shell" data-theme={theme} data-trial-mode="personal">
       <header className="app-header">
         <div className="brand-lockup">
           <BrandMark />
@@ -39,17 +41,25 @@ export function AppShell({
           </div>
         </div>
         <div className="app-header__actions">
-          <label className="theme-control">
-            <span>Theme</span>
-            <select value={theme} onChange={(event) => onThemeChange(event.target.value as ThemeName)}>
-              {themes.map((item) => (
-                <option key={item} value={item}>
-                  {themeLabels[item]}
-                </option>
-              ))}
-            </select>
-          </label>
+          {activeScreen === 'setup' && onThemeChange ? (
+            <label className="theme-control theme-control--settings">
+              <span>Theme</span>
+              <select value={theme} onChange={(event) => onThemeChange(event.target.value as ThemeName)}>
+                {themes.map((item) => (
+                  <option key={item} value={item}>
+                    {themeLabels[item]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <nav className="secondary-nav" aria-label="Secondary">
+            {onShowExample ? (
+              <button className="secondary-nav__example" onClick={onShowExample} type="button">
+                <AppIcon name="info" size={15} />
+                <span>Example day</span>
+              </button>
+            ) : null}
             <button
               aria-current={activeScreen === 'reset' ? 'page' : undefined}
               onClick={() => onScreenChange('reset')}

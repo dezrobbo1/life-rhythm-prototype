@@ -12,7 +12,7 @@ afterEach(() => {
 });
 
 describe('primary app shell navigation', () => {
-  it('renders non-placeholder content for the primary tabs and secondary surfaces', async () => {
+  it('renders personal-mode content for the primary tabs and secondary surfaces', async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -26,17 +26,16 @@ describe('primary app shell navigation', () => {
     expect(document.querySelectorAll('.bottom-nav__icon .app-icon')).toHaveLength(4);
 
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
-    expect(screen.getByText('Next useful action')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Choose rhythms to turn on' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add one-off' })).toBeTruthy();
+    expect(screen.queryByText("Set tomorrow's first step")).toBeNull();
     expect(document.querySelector('.today-hero .screen-hero__mark')).toBeTruthy();
-    expect(document.querySelector('.today-hero .screen-hero__mark .app-icon')).toBeTruthy();
-    expect(document.querySelector('.task-card__marker .app-icon')).toBeTruthy();
 
     await user.click(within(nav).getByRole('button', { name: 'Plan' }));
     expect(screen.getByRole('heading', { name: 'Plan' })).toBeTruthy();
-    expect(screen.getByLabelText('Broad day blocks')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Day Shape' })).toBeTruthy();
+    expect(screen.queryByLabelText('Broad day blocks')).toBeNull();
     expect(document.querySelector('.plan-hero .screen-hero__mark')).toBeTruthy();
-    expect(document.querySelector('.plan-block__icon .app-icon')).toBeTruthy();
-    expect(document.querySelector('.plan-item__icon .app-icon')).toBeTruthy();
 
     await user.click(within(nav).getByRole('button', { name: 'Pool' }));
     expect(screen.getByRole('heading', { name: 'Pool' })).toBeTruthy();
@@ -45,7 +44,7 @@ describe('primary app shell navigation', () => {
 
     await user.click(within(nav).getByRole('button', { name: 'Library' }));
     expect(screen.getByRole('heading', { name: 'Library' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Quick packs' })).toBeTruthy();
+    expect(screen.getByLabelText('Search rhythms')).toBeTruthy();
     expect(document.querySelector('.library-hero .screen-hero__mark')).toBeTruthy();
     expect(document.querySelector('.library-card__icon .app-icon')).toBeTruthy();
 
@@ -53,6 +52,7 @@ describe('primary app shell navigation', () => {
 
     expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
     expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();
+    expect(within(secondaryNav).getByRole('button', { name: 'Example day' })).toBeTruthy();
 
     await user.click(within(secondaryNav).getByRole('button', { name: 'Reset' }));
     expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
@@ -67,8 +67,27 @@ describe('primary app shell navigation', () => {
     expect(document.querySelector('.app-shell')).toBeTruthy();
     expect(document.querySelector('.app-main')).toBeTruthy();
     expect(document.querySelector('.bottom-nav')).toBe(nav);
+  });
 
-    expect(screen.queryByText(/placeholder/i)).toBeNull();
+  it('keeps the read-only example separate from personal trial data', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
+    expect(screen.queryByText("Set tomorrow's first step")).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Example day' }));
+
+    expect(screen.getByRole('heading', { name: 'A calm day in Life Rhythm' })).toBeTruthy();
+    expect(screen.getByText("Set tomorrow's first step")).toBeTruthy();
+    expect(screen.getByText(/separate from your personal trial/i)).toBeTruthy();
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Return to personal trial' }));
+
+    expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Choose rhythms to turn on' })).toBeTruthy();
+    expect(screen.queryByText("Set tomorrow's first step")).toBeNull();
   });
 
   it('keeps core Setup trial surfaces available at phone width', async () => {
@@ -89,6 +108,7 @@ describe('primary app shell navigation', () => {
     expect(within(nav).getByRole('button', { name: 'Library' })).toBeTruthy();
     expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
     expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();
+    expect(within(secondaryNav).getByRole('button', { name: 'Example day' })).toBeTruthy();
     expect(within(secondaryNav).getByRole('button', { name: 'Reset' })).toBeTruthy();
     expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Trial limits' })).toBeTruthy();
