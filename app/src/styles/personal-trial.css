@@ -1,0 +1,223 @@
+.app-shell[data-trial-mode='personal'] .app-header {
+  gap: var(--space-3);
+  padding: 0.75rem clamp(0.9rem, 3vw, 1.5rem);
+}
+
+.app-shell[data-trial-mode='personal'] .brand-mark {
+  border-radius: 0.75rem;
+  box-shadow: none;
+  height: 2.5rem;
+  width: 2.5rem;
+}
+
+.app-shell[data-trial-mode='personal'] .brand-copy p:last-child {
+  margin-top: 0.15rem;
+}
+
+.app-shell[data-trial-mode='personal'] .secondary-nav__example {
+  background: transparent;
+  border-color: transparent;
+}
+
+/*
+ * Personal Trial v1 deliberately removes prototype and developer surfaces from
+ * the user-facing app while their underlying code remains available for
+ * focused component tests and later consolidation into Settings.
+ */
+.app-shell[data-trial-mode='personal'] .today-screen section[aria-labelledby='today-backup-title'],
+.app-shell[data-trial-mode='personal'] .today-screen section[aria-labelledby='today-backup-check-title'],
+.app-shell[data-trial-mode='personal'] .library-screen section[aria-labelledby='library-backup-check-title'],
+.app-shell[data-trial-mode='personal'] .quick-packs,
+.app-shell[data-trial-mode='personal'] .plan-blocks,
+.app-shell[data-trial-mode='personal'] .plan-item__actions,
+.app-shell[data-trial-mode='personal'] .task-card__quiet-actions,
+.app-shell[data-trial-mode='personal'] .boost-feedback,
+.app-shell[data-trial-mode='personal'] .reset-screen section[aria-labelledby='secondary-reset-title'],
+.app-shell[data-trial-mode='personal'] .reset-danger-zone,
+.app-shell[data-trial-mode='personal'] .setup-later-actions,
+.app-shell[data-trial-mode='personal'] .library-card__state,
+.app-shell[data-trial-mode='personal'] .library-card__actions > .button:first-child,
+.app-shell[data-trial-mode='personal'] .library-create-card__actions > .button:nth-child(2),
+.app-shell[data-trial-mode='personal'] .library-create-card__actions > .button:disabled,
+.app-shell[data-trial-mode='personal'] .library-create-card > div:first-child > p:not(:first-of-type),
+.app-shell[data-trial-mode='personal'] .library-screen .modal .lede,
+.app-shell[data-trial-mode='personal'] .boost-task-context .support-option > span {
+  display: none;
+}
+
+@supports selector(.card:has(*)) {
+  .app-shell[data-trial-mode='personal'] .today-screen > .card:has(#today-backup-title),
+  .app-shell[data-trial-mode='personal'] .today-screen > .card:has(.rhythm-preview__header),
+  .app-shell[data-trial-mode='personal'] .library-screen > .card:has(#library-backup-check-title),
+  .app-shell[data-trial-mode='personal'] .plan-screen > .card:has(.plan-room-message),
+  .app-shell[data-trial-mode='personal'] .setup-screen > .card:has(.setup-dev-card),
+  .app-shell[data-trial-mode='personal'] .setup-screen > .card:has(.chip-row--quiet),
+  .app-shell[data-trial-mode='personal'] .setup-screen > .card:has(.setup-advanced-toggle) {
+    display: none;
+  }
+}
+
+.trial-example {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 58%, var(--color-bg)) 0, var(--color-bg) 22rem),
+    var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+  padding: clamp(1rem, 4vw, 2.5rem);
+}
+
+.trial-example__main {
+  display: grid;
+  gap: clamp(1.25rem, 3vw, 2rem);
+  margin: 0 auto;
+  max-width: 68rem;
+}
+
+.trial-example__header {
+  align-items: center;
+  border-bottom: 1px solid var(--color-line);
+  display: flex;
+  gap: var(--space-4);
+  justify-content: space-between;
+  padding-bottom: var(--space-4);
+}
+
+.trial-example__brand {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.trial-example__brand .brand-mark {
+  box-shadow: none;
+}
+
+.trial-example__header h1 {
+  font-size: clamp(1.75rem, 5vw, 3.25rem);
+  letter-spacing: -0.035em;
+  line-height: 1;
+  margin: 0;
+}
+
+.trial-example__boundary {
+  color: var(--color-muted);
+  font-size: 0.95rem;
+  margin: 0;
+  max-width: 48rem;
+}
+
+.trial-example__primary,
+.trial-example__grid > section,
+.trial-example__rhythms {
+  background: var(--surface-ledger-row);
+  border: 1px solid var(--stroke-soft);
+  border-radius: 0.85rem;
+  padding: clamp(1.1rem, 3vw, 1.65rem);
+}
+
+.trial-example__primary {
+  border-left: 0.35rem solid var(--accent-focus);
+}
+
+.trial-example__primary h2,
+.trial-example__grid h2,
+.trial-example__rhythms h2 {
+  margin: 0;
+}
+
+.trial-example__primary > p:not(.section-label),
+.trial-example__grid section > p:not(.section-label),
+.trial-example__rhythms > p:not(.section-label) {
+  color: var(--color-muted);
+  margin-bottom: 0;
+}
+
+.trial-example__minimum {
+  border-top: 1px solid var(--color-line);
+  display: grid;
+  gap: 0.25rem;
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+}
+
+.trial-example__minimum span,
+.trial-example__quiet,
+.trial-example__rhythms li span {
+  color: var(--color-muted);
+  font-size: 0.86rem;
+}
+
+.trial-example__grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.trial-example__rhythms ul {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+}
+
+.trial-example__rhythms li {
+  align-items: baseline;
+  border-top: 1px solid var(--color-line);
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding: var(--space-3) 0;
+}
+
+.trial-example__footer {
+  align-items: center;
+  border-top: 1px solid var(--color-line);
+  display: flex;
+  gap: var(--space-4);
+  justify-content: space-between;
+  padding-top: var(--space-4);
+}
+
+.trial-example__footer p {
+  color: var(--color-muted);
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .app-shell[data-trial-mode='personal'] .app-header {
+    align-items: flex-start;
+  }
+
+  .app-shell[data-trial-mode='personal'] .brand-copy p:last-child {
+    display: none;
+  }
+
+  .app-shell[data-trial-mode='personal'] .secondary-nav {
+    gap: 0.35rem;
+  }
+
+  .app-shell[data-trial-mode='personal'] .secondary-nav button {
+    min-height: 2.5rem;
+    padding-inline: 0.6rem;
+  }
+
+  .trial-example__header,
+  .trial-example__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .trial-example__header .button,
+  .trial-example__footer .button {
+    width: 100%;
+  }
+
+  .trial-example__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .trial-example__rhythms li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
