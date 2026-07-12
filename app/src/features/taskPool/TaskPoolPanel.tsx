@@ -299,7 +299,7 @@ export function TaskPoolPanel() {
                     <li key={item.id}>
                       <div>
                         <strong>{item.title}</strong>
-                        <span>{taskPoolAreaLabels[item.area]} · {taskPoolStatusLabels[item.status]}</span>
+                        <span>{taskPoolAreaLabels[item.area]} - {taskPoolStatusLabels[item.status]}</span>
                       </div>
                       <p>Minimum: {item.minimum.label}</p>
                       {usefulWindowLines.map((line) => (
