@@ -238,6 +238,7 @@ export default function App() {
         activeScreen={activeScreen}
         onScreenChange={setActiveScreen}
         onShowExample={() => setExampleOpen(true)}
+        onThemeChange={setTheme}
         theme={theme}
       >
         {screens[activeScreen]}
