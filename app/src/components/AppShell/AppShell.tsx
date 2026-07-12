@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ThemeName } from '../../app/theme';
+import { themeLabels, themes, type ThemeName } from '../../app/theme';
 import { AppIcon, type AppIconName } from '../AppIcon/AppIcon';
 import { BrandMark } from '../BrandMark/BrandMark';
 
@@ -26,6 +26,7 @@ export function AppShell({
   children,
   onScreenChange,
   onShowExample,
+  onThemeChange,
   theme,
 }: AppShellProps) {
   return (
@@ -40,6 +41,18 @@ export function AppShell({
           </div>
         </div>
         <div className="app-header__actions">
+          {activeScreen === 'setup' && onThemeChange ? (
+            <label className="theme-control theme-control--settings">
+              <span>Theme</span>
+              <select value={theme} onChange={(event) => onThemeChange(event.target.value as ThemeName)}>
+                {themes.map((item) => (
+                  <option key={item} value={item}>
+                    {themeLabels[item]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <nav className="secondary-nav" aria-label="Secondary">
             {onShowExample ? (
               <button className="secondary-nav__example" onClick={onShowExample} type="button">
