@@ -216,7 +216,7 @@ export default function App() {
   const screens: Record<ScreenId, ReactElement> = {
     today: <TodayScreen />,
     plan: <PersonalPlanScreen />,
-    pool: <PoolScreen />,
+    pool: <PoolScreen onOpenPlan={() => setActiveScreen('plan')} />,
     library: <LibraryScreen />,
     reset: <ResetScreen />,
     setup: (
