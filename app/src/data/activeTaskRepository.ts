@@ -1,16 +1,23 @@
 import type { Table } from 'dexie';
+import type { LifeRhythmDatabase } from './db';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   activeTaskSchema,
   activeTaskStatusSchema,
+  taskPoolItemSchema,
   type ActiveTask,
   type ActiveTaskStatus,
+  type TaskPoolItem,
+  type TaskPoolItemStatus,
 } from './schemas';
+import { updateTaskLifecycleStatus } from './taskLifecycleRepository';
 
 type ActiveTasksTable = Pick<Table<ActiveTask, string>, 'get' | 'put' | 'toArray'>;
+type TaskPoolItemsTable = Pick<Table<TaskPoolItem, string>, 'get' | 'put'>;
 
 export type ActiveTaskStore = {
   activeTasks: ActiveTasksTable;
+  taskPoolItems?: TaskPoolItemsTable;
 };
 
 export type ActiveTaskWriteResult =
@@ -97,6 +104,61 @@ function isApprovedPersistedTask(task: ActiveTask) {
 
 function isVisibleTodayStatus(status: ActiveTaskStatus) {
   return visibleTodayStatuses.includes(status);
+}
+
+function taskPoolStatusForActiveTask(status: ActiveTaskStatus): TaskPoolItemStatus {
+  if (isVisibleTodayStatus(status)) {
+    return 'today';
+  }
+
+  if (status === 'parked') {
+    return 'parked';
+  }
+
+  if (status === 'notToday' || status === 'skipped') {
+    return 'notToday';
+  }
+
+  return 'noLongerNeeded';
+}
+
+function isLifeRhythmDatabase(store: ActiveTaskStore): store is LifeRhythmDatabase {
+  return (
+    'transaction' in store &&
+    'softPlacements' in store &&
+    'taskPoolItems' in store
+  );
+}
+
+async function syncLinkedTaskPoolItem(
+  taskId: string,
+  status: ActiveTaskStatus,
+  timestamp: string,
+  store: ActiveTaskStore,
+) {
+  if (!store.taskPoolItems) {
+    return;
+  }
+
+  const storedPoolItem = await store.taskPoolItems.get(taskId);
+
+  if (!storedPoolItem) {
+    return;
+  }
+
+  const parsedPoolItem = taskPoolItemSchema.safeParse(storedPoolItem);
+
+  if (!parsedPoolItem.success) {
+    return;
+  }
+
+  const updatedPoolItem = taskPoolItemSchema.parse({
+    ...parsedPoolItem.data,
+    status: taskPoolStatusForActiveTask(status),
+    updatedAt: timestamp,
+  });
+
+  await store.taskPoolItems.put(updatedPoolItem);
 }
 
 function parseStoredActiveTask(input: unknown): ActiveTask | null {
@@ -213,6 +275,18 @@ export async function updateActiveTaskStatus(
   status: ActiveTaskStatus,
   store: ActiveTaskStore = getCurrentLifeRhythmDatabase(),
 ): Promise<ActiveTaskStatusUpdateResult> {
+  if (isLifeRhythmDatabase(store)) {
+    const result = await updateTaskLifecycleStatus(taskId, status, store);
+
+    if (!result.ok) return result;
+
+    return {
+      ok: true,
+      task: result.task,
+      visibleToday: result.visibleToday,
+    };
+  }
+
   const statusResult = activeTaskStatusSchema.safeParse(status);
 
   if (!statusResult.success) {
@@ -248,14 +322,16 @@ export async function updateActiveTaskStatus(
   }
 
   const visibleToday = isVisibleTodayStatus(statusResult.data);
+  const timestamp = new Date().toISOString();
   const updatedTask = activeTaskSchema.parse({
     ...parsedTask.data,
     showToday: visibleToday,
     status: statusResult.data,
-    updatedAt: new Date().toISOString(),
+    updatedAt: timestamp,
   });
 
   await store.activeTasks.put(updatedTask);
+  await syncLinkedTaskPoolItem(taskId, statusResult.data, timestamp, store);
 
   return {
     ok: true,
