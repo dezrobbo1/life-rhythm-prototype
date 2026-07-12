@@ -196,8 +196,11 @@ export async function bringTaskPoolItemToToday(
       activeTask = converted.task;
     }
 
+    const poolItemWithoutDeferral = { ...parsedPoolItem.data };
+    delete poolItemWithoutDeferral.bringBackAfter;
+
     const updatedPoolItem = taskPoolItemSchema.parse({
-      ...parsedPoolItem.data,
+      ...poolItemWithoutDeferral,
       status: 'today',
       updatedAt: timestamp,
     });
