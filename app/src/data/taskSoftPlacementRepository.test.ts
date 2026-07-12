@@ -153,4 +153,59 @@ describe('task soft placement repository', () => {
       await database.delete();
     }
   });
+
+  it('preserves a deferred Pool state when removing its placement', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await database.taskPoolItems.put(poolItem({
+        bringBackAfter: '2026-07-14T09:00:00.000Z',
+        status: 'deferred',
+      }));
+      await confirmTaskPoolSoftPlacement(placementInput, database);
+
+      const result = await removeTaskPoolSoftPlacement('placement-school-form', database);
+
+      expect(result).toMatchObject({
+        ok: true,
+        item: {
+          bringBackAfter: '2026-07-14T09:00:00.000Z',
+          status: 'deferred',
+        },
+      });
+      expect(await database.taskPoolItems.get('pool-school-form')).toMatchObject({
+        bringBackAfter: '2026-07-14T09:00:00.000Z',
+        status: 'deferred',
+      });
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('allows a removed placement to be added again with the same deterministic ID', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await database.taskPoolItems.put(poolItem());
+      await confirmTaskPoolSoftPlacement(placementInput, database);
+      await removeTaskPoolSoftPlacement('placement-school-form', database);
+
+      const result = await confirmTaskPoolSoftPlacement(placementInput, database);
+
+      expect(result).toMatchObject({
+        ok: true,
+        item: { status: 'softPlaced' },
+        placement: { status: 'planned' },
+      });
+      expect(await database.softPlacements.count()).toBe(1);
+      expect(await database.softPlacements.get('placement-school-form')).toMatchObject({
+        status: 'planned',
+      });
+      expect(await database.taskPoolItems.get('pool-school-form')).toMatchObject({
+        status: 'softPlaced',
+      });
+    } finally {
+      await database.delete();
+    }
+  });
 });

@@ -14,6 +14,7 @@ import {
 } from '../features/plan/poolSoftSuggestions';
 import {
   createSoftPlacementId,
+  dayNameForLocalDate,
   localDateForNextSelectedDay,
 } from '../features/plan/softPlacementDate';
 import {
@@ -41,12 +42,21 @@ type PlacementFeedback = {
 };
 
 type PersonalPlanScreenProps = {
+  preferredPlacementDate?: string | null;
   preferredTaskId?: string | null;
 };
 
-export function PersonalPlanScreen({ preferredTaskId = null }: PersonalPlanScreenProps = {}) {
+export function PersonalPlanScreen({
+  preferredPlacementDate = null,
+  preferredTaskId = null,
+}: PersonalPlanScreenProps = {}) {
   const { snapshot } = useAppSnapshot();
-  const [selectedDay, setSelectedDay] = useState<DayName>('Monday');
+  const [selectedDay, setSelectedDay] = useState<DayName>(
+    () => dayNameForLocalDate(preferredPlacementDate) ?? 'Monday',
+  );
+  const [selectedPlacementDateOverride, setSelectedPlacementDateOverride] = useState<string | null>(
+    preferredPlacementDate,
+  );
   const [savedSoftPlacements, setSavedSoftPlacements] = useState<SoftPlacement[]>([]);
   const [taskPoolItems, setTaskPoolItems] = useState<TaskPoolItem[]>([]);
   const [placingSuggestionId, setPlacingSuggestionId] = useState<string | null>(null);
@@ -58,8 +68,8 @@ export function PersonalPlanScreen({ preferredTaskId = null }: PersonalPlanScree
     [selectedDay, snapshot],
   );
   const selectedPlacementDate = useMemo(
-    () => localDateForNextSelectedDay(dayShapePreview.selectedDay),
-    [dayShapePreview.selectedDay],
+    () => selectedPlacementDateOverride ?? localDateForNextSelectedDay(dayShapePreview.selectedDay),
+    [dayShapePreview.selectedDay, selectedPlacementDateOverride],
   );
   const hasDayShapeBlocks = dayShapePreview.groups.some((group) => group.blocks.length > 0);
   const askFirstBlocks = dayShapePreview.groups.find((group) => group.id === 'askFirst')?.blocks ?? [];
@@ -128,6 +138,11 @@ export function PersonalPlanScreen({ preferredTaskId = null }: PersonalPlanScree
       active = false;
     };
   }, [selectedPlacementDate]);
+
+  useEffect(() => {
+    setSelectedDay(dayNameForLocalDate(preferredPlacementDate) ?? 'Monday');
+    setSelectedPlacementDateOverride(preferredPlacementDate);
+  }, [preferredPlacementDate]);
 
   const addSoftPlacement = useCallback(async (suggestion: PoolSoftSuggestion) => {
     setPlacingSuggestionId(suggestion.id);
@@ -235,7 +250,10 @@ export function PersonalPlanScreen({ preferredTaskId = null }: PersonalPlanScree
             <label className="day-shape-preview__select">
               <span>Selected day</span>
               <select
-                onChange={(event) => setSelectedDay(event.target.value as DayName)}
+                onChange={(event) => {
+                  setSelectedDay(event.target.value as DayName);
+                  setSelectedPlacementDateOverride(null);
+                }}
                 value={dayShapePreview.selectedDay}
               >
                 {dayShapePreviewDays.map((day) => (
