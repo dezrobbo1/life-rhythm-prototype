@@ -33,7 +33,8 @@ describe('primary app shell navigation', () => {
 
     await user.click(within(nav).getByRole('button', { name: 'Plan' }));
     expect(screen.getByRole('heading', { name: 'Plan' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Day Shape preview' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Day Shape' })).toBeTruthy();
+    expect(screen.queryByLabelText('Broad day blocks')).toBeNull();
     expect(document.querySelector('.plan-hero .screen-hero__mark')).toBeTruthy();
 
     await user.click(within(nav).getByRole('button', { name: 'Pool' }));
