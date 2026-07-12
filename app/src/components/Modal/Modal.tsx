@@ -27,8 +27,9 @@ export function Modal({ children, onClose, open, title }: ModalProps) {
   useEffect(() => {
     if (!open) return undefined;
 
-    const dialog = dialogRef.current;
-    if (!dialog) return undefined;
+    const currentDialog = dialogRef.current;
+    if (!currentDialog) return undefined;
+    const dialogElement: HTMLElement = currentDialog;
 
     const previouslyFocused = document.activeElement instanceof HTMLElement
       ? document.activeElement
@@ -36,8 +37,8 @@ export function Modal({ children, onClose, open, title }: ModalProps) {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector));
-    (focusable[0] ?? dialog).focus();
+    const focusable = Array.from(dialogElement.querySelectorAll<HTMLElement>(focusableSelector));
+    (focusable[0] ?? dialogElement).focus();
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
@@ -49,12 +50,12 @@ export function Modal({ children, onClose, open, title }: ModalProps) {
       if (event.key !== 'Tab') return;
 
       const currentFocusable = Array.from(
-        dialog.querySelectorAll<HTMLElement>(focusableSelector),
+        dialogElement.querySelectorAll<HTMLElement>(focusableSelector),
       ).filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true');
 
       if (currentFocusable.length === 0) {
         event.preventDefault();
-        dialog.focus();
+        dialogElement.focus();
         return;
       }
 
@@ -62,7 +63,7 @@ export function Modal({ children, onClose, open, title }: ModalProps) {
       const last = currentFocusable[currentFocusable.length - 1];
       const activeElement = document.activeElement;
 
-      if (event.shiftKey && (activeElement === first || !dialog.contains(activeElement))) {
+      if (event.shiftKey && (activeElement === first || !dialogElement.contains(activeElement))) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && activeElement === last) {
