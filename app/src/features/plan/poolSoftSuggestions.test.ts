@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { taskPoolItemSchema, type SoftPlacement, type TaskPoolItem } from '../../data/schemas';
-import { buildPoolSoftSuggestions } from './poolSoftSuggestions';
+import {
+  buildPoolSoftSuggestions,
+  type PoolSoftSuggestionTimeBlock,
+} from './poolSoftSuggestions';
 
 function poolItem(overrides: Partial<TaskPoolItem> = {}): TaskPoolItem {
   return taskPoolItemSchema.parse({
@@ -18,14 +21,14 @@ function poolItem(overrides: Partial<TaskPoolItem> = {}): TaskPoolItem {
   });
 }
 
-const openBlock = {
-  days: ['Monday'] as const,
+const openBlock: PoolSoftSuggestionTimeBlock = {
+  days: ['Monday'],
   end: '10:30',
   id: 'open-morning',
   label: 'Open morning capacity',
-  schedulerUse: 'available' as const,
+  schedulerUse: 'available',
   start: '10:00',
-  type: 'openCapacity' as const,
+  type: 'openCapacity',
 };
 
 describe('Pool soft suggestions', () => {
