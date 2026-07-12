@@ -1,8 +1,16 @@
 import type { SoftPlacement, TaskPoolItem } from '../../data/schemas';
-import type { Settings } from '../../data/settingsRepository';
 import type { DayName } from '../../viewModels';
 
-type LifeShapeTimeBlock = Settings['lifeShape']['timeBlocks'][number];
+export type PoolSoftSuggestionTimeBlock = {
+  days: string[];
+  end: string;
+  id: string;
+  label: string;
+  notes?: string;
+  schedulerUse: 'unavailable' | 'askFirst' | 'available';
+  start: string;
+  type: 'protectedTime' | 'recoveryTime' | 'looseTime' | 'householdFlow' | 'familyTime' | 'openCapacity';
+};
 
 const eligiblePoolStatuses = new Set<TaskPoolItem['status']>([
   'captured',
@@ -45,7 +53,7 @@ type BuildPoolSoftSuggestionsInput = {
   items: TaskPoolItem[];
   selectedDate: string;
   selectedDay: DayName;
-  timeBlocks: LifeShapeTimeBlock[];
+  timeBlocks: PoolSoftSuggestionTimeBlock[];
 };
 
 function minutesFromTime(value: string): number {
@@ -67,7 +75,7 @@ function timestamp(value: string | undefined): number | null {
   return Number.isNaN(milliseconds) ? null : milliseconds;
 }
 
-function minimumFits(item: TaskPoolItem, block: LifeShapeTimeBlock): boolean {
+function minimumFits(item: TaskPoolItem, block: PoolSoftSuggestionTimeBlock): boolean {
   return item.minimum.minutes <= minutesFromTime(block.end) - minutesFromTime(block.start);
 }
 
@@ -84,7 +92,7 @@ function originalUsefulEdgeHasPassed(item: TaskPoolItem, blockStartMs: number): 
 
 function usefulWindowAllows(
   item: TaskPoolItem,
-  block: LifeShapeTimeBlock,
+  block: PoolSoftSuggestionTimeBlock,
   selectedDate: string,
 ): boolean {
   const blockStartMs = localDateTimeMs(selectedDate, block.start);
@@ -121,7 +129,7 @@ function suggestionReason(item: TaskPoolItem, blockStartMs: number): string {
 
 function toSuggestion(
   item: TaskPoolItem,
-  block: LifeShapeTimeBlock,
+  block: PoolSoftSuggestionTimeBlock,
   selectedDate: string,
 ): PoolSoftSuggestion {
   const blockStartMs = localDateTimeMs(selectedDate, block.start) ?? Date.now();
