@@ -136,6 +136,7 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeName>('exhale');
   const [settings, setSettings] = useState<Settings>(() => createDefaultSettings());
   const [exampleOpen, setExampleOpen] = useState(false);
+  const [preferredPlanTaskId, setPreferredPlanTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -190,6 +191,16 @@ export default function App() {
     return backup;
   }
 
+  function handleScreenChange(screen: ScreenId) {
+    setPreferredPlanTaskId(null);
+    setActiveScreen(screen);
+  }
+
+  function openPlanForTask(taskId: string) {
+    setPreferredPlanTaskId(taskId);
+    setActiveScreen('plan');
+  }
+
   const appSnapshot = useMemo<AppDataSnapshot>(
     () => ({
       ...emptyAppSnapshot,
@@ -215,8 +226,8 @@ export default function App() {
 
   const screens: Record<ScreenId, ReactElement> = {
     today: <TodayScreen />,
-    plan: <PersonalPlanScreen />,
-    pool: <PoolScreen />,
+    plan: <PersonalPlanScreen preferredTaskId={preferredPlanTaskId} />,
+    pool: <PoolScreen onOpenPlan={openPlanForTask} />,
     library: <LibraryScreen />,
     reset: <ResetScreen />,
     setup: (
@@ -236,7 +247,7 @@ export default function App() {
     <AppSnapshotProvider snapshot={appSnapshot} source="personal">
       <AppShell
         activeScreen={activeScreen}
-        onScreenChange={setActiveScreen}
+        onScreenChange={handleScreenChange}
         onShowExample={() => setExampleOpen(true)}
         onThemeChange={setTheme}
         theme={theme}
