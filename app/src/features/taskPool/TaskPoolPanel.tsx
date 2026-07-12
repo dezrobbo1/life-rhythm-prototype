@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '../../components';
 import { bringTaskPoolItemToToday } from '../../data/taskLifecycleRepository';
+import { deferTaskPoolItem } from '../../data/taskPoolDeferralRepository';
 import {
   createTaskPoolItemId,
   loadTaskPoolItems,
@@ -9,51 +10,21 @@ import {
 } from '../../data/taskPoolRepository';
 import type { TaskPoolItem, TaskPoolItemStatus } from '../../data/schemas';
 import { TaskPoolCaptureModal, type TaskPoolCaptureInput } from './TaskPoolCaptureModal';
+import { TaskPoolDeferModal } from './TaskPoolDeferModal';
+import {
+  buildTaskPoolResurfacingGroups,
+  isTaskPoolItemReadyToRevisit,
+  nextTaskPoolResurfacingAt,
+} from './taskPoolResurfacing';
 
 type TaskPoolFeedback = {
   kind: 'error' | 'success';
   lines: string[];
 };
 
-type TaskPoolGroup = {
-  helper: string;
-  id: string;
-  statuses: TaskPoolItemStatus[];
-  title: string;
-};
-
 type TaskPoolPanelProps = {
   onOpenPlan?: () => void;
 };
-
-const taskPoolGroups: TaskPoolGroup[] = [
-  {
-    helper: 'Ready when you choose.',
-    id: 'safely-held',
-    statuses: ['captured', 'suggested', 'softPlaced'],
-    title: 'Safely held',
-  },
-  {
-    helper: 'Safe to return to when it fits.',
-    id: 'parked',
-    statuses: ['parked'],
-    title: 'Parked',
-  },
-  {
-    helper: 'Held for a later choice.',
-    id: 'bring-back-later',
-    statuses: ['deferred'],
-    title: 'Bring back later',
-  },
-  {
-    helper: 'Kept out of the current day.',
-    id: 'not-today',
-    statuses: ['notToday'],
-    title: 'Not today',
-  },
-];
-
-const visibleTaskPoolStatuses = taskPoolGroups.flatMap((group) => group.statuses);
 
 const taskPoolStatusLabels: Record<TaskPoolItemStatus, string> = {
   captured: 'Safely held',
@@ -99,6 +70,7 @@ function taskPoolUsefulWindowLines(item: TaskPoolItem) {
     item.dueAt ? `Useful before ${formatTaskPoolDateTime(item.dueAt)}` : '',
     item.notUsefulAfter ? `Useful until ${formatTaskPoolDateTime(item.notUsefulAfter)}` : '',
     item.minimumStillUsefulAfterDeadline ? 'Minimum still helps' : '',
+    item.bringBackAfter ? `Bring back after ${formatTaskPoolDateTime(item.bringBackAfter)}` : '',
   ].filter(Boolean);
 }
 
@@ -112,29 +84,34 @@ function softWindowLabel(item: TaskPoolItem) {
   return item.status === 'softPlaced' ? 'View in Plan' : 'Find soft window';
 }
 
+function deferralLabel(item: TaskPoolItem) {
+  return item.status === 'deferred' ? 'Choose another time' : 'Bring back later';
+}
+
+function statusLabel(item: TaskPoolItem, nowMs: number) {
+  return isTaskPoolItemReadyToRevisit(item, nowMs)
+    ? 'Ready to revisit'
+    : taskPoolStatusLabels[item.status];
+}
+
 export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
   const [taskPoolCaptureOpen, setTaskPoolCaptureOpen] = useState(false);
   const [taskPoolFeedback, setTaskPoolFeedback] = useState<TaskPoolFeedback | null>(null);
   const [taskPoolItems, setTaskPoolItems] = useState<TaskPoolItem[]>([]);
   const [markingTaskPoolItemId, setMarkingTaskPoolItemId] = useState<string | null>(null);
   const [movingTaskPoolItemId, setMovingTaskPoolItemId] = useState<string | null>(null);
-  const visibleTaskPoolItems = useMemo(
-    () => taskPoolItems.filter((item) => visibleTaskPoolStatuses.includes(item.status)),
-    [taskPoolItems],
-  );
+  const [deferringTaskPoolItemId, setDeferringTaskPoolItemId] = useState<string | null>(null);
+  const [deferItem, setDeferItem] = useState<TaskPoolItem | null>(null);
+  const [clockMs, setClockMs] = useState(() => Date.now());
   const visibleGroups = useMemo(
-    () => taskPoolGroups
-      .map((group) => ({
-        ...group,
-        items: visibleTaskPoolItems.filter((item) => group.statuses.includes(item.status)),
-      }))
-      .filter((group) => group.items.length > 0),
-    [visibleTaskPoolItems],
+    () => buildTaskPoolResurfacingGroups(taskPoolItems, clockMs),
+    [clockMs, taskPoolItems],
   );
 
   const refreshTaskPoolItems = useCallback(async () => {
     const items = await loadTaskPoolItems();
     setTaskPoolItems(items);
+    setClockMs(Date.now());
   }, []);
 
   useEffect(() => {
@@ -144,6 +121,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
       .then((items) => {
         if (active) {
           setTaskPoolItems(items);
+          setClockMs(Date.now());
         }
       })
       .catch(() => {
@@ -156,6 +134,20 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const nextResurfacingAt = nextTaskPoolResurfacingAt(taskPoolItems, clockMs);
+
+    if (nextResurfacingAt === null) return undefined;
+
+    const delay = Math.min(
+      Math.max(nextResurfacingAt - Date.now() + 250, 250),
+      2_147_000_000,
+    );
+    const timer = setTimeout(() => setClockMs(Date.now()), delay);
+
+    return () => clearTimeout(timer);
+  }, [clockMs, taskPoolItems]);
 
   const saveCapturedTask = useCallback(async (input: TaskPoolCaptureInput): Promise<boolean> => {
     setTaskPoolFeedback(null);
@@ -228,6 +220,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
           currentItem.id === result.item.id ? result.item : currentItem,
         ),
       );
+      setClockMs(Date.now());
       setTaskPoolFeedback({
         kind: 'success',
         lines: result.alreadyInToday
@@ -243,6 +236,49 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
       setMovingTaskPoolItemId(null);
     }
   }, []);
+
+  const saveTaskDeferral = useCallback(async (bringBackAfter: string): Promise<boolean> => {
+    if (!deferItem) return false;
+
+    setDeferringTaskPoolItemId(deferItem.id);
+    setTaskPoolFeedback(null);
+
+    try {
+      const result = await deferTaskPoolItem(deferItem.id, bringBackAfter);
+
+      if (!result.ok) {
+        setTaskPoolFeedback({
+          kind: 'error',
+          lines: ['The task was not held for later. Nothing else changed.'],
+        });
+        return false;
+      }
+
+      setTaskPoolItems((currentItems) =>
+        currentItems.map((currentItem) =>
+          currentItem.id === result.item.id ? result.item : currentItem,
+        ),
+      );
+      setClockMs(Date.now());
+      setDeferItem(null);
+      setTaskPoolFeedback({
+        kind: 'success',
+        lines: [
+          `Held until ${formatTaskPoolDateTime(result.item.bringBackAfter ?? bringBackAfter)}.`,
+          'Nothing moves into Today automatically.',
+        ],
+      });
+      return true;
+    } catch {
+      setTaskPoolFeedback({
+        kind: 'error',
+        lines: ['The task was not held for later. Nothing else changed.'],
+      });
+      return false;
+    } finally {
+      setDeferringTaskPoolItemId(null);
+    }
+  }, [deferItem]);
 
   const markCapturedTaskNoLongerNeeded = useCallback(async (item: TaskPoolItem) => {
     setMarkingTaskPoolItemId(item.id);
@@ -302,12 +338,15 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
                 {group.items.map((item) => {
                   const usefulWindowLines = taskPoolUsefulWindowLines(item);
                   const moving = movingTaskPoolItemId === item.id;
+                  const deferring = deferringTaskPoolItemId === item.id;
+                  const marking = markingTaskPoolItemId === item.id;
+                  const busy = moving || deferring || marking;
 
                   return (
                     <li key={item.id}>
                       <div>
                         <strong>{item.title}</strong>
-                        <span>{taskPoolAreaLabels[item.area]} - {taskPoolStatusLabels[item.status]}</span>
+                        <span>{taskPoolAreaLabels[item.area]} - {statusLabel(item, clockMs)}</span>
                       </div>
                       <p>Minimum: {item.minimum.label}</p>
                       {usefulWindowLines.map((line) => (
@@ -316,7 +355,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
                       <div className="task-pool__item-actions">
                         <Button
                           className="task-pool__today-action"
-                          disabled={moving || markingTaskPoolItemId === item.id}
+                          disabled={busy}
                           onClick={() => void moveTaskToToday(item)}
                           variant="primary"
                         >
@@ -325,18 +364,27 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
                         {onOpenPlan ? (
                           <Button
                             className="task-pool__plan-action"
-                            disabled={moving || markingTaskPoolItemId === item.id}
+                            disabled={busy}
                             onClick={onOpenPlan}
                           >
                             {softWindowLabel(item)}
                           </Button>
                         ) : null}
+                        {item.status !== 'softPlaced' ? (
+                          <Button
+                            className="task-pool__defer-action"
+                            disabled={busy}
+                            onClick={() => setDeferItem(item)}
+                          >
+                            {deferring ? 'Holding for later' : deferralLabel(item)}
+                          </Button>
+                        ) : null}
                         <Button
                           className="task-pool__item-action"
-                          disabled={moving || markingTaskPoolItemId === item.id}
+                          disabled={busy}
                           onClick={() => void markCapturedTaskNoLongerNeeded(item)}
                         >
-                          {markingTaskPoolItemId === item.id ? 'Marking item' : 'No longer needed'}
+                          {marking ? 'Marking item' : 'No longer needed'}
                         </Button>
                       </div>
                     </li>
@@ -365,6 +413,12 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
         onClose={() => setTaskPoolCaptureOpen(false)}
         onSave={saveCapturedTask}
         open={taskPoolCaptureOpen}
+      />
+      <TaskPoolDeferModal
+        item={deferItem}
+        onClose={() => setDeferItem(null)}
+        onSave={saveTaskDeferral}
+        open={Boolean(deferItem)}
       />
     </section>
   );
