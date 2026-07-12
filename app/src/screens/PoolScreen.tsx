@@ -1,7 +1,11 @@
 import { ScreenHero } from '../components';
 import { TaskPoolPanel } from '../features/taskPool/TaskPoolPanel';
 
-export function PoolScreen() {
+type PoolScreenProps = {
+  onOpenPlan?: () => void;
+};
+
+export function PoolScreen({ onOpenPlan }: PoolScreenProps = {}) {
   return (
     <div className="screen-stack pool-screen">
       <ScreenHero
@@ -12,7 +16,7 @@ export function PoolScreen() {
         title="Pool"
         titleId="pool-title"
       />
-      <TaskPoolPanel />
+      <TaskPoolPanel onOpenPlan={onOpenPlan} />
     </div>
   );
 }
