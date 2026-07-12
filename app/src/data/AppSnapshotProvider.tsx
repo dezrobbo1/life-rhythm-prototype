@@ -9,7 +9,7 @@ import {
   type AppDataSnapshot,
 } from '../viewModels';
 
-export type AppSnapshotSource = 'fixture' | 'fallback' | 'read-only adapter';
+export type AppSnapshotSource = 'personal' | 'fixture' | 'fallback' | 'read-only adapter';
 
 export type AppSnapshotContextValue = {
   error: Error | null;
