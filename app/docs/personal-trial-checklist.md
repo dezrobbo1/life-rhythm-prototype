@@ -1,8 +1,10 @@
 # Personal Trial Checklist
 
-Status: Draft checklist for a basic personal manual trial
+Status: Current checklist for private Personal Trial v1 after merged PR #104 and post-merge verification
 
-Scope: Local-first Life Rhythm `/app` preview through PR #66
+Scope: Local-first Life Rhythm `/app` preview through merged PR #104 on `main`
+
+This checklist is subordinate to `app/docs/personal-trial-readiness-report.md`, `app/docs/life-rhythm-current-design-spec.md`, and `docs/DOCUMENTATION_AUTHORITY.md`.
 
 This checklist is for a small personal trial only. It is not an external tester onboarding guide, a public launch plan, or a request to add new product behaviour.
 
@@ -34,15 +36,21 @@ Test the current app as it exists now:
 - Try the minimum helper copy
 - Library custom rhythm creation
 - Add Library rhythm to Today
+- Task Pool capture in Pool
+- captured, parked, not-today, deferred and ready-to-revisit Pool states
+- Pool-to-Today movement after explicit user action
 - Plan Day Shape preview
-- Plan soft suggestions
+- Pool-based soft suggestions
 - Add soft placement from `openCapacity` only
 - saved soft placements
 - Remove placement
+- remove and re-confirm the same soft placement identity
+- View in Plan retains the saved placement date
 - settings backup export/check
 - Library rhythm backup export/check
 - active task backup export/check
 - soft placement backup export/check
+- Task Pool backup export/check, including deferred status and `bringBackAfter`
 - mobile layout basics
 
 ## 3. What Not To Test Yet
@@ -60,6 +68,8 @@ These areas are intentionally not ready for trial validation:
 - public signup
 - automatic scheduling
 - scheduler-owned placement
+- repeating rhythm instances
+- broader parked/not-today/rhythm-instance resurfacing
 - external account/data operations
 
 If one of these areas feels missing, log it as a future boundary note rather than a bug in the current trial.
@@ -87,6 +97,8 @@ Setup steps:
 7. Save settings.
 8. Export a settings backup.
 9. Check the exported settings backup if convenient.
+10. Capture one item in Pool and confirm it stays outside Today until explicitly moved or placed.
+11. Export and check a Task Pool backup if Pool persistence should be tested.
 
 Do not import or restore anything during this trial. Backup checking is read-only.
 
@@ -116,15 +128,17 @@ During the day:
 4. Try Start Boost only when the start feels sticky.
 5. Stop after the minimum when that is enough.
 
-Planning check:
+Pool and planning check:
 
-1. Open Plan.
-2. Check Day Shape preview for the selected day.
-3. Confirm protected, recovery, family, and loose time are not treated as automatically available.
-4. Confirm blank time is not treated as available.
-5. Review soft suggestions.
-6. Add a soft placement only from an `openCapacity` suggestion.
-7. Remove a placement at least once and confirm the task is not deleted.
+1. Open Pool and review captured/deferred items.
+2. Move one Pool item to Today only by explicit action.
+3. Open Plan and check Day Shape preview for the selected day.
+4. Confirm protected, recovery, family, and loose time are not treated as automatically available.
+5. Confirm blank time is not treated as available.
+6. Review Pool-based soft suggestions.
+7. Add a soft placement only from an `openCapacity` suggestion.
+8. Remove and re-confirm a placement at least once and confirm the task is not deleted.
+9. Use View in Plan and confirm the saved placement date is retained.
 
 Library check:
 
@@ -170,6 +184,7 @@ On an iPhone-width screen or narrow browser viewport, check:
 - backup textareas do not break the page
 - primary actions are easy to tap
 - labels are readable
+- Pool rows and deferral controls are understandable
 - Plan soft suggestions and soft placements are understandable
 - Setup Life Shape time blocks can be edited without horizontal scrolling
 
@@ -209,6 +224,8 @@ Backup boundaries:
 - Library rhythm backup includes saved custom Library rhythms only.
 - Active task backup includes Today active tasks only.
 - Soft placement backup includes saved soft placements only, including removed placement records as local state.
+- Task Pool backup includes saved Pool rows, statuses, useful-window fields, and `bringBackAfter` deferral metadata.
+- Task Pool backup does not include settings, Today tasks, Library rhythms, soft placements, calendar data, scheduler output, or restore/import execution.
 - Backup checking is read-only.
 - No restore/import execution exists yet.
 
@@ -223,7 +240,7 @@ A basic personal manual trial is successful enough to continue if:
 - soft placements feel removable and non-punitive
 - no copy suggests failure, urgency, scoring, streaks, or compliance
 - the app still feels local-first and user-controlled
-- the missing features are understandable as future work, not broken promises
+- the remaining features are understandable as future work, not broken promises
 
 ## 11. Stop Conditions
 
@@ -275,7 +292,7 @@ At the end of the week, review:
 - Which Life Shape blocks mattered?
 - Did Re-entry review help?
 - Did soft placements help or add mental load?
-- Which missing feature was felt most strongly?
+- Which remaining feature or backup gap was felt most strongly?
 - What should be fixed before a longer personal trial?
 - What should be fixed before any external tester sees the app?
 

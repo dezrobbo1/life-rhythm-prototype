@@ -1,6 +1,6 @@
 # Life Rhythm /app preview
 
-This preview path is for reviewing the future React app scaffold only. It does not replace the live root Life Rhythm 1.4.6 GitHub Pages app at:
+This preview path is for reviewing the current React/Vite Personal Trial v1 slice. It does not replace the live root Life Rhythm 1.4.6 GitHub Pages app at:
 
 https://dezrobbo1.github.io/life-rhythm-prototype/
 

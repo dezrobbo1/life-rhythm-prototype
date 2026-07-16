@@ -1,18 +1,20 @@
 # Personal Trial Readiness Report
 
-Status: Ready for a limited shell/usability trial
+Status: Conditional readiness for a private Personal Trial v1 after merged PR #104 and post-merge verification; Task Pool backup follow-up is implemented in the current working tree
 
-Scope: Local-first Life Rhythm `/app` through PR #83
+Scope: Local-first Life Rhythm `/app` through merged PR #104 on `main`, with the narrow Task Pool export/check follow-up in this working tree
+
+This report is subordinate to `app/docs/life-rhythm-current-design-spec.md` and `docs/DOCUMENTATION_AUTHORITY.md`.
 
 This report is the readiness note for a limited shell/usability trial. It does not approve a full soft-scheduling product trial, external tester onboarding, cloud sync, import/restore, calendar integration, AI suggestions, automatic scheduling, or public signup.
 
 ## 1. Readiness Verdict
 
-Life Rhythm is ready for a limited shell/usability trial with one browser, one device, and one stable URL.
+The merged `main` branch is suitable for a private, manual Personal Trial v1 after the timezone-safe test fixtures, documentation reconciliation, and a fresh Pool → Plan walkthrough are complete. Use one browser, one device, and one stable URL.
 
-The trial should be treated as product learning about the current shell: Today, Reset, Library, Plan previews, task pool capture, backups, local-first behaviour, mobile layout, and copy. It is not ready to validate the full intended soft scheduling loop.
+The trial should test the current task capture, safe holding, Pool soft-suggestion, user-confirmed placement, Today, Reset, re-entry, local-first, backup-boundary and mobile flows. It is not a validation of the complete repeating-rhythm product.
 
-A meaningful product trial should wait until the app has a soft window finder and calm resurfacing for parked, not today, deferred, and rhythm-instance tasks.
+The full intended soft-scheduling loop still requires repeating rhythm instances, broader resurfacing, backup recovery beyond read-only checks, and the remaining placement boundaries.
 
 The app is not ready for external tester rollout yet. External trials should wait for operational Clerk invite-only verification, stronger onboarding, continued design-board review, and at least one completed personal trial.
 
@@ -57,26 +59,30 @@ The following areas are ready to test in a personal manual trial:
 - Park extras safely
 - Restart with one action
 - Library custom rhythm creation
-- task pool capture in Plan
+- Task Pool capture in Pool
 - captured ad hoc tasks held outside Today
-- basic Plan task pool list
+- captured, parked, not-today, deferred and ready-to-revisit Pool states
+- Pool-to-Today movement after explicit user action
 - Plan Day Shape preview
-- read-only Plan soft suggestions
+- Pool-based soft suggestions from eligible items
 - Add soft placement from `openCapacity` suggestions only
 - saved soft placements in Plan
 - Remove placement
+- remove and re-confirm the same soft placement identity
+- View in Plan retains the saved placement date
 - settings backup export and check
 - Library rhythm backup export and check
 - Today task backup export and check
 - soft placement backup export and check
+- Task Pool backup export and check, including deferred status and `bringBackAfter`
 - auth-disabled local-first flow
 - opt-in auth shell, if configured deliberately
 - signed-in local profile separation, if auth is enabled
 - legacy local setup handoff notice, if auth is enabled and legacy local data exists
 - mobile layout basics
 
-These areas test shell usability and confidence. They now include the first capture-and-hold slice, but they do not yet test the full intended product spine: find soft windows, user confirmation from the pool, later re-entry, and usefulness windows.
-Task pool capture UI now exists in Plan, and captured ad hoc tasks can be held outside Today. Captured tasks are not scheduled and are not automatically added to Today.
+These areas test shell usability and the current task capture/hold/place spine. They do not yet test repeating rhythm instances, broad resurfacing, or backup recovery beyond read-only validation.
+Pool items are not scheduled automatically and are not automatically added to Today.
 
 ## 4. Not Ready To Test Yet
 
@@ -84,10 +90,8 @@ These areas remain out of scope for the personal trial:
 
 - `askFirst` placement acceptance
 - move or edit soft placement
-- soft window finder from task pool
-- user-confirmed soft placement from task pool
 - repeating rhythm instances
-- resurfacing parked, not today, and deferred tasks as suggestions
+- broader resurfacing for parked, not-today, and rhythm-instance tasks
 - deadline/usefulness salience beyond the current Today task fields
 - automatic scheduling
 - scheduler-owned placement
@@ -138,6 +142,8 @@ Backup boundaries:
 - Library rhythm backup includes saved custom Library rhythms only.
 - Today task backup includes Today active tasks only.
 - Soft placement backup includes saved soft placements only, including removed placement records as local state.
+- Task Pool backup includes saved Pool rows, statuses, useful-window fields, and `bringBackAfter` deferral metadata.
+- Task Pool backup does not include settings, Today tasks, Library rhythms, soft placements, calendar data, scheduler output, or restore/import execution.
 - Backup checking validates a file only.
 - Backup checking does not restore.
 - Import/restore execution is not enabled.
@@ -172,7 +178,9 @@ PR #81 then applied a focused visual/design-board polish pass:
 - Reset relief actions read less like administration.
 - Mobile hero, spacing, and backup preview layout were tightened.
 
-## 8. Post-PR81 Smoke Confirmation
+## 8. Historical PR #81 Smoke Confirmation
+
+The following is historical evidence from the PR #81 smoke pass; it does not replace a fresh walkthrough of the merged PR #104 `main` state.
 
 The current trial-ready surface now includes:
 
@@ -190,11 +198,11 @@ This remains a personal manual trial surface, not an external tester release sur
 
 Known risks that should be watched closely:
 
-- The design spec is a living document and needs periodic reconciliation after trial-hardening PRs.
+- The design spec and authority map must be updated in the same PR as implementation-status changes.
 - Visual polish is stronger after PR #81, but full design-board parity remains future work.
-- The current app has task pool capture, but soft suggestions are still based on existing Today tasks and open capacity, not the broader safe holding pool.
-- Captured task pool items are visible in Plan, but they do not yet become soft suggestions.
-- Re-entry remains partial until parked, not today, deferred, and rhythm-instance tasks can resurface as suggestions.
+- The current app has Pool-based soft suggestions, but the suggestion model is deliberately limited to eligible Pool items and explicit open capacity.
+- Re-entry remains partial until broader parked, not-today, and rhythm-instance resurfacing exists.
+- Task Pool backup should be checked during the trial so saved Pool status and deferral metadata are understood.
 - Vercel preview URLs may fragment local trial data.
 - Backup checking may feel similar to restore even though restore is not connected.
 - Auth may create a "where did my setup go" feeling if the user forgets signed-in profiles are separate.
@@ -222,8 +230,10 @@ Before starting the trial:
 12. Check the settings backup.
 13. Create one Library rhythm if Library persistence should be tested.
 14. Add one Today task.
-15. Open Reset and confirm Narrow Today, Park extras safely, and Restart with one action are understandable.
-16. Confirm the bottom nav and primary actions are comfortable on the trial device.
+15. Open Pool and capture one item.
+16. Export and check a Task Pool backup if Pool persistence should be tested.
+17. Open Reset and confirm Narrow Today, Park extras safely, and Restart with one action are understandable.
+18. Confirm the bottom nav and primary actions are comfortable on the trial device.
 
 ## 11. Daily Trial Routine
 
@@ -238,10 +248,10 @@ Minimum daily pass:
 5. Start the task.
 6. Pause, resume, mark minimum done, or finish at normal/full only if that fits.
 7. Use Re-entry review only when it appears.
-8. Open Plan.
-9. Check Day Shape and soft suggestions.
+8. Open Pool and review safely held items.
+9. Open Plan and check Day Shape and soft suggestions.
 10. Add a soft placement only from `openCapacity` if useful.
-11. Remove a soft placement at least once during the week.
+11. Remove and re-confirm a soft placement at least once during the week.
 
 No daily action should become a performance target.
 
@@ -275,7 +285,7 @@ The personal trial is successful enough to continue if:
 - backup/export/check flows feel understandable
 - auth, if used, feels clearly local-first
 - no copy suggests failure, pressure, scoring, streaks, or required-adherence tracking
-- the trial clarifies what task pool, soft window finder, and resurfacing need to do next
+- the trial clarifies what repeating rhythms, broader resurfacing, and rhythm-instance backup need to do next
 
 ## 14. Recommended Next Step After The Trial
 
@@ -283,14 +293,12 @@ After the limited shell/usability trial, review the issue log before adding new 
 
 Likely next decisions:
 
-- how captured task pool items should feed the first open-capacity soft window finder
 - how repeating rhythm instances should avoid backlog or streak debt
-- how soft window finder v1 should use open capacity
-- how parked, not today, and deferred items should resurface
-- whether backup confidence is strong enough for task pool and rhythm-instance backups later
+- how broader parked, not-today, and rhythm-instance items should resurface
+- whether the Task Pool export/check path is sufficient before longer trials
 - whether `askFirst` placement should be contracted before acceptance
 - whether Clerk invite-only settings should be operationally verified for external testers
 
-The next implementation direction is soft window finder v1 from the task pool, not another polish-first pass.
+The next product direction after the trial is repeating rhythm instances or visual/product refinement, chosen from trial evidence. Do not start another scheduler expansion before the current soft-suggestion boundaries are observed in use.
 
 Do not start cloud sync, calendar integration, AI suggestions, import/restore execution, or external tester onboarding from this report alone.

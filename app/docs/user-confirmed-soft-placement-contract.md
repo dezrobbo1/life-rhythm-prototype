@@ -1,5 +1,9 @@
 # User-Confirmed Soft Placement Contract
 
+Status: Historical pre-implementation boundary contract. Retained for the placement rationale; it is not a current implementation status report.
+
+Current implementation status: the bounded Pool-based suggestion and user-confirmed placement subset is implemented in `/app`, including linked state updates and placement-date preservation. Use `app/docs/life-rhythm-current-design-spec.md` and `app/docs/DOCUMENTATION_AUTHORITY.md` for current behavior. References below to “future,” “approved future write,” or “not connected” describe the earlier decision point; broader resurfacing, ask-first placement, and automatic scheduling remain future work.
+
 This contract defines the future boundary for user-confirmed soft task placement in Life Rhythm.
 
 It does not implement task placement. It does not approve automatic scheduling, calendar integration, AI placement, notifications, backend sync, import/restore execution, migration execution, or any new write path in this PR.

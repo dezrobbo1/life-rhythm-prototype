@@ -2,7 +2,9 @@
 
 Status: Source governance note
 Scope: Records which project research sources are canonical, provisional, source-only, or inspiration-only.
-Last updated: 2026-06-26
+
+Source snapshot: this register is reconciled against the supplied `Life_Rhythm_All_Project_Sources_2026-07-12.zip` bundle. The embedded packet collection contains Packet 1 V2; the current re-entry/V3 governance direction is represented by the standalone re-entry document and Project Source Additions. The current implementation status is maintained separately in `app/docs/life-rhythm-current-design-spec.md` and `app/docs/DOCUMENTATION_AUTHORITY.md`.
+Last updated: 2026-07-12
 
 This document is a project-source control layer. It does not change app behaviour, schemas, persistence, scheduling, auth, sync, AI, notifications, analytics, calendar integration, or import/restore execution.
 

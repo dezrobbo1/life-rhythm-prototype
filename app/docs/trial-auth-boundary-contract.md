@@ -1,10 +1,14 @@
 # Trial Account And Auth Boundary Contract
 
-This contract defines the future boundary for invite-only trial accounts and login in Life Rhythm.
+Status: Current boundary contract with a narrow implementation subset
 
-It does not approve or implement auth code, auth packages, backend services, cloud sync, data upload, analytics, notifications, scheduler behavior, calendar integration, AI integration, task placement, import/restore execution, migration execution, or any schema change.
+Current implementation note: `/app` has an opt-in Clerk identity shell and separate user-scoped local namespaces. Identity does not imply upload or sync. Invite-only operational rollout, broader account workflows, and any cloud movement remain future work. See `app/docs/life-rhythm-current-design-spec.md` and `app/docs/DOCUMENTATION_AUTHORITY.md` for current status.
 
-Login should be introduced as an identity and access layer first. It must not quietly change the local-first data model.
+This contract defines the boundary for invite-only trial accounts and login in Life Rhythm.
+
+It does not approve or implement backend services, cloud sync, data upload, analytics, notifications, scheduler behavior, calendar integration, AI integration, task placement, import/restore execution, migration execution, or any schema change beyond the narrow current identity/local-namespace shell.
+
+The current login shell is an identity and access layer first. It must not quietly change the local-first data model.
 
 ## 1. Trial Account Purpose
 
@@ -29,8 +33,8 @@ Rules:
 
 - Local-first data remains local unless a later sync contract explicitly approves upload.
 - Cloud sync is a separate future decision.
-- A future login shell may protect access to the app without enabling sync.
-- A future account ID may be used to namespace local data, but not to upload it by default.
+- The current login shell protects access to the app without enabling sync.
+- The current account ID namespaces local data, but does not upload it by default.
 - Backup and export remain user-controlled actions.
 - Personal task, rhythm, setup, re-entry, and protected-time data must not become cloud data by accident.
 
@@ -58,11 +62,11 @@ If public signup is considered later, it needs a separate review and contract up
 
 ## 5. User-Scoped Local Data Direction
 
-Future local data should be scoped by authenticated user ID when login exists.
+Local data is scoped by authenticated user ID when the opt-in login shell is enabled.
 
 This is a local data safety boundary, not cloud sync.
 
-Requirements for future implementation:
+Requirements for the current shell and any future expansion:
 
 - Signed-in local data should be namespaced by user ID.
 - Signed-out and signed-in transitions need explicit handling.
@@ -102,13 +106,12 @@ Boundaries:
 - AI data upload must not be introduced as part of login.
 - Any future data upload needs a separate sync/privacy contract and explicit user-facing language.
 
-## 7. Future Auth Provider Direction
+## 7. Auth Provider Direction
 
-No auth provider is added in this PR.
+The current narrow identity shell uses Clerk. This documentation consolidation does not add another provider or expand the current shell into public signup, cloud data, or external-trial operations.
 
-Likely future direction:
+Future provider decisions:
 
-- Clerk is likely the first auth-shell option for trial login.
 - Supabase should be considered only if and when cloud data and Postgres-backed sync are approved.
 - Firebase, Auth0, and other providers remain alternatives, but need separate review before use.
 
@@ -124,21 +127,20 @@ Provider choice should be evaluated against:
 
 Auth provider setup must not be bundled with sync, backend data storage, or AI data upload.
 
-## 8. Future Implementation Sequence
+## 8. Remaining Implementation Sequence
 
-Recommended sequence:
+The current narrow shell covers identity and local namespace separation. Remaining work is:
 
-1. Auth boundary contract.
-2. Invite-only login shell.
-3. User-scoped local data namespace.
-4. Account-aware backup and export wording.
-5. Cloud sync contract, only if needed later.
+1. Auth boundary contract and current-shell verification. **Current.**
+2. Operational invite-only access verification. **Remaining before external testers.**
+3. Account-aware backup and export wording. **Remaining.**
+4. Cloud sync contract, only if needed later.
 
 The login shell should come before any external multi-person trial, but it should remain narrow: identify the tester, protect access, and preserve local-first behavior.
 
-## 9. What A Future Login Shell May Include
+## 9. What The Current Or Future Login Shell May Include
 
-A future login shell may include:
+The current shell and future narrow extensions may include:
 
 - sign in,
 - sign out,
@@ -192,14 +194,14 @@ Future auth PRs must prove:
 
 Tests should cover shared-browser transitions, signed-out state, signed-in state, and data namespace separation before external tester use.
 
-## 12. Non-Goals For This PR
+## 12. Non-Goals For This Boundary Update
 
-This PR is documentation only.
+This boundary update does not expand the current narrow identity/local-namespace shell.
 
 It does not:
 
-- add auth code,
-- install Clerk, Supabase, Firebase, Auth0, or any auth package,
+- add a second auth provider,
+- expand the current Clerk shell into public signup or external-trial operations,
 - add backend services,
 - add sync,
 - upload local data,

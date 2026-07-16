@@ -1,5 +1,9 @@
 # Deadline And Re-Entry Contract
 
+Status: Current boundary contract; the currently supported time-edge and re-entry subset is documented in `app/docs/life-rhythm-current-design-spec.md`.
+
+Implementation boundary: this document governs future deadline-aware and scheduler-owned behavior. It does not describe the full current schema or UI implementation, and it does not authorize automatic scheduling, calendar writes, AI writes, or cloud sync.
+
 This contract defines future handling for missed tasks, deadline-aware tasks, usefulness windows, latest useful start, and no-catch-up re-entry.
 
 It does not approve or implement scheduler behavior, calendar integration, AI integration, import/restore execution, migration execution, or any new persistence write.

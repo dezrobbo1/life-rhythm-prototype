@@ -1,5 +1,9 @@
 # Today Active Task Persistence Contract
 
+Status: Historical pre-implementation contract. Retained for the active-task persistence rationale; it is not a current implementation status report.
+
+Current implementation status: active Today task persistence and selected backup/validation are implemented in `/app`; Task Pool capture, holding, deferral, and Pool-to-Today flow are also current. Use `app/docs/life-rhythm-current-design-spec.md` and `app/docs/DOCUMENTATION_AUTHORITY.md` for current behavior. References below to “future,” “still local UI state,” or “first active-task write PR” describe the earlier decision point.
+
 This contract defines the next major persistence boundary for Today active tasks. It does not approve or implement active task persistence, scheduler behavior, calendar integration, migration execution, restore/import execution, or any new write path.
 
 The current app already has settings persistence, settings backup, Library rhythm persistence for user-created templates, Library rhythm backup export, and Library rhythm backup validation preview. Today is the next trial blocker because Add to Today, Add one-off, task progression, completion, parking, skipping, missed handling, and re-entry are still local UI state only.

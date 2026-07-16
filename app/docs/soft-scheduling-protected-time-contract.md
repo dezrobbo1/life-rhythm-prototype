@@ -1,5 +1,9 @@
 # Soft Scheduling And Protected Time Contract
 
+Status: Current boundary contract; the current Pool-based suggestion and user-confirmed placement subset is documented in `app/docs/life-rhythm-current-design-spec.md`.
+
+Implementation boundary: this document governs future scheduler-owned behavior. It does not describe or revoke the already-implemented user-confirmed local placement writes, and it does not authorize automatic scheduling, calendar writes, AI writes, or cloud sync.
+
 This contract defines the future boundary for soft scheduling, protected time, loose time, recovery blocks, deadline/time-edge handling, and no-catch-up re-entry.
 
 It does not approve or implement scheduler behavior, calendar integration, AI integration, migration execution, import/restore execution, or any new persistence write.

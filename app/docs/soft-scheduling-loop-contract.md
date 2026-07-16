@@ -1,10 +1,10 @@
 # Soft Scheduling Loop Contract
 
-Status: Future behaviour contract
+Status: Current boundary contract with implemented and future subsets identified
 
 Scope: Product model for task capture, repeating rhythms, soft suggestions, user-confirmed placement, re-entry, and usefulness windows.
 
-This contract defines the intended Life Rhythm product spine. It does not implement behaviour, storage, scheduling, calendar integration, AI, sync, import/restore, notifications, or task history.
+This contract defines the intended Life Rhythm product spine and records which bounded parts are now implemented through merged PR #103/#104 on `main`. It does not approve automatic scheduling, calendar integration, AI, sync, import/restore, notifications, or task history.
 
 ## 1. Product Premise
 
@@ -58,6 +58,8 @@ Rules:
 - The pool should support review without creating pressure to empty it.
 
 The task pool is the safe holding area between capture and action.
+
+Current implementation: ad hoc capture, safe holding, parked/not-today/deferred states, no-longer-needed state, Pool-to-Today movement after explicit user action, and Pool-based soft suggestions are implemented locally. Repeating rhythm instances and missed-task persistence remain future work.
 
 ## 4. Task Lifecycle Model
 
@@ -124,6 +126,8 @@ Candidate window rules:
 - The app does not need AI to make first-version soft suggestions.
 
 The soft window finder can calculate options. It must not own placement.
+
+Current v1 implementation is deliberately narrower: eligible Pool items are matched to explicit `openCapacity` blocks, one candidate is offered per available block, and the user must confirm before a local soft placement is written. `askFirst` placement is not implemented.
 
 ## 7. User-Confirmed Placement Model
 
@@ -211,18 +215,18 @@ Default rule: automatic calculation is allowed; automatic commitment is not.
 
 Recommended implementation order:
 
-1. Soft scheduling loop contract.
-2. Task pool schema and repository.
-3. Capture ad hoc task into task pool.
-4. Show task pool in Plan.
-5. Soft window finder v1 from openCapacity blocks.
-6. User-confirmed soft placement from task pool.
+1. Soft scheduling loop contract. **Complete.**
+2. Task pool schema and repository. **Complete.**
+3. Capture ad hoc task into task pool. **Complete.**
+4. First-class Pool destination and safe holding states. **Complete.**
+5. Soft window finder v1 from openCapacity blocks. **Complete through merged PR #104.**
+6. User-confirmed soft placement from task pool. **Complete through merged PR #104.**
 7. Repeating rhythm instance contract.
 8. Repeating rhythm instance suggestions.
-9. Re-entry resurfacing for parked, not today, and deferred tasks.
+9. Broader re-entry resurfacing for parked, not-today, and rhythm-instance tasks.
 10. Deadline and usefulness salience.
 11. Move/edit soft placement.
-12. Backup support for task pool and rhythm instances.
+12. Rhythm-instance backup support.
 13. Final non-AI prototype smoke QA.
 
 This sequence keeps behaviour local, explainable, and user-confirmed before broader automation is considered.

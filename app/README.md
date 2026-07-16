@@ -1,17 +1,46 @@
-# Life Rhythm app scaffold
+# Life Rhythm `/app`
 
-This folder is the future Vite + React + TypeScript architecture scaffold for Life Rhythm.
+Status: Current React/Vite/TypeScript Personal Trial v1 architecture
 
-It does not replace the current root `index.html`, `manifest.json`, or `service-worker.js` app. The live 1.4.6 GitHub Pages PWA remains served from the repository root.
+This is the current implementation path for new Life Rhythm work. It does not replace the protected root `index.html`, `manifest.json`, or `service-worker.js` runtime. The root 1.4.6 app remains the live GitHub Pages legacy prototype.
 
-## Scope
+Read the repository documentation map first:
 
-- Placeholder app shell only.
-- Placeholder screens: Today, Plan, Library, Reset, Setup.
-- CSS-variable theme tokens for Exhale, Clear, and Grounded.
-- Component, data, and domain folders ready for later migration.
-- Zod schemas, Dexie table definitions, import/export validators, and read-only `lifeRhythm_v146` migration inspection.
-- No data migration, no backend, no accounts, no cloud sync, no analytics, no calendar integration, and no notifications.
+- [`../docs/DOCUMENTATION_AUTHORITY.md`](../docs/DOCUMENTATION_AUTHORITY.md)
+- [`docs/life-rhythm-current-design-spec.md`](docs/life-rhythm-current-design-spec.md)
+
+## Current implementation
+
+The `/app` branch currently contains:
+
+- Today, Plan, Pool and Library as the four primary destinations;
+- Reset and Settings as secondary destinations;
+- React/Vite/TypeScript app shell and semantic theme tokens;
+- Dexie local persistence with Zod validation;
+- settings and Life Shape persistence;
+- custom Library rhythm persistence;
+- active Today task and status persistence;
+- Task Pool capture, safe holding, deferral and Pool-to-Today movement;
+- Pool-based soft suggestions from explicit `openCapacity` blocks;
+- user-confirmed local soft placements and safe removal/reconfirmation;
+- Task Pool backup export and read-only validation, including saved status and deferral metadata (working-tree follow-up pending merge);
+- opt-in Clerk identity shell with separate local namespaces, but no sync;
+- data-class-specific backup export and read-only validation previews.
+
+## Current boundaries
+
+The `/app` implementation does not provide:
+
+- automatic scheduling or calendar writes;
+- backend storage or cloud sync;
+- AI-written task state or AI authority;
+- notifications or analytics;
+- import/restore execution;
+- repeating rhythm instances;
+- broad parked/not-today/rhythm-instance resurfacing;
+- external tester readiness.
+
+PR #104 is merged into `main` at `39d9f27`. Post-merge timezone-safe tests and documentation synchronization are complete. This working tree adds the bounded Task Pool backup follow-up; the next work after merge is visual/product refinement following the fresh Pool → Plan walkthrough.
 
 ## Commands
 
@@ -22,4 +51,6 @@ npm test
 npm run build
 ```
 
-Later phases can port behavior into this scaffold after the root 1.4.6 app remains stable and migration gates are explicitly approved.
+Use a deterministic timezone when running date-sensitive tests. Test fixtures must not assume that a `Z` timestamp represents local wall-clock time.
+
+The build output for `/app` is a preview artifact. It is not the root GitHub Pages deployment source.

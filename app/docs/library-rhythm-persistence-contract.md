@@ -1,5 +1,9 @@
 # Library Rhythm Persistence Contract
 
+Status: Historical pre-implementation contract. Retained for the Library persistence rationale; it is not a current implementation status report.
+
+Current implementation status: user-created Library rhythm persistence and Library rhythm backup export/validation are implemented in `/app`. Use `app/docs/life-rhythm-current-design-spec.md` and `app/docs/DOCUMENTATION_AUTHORITY.md` for current behavior. References below to “future,” “not persisted yet,” or “next PR” describe the earlier decision point.
+
 This contract prepares the next possible local write after settings. It does not approve or implement that write.
 
 Library rhythms are reusable planning templates. They must stay separate from Today one-offs, active tasks, scheduler output, task progression, and completion history. The current Create rhythm, Enable rhythm, Disable rhythm, Quick pack, and Add to Today actions remain in-memory preview behavior until a later PR explicitly connects persistence.

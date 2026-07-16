@@ -7,8 +7,15 @@ import App from '../../App';
 import { themeBackgrounds } from '../../app/theme';
 import { buildSettingsBackupPayload } from '../../data/settingsExport';
 import { buildSoftPlacementBackupPayload } from '../../data/softPlacementBackup';
+import { buildTaskPoolBackupPayload } from '../../data/taskPoolBackup';
 import type { SettingsWriteInput, SettingsWriteResult } from '../../data/settingsRepository';
-import { settingsSchema, softPlacementSchema, type SoftPlacement } from '../../data/schemas';
+import {
+  settingsSchema,
+  softPlacementSchema,
+  taskPoolItemSchema,
+  type SoftPlacement,
+  type TaskPoolItem,
+} from '../../data/schemas';
 import { SetupScreen } from '../../screens/SetupScreen';
 
 afterEach(() => {
@@ -84,6 +91,43 @@ function validSoftPlacementBackupJson() {
       taskTitleSnapshot: 'Removed placement',
     }),
   ], '2026-06-18T01:00:00.000Z'));
+}
+
+function validTaskPoolItem(overrides: Partial<TaskPoolItem> = {}): TaskPoolItem {
+  return taskPoolItemSchema.parse({
+    area: 'admin',
+    createdAt: '2026-07-15T00:00:00.000Z',
+    full: {
+      label: 'Complete the whole form',
+      minutes: 20,
+    },
+    id: 'pool-school-form',
+    minimum: {
+      label: 'Open the form',
+      minutes: 5,
+    },
+    normal: {
+      label: 'Fill the first page',
+      minutes: 10,
+    },
+    source: 'adhoc',
+    status: 'captured',
+    title: 'Send school form',
+    updatedAt: '2026-07-15T00:00:00.000Z',
+    ...overrides,
+  });
+}
+
+function validTaskPoolBackupJson() {
+  return JSON.stringify(buildTaskPoolBackupPayload([
+    validTaskPoolItem(),
+    validTaskPoolItem({
+      bringBackAfter: '2026-07-18T09:00:00.000Z',
+      id: 'pool-park-car',
+      status: 'deferred',
+      title: 'Park the car task',
+    }),
+  ], '2026-07-16T01:00:00.000Z'));
 }
 
 describe('Setup screen', () => {
@@ -381,6 +425,103 @@ describe('Setup screen', () => {
     expect(screen.getByText('Check only. Paste or select a soft placement backup.')).toBeTruthy();
     expect(screen.getByText('Restore is not connected yet. No calendar events are created.')).toBeTruthy();
     expect(screen.getByText('Checking does not restore placements or change this device.')).toBeTruthy();
+  });
+
+  it('renders Task Pool backup export and checker controls', () => {
+    render(<SetupScreen />);
+
+    expect(screen.getByRole('heading', { name: 'Export Task Pool' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Export Task Pool backup' })).toBeTruthy();
+    expect(screen.getByText('Creates a local backup file for saved Pool items, including status and deferral metadata.')).toBeTruthy();
+    expect(screen.getByText('It does not include settings, Today tasks, Library rhythms, soft placements, or calendar events.')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Check Task Pool backup' })).toBeTruthy();
+    expect(screen.getByLabelText('Task Pool backup text')).toBeTruthy();
+    expect(screen.getByLabelText('Select Task Pool backup file')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Check Task Pool backup' })).toBeTruthy();
+    expect(screen.getByText('Check only. Paste or select a Task Pool backup.')).toBeTruthy();
+  });
+
+  it('exports a Task Pool backup through the connected handler', async () => {
+    const user = userEvent.setup();
+    const onExportTaskPoolBackup = vi.fn(async () => ({
+      fileName: 'life-rhythm-task-pool-backup-2026-07-16.json',
+      json: '{}',
+      itemCount: 2,
+      payload: buildTaskPoolBackupPayload([
+        validTaskPoolItem(),
+        validTaskPoolItem({
+          bringBackAfter: '2026-07-18T09:00:00.000Z',
+          id: 'pool-park-car',
+          status: 'deferred',
+          title: 'Park the car task',
+        }),
+      ], '2026-07-16T01:00:00.000Z'),
+    }));
+
+    render(<SetupScreen onExportTaskPoolBackup={onExportTaskPoolBackup} />);
+
+    await user.click(screen.getByRole('button', { name: 'Export Task Pool backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('Task Pool backup created on this device.');
+    expect(onExportTaskPoolBackup).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows valid Task Pool backup preview feedback without writing', async () => {
+    const user = userEvent.setup();
+    const onExportTaskPoolBackup = vi.fn();
+    const fetchSpy = vi.fn();
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const originalFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+
+    try {
+      Object.defineProperty(globalThis, 'fetch', {
+        configurable: true,
+        value: fetchSpy,
+      });
+      render(<SetupScreen onExportTaskPoolBackup={onExportTaskPoolBackup} />);
+
+      fireEvent.change(screen.getByLabelText('Task Pool backup text'), {
+        target: {
+          value: validTaskPoolBackupJson(),
+        },
+      });
+      await user.click(screen.getByRole('button', { name: 'Check Task Pool backup' }));
+
+      expect(screen.getByRole('status').textContent).toContain('Task Pool backup looks valid. Restore is not connected yet.');
+      const preview = screen.getByLabelText('Task Pool backup preview');
+      expect(preview.textContent).toContain('Pool items');
+      expect(preview.textContent).toContain('2');
+      expect(preview.textContent).toContain('1 captured, 1 deferred');
+      expect(preview.textContent).toContain('Included');
+      expect(preview.textContent).toContain('Send school form, Park the car task');
+      expect(onExportTaskPoolBackup).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(getItemSpy).not.toHaveBeenCalled();
+      expect(setItemSpy).not.toHaveBeenCalled();
+    } finally {
+      if (originalFetch) {
+        Object.defineProperty(globalThis, 'fetch', originalFetch);
+      } else {
+        Reflect.deleteProperty(globalThis, 'fetch');
+      }
+    }
+  });
+
+  it('shows invalid Task Pool backup feedback', async () => {
+    const user = userEvent.setup();
+    render(<SetupScreen />);
+
+    fireEvent.change(screen.getByLabelText('Task Pool backup text'), {
+      target: {
+        value: '{ not json',
+      },
+    });
+    await user.click(screen.getByRole('button', { name: 'Check Task Pool backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain('This Task Pool backup could not be used. Nothing changed on this device.');
+    expect(screen.getByRole('list', { name: 'Task Pool backup errors' })).toBeTruthy();
+    expect(screen.getByText('backup: Task Pool backup JSON is malformed.')).toBeTruthy();
   });
 
   it('exports a soft placement backup through the connected handler', async () => {

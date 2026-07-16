@@ -10,6 +10,15 @@ The live GitHub Pages app is the root `index.html`. It is a single-file app shel
 
 The older modular `app.js` and `styles.css` files are not part of the live app path.
 
+## Repository architecture map
+
+The repository contains two deliberately separate app generations:
+
+- **Root `index.html`** — live GitHub Pages 1.4.6 legacy prototype. It remains protected while the replacement architecture is validated.
+- **`/app`** — current React/Vite/TypeScript Personal Trial v1 architecture for new work. It uses Dexie/Zod local persistence and the four-tab Today / Plan / Pool / Library model.
+
+The `/app` documentation authority is [`docs/DOCUMENTATION_AUTHORITY.md`](docs/DOCUMENTATION_AUTHORITY.md). Do not copy legacy root scheduling behaviour into `/app` without an approved contract.
+
 ## GitHub Pages
 
 - Deploy from `main` and the repository root.
@@ -42,8 +51,10 @@ If Safari or a Home Screen install shows an older version, refresh once, close a
 - Confirm local storage persists after reload.
 - Confirm mobile layout does not clip the bottom navigation or modal controls.
 
+The checklist above applies to the root 1.4.6 legacy app. For the current `/app` Personal Trial v1 checklist, use [`app/docs/personal-trial-checklist.md`](app/docs/personal-trial-checklist.md).
+
 ## Data and safety boundary
 
-Life Rhythm stores data locally in the browser. There is no backend, account, or cloud sync. Export JSON backups before clearing browser data, replacing a device, or reinstalling the Home Screen app.
+The root 1.4.6 app stores data locally in the browser and has no backend or cloud sync. The newer `/app` architecture has an opt-in identity shell with separate local namespaces, but login is not sync and does not silently upload Life Rhythm data. Export the relevant local backups before clearing browser data, replacing a device, or reinstalling the Home Screen app.
 
 Life Rhythm is not a medical device, diagnostic tool, treatment, therapy, coaching service, exercise prescription, nutrition plan, financial advice tool, or crisis-support tool.
