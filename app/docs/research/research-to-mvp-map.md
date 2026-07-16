@@ -51,7 +51,7 @@ Research currently supports the following MVP directions, with evidence-humility
 | Re-entry after missed/disrupted tasks | Moderate indirect, with strong safety rationale | Calm re-entry surface; no catch-up pile; safe held tasks; optional review. |
 | One useful next action | Strong product principle, moderate indirect evidence | Keep Today focused and low-load. |
 | Minimum / normal / full task versions | Moderate / design-informed | Offer smaller useful versions without scoring or claims. |
-| Task Pool / Inbox | Product infrastructure need | Hold captured, parked, not-today, deferred, and later missed tasks safely outside Today. |
+| Task Pool / Holding Tray | Product infrastructure need | Hold captured, parked, not-today, deferred, and later missed tasks safely outside Today. |
 | Time edges / useful windows | Moderate indirect | Describe when actions are useful, not when the user has failed. |
 | Soft scheduling | Moderate indirect | Suggestions only; user confirms; openCapacity only unless later contract expands. |
 | Calendar load | Moderate indirect and privacy-sensitive | Treat fixed commitments as load clusters; do not infer blank time is available. |
@@ -95,7 +95,7 @@ The following are not MVP-approved, even if they appear in NotebookLM, commercia
 | --- | --- | --- |
 | Task capture and safe holding | Packets 1, 4, 11, 12 | Core infrastructure. |
 | Today next action | Packets 1, 4, 12, 20 | Keep low-load and non-moral. |
-| Task Pool / Inbox | Packets 1, 4, 12, 25 | Safe holding layer; not a backlog dashboard. |
+| Task Pool / Holding Tray | Packets 1, 4, 12, 25 | Safe holding layer; not a backlog dashboard. |
 | Re-entry review | Packets 1, 9, 20 | Optional, calm, no catch-up. |
 | Time-edge controls | Packets 12, 25 | Usefulness-window framing. |
 | Soft suggestions | Packets 25, 19, 12 | Read-only or user-confirmed only. |

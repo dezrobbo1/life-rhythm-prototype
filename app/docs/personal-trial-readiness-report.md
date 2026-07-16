@@ -2,7 +2,7 @@
 
 Status: Ready for a limited shell/usability trial
 
-Scope: Local-first Life Rhythm `/app` through PR #83
+Scope: Local-first Life Rhythm `/app` through the Pool navigation alignment branch
 
 This report is the readiness note for a limited shell/usability trial. It does not approve a full soft-scheduling product trial, external tester onboarding, cloud sync, import/restore, calendar integration, AI suggestions, automatic scheduling, or public signup.
 
@@ -10,7 +10,7 @@ This report is the readiness note for a limited shell/usability trial. It does n
 
 Life Rhythm is ready for a limited shell/usability trial with one browser, one device, and one stable URL.
 
-The trial should be treated as product learning about the current shell: Today, Reset, Library, Plan previews, task pool capture, backups, local-first behaviour, mobile layout, and copy. It is not ready to validate the full intended soft scheduling loop.
+The trial should be treated as product learning about the current shell: Today, Plan, Pool, Library, Reset access, task capture, backups, local-first behaviour, mobile layout, and copy. It is not ready to validate the full intended soft scheduling loop.
 
 A meaningful product trial should wait until the app has a soft window finder and calm resurfacing for parked, not today, deferred, and rhythm-instance tasks.
 
@@ -57,9 +57,9 @@ The following areas are ready to test in a personal manual trial:
 - Park extras safely
 - Restart with one action
 - Library custom rhythm creation
-- task pool capture in Plan
+- task pool capture in Pool
 - captured ad hoc tasks held outside Today
-- basic Plan task pool list
+- basic Pool holding-tray list
 - Plan Day Shape preview
 - read-only Plan soft suggestions
 - Add soft placement from `openCapacity` suggestions only
@@ -76,7 +76,7 @@ The following areas are ready to test in a personal manual trial:
 - mobile layout basics
 
 These areas test shell usability and confidence. They now include the first capture-and-hold slice, but they do not yet test the full intended product spine: find soft windows, user confirmation from the pool, later re-entry, and usefulness windows.
-Task pool capture UI now exists in Plan, and captured ad hoc tasks can be held outside Today. Captured tasks are not scheduled and are not automatically added to Today.
+Task pool capture UI now exists in Pool, and captured ad hoc tasks can be held outside Today. Captured tasks are not scheduled and are not automatically added to Today. Plan remains focused on Day Shape, read-only soft suggestions, and saved soft placements.
 
 ## 4. Not Ready To Test Yet
 
@@ -193,7 +193,7 @@ Known risks that should be watched closely:
 - The design spec is a living document and needs periodic reconciliation after trial-hardening PRs.
 - Visual polish is stronger after PR #81, but full design-board parity remains future work.
 - The current app has task pool capture, but soft suggestions are still based on existing Today tasks and open capacity, not the broader safe holding pool.
-- Captured task pool items are visible in Plan, but they do not yet become soft suggestions.
+- Captured task pool items are visible in Pool, but they do not yet become soft suggestions.
 - Re-entry remains partial until parked, not today, deferred, and rhythm-instance tasks can resurface as suggestions.
 - Vercel preview URLs may fragment local trial data.
 - Backup checking may feel similar to restore even though restore is not connected.

@@ -67,10 +67,10 @@ Implemented:
 • active task backup export
 • active task backup validation preview
 • active task deadline/time-edge schema fields
-• task pool / inbox schema and repository
+• task pool schema and repository
 • task pool Dexie table for local-first captured/deferred items
-• task pool capture UI in Plan
-• Plan task pool list for safely held captured/deferred items
+• top-level Pool screen with task capture UI
+• Pool holding-tray list for safely held captured/deferred items
 • optional Time edge section in Add one-off
 • one-off dueBy/fixedAt/expiresAfter capture
 • calm Today card time-edge copy
@@ -131,8 +131,9 @@ one-off time edges, protected time, Day Shape preview, Re-entry review, read-onl
 user-confirmed open-capacity soft placements, soft placement backups, Reset relief-valve actions, and
 opt-in signed-in local profiles.
 • A basic shell/usability trial is ready with one browser, one device, and one stable URL.
-• Task pool capture now exists in Plan, and captured ad hoc tasks can be safely held outside Today.
-• Plan can show basic task pool items, but captured tasks are not scheduled and are not automatically added to Today.
+• Task pool capture now exists in Pool, and captured ad hoc tasks can be safely held outside Today.
+• Pool can show basic task pool items, while Plan stays focused on Day Shape, soft suggestions, and saved placements.
+• Captured tasks are not scheduled and are not automatically added to Today.
 • A meaningful test of the full intended soft scheduling product should wait until the soft window finder,
 calm resurfacing, and repeating rhythm instances exist.
 • External tester readiness should wait until onboarding, backup confidence, Clerk
@@ -190,7 +191,7 @@ Recent key milestones:
 • PR #81: personal-trial visual polish
 • PR #82: post-PR81 trial readiness reconciliation
 • PR #83: soft scheduling loop contract and design-spec update
-• Current branch: task pool capture UI and Plan inbox list
+• Current branch: shell navigation and Pool surface alignment
 The current app foundation is deliberately staged: schema and persistence first, then read-only previews,
 then controlled user-facing behaviour, then scheduler.
 
@@ -622,7 +623,7 @@ Ready for a limited shell/usability trial with one browser, one device, and one 
 The app can already support local settings, Library, Today tasks, task states, backups, protected time blocks,
 Day Shape preview, Add one-off time edges, Re-entry review, read-only soft suggestions, user-confirmed
 open-capacity soft placements, saved soft placements, soft placement backups, Reset relief-valve actions,
-Trial limits copy, fixed-commitments notes-only clarity, task pool capture in Plan, and opt-in local signed-in profiles. However, it does
+Trial limits copy, fixed-commitments notes-only clarity, task pool capture in Pool, and opt-in local signed-in profiles. However, it does
 not yet have missed-task detection, askFirst placement, move/edit placement,
 calendar integration, AI suggestions, import/restore execution, or external tester readiness.
 It is also not yet sufficient to test the full intended soft scheduling loop because repeating rhythm
@@ -699,7 +700,7 @@ The main GitHub repo remains the trusted implementation path.
 Completed foundation:
 • Soft scheduling loop contract
 • Task pool schema and repository
-• Task pool capture UI and Plan inbox list
+• Task pool capture UI and Pool holding-tray list
 Recommended next sequence:
 1. Soft window finder v1 from openCapacity blocks
 2. User-confirmed soft placement from task pool

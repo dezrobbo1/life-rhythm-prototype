@@ -37,7 +37,7 @@ The soft scheduling loop is based on these practical findings:
 
 The goal is a system that can remember, surface, and explain options while leaving the final choice with the user.
 
-## 3. Task Pool / Inbox Model
+## 3. Task Pool / Holding Tray Model
 
 Life Rhythm needs a local task pool that can hold:
 
@@ -214,7 +214,7 @@ Recommended implementation order:
 1. Soft scheduling loop contract.
 2. Task pool schema and repository.
 3. Capture ad hoc task into task pool.
-4. Show task pool in Plan.
+4. Show task pool in a primary Pool surface.
 5. Soft window finder v1 from openCapacity blocks.
 6. User-confirmed soft placement from task pool.
 7. Repeating rhythm instance contract.
