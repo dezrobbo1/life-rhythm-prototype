@@ -1,9 +1,9 @@
 # Life Rhythm Documentation Authority
 
 Status: Current repository documentation map
-Date: 2026-07-13
+Date: 2026-07-17
 Current branch: `main`
-Current code baseline commit: `39d9f27`
+Current code baseline commit: `553b83f`
 
 ## Purpose
 
@@ -14,7 +14,7 @@ The current product direction is a local-first, non-clinical Life Rhythm applica
 ## Authority order
 
 1. **Current product authority** — `app/docs/life-rhythm-current-design-spec.md`
-2. **Current boundary contracts** — applicable contracts in `app/docs/`, provided they are marked current and do not contradict the current design spec. The working-tree Task Pool backup follow-up is documented in `app/docs/task-pool-backup-contract.md`.
+2. **Current boundary contracts** — applicable contracts in `app/docs/`, provided they are marked current and do not contradict the current design spec. The implemented Task Pool backup boundary is documented in `app/docs/task-pool-backup-contract.md`.
 3. **Evidence and UX weighting** — `docs/ux/Life_Rhythm_Design_Specification_v1_2_Evidence_Balanced.md` and the source archive. This layer supports rationale and traceability; it does not override current runtime status or navigation.
 4. **Source governance** — `app/docs/research/source-status.md`, `packet-v3-priority.md`, `research-to-mvp-map.md`, and `non-canonical-source-notes.md`.
 5. **Historical plans and pre-write contracts** — documents explicitly marked historical or superseded. These preserve rationale but must not be used as current implementation status.
@@ -33,7 +33,7 @@ The root app remains live while `/app` is developed. Its older scheduling and ta
 
 ## Current `/app` product state
 
-The merged `main` branch includes the Personal Trial v1 loop through PR #103 and the bounded PR #104 soft-placement fixes, merged at `39d9f27`:
+The merged `main` branch includes the Personal Trial v1 loop through PR #105, including the bounded PR #104 soft-placement fixes and PR #105 Task Pool backup follow-up, at `553b83f`:
 
 - four primary destinations: Today, Plan, Pool, Library;
 - Reset and Settings as secondary shell destinations;
@@ -45,11 +45,11 @@ The merged `main` branch includes the Personal Trial v1 loop through PR #103 and
 - user-confirmed local soft placements and safe removal/reconfirmation;
 - linked Pool, Today and placement state updates;
 - local backup export and validation previews for the currently supported data classes;
-- Task Pool backup export and validation preview, including saved status and deferral metadata (working-tree follow-up; pending merge);
+- Task Pool backup export and validation preview, including saved status and deferral metadata;
 - opt-in Clerk identity shell without automatic upload or sync;
 - no automatic scheduling, calendar writes, AI writes, notifications, analytics or restore/import execution.
 
-PR #104 is merged into `main`. Post-merge timezone-safe tests and documentation reconciliation are complete. This working tree adds the bounded Task Pool export/check follow-up documented in `app/docs/task-pool-backup-contract.md`; it is not part of `main` until merged. The next work after that is the visual/product validation sequence, followed by Pool, Plan and Today hierarchy refinement.
+PR #105 is merged into `main`. The bounded Task Pool export/check path, timezone-safe UTC/Perth verification and documentation reconciliation are part of the current baseline. The next work is fresh visual/product validation of the merged Pool → Plan → Today loop, followed by bounded Pool, Plan and Today hierarchy refinement.
 
 ## Canonical navigation and theme naming
 
