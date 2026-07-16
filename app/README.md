@@ -23,7 +23,7 @@ The `/app` branch currently contains:
 - Task Pool capture, safe holding, deferral and Pool-to-Today movement;
 - Pool-based soft suggestions from explicit `openCapacity` blocks;
 - user-confirmed local soft placements and safe removal/reconfirmation;
-- Task Pool backup export and read-only validation, including saved status and deferral metadata (working-tree follow-up pending merge);
+- Task Pool backup export and read-only validation, including saved status and deferral metadata;
 - opt-in Clerk identity shell with separate local namespaces, but no sync;
 - data-class-specific backup export and read-only validation previews.
 
@@ -40,12 +40,12 @@ The `/app` implementation does not provide:
 - broad parked/not-today/rhythm-instance resurfacing;
 - external tester readiness.
 
-PR #104 is merged into `main` at `39d9f27`. Post-merge timezone-safe tests and documentation synchronization are complete. This working tree adds the bounded Task Pool backup follow-up; the next work after merge is visual/product refinement following the fresh Pool → Plan walkthrough.
+PR #105 is merged into `main` at `553b83f`. The bounded Task Pool backup path, timezone-safe UTC/Perth verification and documentation synchronization are part of the current baseline. The next work is fresh visual/product validation followed by bounded Pool → Plan → Today hierarchy refinement.
 
 ## Commands
 
 ```bash
-npm install
+npm ci
 npm run dev
 npm test
 npm run build
