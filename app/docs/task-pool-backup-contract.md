@@ -1,6 +1,6 @@
 # Task Pool Backup Contract
 
-Status: Current working-tree follow-up after PR #104; pending merge into `main`
+Status: Current and implemented; merged into `main` through PR #105
 
 Scope: Local Task Pool export and read-only validation for the `/app` Personal Trial architecture.
 
