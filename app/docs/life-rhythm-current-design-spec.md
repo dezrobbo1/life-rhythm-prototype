@@ -2,9 +2,9 @@
 
 Status: Living design specification
 Scope: Product direction, current implementation state, design boundaries, source authority, and near-term roadmap
-Last consolidated after: PR #104 merge - Personal Trial v1 and soft-placement reconciliation
+Last consolidated after: PR #105 merge - Task Pool backup and post-merge documentation reconciliation
 
-Current branch note: this document describes `main` at code baseline `39d9f27`. PR #103 and PR #104 are merged into `main`; post-merge timezone-safe test reconciliation and documentation synchronization are complete. This working tree adds a bounded Task Pool export/check follow-up documented in `app/docs/task-pool-backup-contract.md`; it is pending merge. The next work after that is fresh visual/product validation.
+Current branch note: this document describes `main` at code baseline `553b83f`. PR #103, PR #104 and PR #105 are merged into `main`; the bounded Task Pool export/check path, timezone-safe UTC/Perth verification and documentation synchronization are part of the current baseline. The next work is fresh visual/product validation.
 
 The repository-level authority map is `docs/DOCUMENTATION_AUTHORITY.md`. It defines the distinction between the protected root 1.4.6 legacy runtime, the current `/app` architecture, source evidence, and historical contracts.
 
@@ -116,7 +116,7 @@ Corrected V3 packet order:
 9. Merge Packets 6 + 14
 10. Refresh Packet 10
 
-## 4. Current Implementation State After PR #104 Merge
+## 4. Current Implementation State After PR #105 Merge
 
 The app has a real local-first foundation. It is no longer a static prototype shell.
 
@@ -175,8 +175,8 @@ Implemented:
 - soft placement backup export
 - soft placement backup validation preview
 - removed placements included in soft placement backups as explicit local state
-- Task Pool backup export with saved Pool status and deferral metadata (working-tree follow-up; pending merge)
-- Task Pool backup validation preview (working-tree follow-up; pending merge)
+- Task Pool backup export with saved Pool status and deferral metadata
+- Task Pool backup validation preview
 - trial account/auth boundary contract
 - opt-in Clerk auth shell
 - signed-out trial access shell
@@ -300,6 +300,7 @@ Recent key milestones:
 - PR #90: first-class Pool screen and four-tab Today / Plan / Pool / Library shell
 - PR #103: Personal Trial v1 loop consolidation and Pool-to-Plan soft-placement flow
 - PR #104 merged: preserve deferred state, safely re-use removed placements, and retain saved placement dates when opening Plan
+- PR #105 merged: add Task Pool backup export/read-only validation, timezone-safe fixture reconciliation, and documentation authority consolidation
 
 The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then bounded soft suggestions and user-confirmed placement. The next stage should reduce visual/product-object drift, close backup disclosure gaps, and validate the current loop before adding repeating rhythm instances or broader resurfacing.
 
@@ -918,32 +919,32 @@ Completed foundation:
 - Visual design contracts
 - Visual token foundation
 - Research source governance docs
+- Task Pool backup export and read-only validation with saved status and deferral metadata
+- UTC/Perth verification and documentation reconciliation through PR #105
 
 Current next implementation priority:
 
-> Review the new Task Pool export/check path, then refine Pool, Plan and Today visual hierarchy before adding repeating rhythm instances.
+> Perform a fresh manual visual/product validation of the merged Pool → Plan → Today loop, then refine Pool, Plan and Today visual hierarchy before adding repeating rhythm instances.
 
 Purpose:
 
-Reduce generic AI-coded / SaaS / dashboard UI risk and align the app with the Soft Ledger / Holding Tray direction.
+Reduce generic AI-coded / SaaS / dashboard UI risk and align the app with the Soft Ledger / Holding Tray direction without widening product behaviour.
 
 Next recommended sequence:
 
-1. Finish timezone-safe test fixtures and post-merge UTC/Perth verification.
-2. Reconcile current docs and trial copy to merged PR #104/main status.
-3. Review the Task Pool export/check path, including deferred status and `bringBackAfter` metadata.
-4. Refine Pool toward the Holding Tray / ledger-row visual direction.
-5. Reduce Plan card soup and pill-chip overload enough that Plan does not feel like a dashboard.
-6. Refine Today around one dominant active object with quiet secondary exits.
-7. Repeating rhythm instance contract.
-8. Repeating rhythm instance suggestions without backlog or streak debt.
-9. Broader re-entry resurfacing for parked, not-today, and rhythm-instance tasks.
-10. Deadline and usefulness salience.
-11. Move/edit soft placement.
-12. Backup support for rhythm instances.
-13. Final non-AI prototype smoke QA and seven-day personal trial.
-14. Operationally verify Clerk invite-only/public-signup settings before external testers.
-15. Add a cloud sync contract only if later trial learning shows a clear need.
+1. Complete a fresh desktop, narrow/mobile and keyboard walkthrough of Pool → suggestion → Plan placement → Today movement, recording concrete visual and interaction findings.
+2. Refine Pool toward the Holding Tray / ledger-row visual direction.
+3. Reduce Plan card soup and pill-chip overload enough that Plan does not feel like a dashboard.
+4. Refine Today around one dominant active object with quiet secondary exits.
+5. Repeating rhythm instance contract.
+6. Repeating rhythm instance suggestions without backlog or streak debt.
+7. Broader re-entry resurfacing for parked, not-today, and rhythm-instance tasks.
+8. Deadline and usefulness salience.
+9. Move/edit soft placement.
+10. Backup support for rhythm instances.
+11. Final non-AI prototype smoke QA and seven-day personal trial.
+12. Operationally verify Clerk invite-only/public-signup settings before external testers.
+13. Add a cloud sync contract only if later trial learning shows a clear need.
 
 Cloud sync remains intentionally unimplemented.
 
