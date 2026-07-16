@@ -1,8 +1,10 @@
 # Life Rhythm Visual Design Direction Contract
 
-Status: Design contract
+Status: Current visual direction contract; implementation is partial
 Scope: Visual direction, surface hierarchy, anti-patterns, and first redesign boundaries
 Source basis: Applied ADHD UX/UI research, Life Rhythm current design spec, soft scheduling loop contract, current design boards, and source packets
+
+Current implementation note: the `/app` shell has the current Today/Plan/Pool/Library navigation and the bounded task/placement loop, while the Holding Tray, dominant-object and card/pill refinement described here remains ongoing. Runtime status is governed by `app/docs/life-rhythm-current-design-spec.md`.
 
 ## 1. Purpose
 
@@ -73,7 +75,7 @@ The current design direction is calm and coherent, but its visual language still
 - soft shadows
 - bottom toolbar that resembles a standard mobile SaaS shell
 - component-board layout rather than product-object layout
-- similar screen composition across Today, Plan, Library, Reset, and Setup
+- similar screen composition across Today, Plan, Pool, Library, Reset, and Settings
 
 The problem is cumulative. A single rounded card is not the issue. A whole product made from rounded cards, chips, badges, and equal panels is the issue.
 

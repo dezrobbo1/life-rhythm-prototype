@@ -1,5 +1,7 @@
 **Rebalance statement**: Version 1.2 corrects evidence-weighting drift. Packets 22 and 25 remain global constraints for sensory/visual load and calendar/load realism, but they are no longer treated as the main proof for every screen. Each screen now has named primary packets and domain-specific boundary requirements.
 
+Runtime authority note: this document governs evidence weighting and UX traceability. Current `/app` implementation status, navigation, theme exposure and data boundaries are governed by `app/docs/life-rhythm-current-design-spec.md` and `docs/DOCUMENTATION_AUTHORITY.md`.
+
 # Life Rhythm Design Specification v1.2 - Evidence Balanced
 
 Implementation-ready design-system specification with packet-balanced evidence mapping.
@@ -37,15 +39,17 @@ Life Rhythm helps adults with ADHD choose the next realistic action without sham
 
 ## 6. App shell and themes
 
-Use the fixed bottom navigation: Today, Plan, Library, Reset, Setup.
+Use the current four-destination primary navigation: Today, Plan, Pool, Library. Reset and Settings remain secondary destinations rather than daily primary tabs.
 
-Approved themes:
+Product-facing themes:
 
 - Exhale: default warm calm theme.
-- Clear: higher-contrast structured theme.
-- Grounded: warmer organic theme.
+- Clear: cool blue-green calm theme.
+- Grounded: warm earth calm theme.
 
 Themes change colour only. They must not change layout, copy, task logic, scheduling, data, boundaries or behaviour.
+
+The implementation token layer also contains Paper, Tide, Clay and Night. Exhale maps to Paper, Clear maps to Tide, and Grounded maps to Clay. Night is not exposed by the current product selector.
 
 ## 7. Today - re-entry surface
 
@@ -158,7 +162,7 @@ Single ticket Markdown output must include title, priority, status, area, app ve
 **Primary evidence**: Packets 12, 24 and 11. Secondary: 20, 25, 22. Add/Edit Task is not the whole task model.
 
 - Just for today defaults to active task and Show today.
-- Repeating rhythm defaults to enabled library rhythm and does not enter Today automatically.
+- Repeating rhythms remain reusable Library templates. Enablement does not create a Today task automatically.
 - Save actions change by mode: Add to Today, Save rhythm, Save and add to Today, Save changes, Save template.
 - Active task edit does not silently edit template. Template edit does not silently edit existing active instances.
 - Delete confirmations must say what stays.

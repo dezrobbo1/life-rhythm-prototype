@@ -1,12 +1,14 @@
 # Life Rhythm Navigation Redesign Contract
 
-Status: Design contract
+Status: Current implemented navigation contract
 Scope: Top-level navigation, contextual relief entry, settings visibility, and navigation anti-patterns
 Source basis: Applied ADHD UX/UI research, current design spec, current design boards, and mobile navigation guidance
 
+Current implementation note: the current `/app` shell uses Today, Plan, Pool, and Library as primary destinations, with Reset and Settings as secondary destinations. The root `index.html` remains a separate protected legacy app. See `app/docs/DOCUMENTATION_AUTHORITY.md` for the documentation hierarchy.
+
 ## 1. Purpose
 
-This contract defines the intended Life Rhythm navigation model before any visual shell implementation work.
+This contract defines and documents the navigation model used by the current `/app` shell, together with boundaries for future navigation refinements.
 
 The goal is to keep navigation discoverable and low-friction while removing the generic five-tab productivity-app feel.
 

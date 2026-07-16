@@ -21,6 +21,13 @@ function poolItem(overrides: Partial<TaskPoolItem> = {}): TaskPoolItem {
   });
 }
 
+function localIsoTimestamp(date: string, time: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+
+  return new Date(year, month - 1, day, hour, minute).toISOString();
+}
+
 const openBlock: PoolSoftSuggestionTimeBlock = {
   days: ['Monday'],
   end: '10:30',
@@ -102,7 +109,7 @@ describe('Pool soft suggestions', () => {
     const result = buildPoolSoftSuggestions({
       existingPlacements: [],
       items: [poolItem({
-        dueAt: '2026-07-13T10:03:00.000Z',
+        dueAt: localIsoTimestamp('2026-07-13', '10:03'),
         timeConstraint: 'dueBy',
       })],
       selectedDate: '2026-07-13',
@@ -115,11 +122,11 @@ describe('Pool soft suggestions', () => {
 
   it('allows a crossed useful edge only when the minimum is explicitly still helpful', () => {
     const expiredTask = poolItem({
-      dueAt: '2026-07-13T09:30:00.000Z',
+      dueAt: localIsoTimestamp('2026-07-13', '09:30'),
       timeConstraint: 'dueBy',
     });
     const minimumStillHelps = poolItem({
-      dueAt: '2026-07-13T09:30:00.000Z',
+      dueAt: localIsoTimestamp('2026-07-13', '09:30'),
       id: 'minimum-still-helps',
       minimumStillUsefulAfterDeadline: true,
       timeConstraint: 'dueBy',
@@ -168,7 +175,7 @@ describe('Pool soft suggestions', () => {
     const fits = buildPoolSoftSuggestions({
       existingPlacements: [],
       items: [poolItem({
-        fixedAt: '2026-07-13T10:20:00.000Z',
+        fixedAt: localIsoTimestamp('2026-07-13', '10:20'),
         timeConstraint: 'fixedAt',
       })],
       selectedDate: '2026-07-13',
@@ -178,7 +185,7 @@ describe('Pool soft suggestions', () => {
     const doesNotFit = buildPoolSoftSuggestions({
       existingPlacements: [],
       items: [poolItem({
-        fixedAt: '2026-07-13T10:20:00.000Z',
+        fixedAt: localIsoTimestamp('2026-07-13', '10:20'),
         id: 'fixed-too-large',
         minimum: { label: 'Fifteen minute minimum', minutes: 15 },
         timeConstraint: 'fixedAt',
@@ -199,7 +206,7 @@ describe('Pool soft suggestions', () => {
     const result = buildPoolSoftSuggestions({
       existingPlacements: [],
       items: [poolItem({
-        bringBackAfter: '2026-07-13T12:00:00.000Z',
+        bringBackAfter: localIsoTimestamp('2026-07-13', '12:00'),
         status: 'deferred',
       })],
       selectedDate: '2026-07-13',

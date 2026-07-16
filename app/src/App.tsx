@@ -21,13 +21,14 @@ import {
 } from './data/settingsRepository';
 import { exportSettingsBackup, type SettingsBackupExport } from './data/settingsExport';
 import { exportSoftPlacementBackup, type SoftPlacementBackupExport } from './data/softPlacementBackup';
+import { exportTaskPoolBackup, type TaskPoolBackupExport } from './data/taskPoolBackup';
 import {
   emptyAppSnapshot,
   normalDayWithOneTaskSnapshot,
   type AppDataSnapshot,
 } from './viewModels';
 
-type JsonBackupExport = Pick<SettingsBackupExport | SoftPlacementBackupExport, 'fileName' | 'json'>;
+type JsonBackupExport = Pick<SettingsBackupExport | SoftPlacementBackupExport | TaskPoolBackupExport, 'fileName' | 'json'>;
 
 type ExamplePreviewProps = {
   onReturnToPersonalTrial: () => void;
@@ -192,6 +193,16 @@ export default function App() {
     return backup;
   }
 
+  async function handleExportTaskPoolBackup(): Promise<TaskPoolBackupExport | null> {
+    const backup = await exportTaskPoolBackup();
+
+    if (backup) {
+      downloadJsonBackup(backup);
+    }
+
+    return backup;
+  }
+
   function handleScreenChange(screen: ScreenId) {
     setPreferredPlanPlacementDate(null);
     setPreferredPlanTaskId(null);
@@ -242,6 +253,7 @@ export default function App() {
       <SetupScreen
         onExportSettingsBackup={handleExportSettingsBackup}
         onExportSoftPlacementBackup={handleExportSoftPlacementBackup}
+        onExportTaskPoolBackup={handleExportTaskPoolBackup}
         onResetSettings={handleResetSettings}
         onSaveSettings={handleSaveSettings}
         onThemeChange={setTheme}

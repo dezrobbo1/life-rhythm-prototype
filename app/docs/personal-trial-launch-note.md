@@ -1,6 +1,8 @@
 # Personal Trial Launch Note
 
-Status: Short start note for the basic personal manual trial
+Status: Short start note for Personal Trial v1 after merged PR #104 and post-merge verification
+
+Scope: Private, single-user trial of the current `/app` capture, holding, soft-placement and re-entry spine. This is not an external tester launch or a full repeating-rhythm trial.
 
 Use this note when starting the first Life Rhythm personal trial. For the fuller checklist and issue log, use `app/docs/personal-trial-checklist.md`.
 
@@ -34,6 +36,8 @@ Vercel preview URLs can have separate local browser storage. If you create data 
 7. Export a settings backup.
 8. Read the backup/check copy once so the boundary is clear.
 
+Before starting, note that backups remain data-class-specific. Task Pool backup includes saved Pool rows and deferral metadata; soft-placement backup includes placements only. No backup restores data.
+
 Do not treat login as cloud sync. Login may identify the trial user, but local Life Rhythm data stays local unless a future sync feature clearly says otherwise.
 
 ## Daily 10-Minute Routine
@@ -47,9 +51,10 @@ Use this once a day, preferably at the same rough time.
 5. Start one task, pause or mark minimum done if that fits.
 6. Read Re-entry review if it appears.
 7. Use Park safely or Mark not today only when you choose.
-8. Open Plan and review Day Shape, soft suggestions, and saved soft placements.
-9. Add a soft placement only from `openCapacity`.
-10. Remove one placement during the week to confirm it feels safe.
+8. Open Pool and review safely held items.
+9. Open Plan and review Day Shape, Pool soft suggestions, and saved soft placements.
+10. Add a soft placement only from `openCapacity`.
+11. Remove and re-confirm one placement during the week to confirm it feels safe.
 
 Minimum still counts. No task needs to become a reusable rhythm unless you choose to create it in Library.
 
@@ -60,7 +65,10 @@ Export backups deliberately during the week:
 - settings backup
 - Library rhythm backup
 - Today task backup
+- Task Pool backup
 - soft placement backup
+
+Task Pool backup includes saved Pool status and `bringBackAfter` metadata. These exports do not include unrelated data classes or restore/import execution.
 
 Backup checking is read-only. Import/restore is not enabled.
 
@@ -68,7 +76,7 @@ Use backup checking only to see whether a file looks valid. It should not change
 
 ## Not Part Of This Trial
 
-Calendar, AI, cloud sync, notifications, askFirst placement, and move/edit placement are not part of this trial.
+Calendar, AI, cloud sync, notifications, askFirst placement, move/edit placement, repeating rhythm instances, and broader resurfacing are not part of this trial.
 
 Also do not test:
 
@@ -105,6 +113,7 @@ Pause the trial and log the issue if:
 - Today feels like a demand list
 - Plan suggestions feel like commands
 - a soft placement feels hard to remove
+- Pool holding or deferral data appears to disappear or cannot be explained
 - mobile layout blocks an important action
 - copy feels shaming or pressuring
 

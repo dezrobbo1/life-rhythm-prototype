@@ -1,5 +1,9 @@
 # Read-only view models
 
+Status: Historical pre-implementation design note. Retained for rationale; it is not a current implementation status report.
+
+Current implementation status: `/app` now has local persistence and write paths beyond the read-only bridge described here. Use `app/docs/life-rhythm-current-design-spec.md` and `app/docs/DOCUMENTATION_AUTHORITY.md` for current behavior. References below to “future,” “not connected,” or “inactive” describe the earlier decision point.
+
 This layer defines the bridge between future local app data and the React screens:
 
 ```text

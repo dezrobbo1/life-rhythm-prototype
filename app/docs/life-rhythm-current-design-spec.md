@@ -2,7 +2,11 @@
 
 Status: Living design specification
 Scope: Product direction, current implementation state, design boundaries, source authority, and near-term roadmap
-Last consolidated after: PR #90 - Pool navigation and shell reconciliation
+Last consolidated after: PR #104 merge - Personal Trial v1 and soft-placement reconciliation
+
+Current branch note: this document describes `main` at code baseline `39d9f27`. PR #103 and PR #104 are merged into `main`; post-merge timezone-safe test reconciliation and documentation synchronization are complete. This working tree adds a bounded Task Pool export/check follow-up documented in `app/docs/task-pool-backup-contract.md`; it is pending merge. The next work after that is fresh visual/product validation.
+
+The repository-level authority map is `docs/DOCUMENTATION_AUTHORITY.md`. It defines the distinction between the protected root 1.4.6 legacy runtime, the current `/app` architecture, source evidence, and historical contracts.
 
 ## 1. Product Identity
 
@@ -65,9 +69,9 @@ The product should help users protect their life from overfilling, not simply fi
 
 ## 3. Source Authority and Research Governance
 
-The current repo design spec is the implementation authority.
+The current repo design spec is the implementation authority for the `/app` product direction and current status. The root `index.html` remains a protected legacy runtime and is not the authority for new `/app` behaviour.
 
-The project-source additions from 2026-06-26 are source-governance documents. They define how research packets, Packet V3 upgrades, NotebookLM drafts, benchmark sources, and Codex UI/UX guardrails should be interpreted.
+The project-source additions from 2026-06-26 and the consolidated `Life_Rhythm_All_Project_Sources_2026-07-12.zip` are source-governance and provenance material. They define how research packets, Packet V3 upgrades, NotebookLM drafts, benchmark sources, and Codex UI/UX guardrails should be interpreted.
 
 Current source hierarchy:
 
@@ -82,7 +86,7 @@ NotebookLM v1.2 documents are not implementation specifications. They may be min
 
 Commercial app benchmark pages, Reddit/community sources, INCUP/coaching material, product blogs, and internal neuro-computational syntheses are not evidence anchors. They can suggest research questions, competitor patterns, and copy warnings. They cannot validate adult-ADHD product claims.
 
-Packet 1 V3 is the current source-library anchor for re-entry and missed-task recovery. It establishes this evidence standard:
+The current re-entry/V3 direction is represented by the standalone `Re-entry and Missed-Task Recovery in Adult ADHD for Life Rhythm` research document and the Packet 1 V3 governance material in the consolidated source bundle. The embedded packet collection also contains the evidence-strengthened Packet 1 V2 PDF; these are related but distinct source layers. The current re-entry evidence standard is:
 
 - strong support for non-clinical and product-boundary caution
 - moderate indirect support for low-friction re-entry mechanics
@@ -112,7 +116,7 @@ Corrected V3 packet order:
 9. Merge Packets 6 + 14
 10. Refresh Packet 10
 
-## 4. Current Implementation State After PR #90
+## 4. Current Implementation State After PR #104 Merge
 
 The app has a real local-first foundation. It is no longer a static prototype shell.
 
@@ -155,6 +159,10 @@ Implemented:
 - Task Pool capture UI in the Pool/shared Pool panel
 - Pool/shared Pool panel list for safely held captured/deferred items
 - No longer needed action for task pool items
+- Pool-based soft window suggestions from eligible held items
+- user-confirmed soft placement from the Pool into explicit `openCapacity`
+- linked Pool/Today/placement state updates and safe placement re-use after removal
+- deferred-task resurfacing without automatically moving tasks into Today
 - Life Shape protected/recovery/loose/household/family/open-capacity blocks
 - Setup “Time to leave alone” controls
 - fixed commitments notes-only clarity for trial
@@ -167,6 +175,8 @@ Implemented:
 - soft placement backup export
 - soft placement backup validation preview
 - removed placements included in soft placement backups as explicit local state
+- Task Pool backup export with saved Pool status and deferral metadata (working-tree follow-up; pending merge)
+- Task Pool backup validation preview (working-tree follow-up; pending merge)
 - trial account/auth boundary contract
 - opt-in Clerk auth shell
 - signed-out trial access shell
@@ -199,9 +209,8 @@ Partially implemented:
 Not implemented yet:
 
 - broad card-soup / pill-chip reduction across Plan and other screens
-- soft window finder from task pool
 - repeating rhythm instances
-- resurfacing parked, not today, and deferred tasks as suggestions
+- broader resurfacing for parked, not-today, and rhythm-instance tasks
 - missed-task detection
 - missed status persistence
 - askFirst placement
@@ -220,11 +229,11 @@ Not implemented yet:
 Current practical status:
 
 - A basic shell/usability trial is possible with one browser, one device, and one stable URL.
-- A basic personal manual trial can exercise local settings, Library rhythms, active Today tasks, one-off time edges, protected time, Day Shape preview, Re-entry review, read-only soft suggestions, user-confirmed open-capacity soft placements, soft placement backups, Reset relief-valve actions, task pool capture, and opt-in signed-in local profiles.
+- A basic personal manual trial can exercise local settings, Library rhythms, active Today tasks, one-off time edges, protected time, Day Shape preview, Re-entry review, Task Pool capture, deferred holding, Pool-based soft suggestions, user-confirmed open-capacity soft placements, Task Pool and soft placement backups, Reset relief-valve actions, and opt-in signed-in local profiles.
 - Task pool capture exists in the Pool/shared Pool panel, and captured ad hoc tasks can be safely held outside Today.
-- Pool can show basic task pool items, but captured tasks are not scheduled and are not automatically added to Today.
+- Pool can show captured, parked, not-today, deferred and ready-to-revisit items. Held tasks are not automatically scheduled or added to Today.
 - The current UI still has known generic AI-coded / SaaS / card-soup risks. Visual contracts exist, but they are not fully implemented.
-- A meaningful test of the full intended soft scheduling product should wait until the soft window finder exists, calm resurfacing exists, repeating rhythm instances exist, and the Pool Holding Tray visual refinement is stronger.
+- A meaningful test of the full intended soft scheduling product should wait until repeating rhythm instances, broader calm resurfacing, the Pool Holding Tray visual refinement, and backup confidence for all intended data classes are stronger.
 - External tester readiness should wait until onboarding, backup confidence, Clerk invite-only/public-signup configuration, and visual/object-grammar alignment are stronger; first-class Pool navigation is no longer the missing blocker.
 
 ## 5. PR Milestone Snapshot
@@ -289,8 +298,10 @@ Recent key milestones:
 - PR #88: visual token foundation
 - PR #89: research source governance and design-spec consolidation
 - PR #90: first-class Pool screen and four-tab Today / Plan / Pool / Library shell
+- PR #103: Personal Trial v1 loop consolidation and Pool-to-Plan soft-placement flow
+- PR #104 merged: preserve deferred state, safely re-use removed placements, and retain saved placement dates when opening Plan
 
-The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then scheduler. The next stage should reduce visual/product-object drift before adding more behaviour. Near-term implementation priority is: Pool Holding Tray visual refinement, Plan card/pill reduction, Today dominant-object refinement, then soft window finder v1.
+The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then bounded soft suggestions and user-confirmed placement. The next stage should reduce visual/product-object drift, close backup disclosure gaps, and validate the current loop before adding repeating rhythm instances or broader resurfacing.
 
 ## 6. Data and Write Boundaries
 
@@ -328,11 +339,14 @@ Current Task Pool writes include:
 - no automatic add-to-Today
 - no automatic scheduling
 - no automatic resurfacing
+- deferral and bring-back-later state
+- Pool-to-Today movement after explicit user action
 
 Current soft placement writes include:
 
 - openCapacity-only user-confirmed soft placements
 - removal by marking placement status removed
+- safe re-use of a removed placement identity after explicit re-confirmation
 - no task deletion
 - no active task status change
 - no calendar write
@@ -351,6 +365,7 @@ Current read-only or non-write surfaces:
 - Library rhythm backup validation preview
 - active task backup validation preview
 - soft placement backup validation preview
+- Task Pool backup validation preview for saved Pool rows and deferral metadata
 - Day Shape preview
 - Re-entry review preview
 - read-only soft suggestions
@@ -596,7 +611,7 @@ Re-entry rules:
 
 ## 12. Soft Scheduling Loop Direction
 
-The soft scheduling loop is future product spine work. It is defined in `app/docs/soft-scheduling-loop-contract.md`.
+The full soft scheduling loop remains a staged product direction. Its current contract is `app/docs/soft-scheduling-loop-contract.md`, which documents both the implemented PR #103/#104 subset and the remaining future boundaries.
 
 The intended loop is:
 
@@ -604,11 +619,13 @@ The intended loop is:
 
 Life Rhythm is not a rigid scheduler. It should capture ad hoc tasks and repeating rhythm instances into a safe task pool, hold parked/not-today/deferred items without turning them into a guilt list, use explicit open capacity for soft suggestions, and bring items back calmly when there is a plausible window.
 
-Scheduler-owned placement is not implemented.
+Scheduler-owned placement is not implemented. The current implementation is a bounded, user-confirmed Pool suggestion flow rather than an automatic scheduler.
 
 Current implemented soft-placement-adjacent behaviour:
 
 - Plan can show read-only soft suggestions.
+- Pool items can receive a bounded soft-window suggestion from explicit open capacity.
+- The user can confirm a Pool-to-Plan soft placement.
 - Soft suggestions are not placements.
 - Blank time is not treated as available.
 - Suggestions only use openCapacity blocks as addable placement targets.
@@ -623,10 +640,13 @@ Current implemented soft-placement-adjacent behaviour:
 - Soft placement backup export exists.
 - Soft placement backup checking is read-only.
 - No soft placement restore exists yet.
+- Task Pool backup export includes saved Pool rows, status, useful-window fields, and `bringBackAfter` deferral metadata.
+- Task Pool backup checking is read-only.
+- Task Pool backup does not include settings, Today tasks, Library rhythms, soft placements, calendar data, scheduler output, or restore/import execution.
 
-The future soft window finder must be explainable, user-led, and respectful of protected/loose/open capacity.
+Future soft-window expansion must be explainable, user-led, and respectful of protected/loose/open capacity. Current v1 is deliberately limited to eligible Pool items, explicit `openCapacity`, one user-confirmed placement path, and no automatic Today insertion.
 
-The soft window finder must not:
+The current and future soft-window logic must not:
 
 - silently fill the day
 - treat blank time as available
@@ -695,7 +715,7 @@ Near-term visual implementation priority:
 1. Refine Pool toward the Holding Tray / ledger-row visual direction.
 2. Reduce card wrapping and decorative pill-chip metadata across Plan and other non-dominant screens.
 3. Refine Today around one dominant active object with quiet exits.
-4. Build soft window finder v1 from openCapacity blocks after the visual/product-object drift is reduced.
+4. Validate the current Pool soft-window flow and improve broader re-entry/resurfacing after the visual/product-object drift is reduced.
 5. Preserve plain labels, no badges, no counters, no urgency states.
 
 Visual PRs must not introduce:
@@ -809,11 +829,11 @@ There are three trial levels.
 
 Ready for a limited shell/usability trial with one browser, one device, and one stable URL.
 
-The app can already support local settings, Library, Today tasks, task states, backups, protected time blocks, Day Shape preview, Add one-off time edges, Re-entry review, read-only soft suggestions, user-confirmed open-capacity soft placements, saved soft placements, soft placement backups, Reset relief-valve actions, Trial limits copy, fixed-commitments notes-only clarity, task pool capture in Pool, and opt-in local signed-in profiles.
+The app can already support local settings, Library, Today tasks, task states, data-class-specific backups, protected time blocks, Day Shape preview, Add one-off time edges, Re-entry review, read-only soft suggestions, user-confirmed open-capacity soft placements, saved soft placements, Task Pool and soft placement backups, Reset relief-valve actions, Trial limits copy, fixed-commitments notes-only clarity, task pool capture in Pool, and opt-in local signed-in profiles.
 
 However, it does not yet have missed-task detection, askFirst placement, move/edit placement, calendar integration, AI suggestions, import/restore execution, or external tester readiness.
 
-It is also not yet sufficient to test the full intended soft scheduling loop because repeating rhythm instances, soft window finder v1, and calm resurfacing are not implemented.
+It is not yet sufficient to test the full intended soft scheduling loop because repeating rhythm instances, broader calm resurfacing, backup support for future rhythm instances, and the remaining placement boundaries are not implemented.
 
 ### Meaningful personal product trial
 
@@ -822,12 +842,12 @@ Meaningful full-product trial should wait for:
 - Pool Holding Tray / ledger-row visual refinement
 - Plan card/pill reduction
 - Today dominant-object refinement
-- soft window finder v1 from openCapacity blocks
-- user-confirmed soft placement from task pool
-- resurfacing for parked, not today, and deferred tasks
+- a fresh post-merge walkthrough of Pool → Plan on `main`
+- timezone-safe date-sensitive tests passing in both UTC and local Perth time
+- broader resurfacing for parked, not today, and rhythm-instance tasks
 - repeating rhythm instance suggestions
 - deadline and usefulness salience
-- backup support for task pool and rhythm instances
+- backup support for rhythm instances
 - Clerk invite-only/public-signup operational verification if auth is enabled
 - one visual/object-grammar pass to reduce generic card/pill/dashboard UI
 
@@ -901,7 +921,7 @@ Completed foundation:
 
 Current next implementation priority:
 
-> Pool Holding Tray visual refinement, Plan card/pill reduction, Today dominant-object refinement, then soft window finder v1.
+> Review the new Task Pool export/check path, then refine Pool, Plan and Today visual hierarchy before adding repeating rhythm instances.
 
 Purpose:
 
@@ -909,20 +929,21 @@ Reduce generic AI-coded / SaaS / dashboard UI risk and align the app with the So
 
 Next recommended sequence:
 
-1. Refine Pool toward the Holding Tray / ledger-row visual direction.
-2. Reduce Plan card soup and pill-chip overload enough that Plan does not feel like a dashboard.
-3. Refine Today around one dominant active object with quiet secondary exits.
-4. Soft window finder v1 from openCapacity blocks.
-5. User-confirmed soft placement from task pool.
-6. Repeating rhythm instance contract.
-7. Repeating rhythm instance suggestions.
-8. Re-entry resurfacing for parked, not today, and deferred tasks.
-9. Deadline and usefulness salience.
-10. Move/edit soft placement.
-11. Backup support for task pool and rhythm instances.
-12. Final non-AI prototype smoke QA.
-13. Operationally verify Clerk invite-only/public-signup settings before external testers.
-14. Add a cloud sync contract only if later trial learning shows a clear need.
+1. Finish timezone-safe test fixtures and post-merge UTC/Perth verification.
+2. Reconcile current docs and trial copy to merged PR #104/main status.
+3. Review the Task Pool export/check path, including deferred status and `bringBackAfter` metadata.
+4. Refine Pool toward the Holding Tray / ledger-row visual direction.
+5. Reduce Plan card soup and pill-chip overload enough that Plan does not feel like a dashboard.
+6. Refine Today around one dominant active object with quiet secondary exits.
+7. Repeating rhythm instance contract.
+8. Repeating rhythm instance suggestions without backlog or streak debt.
+9. Broader re-entry resurfacing for parked, not-today, and rhythm-instance tasks.
+10. Deadline and usefulness salience.
+11. Move/edit soft placement.
+12. Backup support for rhythm instances.
+13. Final non-AI prototype smoke QA and seven-day personal trial.
+14. Operationally verify Clerk invite-only/public-signup settings before external testers.
+15. Add a cloud sync contract only if later trial learning shows a clear need.
 
 Cloud sync remains intentionally unimplemented.
 
@@ -930,11 +951,9 @@ Cloud sync remains intentionally unimplemented.
 
 Open product and implementation decisions:
 
-- Should Pool show captured / parked / not today / deferred groups immediately, or only captured until resurfacing exists?
 - What Holding Tray row treatment best signals safely held without backlog pressure?
 - What secondary Settings/Reset affordance is calmest after removal from primary navigation?
 - How much card/pill reduction is required before a meaningful personal product trial?
-- How should captured task pool items feed the first open-capacity soft window finder?
 - How should repeating rhythm instances be generated without backlog or streak debt?
 - How should resurfacing limits avoid alert fatigue?
 - What operational Clerk invite-only settings are required before external testers?

@@ -18,6 +18,11 @@ import {
   type SoftPlacementBackupPreview,
 } from '../data/softPlacementBackup';
 import {
+  parseTaskPoolBackupJson,
+  type TaskPoolBackupExport,
+  type TaskPoolBackupPreview,
+} from '../data/taskPoolBackup';
+import {
   aboutRows,
   advancedRows,
   appearanceOptions,
@@ -42,6 +47,7 @@ import { buildSetupViewModel } from '../viewModels';
 type SetupScreenProps = {
   onExportSettingsBackup?: () => Promise<SettingsBackupExport>;
   onExportSoftPlacementBackup?: () => Promise<SoftPlacementBackupExport | null>;
+  onExportTaskPoolBackup?: () => Promise<TaskPoolBackupExport | null>;
   onResetSettings?: () => Promise<Settings>;
   onSaveSettings?: (settings: SettingsWriteInput) => Promise<SettingsWriteResult>;
   onThemeChange?: (theme: ThemeName) => void;
@@ -75,6 +81,7 @@ const defaultTimeBlockLabels = new Set(Object.values(defaultLabelByTimeBlockType
 export function SetupScreen({
   onExportSettingsBackup,
   onExportSoftPlacementBackup,
+  onExportTaskPoolBackup,
   onResetSettings,
   onSaveSettings,
   onThemeChange,
@@ -94,6 +101,9 @@ export function SetupScreen({
   const [softPlacementBackupErrors, setSoftPlacementBackupErrors] = useState<string[]>([]);
   const [softPlacementBackupJson, setSoftPlacementBackupJson] = useState('');
   const [softPlacementBackupPreview, setSoftPlacementBackupPreview] = useState<SoftPlacementBackupPreview | null>(null);
+  const [taskPoolBackupErrors, setTaskPoolBackupErrors] = useState<string[]>([]);
+  const [taskPoolBackupJson, setTaskPoolBackupJson] = useState('');
+  const [taskPoolBackupPreview, setTaskPoolBackupPreview] = useState<TaskPoolBackupPreview | null>(null);
   const [status, setStatus] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -280,6 +290,21 @@ export function SetupScreen({
     }
   }
 
+  async function exportTaskPoolItemsBackup() {
+    if (!onExportTaskPoolBackup) {
+      setStatus('Task Pool backup export is not connected in this render.');
+      return;
+    }
+
+    try {
+      const backup = await onExportTaskPoolBackup();
+
+      setStatus(backup ? 'Task Pool backup created on this device.' : 'No saved Pool items to export yet.');
+    } catch {
+      setStatus('Task Pool backup was not created.');
+    }
+  }
+
   function checkSettingsBackup() {
     const result = parseSettingsBackupImportJson(settingsBackupJson);
 
@@ -308,6 +333,21 @@ export function SetupScreen({
     setSoftPlacementBackupErrors(result.errors);
     setSoftPlacementBackupPreview(null);
     setStatus('This soft placement backup could not be used.');
+  }
+
+  function checkTaskPoolBackup() {
+    const result = parseTaskPoolBackupJson(taskPoolBackupJson);
+
+    if (result.ok) {
+      setTaskPoolBackupErrors([]);
+      setTaskPoolBackupPreview(result.preview);
+      setStatus('Task Pool backup looks valid. Restore is not connected yet.');
+      return;
+    }
+
+    setTaskPoolBackupErrors(result.errors);
+    setTaskPoolBackupPreview(null);
+    setStatus('This Task Pool backup could not be used. Nothing changed on this device.');
   }
 
   async function readSettingsBackupFile(event: ChangeEvent<HTMLInputElement>) {
@@ -341,6 +381,23 @@ export function SetupScreen({
       setSoftPlacementBackupErrors(['backup: Soft placement backup file could not be read.']);
       setSoftPlacementBackupPreview(null);
       setStatus('This soft placement backup could not be used.');
+    }
+  }
+
+  async function readTaskPoolBackupFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+
+    if (!file) return;
+
+    try {
+      setTaskPoolBackupJson(await file.text());
+      setTaskPoolBackupErrors([]);
+      setTaskPoolBackupPreview(null);
+      setStatus('Task Pool backup loaded. Choose Check Task Pool backup.');
+    } catch {
+      setTaskPoolBackupErrors(['backup: Task Pool backup file could not be read.']);
+      setTaskPoolBackupPreview(null);
+      setStatus('This Task Pool backup could not be used. Nothing changed on this device.');
     }
   }
 
@@ -838,6 +895,89 @@ export function SetupScreen({
               <p>Nothing changed on this device. The first items to review are below.</p>
               <ul aria-label="Soft placement backup errors" className="setup-validation-list">
                 {softPlacementBackupErrors.slice(0, 3).map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+        <div className="setup-backup-panel">
+          <div className="setup-subheading">
+            <h3>Export Task Pool</h3>
+            <p>Creates a local backup file for saved Pool items, including status and deferral metadata.</p>
+            <p>It does not include settings, Today tasks, Library rhythms, soft placements, or calendar events.</p>
+          </div>
+          <div className="setup-action-row">
+            <Button onClick={exportTaskPoolItemsBackup}>Export Task Pool backup</Button>
+          </div>
+        </div>
+        <div className="setup-backup-checker" aria-labelledby="task-pool-backup-check-title">
+          <div className="setup-subheading">
+            <h3 id="task-pool-backup-check-title">Check Task Pool backup</h3>
+            <p>Check only. Paste or select a Task Pool backup.</p>
+            <p>Restore is not connected yet. Checking does not change this device.</p>
+          </div>
+          <label className="life-shape-control life-shape-control--wide">
+            <span>Paste backup text</span>
+            <textarea
+              aria-label="Task Pool backup text"
+              onChange={(event) => {
+                setTaskPoolBackupJson(event.target.value);
+                setTaskPoolBackupErrors([]);
+                setTaskPoolBackupPreview(null);
+              }}
+              placeholder="Paste a Task Pool backup file here."
+              rows={6}
+              value={taskPoolBackupJson}
+            />
+            <small>Checking does not restore Pool items or change this device.</small>
+          </label>
+          <div className="setup-action-row">
+            <label className="setup-file-picker">
+              <span>Select Task Pool backup file</span>
+              <input
+                accept="application/json,.json"
+                aria-label="Select Task Pool backup file"
+                onChange={readTaskPoolBackupFile}
+                type="file"
+              />
+            </label>
+            <Button onClick={checkTaskPoolBackup}>Check Task Pool backup</Button>
+          </div>
+          {taskPoolBackupPreview ? (
+            <dl aria-label="Task Pool backup preview" className="setup-about-list">
+              <div>
+                <dt>Pool items</dt>
+                <dd>{taskPoolBackupPreview.itemCount}</dd>
+              </div>
+              <div>
+                <dt>Statuses</dt>
+                <dd>{taskPoolBackupPreview.statusSummary}</dd>
+              </div>
+              <div>
+                <dt>Deferred</dt>
+                <dd>{taskPoolBackupPreview.deferredCount}</dd>
+              </div>
+              <div>
+                <dt>Deferral metadata</dt>
+                <dd>{taskPoolBackupPreview.includesDeferralMetadata ? 'Included' : 'None saved'}</dd>
+              </div>
+              <div>
+                <dt>Titles</dt>
+                <dd>{taskPoolBackupPreview.itemTitles.join(', ') || 'No Pool item titles in backup.'}</dd>
+              </div>
+              <div>
+                <dt>Exported</dt>
+                <dd>{taskPoolBackupPreview.exportedAt}</dd>
+              </div>
+            </dl>
+          ) : null}
+          {taskPoolBackupErrors.length > 0 ? (
+            <div className="setup-validation-summary">
+              <strong>Backup check notes</strong>
+              <p>Nothing changed on this device. The first items to review are below.</p>
+              <ul aria-label="Task Pool backup errors" className="setup-validation-list">
+                {taskPoolBackupErrors.slice(0, 3).map((error) => (
                   <li key={error}>{error}</li>
                 ))}
               </ul>

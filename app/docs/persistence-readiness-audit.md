@@ -1,5 +1,9 @@
 # Persistence Readiness Audit
 
+Status: Historical pre-implementation audit. Retained as the rationale for the first safe writes; it is not the current persistence inventory.
+
+Current implementation status: settings, user-created Library rhythms, active Today tasks, Task Pool state, soft suggestions, user-confirmed placements, and selected backup/validation paths have progressed beyond this audit. Use `app/docs/life-rhythm-current-design-spec.md` and `app/docs/DOCUMENTATION_AUTHORITY.md` for the current boundary. References below to “read-only,” “first write,” or “next PR” are historical.
+
 This audit checks whether the `/app` React prototype is ready for the first safe local write. It does not approve persistence for tasks, scheduling, legacy migration, or the root GitHub Pages app.
 
 ## Current Position

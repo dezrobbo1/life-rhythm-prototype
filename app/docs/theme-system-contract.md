@@ -1,8 +1,10 @@
 # Life Rhythm Theme System Contract
 
-Status: Design contract
+Status: Current visual-token contract; product-facing theme aliases are implemented
 Scope: Theme architecture, semantic tokens, accessibility modifiers, and theme UX
 Source basis: Applied ADHD UX/UI research, current design boards, Life Rhythm design spec, and source packets
+
+Current implementation note: the visual token layer defines Paper, Tide, Clay, and Night. The current `/app` selector exposes the product-facing aliases Exhale, Clear, and Grounded, mapped to Paper, Tide, and Clay respectively. Night exists as a token foundation but is not currently exposed as a selectable product theme. The current implementation and persistence status are authoritative in `app/docs/life-rhythm-current-design-spec.md` and `app/docs/DOCUMENTATION_AUTHORITY.md`.
 
 ## 1. Purpose
 
@@ -45,14 +47,21 @@ Themes must not vary:
 - copy tone
 - radius/shadow hierarchy
 
-## 3. Recommended prototype theme set
+## 3. Recommended prototype theme set and current exposure
 
-Ship four base themes first:
+The visual foundation contains four base themes:
 
 1. **Paper** — default warm neutral theme.
 2. **Tide** — blue-green calm theme.
 3. **Clay** — earth/warm grounded theme.
 4. **Night** — low-light dark theme.
+
+Current product exposure is intentionally narrower:
+
+- **Exhale** → Paper
+- **Clear** → Tide
+- **Grounded** → Clay
+- Night is deferred from the product-facing selector until its contrast and trial value are verified.
 
 Add two cross-theme modifiers:
 
@@ -328,7 +337,7 @@ Theme selection should be simple by default.
 Settings should show:
 
 - current theme
-- four base theme previews
+- the three currently exposed product theme options
 - one sentence per theme
 - follow system light/dark option if available
 - advanced accessibility modifiers under “Ease and visibility” or similar
@@ -344,22 +353,22 @@ Do not show:
 
 Theme selection should not interrupt onboarding unless required for readability.
 
-## 12. Prototype implementation order
+## 12. Implementation order and status
 
-Implement in this order:
+The current implementation has completed the token and first three visual foundations. The remaining sequence is:
 
-1. semantic tokens
-2. Paper theme
-3. Night theme
-4. Tide and Clay themes
+1. semantic tokens — complete
+2. Paper, Tide, and Clay visual foundations — complete
+3. product-facing Exhale/Clear/Grounded aliases and persistence — complete
+4. Night product exposure — future, pending contrast/trial verification
 5. High Contrast Calm modifier
 6. Reduced Stimulation modifier
-7. theme preview UI
+7. theme preview UI refinement
 8. later optional Forest theme if testing supports it
 
 ## 13. Component obligations
 
-Components must consume semantic tokens. A component should not know whether it is in Paper, Tide, Clay, or Night.
+Components must consume semantic tokens. A component should not need to know whether it is in Paper, Tide, Clay, or Night. Product-facing aliases are resolved in the theme definition layer (`app/src/app/theme.ts`), not in component styling.
 
 Allowed component references:
 

@@ -1,5 +1,9 @@
 # Settings Storage Contract
 
+Status: Historical pre-implementation contract. Retained for the settings-write rationale; it is not a current implementation status report.
+
+Current implementation status: settings persistence, reset behavior, and selected settings backup/validation are implemented in `/app`. Use `app/docs/life-rhythm-current-design-spec.md` and `app/docs/DOCUMENTATION_AUTHORITY.md` for current behavior. References below to “may be saved later,” “first write,” or “next PR” describe the earlier decision point.
+
 This contract prepares the first safe `/app` persistence step. It defines the settings shape that may be saved later, but this PR does not write to Dexie, IndexedDB, localStorage, or any migration target.
 
 ## Scope

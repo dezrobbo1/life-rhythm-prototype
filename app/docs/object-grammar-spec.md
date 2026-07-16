@@ -1,8 +1,10 @@
 # Life Rhythm Object Grammar Spec
 
-Status: Design contract
+Status: Current object-grammar contract; implementation is partial
 Scope: Visual and interaction grammar for Life Rhythm product objects
 Source basis: Applied ADHD UX/UI research, current design spec, soft scheduling loop contract, current boards, and source packets
+
+Current implementation note: the current `/app` object model includes Today actions, Pool-held items, day-shape bands, soft suggestions and user-confirmed placements. The full grammar is a refinement boundary, not a claim that every visual rule is already implemented. Runtime status is governed by `app/docs/life-rhythm-current-design-spec.md`.
 
 ## 1. Purpose
 
