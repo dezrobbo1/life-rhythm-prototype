@@ -11,7 +11,7 @@ Read the repository documentation map first:
 
 ## Current implementation
 
-The merged `/app` baseline through PR #106 currently contains:
+The merged `/app` baseline through PR #107 at `e11d6d5022a6118f96712b48ef5776d0a6acffbd` currently contains:
 
 - Today, Plan, Pool and Library as the four primary destinations;
 - Reset and Settings as secondary destinations;
@@ -25,10 +25,7 @@ The merged `/app` baseline through PR #106 currently contains:
 - user-confirmed local soft placements and safe removal/reconfirmation;
 - Task Pool backup export and read-only validation, including saved status and deferral metadata;
 - opt-in Clerk identity shell with separate local namespaces, but no sync;
-- data-class-specific backup export and read-only validation previews.
-
-The open PR #107 branch `codex/visual-foundation-pool-soft-ledger` at checkpoint `601a691d9dfc1dfd0c846a53384b3c599649af7b` additionally implements, on that branch:
-
+- data-class-specific backup export and read-only validation previews;
 - quiet shared in-flow page headings;
 - a compact shared header;
 - a restrained local active-navigation marker;
@@ -48,7 +45,7 @@ The `/app` implementation does not provide:
 - broad parked/not-today/rhythm-instance resurfacing;
 - external tester readiness.
 
-`main` is at `3ae432eaa69879463fe0587aedbb313d81f0af43` after PR #106. PR #107 remains open and is not part of the merged baseline. Its branch checkpoint leaves capture behaviour, action meaning and order, persistence, schemas, routes, task ordering, task lifecycle behaviour, placement ownership and the boundaries above unchanged. If PR #107 merges, the next bounded visual work is Plan card-soup and pill-chip reduction followed by Today dominant-active-object refinement; Library and Setup remain later bounded passes.
+`main` is at `e11d6d5022a6118f96712b48ef5776d0a6acffbd` after PR #107. The merged Visual Foundation Pass 1 checkpoint leaves capture behaviour, action meaning and order, persistence, repositories, schemas, statuses, routes, task ordering, task lifecycle behaviour, placement ownership and the boundaries above unchanged. The current next bounded visual work is Plan card-soup and pill-chip reduction followed by Today dominant-active-object refinement; Library and Setup remain later bounded passes.
 
 ## Commands
 
