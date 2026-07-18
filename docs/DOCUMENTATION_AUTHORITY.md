@@ -3,8 +3,8 @@
 Status: Current repository documentation map
 Date: 2026-07-19
 Merged baseline branch: `main`
-Merged code baseline commit: `3ae432eaa69879463fe0587aedbb313d81f0af43`
-Open review checkpoint: PR #107, branch `codex/visual-foundation-pool-soft-ledger`, commit `601a691d9dfc1dfd0c846a53384b3c599649af7b` (draft; not merged)
+Merged code baseline commit: `e11d6d5022a6118f96712b48ef5776d0a6acffbd`
+Latest merged visual checkpoint: PR #107, merge commit `e11d6d5022a6118f96712b48ef5776d0a6acffbd` — Visual Foundation Pass 1 / Soft Ledger shell and Pool
 
 ## Purpose
 
@@ -34,7 +34,7 @@ The root app remains live while `/app` is developed. Its older scheduling and ta
 
 ## Current `/app` product state
 
-The merged `main` branch includes the Personal Trial v1 loop through PR #105, including the bounded PR #104 soft-placement fixes and PR #105 Task Pool backup follow-up, plus the PR #106 repository-guidance and documentation refresh, at `3ae432eaa69879463fe0587aedbb313d81f0af43`:
+The merged `main` branch includes the Personal Trial v1 loop through PR #105, including the bounded PR #104 soft-placement fixes and PR #105 Task Pool backup follow-up, the PR #106 repository-guidance and documentation refresh, and the PR #107 Visual Foundation Pass 1 checkpoint, at `e11d6d5022a6118f96712b48ef5776d0a6acffbd`:
 
 - four primary destinations: Today, Plan, Pool, Library;
 - Reset and Settings as secondary shell destinations;
@@ -50,7 +50,7 @@ The merged `main` branch includes the Personal Trial v1 loop through PR #105, in
 - opt-in Clerk identity shell without automatic upload or sync;
 - no automatic scheduling, calendar writes, AI writes, notifications, analytics or restore/import execution.
 
-The open PR #107 branch checkpoint at `601a691d9dfc1dfd0c846a53384b3c599649af7b` implements, on that branch:
+PR #107 implements on merged `main`:
 
 - quiet shared in-flow page headings;
 - a compact shared header;
@@ -58,7 +58,7 @@ The open PR #107 branch checkpoint at `601a691d9dfc1dfd0c846a53384b3c599649af7b`
 - Pool as a content-led Soft Ledger / Holding Tray with ledger rows and dividers;
 - a clarified Pool action hierarchy with Add to Today primary, Find soft window secondary and independent Other choices disclosures.
 
-PR #107 remains a draft and is not part of merged `main`. Its changes are limited to visual hierarchy and action presentation: capture behaviour, action meaning and order, persistence, schemas, routes, task ordering, task lifecycle behaviour and user-confirmed placement remain unchanged. It adds no scheduling, calendar, AI, backend, sync, notification, analytics or restore/import behaviour. If PR #107 merges, the next bounded visual sequence is Plan card-soup and pill-chip reduction, then Today dominant-active-object refinement, with Library and Setup reserved for later passes.
+PR #107 is limited to visual hierarchy and action presentation: capture behaviour, action meaning and order, persistence, repositories, schemas, statuses, routes, task ordering, task lifecycle behaviour and user-confirmed placement remain unchanged. It adds no automatic scheduling, calendar writes, AI, backend, sync, notifications, analytics or restore/import behaviour. The current next bounded visual sequence is Plan card-soup and pill-chip reduction, then Today dominant-active-object refinement, with Library and Setup reserved for later passes.
 
 ## Canonical navigation and theme naming
 

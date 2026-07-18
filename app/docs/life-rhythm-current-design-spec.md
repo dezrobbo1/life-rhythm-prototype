@@ -2,9 +2,9 @@
 
 Status: Living design specification
 Scope: Product direction, current implementation state, design boundaries, source authority, and near-term roadmap
-Last consolidated for: PR #107 branch checkpoint - Visual Foundation Pass 1 / Soft Ledger shell and Pool
+Last consolidated for: PR #107 merge - Visual Foundation Pass 1 / Soft Ledger shell and Pool
 
-Current branch note: this document describes the open PR #107 branch `codex/visual-foundation-pool-soft-ledger` at checkpoint `601a691d9dfc1dfd0c846a53384b3c599649af7b`, based on `main` at `3ae432eaa69879463fe0587aedbb313d81f0af43` after PR #106. PR #107 is not merged. The branch checkpoint establishes the quiet shared shell and page-heading foundation plus Pool as the first bounded Soft Ledger / Holding Tray reference surface. If PR #107 merges, the next bounded visual sequence is Plan card-soup and pill-chip reduction, then Today dominant-active-object refinement, with Library and Setup reserved for later passes.
+Current baseline note: PR #107 is merged into `main` at `e11d6d5022a6118f96712b48ef5776d0a6acffbd`. The merged checkpoint establishes the quiet shared shell and page-heading foundation plus Pool as the first bounded Soft Ledger / Holding Tray reference surface. The current next bounded visual sequence is Plan card-soup and pill-chip reduction, then Today dominant-active-object refinement, with Library and Setup reserved for later passes.
 
 The repository-level authority map is `docs/DOCUMENTATION_AUTHORITY.md`. It defines the distinction between the protected root 1.4.6 legacy runtime, the current `/app` architecture, source evidence, and historical contracts.
 
@@ -116,7 +116,7 @@ Corrected V3 packet order:
 9. Merge Packets 6 + 14
 10. Refresh Packet 10
 
-## 4. Current Implementation State at the PR #107 Branch Checkpoint
+## 4. Current Implementation State after PR #107
 
 The app has a real local-first foundation. It is no longer a static prototype shell.
 
@@ -201,11 +201,11 @@ Implemented:
 - semantic visual theme tokens
 - low-level surface class primitives
 - research source governance docs
-- quiet shared in-flow page headings without the previous marketing-style hero cards or icon tiles on the PR #107 branch
-- compact shared header treatment on the PR #107 branch
-- restrained local active-navigation marker and flat Settings active treatment on the PR #107 branch
-- content-led Pool Holding Tray treatment with ruled ledger rows, aligned metadata and an integrated empty row on the PR #107 branch
-- clarified Pool action hierarchy with Add to Today primary, Find soft window secondary and independent Other choices disclosures on the PR #107 branch
+- quiet shared in-flow page headings without the previous marketing-style hero cards or icon tiles
+- compact shared header treatment
+- restrained local active-navigation marker and flat Settings active treatment
+- content-led Pool Holding Tray treatment with ruled ledger rows, aligned metadata and an integrated empty row
+- clarified Pool action hierarchy with Add to Today primary, Find soft window secondary and independent Other choices disclosures
 
 Not implemented yet:
 
@@ -236,9 +236,9 @@ Current practical status:
 - A basic personal manual trial can exercise local settings, Library rhythms, active Today tasks, one-off time edges, protected time, Day Shape preview, Re-entry review, Task Pool capture, deferred holding, Pool-based soft suggestions, user-confirmed open-capacity soft placements, Task Pool and soft placement backups, Reset relief-valve actions, and opt-in signed-in local profiles.
 - Task pool capture exists in the Pool/shared Pool panel, and captured ad hoc tasks can be safely held outside Today.
 - Pool can show captured, parked, not-today, deferred and ready-to-revisit items. Held tasks are not automatically scheduled or added to Today.
-- The PR #107 branch removes the shared hero-card/icon-tile treatment and establishes Pool as a bounded Soft Ledger / Holding Tray reference surface. Plan still has card-soup and pill-chip risk, Today still needs a dominant-active-object pass, and Library and Setup remain later bounded visual passes.
+- Merged `main` removes the shared hero-card/icon-tile treatment and establishes Pool as a bounded Soft Ledger / Holding Tray reference surface through PR #107. Plan still has card-soup and pill-chip risk, Today still needs a dominant-active-object pass, and Library and Setup remain later bounded visual passes.
 - A meaningful test of the full intended soft scheduling product should wait until repeating rhythm instances, broader calm resurfacing, the remaining Plan and Today hierarchy work, and backup confidence for all intended data classes are stronger.
-- External tester readiness should wait until onboarding, backup confidence, Clerk invite-only/public-signup configuration, and the remaining visual/object-grammar alignment are stronger; first-class Pool navigation and the approved PR #107 branch treatment are no longer the missing blockers.
+- External tester readiness should wait until onboarding, backup confidence, Clerk invite-only/public-signup configuration, and the remaining visual/object-grammar alignment are stronger; first-class Pool navigation and the merged PR #107 treatment are no longer missing blockers.
 
 ## 5. PR Milestone Snapshot
 
@@ -306,9 +306,9 @@ Recent key milestones:
 - PR #104 merged: preserve deferred state, safely re-use removed placements, and retain saved placement dates when opening Plan
 - PR #105 merged: add Task Pool backup export/read-only validation, timezone-safe fixture reconciliation, and documentation authority consolidation
 - PR #106 merged: add repository-level Codex guidance and refresh current-status documentation
-- PR #107 open draft branch checkpoint at `601a691d9dfc1dfd0c846a53384b3c599649af7b`: establish Visual Foundation Pass 1 with quiet shared headings/header/navigation and Pool as a Soft Ledger / Holding Tray reference surface
+- PR #107 merged at `e11d6d5022a6118f96712b48ef5776d0a6acffbd`: establish Visual Foundation Pass 1 with quiet shared headings/header/navigation and Pool as a Soft Ledger / Holding Tray reference surface
 
-The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then bounded soft suggestions and user-confirmed placement. After the PR #107 branch checkpoint, the next visual stage is bounded Plan card/pill reduction followed by Today dominant-object refinement, with Library and Setup later, before repeating rhythm instances or broader resurfacing widen the product surface.
+The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then bounded soft suggestions and user-confirmed placement. After the merged PR #107 checkpoint, the next visual stage is bounded Plan card/pill reduction followed by Today dominant-object refinement, with Library and Setup later, before repeating rhythm instances or broader resurfacing widen the product surface.
 
 ## 6. Data and Write Boundaries
 
@@ -499,7 +499,7 @@ Current implemented behaviour:
 - Task Pool Dexie table exists.
 - Pool is a first-class top-level destination in the primary Today / Plan / Pool / Library shell.
 - Captured ad hoc tasks can be saved locally.
-- Pool/shared Pool panel uses a content-led Holding Tray with grouped ledger rows, ruled divisions and aligned metadata on the PR #107 branch.
+- Pool/shared Pool panel uses a content-led Holding Tray with grouped ledger rows, ruled divisions and aligned metadata.
 - Task Pool UI has moved out of Plan into Pool/shared Pool panel.
 - Visible Inbox wording has been removed from the app UI.
 - Captured tasks do not enter Today.
@@ -507,7 +507,7 @@ Current implemented behaviour:
 - No scheduler writes occur from capture.
 - No calendar writes occur from capture.
 - No longer needed marks an item quiet without deleting it.
-- Add to Today remains the primary Pool action, Find soft window remains visible and secondary, and Bring back later / No longer needed remain in that order inside an independent Other choices disclosure on the PR #107 branch.
+- Add to Today remains the primary Pool action, Find soft window remains visible and secondary, and Bring back later / No longer needed remain in that order inside an independent Other choices disclosure.
 
 Future intended behaviour:
 
@@ -702,7 +702,7 @@ The interface must not feel like:
 
 Known current UI risk:
 
-The PR #107 branch aligns the shared shell/page-heading treatment and Pool with the first bounded Soft Ledger / Holding Tray implementation. Plan still contains card-soup and pill-chip risk, Today still needs one dominant active object, and Library and Setup remain later bounded passes. The runtime is therefore still only partially aligned with the full object grammar.
+PR #107 aligns the merged shared shell/page-heading treatment and Pool with the first bounded Soft Ledger / Holding Tray implementation. Plan still contains card-soup and pill-chip risk, Today still needs one dominant active object, and Library and Setup remain later bounded passes. The runtime is therefore still only partially aligned with the full object grammar.
 
 Current visual contracts:
 
@@ -847,7 +847,6 @@ It is not yet sufficient to test the full intended soft scheduling loop because 
 
 Meaningful full-product trial should wait for:
 
-- PR #107 to merge before its approved shell and Pool branch checkpoint is treated as the `main` baseline
 - Plan card/pill reduction
 - Today dominant-object refinement
 - later bounded Library and Setup visual passes
@@ -868,7 +867,6 @@ External tester trial should wait until:
 - onboarding is clearer
 - backup/export is trustworthy
 - auth/privacy boundary exists and Clerk invite-only/public-signup settings are operationally verified
-- completion of the PR #107 merge before its Pool treatment is treated as the `main` baseline
 - the remaining Plan, Today, Library and Setup visual passes are stable enough for external use
 - at least one personal trial has been completed
 - language has had a non-clinical safety pass
@@ -927,11 +925,11 @@ Completed foundation:
 - Research source governance docs
 - Task Pool backup export and read-only validation with saved status and deferral metadata
 - UTC/Perth verification and documentation reconciliation through PR #106 on merged `main`
-- PR #107 branch checkpoint for Visual Foundation Pass 1 / Soft Ledger shell and Pool at `601a691d9dfc1dfd0c846a53384b3c599649af7b` (open draft; not merged)
+- PR #107 merged for Visual Foundation Pass 1 / Soft Ledger shell and Pool at `e11d6d5022a6118f96712b48ef5776d0a6acffbd`
 
 Current next implementation priority:
 
-> When PR #107 merges, reduce Plan card soup and pill-chip overload first, then refine Today around one dominant active object. Keep Library and Setup as later bounded visual passes.
+> Reduce Plan card soup and pill-chip overload first, then refine Today around one dominant active object. Keep Library and Setup as later bounded visual passes.
 
 Purpose:
 
