@@ -86,8 +86,8 @@ describe('Pool screen', () => {
     render(<PoolScreen />);
 
     expect(screen.getByRole('heading', { name: 'Pool' })).toBeTruthy();
-    expect(screen.getAllByText('Holding Tray').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByRole('heading', { name: 'Task Pool' })).toBeTruthy();
+    expect(screen.queryByText('Holding Tray')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Captured tasks' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Capture task' })).toBeTruthy();
     expect(screen.getByText('No captured tasks yet.')).toBeTruthy();
     expect(screen.getByText('Capture something here without adding it to Today.')).toBeTruthy();
@@ -144,7 +144,7 @@ describe('Pool screen', () => {
       expect(await screen.findByText('Task captured. It is safely held.')).toBeTruthy();
       expect(screen.queryByRole('dialog', { name: 'Capture task' })).toBeNull();
 
-      const taskPoolSection = sectionForHeading('Task Pool');
+      const taskPoolSection = sectionForHeading('Captured tasks');
 
       expect(await within(taskPoolSection).findByText('Order school shirts')).toBeTruthy();
       expect(within(taskPoolSection).getByText('Admin - Safely held')).toBeTruthy();
@@ -233,7 +233,7 @@ describe('Pool screen', () => {
 
     render(<PoolScreen />);
 
-    const taskPoolSection = sectionForHeading('Task Pool');
+    const taskPoolSection = sectionForHeading('Captured tasks');
 
     expect(await within(taskPoolSection).findByText('Captured form task')).toBeTruthy();
     expect(within(taskPoolSection).getByText('Admin - Safely held')).toBeTruthy();
@@ -242,6 +242,83 @@ describe('Pool screen', () => {
     expect(within(taskPoolSection).getByText(/Useful until/)).toBeTruthy();
     expect(within(taskPoolSection).getByText('Minimum still helps')).toBeTruthy();
     expect(within(taskPoolSection).queryByText('Hidden pool item')).toBeNull();
+  });
+
+  it('keeps lower-priority task actions in independent disclosures', async () => {
+    const user = userEvent.setup();
+
+    await saveTaskPoolItem(validTaskPoolItem());
+    await saveTaskPoolItem(validTaskPoolItem({
+      area: 'work',
+      createdAt: '2026-06-18T01:00:00.000Z',
+      id: 'task-pool-second-form',
+      minimum: {
+        label: 'Find the saved draft',
+        minutes: 5,
+      },
+      title: 'Second captured task',
+      updatedAt: '2026-06-18T01:00:00.000Z',
+    }));
+
+    render(<PoolScreen onOpenPlan={vi.fn()} />);
+
+    const firstRow = (await screen.findByText('Captured form task')).closest('li');
+    const secondRow = screen.getByText('Second captured task').closest('li');
+
+    if (!firstRow || !secondRow) {
+      throw new Error('Expected both captured task rows.');
+    }
+
+    expect(firstRow.nextElementSibling).toBe(secondRow);
+    expect(within(firstRow).getByText('Admin - Safely held')).toBeTruthy();
+    expect(within(firstRow).getByText('Minimum: Open the form')).toBeTruthy();
+    expect(within(secondRow).getByText('Work - Safely held')).toBeTruthy();
+    expect(within(secondRow).getByText('Minimum: Find the saved draft')).toBeTruthy();
+
+    for (const row of [firstRow, secondRow]) {
+      expect(within(row).getByRole('button', { name: 'Add to Today' })).toBeTruthy();
+      expect(within(row).getByRole('button', { name: 'Find soft window' })).toBeTruthy();
+    }
+
+    const firstSummary = within(firstRow).getByText('Other choices');
+    const secondSummary = within(secondRow).getByText('Other choices');
+    const firstDisclosure = firstSummary.closest('details');
+    const secondDisclosure = secondSummary.closest('details');
+
+    if (!firstDisclosure || !secondDisclosure) {
+      throw new Error('Expected an Other choices disclosure for each task.');
+    }
+
+    expect(firstDisclosure.open).toBe(false);
+    expect(secondDisclosure.open).toBe(false);
+    expect(firstSummary.tagName).toBe('SUMMARY');
+    expect(secondSummary.tagName).toBe('SUMMARY');
+    expect(Array.from(firstDisclosure.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
+      'Bring back later',
+      'No longer needed',
+    ]);
+    expect(Array.from(secondDisclosure.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
+      'Bring back later',
+      'No longer needed',
+    ]);
+
+    await user.click(firstSummary);
+
+    expect(firstDisclosure.open).toBe(true);
+    expect(secondDisclosure.open).toBe(false);
+    expect(Array.from(firstDisclosure.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
+      'Bring back later',
+      'No longer needed',
+    ]);
+
+    await user.click(secondSummary);
+
+    expect(firstDisclosure.open).toBe(true);
+    expect(secondDisclosure.open).toBe(true);
+    expect(Array.from(secondDisclosure.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
+      'Bring back later',
+      'No longer needed',
+    ]);
   });
 
   it('marks a task pool item no longer needed without deleting or touching other data', async () => {
@@ -261,10 +338,11 @@ describe('Pool screen', () => {
 
       render(<PoolScreen />);
 
-      const taskPoolSection = sectionForHeading('Task Pool');
+      const taskPoolSection = sectionForHeading('Captured tasks');
 
       expect(await within(taskPoolSection).findByText('Captured form task')).toBeTruthy();
 
+      await user.click(within(taskPoolSection).getByText('Other choices'));
       await user.click(within(taskPoolSection).getByRole('button', { name: 'No longer needed' }));
 
       expect(await screen.findByText('Marked no longer needed. Nothing else changed.')).toBeTruthy();
@@ -306,7 +384,7 @@ describe('Pool screen', () => {
 
     render(<PoolScreen />);
 
-    const taskPoolSection = sectionForHeading('Task Pool');
+    const taskPoolSection = sectionForHeading('Captured tasks');
 
     expect(await within(taskPoolSection).findByText('Captured form task')).toBeTruthy();
 

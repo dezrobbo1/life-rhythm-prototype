@@ -232,7 +232,6 @@ export function PersonalPlanScreen({
       <ScreenHero
         className="plan-hero"
         eyebrow="Your day shape"
-        icon="plan"
         tagline="Plan with the time you marked as protected, loose, or open."
         title="Plan"
         titleId="plan-title"

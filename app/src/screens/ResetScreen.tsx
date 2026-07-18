@@ -197,7 +197,6 @@ export function ResetScreen({
       <ScreenHero
         className="reset-hero"
         eyebrow="Re-entry surface"
-        icon="reset"
         tagline={resetViewModel.headline}
         title="Reset"
         titleId="reset-title"

@@ -628,7 +628,6 @@ export function TodayScreen() {
       <ScreenHero
         className="today-hero"
         eyebrow={todayLabel}
-        icon="today"
         tagline="One useful next action. The rest can stay light."
         title="Today"
         titleId="today-title"

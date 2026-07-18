@@ -38,10 +38,10 @@ describe('personal task lifecycle flow', () => {
     await user.type(screen.getByLabelText('Minimum version'), 'Open the form');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
-    const taskPool = screen.getByRole('heading', { name: 'Task Pool' }).closest('section');
+    const taskPool = screen.getByRole('heading', { name: 'Captured tasks' }).closest('section');
 
     if (!taskPool) {
-      throw new Error('Task Pool section was not found.');
+      throw new Error('Captured tasks section was not found.');
     }
 
     expect(await within(taskPool).findByText('Send school form')).toBeTruthy();

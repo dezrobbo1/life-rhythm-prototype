@@ -1,9 +1,10 @@
 # Life Rhythm Documentation Authority
 
 Status: Current repository documentation map
-Date: 2026-07-17
-Current branch: `main`
-Current code baseline commit: `553b83f`
+Date: 2026-07-19
+Merged baseline branch: `main`
+Merged code baseline commit: `3ae432eaa69879463fe0587aedbb313d81f0af43`
+Open review checkpoint: PR #107, branch `codex/visual-foundation-pool-soft-ledger`, commit `601a691d9dfc1dfd0c846a53384b3c599649af7b` (draft; not merged)
 
 ## Purpose
 
@@ -33,7 +34,7 @@ The root app remains live while `/app` is developed. Its older scheduling and ta
 
 ## Current `/app` product state
 
-The merged `main` branch includes the Personal Trial v1 loop through PR #105, including the bounded PR #104 soft-placement fixes and PR #105 Task Pool backup follow-up, at `553b83f`:
+The merged `main` branch includes the Personal Trial v1 loop through PR #105, including the bounded PR #104 soft-placement fixes and PR #105 Task Pool backup follow-up, plus the PR #106 repository-guidance and documentation refresh, at `3ae432eaa69879463fe0587aedbb313d81f0af43`:
 
 - four primary destinations: Today, Plan, Pool, Library;
 - Reset and Settings as secondary shell destinations;
@@ -49,7 +50,15 @@ The merged `main` branch includes the Personal Trial v1 loop through PR #105, in
 - opt-in Clerk identity shell without automatic upload or sync;
 - no automatic scheduling, calendar writes, AI writes, notifications, analytics or restore/import execution.
 
-PR #105 is merged into `main`. The bounded Task Pool export/check path, timezone-safe UTC/Perth verification and documentation reconciliation are part of the current baseline. The next work is fresh visual/product validation of the merged Pool → Plan → Today loop, followed by bounded Pool, Plan and Today hierarchy refinement.
+The open PR #107 branch checkpoint at `601a691d9dfc1dfd0c846a53384b3c599649af7b` implements, on that branch:
+
+- quiet shared in-flow page headings;
+- a compact shared header;
+- a restrained local active-navigation marker;
+- Pool as a content-led Soft Ledger / Holding Tray with ledger rows and dividers;
+- a clarified Pool action hierarchy with Add to Today primary, Find soft window secondary and independent Other choices disclosures.
+
+PR #107 remains a draft and is not part of merged `main`. Its changes are limited to visual hierarchy and action presentation: capture behaviour, action meaning and order, persistence, schemas, routes, task ordering, task lifecycle behaviour and user-confirmed placement remain unchanged. It adds no scheduling, calendar, AI, backend, sync, notification, analytics or restore/import behaviour. If PR #107 merges, the next bounded visual sequence is Plan card-soup and pill-chip reduction, then Today dominant-active-object refinement, with Library and Setup reserved for later passes.
 
 ## Canonical navigation and theme naming
 

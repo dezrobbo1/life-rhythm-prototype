@@ -11,7 +11,7 @@ Read the repository documentation map first:
 
 ## Current implementation
 
-The `/app` branch currently contains:
+The merged `/app` baseline through PR #106 currently contains:
 
 - Today, Plan, Pool and Library as the four primary destinations;
 - Reset and Settings as secondary destinations;
@@ -27,6 +27,14 @@ The `/app` branch currently contains:
 - opt-in Clerk identity shell with separate local namespaces, but no sync;
 - data-class-specific backup export and read-only validation previews.
 
+The open PR #107 branch `codex/visual-foundation-pool-soft-ledger` at checkpoint `601a691d9dfc1dfd0c846a53384b3c599649af7b` additionally implements, on that branch:
+
+- quiet shared in-flow page headings;
+- a compact shared header;
+- a restrained local active-navigation marker;
+- Pool as a content-led Soft Ledger / Holding Tray with ledger rows and dividers;
+- a clarified Pool action hierarchy with Add to Today primary, Find soft window secondary and independent Other choices disclosures.
+
 ## Current boundaries
 
 The `/app` implementation does not provide:
@@ -40,7 +48,7 @@ The `/app` implementation does not provide:
 - broad parked/not-today/rhythm-instance resurfacing;
 - external tester readiness.
 
-PR #105 is merged into `main` at `553b83f`. The bounded Task Pool backup path, timezone-safe UTC/Perth verification and documentation synchronization are part of the current baseline. The next work is fresh visual/product validation followed by bounded Pool → Plan → Today hierarchy refinement.
+`main` is at `3ae432eaa69879463fe0587aedbb313d81f0af43` after PR #106. PR #107 remains open and is not part of the merged baseline. Its branch checkpoint leaves capture behaviour, action meaning and order, persistence, schemas, routes, task ordering, task lifecycle behaviour, placement ownership and the boundaries above unchanged. If PR #107 merges, the next bounded visual work is Plan card-soup and pill-chip reduction followed by Today dominant-active-object refinement; Library and Setup remain later bounded passes.
 
 ## Commands
 
