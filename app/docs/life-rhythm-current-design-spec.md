@@ -2,9 +2,9 @@
 
 Status: Living design specification
 Scope: Product direction, current implementation state, design boundaries, source authority, and near-term roadmap
-Last consolidated after: PR #105 merge - Task Pool backup and post-merge documentation reconciliation
+Last consolidated for: PR #107 branch checkpoint - Visual Foundation Pass 1 / Soft Ledger shell and Pool
 
-Current branch note: this document describes `main` at code baseline `553b83f`. PR #103, PR #104 and PR #105 are merged into `main`; the bounded Task Pool export/check path, timezone-safe UTC/Perth verification and documentation synchronization are part of the current baseline. The next work is fresh visual/product validation.
+Current branch note: this document describes the open PR #107 branch `codex/visual-foundation-pool-soft-ledger` at checkpoint `601a691d9dfc1dfd0c846a53384b3c599649af7b`, based on `main` at `3ae432eaa69879463fe0587aedbb313d81f0af43` after PR #106. PR #107 is not merged. The branch checkpoint establishes the quiet shared shell and page-heading foundation plus Pool as the first bounded Soft Ledger / Holding Tray reference surface. If PR #107 merges, the next bounded visual sequence is Plan card-soup and pill-chip reduction, then Today dominant-active-object refinement, with Library and Setup reserved for later passes.
 
 The repository-level authority map is `docs/DOCUMENTATION_AUTHORITY.md`. It defines the distinction between the protected root 1.4.6 legacy runtime, the current `/app` architecture, source evidence, and historical contracts.
 
@@ -116,7 +116,7 @@ Corrected V3 packet order:
 9. Merge Packets 6 + 14
 10. Refresh Packet 10
 
-## 4. Current Implementation State After PR #105 Merge
+## 4. Current Implementation State at the PR #107 Branch Checkpoint
 
 The app has a real local-first foundation. It is no longer a static prototype shell.
 
@@ -201,14 +201,18 @@ Implemented:
 - semantic visual theme tokens
 - low-level surface class primitives
 - research source governance docs
-
-Partially implemented:
-
-- Pool ledger-row / Holding Tray visual implementation: Pool now exists as a first-class destination and uses the shared Pool panel, but the full Soft Ledger / Holding Tray visual treatment still needs refinement.
+- quiet shared in-flow page headings without the previous marketing-style hero cards or icon tiles on the PR #107 branch
+- compact shared header treatment on the PR #107 branch
+- restrained local active-navigation marker and flat Settings active treatment on the PR #107 branch
+- content-led Pool Holding Tray treatment with ruled ledger rows, aligned metadata and an integrated empty row on the PR #107 branch
+- clarified Pool action hierarchy with Add to Today primary, Find soft window secondary and independent Other choices disclosures on the PR #107 branch
 
 Not implemented yet:
 
-- broad card-soup / pill-chip reduction across Plan and other screens
+- Plan card-soup and pill-chip reduction
+- Today dominant-active-object refinement
+- later bounded Library visual refinement
+- later bounded Setup visual refinement
 - repeating rhythm instances
 - broader resurfacing for parked, not-today, and rhythm-instance tasks
 - missed-task detection
@@ -232,9 +236,9 @@ Current practical status:
 - A basic personal manual trial can exercise local settings, Library rhythms, active Today tasks, one-off time edges, protected time, Day Shape preview, Re-entry review, Task Pool capture, deferred holding, Pool-based soft suggestions, user-confirmed open-capacity soft placements, Task Pool and soft placement backups, Reset relief-valve actions, and opt-in signed-in local profiles.
 - Task pool capture exists in the Pool/shared Pool panel, and captured ad hoc tasks can be safely held outside Today.
 - Pool can show captured, parked, not-today, deferred and ready-to-revisit items. Held tasks are not automatically scheduled or added to Today.
-- The current UI still has known generic AI-coded / SaaS / card-soup risks. Visual contracts exist, but they are not fully implemented.
-- A meaningful test of the full intended soft scheduling product should wait until repeating rhythm instances, broader calm resurfacing, the Pool Holding Tray visual refinement, and backup confidence for all intended data classes are stronger.
-- External tester readiness should wait until onboarding, backup confidence, Clerk invite-only/public-signup configuration, and visual/object-grammar alignment are stronger; first-class Pool navigation is no longer the missing blocker.
+- The PR #107 branch removes the shared hero-card/icon-tile treatment and establishes Pool as a bounded Soft Ledger / Holding Tray reference surface. Plan still has card-soup and pill-chip risk, Today still needs a dominant-active-object pass, and Library and Setup remain later bounded visual passes.
+- A meaningful test of the full intended soft scheduling product should wait until repeating rhythm instances, broader calm resurfacing, the remaining Plan and Today hierarchy work, and backup confidence for all intended data classes are stronger.
+- External tester readiness should wait until onboarding, backup confidence, Clerk invite-only/public-signup configuration, and the remaining visual/object-grammar alignment are stronger; first-class Pool navigation and the approved PR #107 branch treatment are no longer the missing blockers.
 
 ## 5. PR Milestone Snapshot
 
@@ -301,8 +305,10 @@ Recent key milestones:
 - PR #103: Personal Trial v1 loop consolidation and Pool-to-Plan soft-placement flow
 - PR #104 merged: preserve deferred state, safely re-use removed placements, and retain saved placement dates when opening Plan
 - PR #105 merged: add Task Pool backup export/read-only validation, timezone-safe fixture reconciliation, and documentation authority consolidation
+- PR #106 merged: add repository-level Codex guidance and refresh current-status documentation
+- PR #107 open draft branch checkpoint at `601a691d9dfc1dfd0c846a53384b3c599649af7b`: establish Visual Foundation Pass 1 with quiet shared headings/header/navigation and Pool as a Soft Ledger / Holding Tray reference surface
 
-The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then bounded soft suggestions and user-confirmed placement. The next stage should reduce visual/product-object drift, close backup disclosure gaps, and validate the current loop before adding repeating rhythm instances or broader resurfacing.
+The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then bounded soft suggestions and user-confirmed placement. After the PR #107 branch checkpoint, the next visual stage is bounded Plan card/pill reduction followed by Today dominant-object refinement, with Library and Setup later, before repeating rhythm instances or broader resurfacing widen the product surface.
 
 ## 6. Data and Write Boundaries
 
@@ -493,7 +499,7 @@ Current implemented behaviour:
 - Task Pool Dexie table exists.
 - Pool is a first-class top-level destination in the primary Today / Plan / Pool / Library shell.
 - Captured ad hoc tasks can be saved locally.
-- Pool/shared Pool panel shows a basic task pool list.
+- Pool/shared Pool panel uses a content-led Holding Tray with grouped ledger rows, ruled divisions and aligned metadata on the PR #107 branch.
 - Task Pool UI has moved out of Plan into Pool/shared Pool panel.
 - Visible Inbox wording has been removed from the app UI.
 - Captured tasks do not enter Today.
@@ -501,11 +507,12 @@ Current implemented behaviour:
 - No scheduler writes occur from capture.
 - No calendar writes occur from capture.
 - No longer needed marks an item quiet without deleting it.
+- Add to Today remains the primary Pool action, Find soft window remains visible and secondary, and Bring back later / No longer needed remain in that order inside an independent Other choices disclosure on the PR #107 branch.
 
 Future intended behaviour:
 
 - Held items should feel safely held, not backlogged, queued, late, or owed.
-- Pool should continue moving toward ledger rows and holding-tray grouping, not card soup.
+- Pool should preserve the implemented ledger rows and holding-tray grouping as future held states are added, not regress to card soup.
 - Pool should not show red counts, overdue counts, guilt totals, inbox-zero pressure, or backlog language.
 - No-longer-needed items should be quiet/collapsed, not a failure list.
 
@@ -695,7 +702,7 @@ The interface must not feel like:
 
 Known current UI risk:
 
-The app still contains card soup, pill-chip overload, boxed panels, generic icon badges, and equal-weight surfaces. The primary shell has moved to Today / Plan / Pool / Library, but the runtime UI is still only partially aligned with the Soft Ledger / Holding Tray object grammar.
+The PR #107 branch aligns the shared shell/page-heading treatment and Pool with the first bounded Soft Ledger / Holding Tray implementation. Plan still contains card-soup and pill-chip risk, Today still needs one dominant active object, and Library and Setup remain later bounded passes. The runtime is therefore still only partially aligned with the full object grammar.
 
 Current visual contracts:
 
@@ -713,11 +720,11 @@ Current token foundation:
 
 Near-term visual implementation priority:
 
-1. Refine Pool toward the Holding Tray / ledger-row visual direction.
-2. Reduce card wrapping and decorative pill-chip metadata across Plan and other non-dominant screens.
-3. Refine Today around one dominant active object with quiet exits.
-4. Validate the current Pool soft-window flow and improve broader re-entry/resurfacing after the visual/product-object drift is reduced.
-5. Preserve plain labels, no badges, no counters, no urgency states.
+1. Reduce Plan card soup and decorative pill-chip metadata so Plan does not feel like a dashboard.
+2. Refine Today around one dominant active object with quiet exits.
+3. Complete a later bounded Library visual pass.
+4. Complete a later bounded Setup visual pass.
+5. Preserve plain labels, no badges, no counters, no urgency states throughout those passes.
 
 Visual PRs must not introduce:
 
@@ -840,17 +847,16 @@ It is not yet sufficient to test the full intended soft scheduling loop because 
 
 Meaningful full-product trial should wait for:
 
-- Pool Holding Tray / ledger-row visual refinement
+- PR #107 to merge before its approved shell and Pool branch checkpoint is treated as the `main` baseline
 - Plan card/pill reduction
 - Today dominant-object refinement
-- a fresh post-merge walkthrough of Pool → Plan on `main`
-- timezone-safe date-sensitive tests passing in both UTC and local Perth time
+- later bounded Library and Setup visual passes
 - broader resurfacing for parked, not today, and rhythm-instance tasks
 - repeating rhythm instance suggestions
 - deadline and usefulness salience
 - backup support for rhythm instances
 - Clerk invite-only/public-signup operational verification if auth is enabled
-- one visual/object-grammar pass to reduce generic card/pill/dashboard UI
+- the remaining bounded visual/object-grammar passes to reduce generic card/pill/dashboard UI
 
 That is the point where Life Rhythm can test the full capture-hold-suggest-re-enter loop.
 
@@ -862,8 +868,8 @@ External tester trial should wait until:
 - onboarding is clearer
 - backup/export is trustworthy
 - auth/privacy boundary exists and Clerk invite-only/public-signup settings are operationally verified
-- Pool Holding Tray visual treatment and Task Pool language are stable
-- visual polish is closer to the Soft Ledger / Holding Tray direction
+- completion of the PR #107 merge before its Pool treatment is treated as the `main` baseline
+- the remaining Plan, Today, Library and Setup visual passes are stable enough for external use
 - at least one personal trial has been completed
 - language has had a non-clinical safety pass
 
@@ -920,11 +926,12 @@ Completed foundation:
 - Visual token foundation
 - Research source governance docs
 - Task Pool backup export and read-only validation with saved status and deferral metadata
-- UTC/Perth verification and documentation reconciliation through PR #105
+- UTC/Perth verification and documentation reconciliation through PR #106 on merged `main`
+- PR #107 branch checkpoint for Visual Foundation Pass 1 / Soft Ledger shell and Pool at `601a691d9dfc1dfd0c846a53384b3c599649af7b` (open draft; not merged)
 
 Current next implementation priority:
 
-> Perform a fresh manual visual/product validation of the merged Pool → Plan → Today loop, then refine Pool, Plan and Today visual hierarchy before adding repeating rhythm instances.
+> When PR #107 merges, reduce Plan card soup and pill-chip overload first, then refine Today around one dominant active object. Keep Library and Setup as later bounded visual passes.
 
 Purpose:
 
@@ -932,10 +939,10 @@ Reduce generic AI-coded / SaaS / dashboard UI risk and align the app with the So
 
 Next recommended sequence:
 
-1. Complete a fresh desktop, narrow/mobile and keyboard walkthrough of Pool → suggestion → Plan placement → Today movement, recording concrete visual and interaction findings.
-2. Refine Pool toward the Holding Tray / ledger-row visual direction.
-3. Reduce Plan card soup and pill-chip overload enough that Plan does not feel like a dashboard.
-4. Refine Today around one dominant active object with quiet secondary exits.
+1. Reduce Plan card soup and pill-chip overload enough that Plan does not feel like a dashboard.
+2. Refine Today around one dominant active object with quiet secondary exits.
+3. Complete a later bounded Library visual pass.
+4. Complete a later bounded Setup visual pass.
 5. Repeating rhythm instance contract.
 6. Repeating rhythm instance suggestions without backlog or streak debt.
 7. Broader re-entry resurfacing for parked, not-today, and rhythm-instance tasks.
@@ -952,7 +959,6 @@ Cloud sync remains intentionally unimplemented.
 
 Open product and implementation decisions:
 
-- What Holding Tray row treatment best signals safely held without backlog pressure?
 - What secondary Settings/Reset affordance is calmest after removal from primary navigation?
 - How much card/pill reduction is required before a meaningful personal product trial?
 - How should repeating rhythm instances be generated without backlog or streak debt?
