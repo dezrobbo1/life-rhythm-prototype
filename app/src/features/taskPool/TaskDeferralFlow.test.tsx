@@ -38,10 +38,11 @@ describe('personal task deferral and resurfacing', () => {
     await user.type(screen.getByLabelText('Minimum version'), 'Open the form');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
-    const taskPool = screen.getByRole('heading', { name: 'Task Pool' }).closest('section');
-    if (!taskPool) throw new Error('Task Pool section was not found.');
+    const taskPool = screen.getByRole('heading', { name: 'Captured tasks' }).closest('section');
+    if (!taskPool) throw new Error('Captured tasks section was not found.');
 
     expect(await within(taskPool).findByText('Send school form')).toBeTruthy();
+    await user.click(within(taskPool).getByText('Other choices'));
     await user.click(within(taskPool).getByRole('button', { name: 'Bring back later' }));
 
     expect(await screen.findByRole('heading', { name: 'Bring back later' })).toBeTruthy();

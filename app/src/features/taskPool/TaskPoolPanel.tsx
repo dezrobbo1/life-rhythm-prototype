@@ -350,10 +350,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
     <section className="task-pool task-pool--holding-tray" aria-labelledby="task-pool-title">
       <div className="task-pool__header">
         <div>
-          <p className="section-label">Holding Tray</p>
-          <h2 id="task-pool-title">Task Pool</h2>
-          <p>Captured tasks are safely held here before they become Today actions or soft suggestions.</p>
-          <p>No schedule created.</p>
+          <h2 id="task-pool-title">Captured tasks</h2>
         </div>
         <Button onClick={() => setTaskPoolCaptureOpen(true)} variant="primary">Capture task</Button>
       </div>
@@ -376,13 +373,13 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
 
                   return (
                     <li key={item.id}>
-                      <div>
+                      <div className="task-pool__item-summary">
                         <strong>{item.title}</strong>
                         <span>{taskPoolAreaLabels[item.area]} - {statusLabel(item, clockMs)}</span>
                       </div>
-                      <p>Minimum: {item.minimum.label}</p>
+                      <p className="task-pool__item-detail">Minimum: {item.minimum.label}</p>
                       {usefulWindowLines.map((line) => (
-                        <p key={line}>{line}</p>
+                        <p className="task-pool__item-detail" key={line}>{line}</p>
                       ))}
                       <div className="task-pool__item-actions">
                         <Button
@@ -405,22 +402,27 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
                             {softWindowLabel(item)}
                           </Button>
                         ) : null}
-                        {item.status !== 'softPlaced' ? (
-                          <Button
-                            className="task-pool__defer-action"
-                            disabled={busy}
-                            onClick={() => setDeferItem(item)}
-                          >
-                            {deferring ? 'Holding for later' : deferralLabel(item)}
-                          </Button>
-                        ) : null}
-                        <Button
-                          className="task-pool__item-action"
-                          disabled={busy}
-                          onClick={() => void markCapturedTaskNoLongerNeeded(item)}
-                        >
-                          {marking ? 'Marking item' : 'No longer needed'}
-                        </Button>
+                        <details className="task-pool__other-choices">
+                          <summary>Other choices</summary>
+                          <div className="task-pool__other-actions">
+                            {item.status !== 'softPlaced' ? (
+                              <Button
+                                className="task-pool__defer-action"
+                                disabled={busy}
+                                onClick={() => setDeferItem(item)}
+                              >
+                                {deferring ? 'Holding for later' : deferralLabel(item)}
+                              </Button>
+                            ) : null}
+                            <Button
+                              className="task-pool__item-action"
+                              disabled={busy}
+                              onClick={() => void markCapturedTaskNoLongerNeeded(item)}
+                            >
+                              {marking ? 'Marking item' : 'No longer needed'}
+                            </Button>
+                          </div>
+                        </details>
                       </div>
                     </li>
                   );

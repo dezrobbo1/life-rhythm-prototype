@@ -25,27 +25,33 @@ describe('primary app shell navigation', () => {
     expect(document.querySelectorAll('.bottom-nav__icon')).toHaveLength(4);
     expect(document.querySelectorAll('.bottom-nav__icon .app-icon')).toHaveLength(4);
 
+    const todayNavButton = within(nav).getByRole('button', { name: 'Today' });
+    const planNavButton = within(nav).getByRole('button', { name: 'Plan' });
+    const poolNavButton = within(nav).getByRole('button', { name: 'Pool' });
+    const libraryNavButton = within(nav).getByRole('button', { name: 'Library' });
+
+    expect(todayNavButton.getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Choose rhythms to turn on' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Add one-off' })).toBeTruthy();
     expect(screen.queryByText("Set tomorrow's first step")).toBeNull();
-    expect(document.querySelector('.today-hero .screen-hero__mark')).toBeTruthy();
 
-    await user.click(within(nav).getByRole('button', { name: 'Plan' }));
+    await user.click(planNavButton);
+    expect(planNavButton.getAttribute('aria-current')).toBe('page');
+    expect(todayNavButton.getAttribute('aria-current')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Plan' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Day Shape' })).toBeTruthy();
     expect(screen.queryByLabelText('Broad day blocks')).toBeNull();
-    expect(document.querySelector('.plan-hero .screen-hero__mark')).toBeTruthy();
 
-    await user.click(within(nav).getByRole('button', { name: 'Pool' }));
+    await user.click(poolNavButton);
+    expect(poolNavButton.getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('heading', { name: 'Pool' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Task Pool' })).toBeTruthy();
-    expect(document.querySelector('.pool-hero .screen-hero__mark')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Captured tasks' })).toBeTruthy();
 
-    await user.click(within(nav).getByRole('button', { name: 'Library' }));
+    await user.click(libraryNavButton);
+    expect(libraryNavButton.getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('heading', { name: 'Library' })).toBeTruthy();
     expect(screen.getByLabelText('Search rhythms')).toBeTruthy();
-    expect(document.querySelector('.library-hero .screen-hero__mark')).toBeTruthy();
     expect(document.querySelector('.library-card__icon .app-icon')).toBeTruthy();
 
     const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
@@ -55,15 +61,15 @@ describe('primary app shell navigation', () => {
     expect(within(secondaryNav).getByRole('button', { name: 'Example day' })).toBeTruthy();
 
     await user.click(within(secondaryNav).getByRole('button', { name: 'Reset' }));
+    expect(within(secondaryNav).getByRole('button', { name: 'Reset' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Daily reset actions' })).toBeTruthy();
-    expect(document.querySelector('.reset-hero .screen-hero__mark')).toBeTruthy();
     expect(document.querySelector('.reset-card__icon .app-icon')).toBeTruthy();
 
     await user.click(within(secondaryNav).getByRole('button', { name: 'Settings' }));
+    expect(within(secondaryNav).getByRole('button', { name: 'Settings' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Start Boost safety' })).toBeTruthy();
-    expect(document.querySelector('.setup-hero .screen-hero__mark')).toBeTruthy();
     expect(document.querySelector('.app-shell')).toBeTruthy();
     expect(document.querySelector('.app-main')).toBeTruthy();
     expect(document.querySelector('.bottom-nav')).toBe(nav);

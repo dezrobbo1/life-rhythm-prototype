@@ -267,7 +267,6 @@ export function PlanScreen() {
       <ScreenHero
         className="plan-hero"
         eyebrow="Soft rhythm scaffold"
-        icon="plan"
         tagline="Plan the shape of your day, not every minute."
         title="Plan"
         titleId="plan-title"

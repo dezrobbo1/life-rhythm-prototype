@@ -419,7 +419,6 @@ export function SetupScreen({
       <ScreenHero
         className="setup-hero"
         eyebrow="Local settings"
-        icon="setup"
         tagline="Adjust the app without changing your whole day."
         title="Setup"
         titleId="setup-title"

@@ -430,7 +430,6 @@ export function LibraryScreen() {
       <ScreenHero
         className="library-hero"
         eyebrow="Rhythm catalogue"
-        icon="library"
         tagline="Turn on rhythms when they are useful. Today only shows what fits."
         title="Library"
         titleId="library-title"
