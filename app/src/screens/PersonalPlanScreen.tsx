@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Card, ScreenHero } from '../components';
+import { Button, ScreenHero } from '../components';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import { loadSoftPlacementsForDate } from '../data/softPlacementRepository';
 import { loadTaskPoolItems } from '../data/taskPoolRepository';
@@ -231,20 +231,20 @@ export function PersonalPlanScreen({
     <div className="screen-stack plan-screen personal-plan-screen">
       <ScreenHero
         className="plan-hero"
-        eyebrow="Your day shape"
         tagline="Plan with the time you marked as protected, loose, or open."
         title="Plan"
         titleId="plan-title"
       />
 
-      <Card>
-        <section className="day-shape-preview" aria-labelledby="personal-day-shape-title">
+      <section
+        className="day-shape-preview plan-section plan-section--day-shape"
+        aria-labelledby="personal-day-shape-title"
+      >
           <div className="day-shape-preview__header">
             <div>
               <p className="section-label">Planning boundaries</p>
               <h2 id="personal-day-shape-title">Day Shape</h2>
-              <p>{dayShapePreview.intro}</p>
-              <p>{dayShapePreview.boundaryCopy}</p>
+              <p>{dayShapePreview.intro} {dayShapePreview.boundaryCopy}</p>
             </div>
             <label className="day-shape-preview__select">
               <span>Selected day</span>
@@ -268,7 +268,7 @@ export function PersonalPlanScreen({
             <div className="day-shape-preview__groups">
               {dayShapePreview.groups.map((group) => (
                 <section
-                  className="day-shape-preview__group"
+                  className={`day-shape-preview__group day-shape-preview__group--${group.id}`}
                   key={group.id}
                   aria-labelledby={`personal-day-shape-${group.id}`}
                 >
@@ -280,13 +280,15 @@ export function PersonalPlanScreen({
                     <ul>
                       {group.blocks.map((block) => (
                         <li key={block.id}>
-                          <div>
+                          <div className="day-shape-preview__block-main">
                             <strong>{block.label}</strong>
                             <span>{block.typeLabel}</span>
                           </div>
-                          <p>{block.timeRange}</p>
-                          <p>{block.schedulerUseMeaning}</p>
-                          {block.notes ? <p className="day-shape-preview__notes">{block.notes}</p> : null}
+                          <div className="day-shape-preview__block-context">
+                            <p className="day-shape-preview__time">{block.timeRange}</p>
+                            <p>{block.schedulerUseMeaning}</p>
+                            {block.notes ? <p className="day-shape-preview__notes">{block.notes}</p> : null}
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -305,30 +307,37 @@ export function PersonalPlanScreen({
               <p>Add protected, loose, ask-first, or open-capacity blocks in Settings when useful.</p>
             </div>
           )}
-        </section>
-      </Card>
+      </section>
 
-      <Card>
-        <section className="soft-suggestions" aria-labelledby="personal-soft-suggestions-title">
+      <section
+        className="soft-suggestions plan-section plan-section--suggestions"
+        aria-labelledby="personal-soft-suggestions-title"
+      >
           <div className="soft-suggestions__header">
             <p className="section-label">User-confirmed possibilities</p>
             <h2 id="personal-soft-suggestions-title">Soft suggestions</h2>
-            <p>Suggestions only. Nothing is placed unless you choose it.</p>
-            <p>Only blocks you marked as open capacity are considered.</p>
-            {preferredTask ? <p>Showing {preferredTask.title} first because you chose it in Pool.</p> : null}
+            <div className="plan-section__guidance">
+              <p>Suggestions use only blocks you marked as open capacity; nothing is placed or scheduled unless you choose it.</p>
+              {preferredTask ? (
+                <p className="plan-section__context">
+                  Showing {preferredTask.title} first because you chose it in Pool.
+                </p>
+              ) : null}
+            </div>
           </div>
 
           {poolSoftSuggestions.suggestions.length > 0 ? (
             <ul className="soft-suggestions__list">
               {poolSoftSuggestions.suggestions.map((suggestion) => (
                 <li key={suggestion.id}>
-                  <div>
-                    <strong>{suggestion.taskTitle}</strong>
-                    <span>{suggestion.blockLabel} · {suggestion.blockTimeRange}</span>
+                  <div className="soft-suggestions__item-copy">
+                    <div>
+                      <strong>{suggestion.taskTitle}</strong>
+                      <span>{suggestion.blockLabel} · {suggestion.blockTimeRange}</span>
+                    </div>
+                    <p>Minimum: {suggestion.minimumLabel} · {suggestion.minimumMinutes} min</p>
+                    <p>{suggestion.reason}</p>
                   </div>
-                  <p>Minimum: {suggestion.minimumLabel} · {suggestion.minimumMinutes} min</p>
-                  <p>{suggestion.reason}</p>
-                  <p>{suggestion.boundaryCopy}</p>
                   <Button
                     className="soft-suggestions__placement-action"
                     disabled={placingSuggestionId === suggestion.id}
@@ -361,26 +370,31 @@ export function PersonalPlanScreen({
               </ul>
             </div>
           ) : null}
-        </section>
-      </Card>
+      </section>
 
-      <Card>
-        <section className="soft-placements" aria-labelledby="personal-soft-placements-title">
+      <section
+        className="soft-placements plan-section plan-section--placements"
+        aria-labelledby="personal-soft-placements-title"
+      >
           <div className="soft-placements__header">
             <p className="section-label">Local placement notes</p>
             <h2 id="personal-soft-placements-title">Soft placements</h2>
-            <p>Nothing is placed automatically. A soft placement is local and is not a calendar event.</p>
+            <div className="plan-section__guidance">
+              <p>Nothing is placed automatically; confirmed soft placements stay local and do not create calendar events.</p>
+            </div>
           </div>
 
           {visibleSoftPlacements.length > 0 ? (
             <ul className="soft-placements__list">
               {visibleSoftPlacements.map((placement) => (
                 <li key={placement.id}>
-                  <div>
-                    <strong>{placement.taskTitleSnapshot}</strong>
-                    <span>{placement.blockLabelSnapshot} · {placement.start}-{placement.end}</span>
+                  <div className="soft-placements__item-copy">
+                    <div>
+                      <strong>{placement.taskTitleSnapshot}</strong>
+                      <span>{placement.blockLabelSnapshot} · {placement.start}-{placement.end}</span>
+                    </div>
+                    <p>{softPlacementStatusLabels[placement.status]}</p>
                   </div>
-                  <p>{softPlacementStatusLabels[placement.status]}</p>
                   <Button
                     className="soft-placements__remove-action"
                     disabled={removingPlacementId === placement.id}
@@ -394,7 +408,6 @@ export function PersonalPlanScreen({
           ) : (
             <div className="soft-placements__empty">
               <h3>No saved soft placements for {dayShapePreview.selectedDay}.</h3>
-              <p>Blank time stays blank until you explicitly confirm a placement.</p>
             </div>
           )}
 
@@ -405,8 +418,7 @@ export function PersonalPlanScreen({
               ))}
             </div>
           ) : null}
-        </section>
-      </Card>
+      </section>
     </div>
   );
 }
