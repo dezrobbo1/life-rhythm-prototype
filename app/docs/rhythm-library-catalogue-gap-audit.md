@@ -1,6 +1,6 @@
 # Rhythm Library Catalogue Gap Audit
 
-Status: Draft product/catalogue audit for review; not a runtime contract or implementation-status authority
+Status: Reviewed catalogue gap audit; approved as product-planning input, not a runtime contract or implementation-status authority
 
 Scope: Comparison of the current React Library catalogue and packs with the protected root 1.4.6 legacy catalogue, followed by bounded recommendations for a future recurring-rhythm catalogue
 
@@ -14,6 +14,8 @@ Sources inspected:
 - current React Library composition and actions;
 - current rhythm template schema;
 - protected root `index.html` standard catalogue and packs.
+
+The classifications and recommended pack direction in this reviewed audit are approved product-planning input. Exact final catalogue entries, taxonomy, defaults, recurrence values, and pack membership remain subject to the unresolved decisions in Section 14. Implementation must follow the approved rhythm recurrence and instance contract.
 
 The protected root runtime is historical product evidence only. Its data model, scheduler, enablement behavior, packs, and copy are not authority for `/app` and must not be copied blindly.
 
@@ -29,7 +31,7 @@ Each legacy idea is classified as one of:
 - **Contextual support rather than task** — useful in a state, transition, or Start Boost flow rather than as a recurrence.
 - **Unsuitable or out of scope** — should not enter the recurring catalogue without a separate product/boundary decision.
 
-Classification is not an implementation instruction. Candidate titles, defaults, copy, and evidence still require product review.
+Classification is not an implementation instruction. Exact final catalogue entries, taxonomy, defaults, recurrence values, pack membership, and copy remain subject to the unresolved decisions in Section 14 and separately reviewed implementation.
 
 ## 3. Current React Catalogue
 
@@ -94,7 +96,7 @@ The current Personal Trial presentation makes Library look more one-off than its
 - `Add to Today now` is therefore the dominant visible action on each rhythm card;
 - enablement remains component-local and session-only, and saved custom templates still reload disabled.
 
-This presentation is not fixed by the current documentation work. When persistent `RhythmPlan` support is approved and implemented, Library presentation must make the reusable recurring action primary and keep Add to Today once as the secondary one-occurrence override.
+This presentation is not fixed by the current documentation work. When persistent `RhythmPlan` support is separately implemented, Library presentation must make the reusable recurring action primary and keep Add to Today once as the secondary one-occurrence override.
 
 ## 4. Current Catalogue and Taxonomy Gaps
 
@@ -274,7 +276,7 @@ Pack language must avoid challenge, streak, score, catch-up, and compliance fram
 - A rhythm template never moves into Pool.
 - A generated rhythm instance retains template and occurrence identity.
 - If held instances appear near Pool later, they require a separate group and must not become indistinguishable backlog rows.
-- Plan may show eligible rhythm-instance suggestions only after recurrence and day-profile behavior are approved.
+- Plan may show eligible rhythm-instance suggestions only after the approved recurrence and day-profile behavior is separately implemented.
 - Today may receive one occurrence after an explicit Add to Today once action or another separately approved path.
 - Packs never create a Today task pile.
 

@@ -1,10 +1,11 @@
 # Life Rhythm Documentation Authority
 
 Status: Current repository documentation map
-Date: 2026-08-09
+Date: 2026-08-11
 Merged baseline branch: `main`
 Latest application-code checkpoint: PR #109, merge commit `81f4211dd6970ce08dc63d717a570111388876be`
 Latest visual implementation checkpoint: PR #109 — Plan Soft Ledger hierarchy
+Product-contract approval checkpoint: PR #110 — day-profile/availability and rhythm recurrence/instance contracts
 
 ## Purpose
 
@@ -15,19 +16,22 @@ The current product direction is a local-first, non-clinical Life Rhythm applica
 ## Authority order
 
 1. **Current product authority** — `app/docs/life-rhythm-current-design-spec.md`
-2. **Current boundary contracts** — applicable contracts in `app/docs/`, provided they are marked current and do not contradict the current design spec. The implemented Task Pool backup boundary is documented in `app/docs/task-pool-backup-contract.md`. Drafts awaiting product approval do not authorize implementation.
+2. **Current boundary contracts** — applicable contracts in `app/docs/`, provided they are marked current or approved and do not contradict the current design spec. Current runtime contracts govern implemented behaviour; approved future product contracts authorize only separately reviewed, bounded implementation work and do not activate runtime behaviour by publication alone. The implemented Task Pool backup boundary is documented in `app/docs/task-pool-backup-contract.md`.
 3. **Evidence and UX weighting** — `docs/ux/Life_Rhythm_Design_Specification_v1_2_Evidence_Balanced.md` and the source archive. This layer supports rationale and traceability; it does not override current runtime status or navigation.
 4. **Source governance** — `app/docs/research/source-status.md`, `packet-v3-priority.md`, `research-to-mvp-map.md`, and `non-canonical-source-notes.md`.
 5. **Historical plans and pre-write contracts** — documents explicitly marked historical or superseded. These preserve rationale but must not be used as current implementation status.
 6. **Visual boards and source prototypes** — visual references only. They do not override the current object grammar, navigation, data boundaries or implementation contracts.
 
-Current draft product-definition work awaiting approval:
+Approved current product contracts governing future bounded implementation:
 
 - [`app/docs/day-profile-and-availability-contract.md`](../app/docs/day-profile-and-availability-contract.md) — future Workday/Non-workday profiles, derived boundaries and candidate-window rules; not implemented.
 - [`app/docs/rhythm-recurrence-and-instance-contract.md`](../app/docs/rhythm-recurrence-and-instance-contract.md) — future persistent rhythm plans, recurrence and stable instances; not implemented.
-- [`app/docs/rhythm-library-catalogue-gap-audit.md`](../app/docs/rhythm-library-catalogue-gap-audit.md) — catalogue/product audit only, not runtime authority or research evidence.
 
-Applicable current contracts continue to govern runtime and currently approved future boundaries while these drafts are under review. If a draft is approved, any conflicting future-facing clauses in current contracts must be reconciled explicitly; approval alone does not activate schema, migration, persistence, suggestion, placement, or surface behavior.
+Reviewed product-planning input:
+
+- [`app/docs/rhythm-library-catalogue-gap-audit.md`](../app/docs/rhythm-library-catalogue-gap-audit.md) — reviewed catalogue planning input only; it is not runtime authority, research evidence, or an implementation specification.
+
+PR #110 is the approval checkpoint for the day-profile and rhythm-recurrence product contracts. Current runtime contracts remain authoritative for implemented behaviour, and current explicit `openCapacity` behaviour remains unchanged. Contract approval does not activate schemas, migrations, persistence, profile derivation, availability inference, suggestions, placements, Today movement, calendar behaviour, or any other runtime surface. Conflicting older future-facing language must be reconciled when an affected implementation pull request is created. High-risk migrations and write paths still require separately reviewed, bounded implementation work.
 
 ## Two application generations
 
@@ -80,7 +84,7 @@ PR #109, merged through `81f4211dd6970ce08dc63d717a570111388876be`, implements:
 
 PR #109 changed presentation only. It did not change selected-day behaviour; Day Shape content or ordering; explicit `openCapacity` behaviour; suggestion, eligibility or usefulness-window logic; user-confirmed placement or placement removal/reconfirmation; persistence, repositories, schemas, statuses, routes, task ordering or task lifecycle behaviour. It added no automatic scheduling, calendar writes, AI, backend, sync, notifications, analytics or restore/import behaviour.
 
-The current product-definition priority is approval of the day-profile/availability and rhythm recurrence/instance contracts. The remaining bounded visual sequence is Today dominant-active-object refinement, then later Library and Setup passes. The full recommended sequence is maintained in `app/docs/life-rhythm-current-design-spec.md`.
+The current next bounded implementation priority is the first day-profile persistence and safe-migration foundation. The remaining bounded visual sequence is Today dominant-active-object refinement, then later Library and Setup passes. The full recommended sequence is maintained in `app/docs/life-rhythm-current-design-spec.md`.
 
 ## Canonical navigation and theme naming
 

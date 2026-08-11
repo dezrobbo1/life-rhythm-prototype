@@ -1,6 +1,6 @@
 # Rhythm Recurrence and Instance Contract
 
-Status: Draft product contract for review; no implementation is authorized by this document
+Status: Approved product contract; no runtime behaviour is implemented by this document
 
 Scope: Future persistent rhythm enablement, recurrence rules, generated rhythm instances, planning modes, missed-occurrence handling, data separation, migration, backup, and testing for the `/app` architecture
 
@@ -19,7 +19,13 @@ This contract defines:
 - future integration with Plan and Today;
 - migration and backup requirements.
 
-This is product-definition work only. It does not change schemas, repositories, Library actions, enablement, Today, Pool, Plan, backup formats, or the protected root 1.4.6 runtime.
+This approved contract defines product direction only. It does not change schemas, repositories, Library actions, enablement, Today, Pool, Plan, backup formats, or the protected root 1.4.6 runtime.
+
+### Implementation authority
+
+- The locked product direction in this contract may now be implemented through separately reviewed, bounded pull requests.
+- Unresolved decisions in Section 21 gate only the implementation scopes that depend on them.
+- Approval of this contract does not itself create schemas, repositories, plans, recurrence revisions, instances, suggestions, placements, Today tasks, or background generation.
 
 ## 2. Current and Future Boundaries
 
@@ -39,7 +45,7 @@ The existing schema fields `frequency`, `period`, `preferredDays`, `enabled`, an
 
 Current runtime behavior remains governed by [`soft-scheduling-loop-contract.md`](soft-scheduling-loop-contract.md), [`soft-scheduling-protected-time-contract.md`](soft-scheduling-protected-time-contract.md), [`navigation-redesign-contract.md`](navigation-redesign-contract.md), and the current design spec.
 
-If this draft is approved, its template/plan/instance separation replaces older future-facing language that treats rhythm instances as ordinary Task Pool items. That replacement becomes operative only with a separately approved schema, repository, migration, backup, and surface contract. It does not retroactively change current Pool ownership or authorize instance generation.
+Under this approved contract, the template/plan/instance separation replaces older future-facing language that treats rhythm instances as ordinary Task Pool items. That replacement becomes operative at runtime only through separately reviewed schema, repository, migration, backup, and surface work. It does not retroactively change current Pool ownership or authorize instance generation.
 
 ## 3. Locked Product Definitions
 
@@ -298,7 +304,7 @@ Daily, weekly, and monthly are recurrence units, not labels that can approximate
 
 ## 8. Generation and Deduplication
 
-Once the recurrence model is separately approved and activated, an enabled rhythm plan generates instances within a bounded generation horizon.
+When a separately reviewed recurrence implementation is activated, an enabled rhythm plan generates instances within a bounded generation horizon.
 
 Generation rules:
 

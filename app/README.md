@@ -11,7 +11,7 @@ Read the repository documentation map first:
 
 ## Current implementation
 
-The latest application-code checkpoint is PR #109, merged through `81f4211dd6970ce08dc63d717a570111388876be`. The current `/app` implementation contains:
+The latest application-code checkpoint remains PR #109, merged through `81f4211dd6970ce08dc63d717a570111388876be`. PR #110 is the approved product-contract checkpoint for day profiles, availability, rhythm recurrence, and rhythm instances; the catalogue gap audit is reviewed as planning input. None of that future runtime behaviour is implemented. The current `/app` implementation contains:
 
 - Today, Plan, Pool and Library as the four primary destinations;
 - Reset and Settings as secondary destinations;
@@ -54,13 +54,22 @@ The `/app` implementation does not provide:
 
 PR #109 changed presentation only. It did not change selected-day behaviour; Day Shape content or ordering; explicit `openCapacity` behaviour; suggestion, eligibility or usefulness-window logic; user-confirmed placement or placement removal/reconfirmation; persistence, repositories, schemas, statuses, routes, task ordering or task lifecycle behaviour. It added no automatic scheduling, calendar writes, AI, backend, sync, notifications, analytics or restore/import behaviour.
 
-## Proposed product-definition work — not implemented
+Until separately reviewed implementation activates an approved future model, current suggestions continue to use explicit `openCapacity` only, placements remain local and user-confirmed, nothing moves into Today automatically, no calendar writes occur, and local-first boundaries remain active.
 
-- [`docs/day-profile-and-availability-contract.md`](docs/day-profile-and-availability-contract.md)
-- [`docs/rhythm-recurrence-and-instance-contract.md`](docs/rhythm-recurrence-and-instance-contract.md)
-- [`docs/rhythm-library-catalogue-gap-audit.md`](docs/rhythm-library-catalogue-gap-audit.md)
+## Approved product direction — runtime not implemented
 
-The next product step is approval of the day-profile/availability contract followed by the rhythm recurrence/instance contract. Implementation then proceeds through safe settings migration, derived work boundaries, persistent rhythm plans, stable generated instances, Plan integration and curated Library expansion. Today remains the next bounded visual object pass after that model work; Library and Setup remain later visual passes. The canonical sequence is in the [current design spec](docs/life-rhythm-current-design-spec.md#18-current-near-term-roadmap).
+- [`docs/day-profile-and-availability-contract.md`](docs/day-profile-and-availability-contract.md) — approved product contract.
+- [`docs/rhythm-recurrence-and-instance-contract.md`](docs/rhythm-recurrence-and-instance-contract.md) — approved product contract.
+- [`docs/rhythm-library-catalogue-gap-audit.md`](docs/rhythm-library-catalogue-gap-audit.md) — reviewed product-planning input, not runtime authority.
+
+The next bounded implementation is the first day-profile persistence and safe-migration foundation:
+
+- Workday and Non-workday profile data structures;
+- weekday-to-profile assignment;
+- preservation of existing settings as compatibility context;
+- an explicit migration-review state.
+
+It does not yet add profile-derived availability, derived work-hour suggestion behaviour, removal of current explicit `openCapacity`, rhythm recurrence, rhythm instances, automatic scheduling, or calendar writes. Later work continues through reviewed settings migration and activation, derived work boundaries, persistent rhythm plans, stable generated instances, Plan integration, and curated Library expansion. Today remains the next bounded visual object pass after that model work; Library and Setup remain later visual passes. The canonical sequence is in the [current design spec](docs/life-rhythm-current-design-spec.md#18-current-near-term-roadmap).
 
 ## Commands
 

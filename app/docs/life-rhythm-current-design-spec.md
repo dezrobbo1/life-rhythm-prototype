@@ -2,9 +2,9 @@
 
 Status: Living design specification
 Scope: Product direction, current implementation state, design boundaries, source authority, and near-term roadmap
-Last consolidated for: PR #109 merge - Plan Soft Ledger checkpoint and next product-contract sequence
+Last consolidated for: PR #110 product-contract approval checkpoint and first bounded day-profile foundation
 
-Current baseline note: the latest application-code and visual implementation checkpoint is PR #109, merged through merge commit `81f4211dd6970ce08dc63d717a570111388876be`. PR #107 established the quiet shared shell and Pool Holding Tray foundation; PR #109 added the bounded Plan Soft Ledger presentation. The next product-definition work is approval of the day-profile/availability and rhythm recurrence/instance contracts. Today remains the next bounded visual object pass after that model work, with Library and Setup reserved for later visual refinement.
+Current baseline note: the latest application-code and visual implementation checkpoint remains PR #109, merged through merge commit `81f4211dd6970ce08dc63d717a570111388876be`. PR #107 established the quiet shared shell and Pool Holding Tray foundation; PR #109 added the bounded Plan Soft Ledger presentation. PR #110 is the approval checkpoint for the day-profile/availability and rhythm recurrence/instance product contracts, and the catalogue gap audit is reviewed product-planning input. None of that future runtime behaviour is implemented. The next bounded implementation priority is the first day-profile persistence and safe-migration foundation. Today remains the next bounded visual object pass after that model work, with Library and Setup reserved for later visual refinement.
 
 The repository-level authority map is `docs/DOCUMENTATION_AUTHORITY.md`. It defines the distinction between the protected root 1.4.6 legacy runtime, the current `/app` architecture, source evidence, and historical contracts.
 
@@ -65,7 +65,7 @@ The intended product spine is:
 
 > capture → hold safely → find soft window → user confirms → re-enter later if missed or deferred → respect usefulness windows.
 
-The current ad hoc capture path is the implemented entry path under this spine. A distinct recurring entry path is proposed in Section 12; it does not replace or route through the ad hoc Holding Tray path.
+The current ad hoc capture path is the implemented entry path under this spine. A distinct recurring entry path is approved future product-contract direction in Section 12 but remains unimplemented; it does not replace or route through the ad hoc Holding Tray path.
 
 The product should help users protect their life from overfilling, not simply find more gaps to consume.
 
@@ -218,6 +218,8 @@ Implemented:
 
 PR #109 changed presentation only. It did not change selected-day behaviour; Day Shape content or ordering; explicit `openCapacity` behaviour; suggestion, eligibility or usefulness-window logic; user-confirmed placement or placement removal/reconfirmation; persistence, repositories, schemas, statuses, routes, task ordering or task lifecycle behaviour. It added no automatic scheduling, calendar writes, AI, backend, sync, notifications, analytics or restore/import behaviour.
 
+PR #110 is the approval checkpoint for the day-profile and availability and rhythm recurrence and instance product contracts. The catalogue gap audit is reviewed as product-planning input. This approval is documentation-only: day profiles, derived availability, persistent recurrence, rhythm instances, migrations, new suggestions, placements, Today movement, and calendar behaviour remain unimplemented.
+
 Not implemented yet:
 
 - Today dominant-active-object refinement
@@ -253,7 +255,7 @@ Current practical status:
 - Task pool capture exists in the Pool/shared Pool panel, and captured ad hoc tasks can be safely held outside Today.
 - Pool can show captured, parked, not-today, deferred and ready-to-revisit items. Held tasks are not automatically scheduled or added to Today.
 - The merged application includes the PR #107 shared-shell/Pool foundation and the PR #109 Plan Soft Ledger presentation. Today still needs a dominant-active-object pass, and Library and Setup remain later bounded visual passes.
-- A meaningful test of the full intended soft scheduling product should wait until day-profile and recurrence contracts are approved and implemented, repeating rhythm instances exist, broader calm resurfacing is stronger, Today hierarchy is refined, and backup confidence covers the intended data classes.
+- A meaningful test of the full intended soft scheduling product should wait until the approved day-profile and recurrence models are separately implemented, repeating rhythm instances exist, broader calm resurfacing is stronger, Today hierarchy is refined, and backup confidence covers the intended data classes.
 - External tester readiness should wait until onboarding, backup confidence, Clerk invite-only/public-signup configuration, and the remaining visual/object-grammar alignment are stronger; first-class Pool navigation and the merged PR #107/#109 treatments are no longer missing blockers.
 
 ## 5. PR Milestone Snapshot
@@ -324,8 +326,9 @@ Recent key milestones:
 - PR #106 merged: add repository-level Codex guidance and refresh current-status documentation
 - PR #107 merged at `e11d6d5022a6118f96712b48ef5776d0a6acffbd`: establish Visual Foundation Pass 1 with quiet shared headings/header/navigation and Pool as a Soft Ledger / Holding Tray reference surface
 - PR #109 merged through `81f4211dd6970ce08dc63d717a570111388876be`: refine Plan with a Day Shape → Soft suggestions → Soft placements Soft Ledger hierarchy without changing behaviour
+- PR #110 is the approval checkpoint for the day-profile/availability and rhythm recurrence/instance contracts, with the catalogue gap audit reviewed as planning input; no associated runtime behaviour is implemented
 
-The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then bounded soft suggestions and user-confirmed placement. PR #107 established the shared shell and Pool visual foundation, and PR #109 completed the bounded Plan Soft Ledger checkpoint. The next stage is contract approval for day profiles, derived availability, recurrence and rhythm instances before those behaviors widen the product surface.
+The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then bounded soft suggestions and user-confirmed placement. PR #107 established the shared shell and Pool visual foundation, and PR #109 completed the bounded Plan Soft Ledger checkpoint. The next stage is the first bounded day-profile persistence and safe-migration foundation; derived availability, recurrence, and rhythm instances remain later separately reviewed implementation work.
 
 ## 6. Data and Write Boundaries
 
@@ -452,7 +455,7 @@ Core rule:
 
 Open capacity is the only block type that should be treated as potentially available by default, and even then scheduler output must remain suggestive, explainable, and user-confirmed.
 
-The proposed future product direction is described in [`day-profile-and-availability-contract.md`](day-profile-and-availability-contract.md). It replaces one mandatory global day pattern with at least Workday and Non-workday profiles, weekday assignment, optional profile-specific meal/sleep/usable-day context, derived work boundaries, and candidate windows calculated primarily by subtracting unavailable and leave-alone time from the usable-day envelope.
+The approved future product-contract direction is described in [`day-profile-and-availability-contract.md`](day-profile-and-availability-contract.md). It replaces one mandatory global day pattern with at least Workday and Non-workday profiles, weekday assignment, optional profile-specific meal/sleep/usable-day context, derived work boundaries, and candidate windows calculated primarily by subtracting unavailable and leave-alone time from the usable-day envelope.
 
 That profile model is not implemented. No schema, repository, migration, work-boundary, availability-inference, or per-date override behavior exists yet. Until a later approved implementation and migration gate, explicit `openCapacity` remains the only current addable suggestion source and all current placement behavior remains user-confirmed.
 
@@ -649,7 +652,7 @@ The intended loop is:
 
 > capture → hold safely → find soft window → user confirms → re-enter later if missed or deferred → respect usefulness windows.
 
-### Proposed future dual-entry model
+### Approved future dual-entry model — not implemented
 
 Current ad hoc path:
 
@@ -657,7 +660,7 @@ Current ad hoc path:
 
 If the user does not add it to Today, it remains safely held or can re-enter later.
 
-Proposed recurring path:
+Approved future recurring path:
 
 > turn on rhythm → generate stable instance → optionally suggest and confirm a local soft placement → separately choose Add to Today → Today
 
@@ -674,7 +677,7 @@ For both paths:
 
 Only ad hoc work begins in Task Pool. Rhythm templates stay in Library, and generated rhythm instances retain their rhythm-template, rhythm-plan, and occurrence identity. A generated instance must not be routed through Pool merely to reuse the ad hoc flow.
 
-After the recurrence model is approved and implemented, Plan, Today, and re-entry may serve both paths while preserving their different source identities. The recurring path is proposed future behavior and is not implemented by this documentation work.
+When the approved recurrence model is separately implemented, Plan, Today, and re-entry may serve both paths while preserving their different source identities. The recurring path is approved future product direction and is not implemented by this documentation work.
 
 Life Rhythm is not a rigid scheduler. Pool should safely hold ad hoc tasks without turning them into a guilt list. Future generated rhythm instances remain distinct occurrence objects with stable template identity; if they are shown near Pool later, they must be clearly separated from ad hoc Pool items. Current suggestions use explicit open capacity and bring eligible held tasks back calmly when there is a plausible window.
 
@@ -705,9 +708,9 @@ Current implemented soft-placement-adjacent behaviour:
 
 Future soft-window expansion must be explainable, user-led, and respectful of protected/loose/open capacity. Current v1 is deliberately limited to eligible Pool items, explicit `openCapacity`, one user-confirmed placement path, and no automatic Today insertion.
 
-The proposed future direction is defined by [`day-profile-and-availability-contract.md`](day-profile-and-availability-contract.md): start with a profile-specific usable-day envelope, then subtract unavailable periods, protected or leave-alone time, fixed commitments, protected meal windows, restricted work time, commute/travel, and transition buffers. Remaining intervals are only possible suggestion windows. This derivation is not implemented and does not change current explicit-`openCapacity` behavior.
+The approved future product-contract direction is defined by [`day-profile-and-availability-contract.md`](day-profile-and-availability-contract.md): start with a profile-specific usable-day envelope, then subtract unavailable periods, protected or leave-alone time, fixed commitments, protected meal windows, restricted work time, commute/travel, and transition buffers. Remaining intervals are only possible suggestion windows. This derivation is not implemented and does not change current explicit-`openCapacity` behavior.
 
-The proposed recurring-object direction is defined by [`rhythm-recurrence-and-instance-contract.md`](rhythm-recurrence-and-instance-contract.md). Library rhythms remain templates, persistent rhythm plans hold recurrence intent, and generated instances retain stable occurrence identity. None of that recurrence, enablement, generation, deduplication or Plan integration is implemented yet.
+The approved recurring-object direction is defined by [`rhythm-recurrence-and-instance-contract.md`](rhythm-recurrence-and-instance-contract.md). Library rhythms remain templates, persistent rhythm plans hold recurrence intent, and generated instances retain stable occurrence identity. None of that recurrence, enablement, generation, deduplication or Plan integration is implemented yet.
 
 The current and future soft-window logic must not:
 
@@ -988,29 +991,45 @@ Completed foundation:
 - UTC/Perth verification and documentation reconciliation through PR #106 on merged `main`
 - PR #107 merged for Visual Foundation Pass 1 / Soft Ledger shell and Pool at `e11d6d5022a6118f96712b48ef5776d0a6acffbd`
 - PR #109 Plan Soft Ledger checkpoint merged through `81f4211dd6970ce08dc63d717a570111388876be`
+- PR #110 product review completed for the day-profile/availability and rhythm recurrence/instance contracts, with the catalogue gap audit reviewed as planning input
 
-Current next product-definition priority:
+Current next bounded implementation priority:
 
-> Approve the day-profile and availability contract, then approve the rhythm recurrence and instance contract. Do not implement either model until its contract and migration boundaries are approved.
+> Implement the first day-profile persistence and safe-migration foundation.
 
 Purpose:
 
-Define the missing day, availability, recurrence and occurrence objects before widening persistence or suggestion behavior. Preserve the local-first, user-led, no-calendar-write and no-catch-up boundaries.
+Establish only the durable profile and compatibility foundation needed for later reviewed migration and activation. Preserve the local-first, user-led, explicit-`openCapacity`, no-calendar-write, no-automatic-Today, and no-catch-up boundaries.
 
-Draft product-definition documents for review:
+Approved product-definition documents:
 
-- [`day-profile-and-availability-contract.md`](day-profile-and-availability-contract.md)
-- [`rhythm-recurrence-and-instance-contract.md`](rhythm-recurrence-and-instance-contract.md)
-- [`rhythm-library-catalogue-gap-audit.md`](rhythm-library-catalogue-gap-audit.md)
+- [`day-profile-and-availability-contract.md`](day-profile-and-availability-contract.md) — approved product contract governing future bounded implementation.
+- [`rhythm-recurrence-and-instance-contract.md`](rhythm-recurrence-and-instance-contract.md) — approved product contract governing future bounded implementation.
+- [`rhythm-library-catalogue-gap-audit.md`](rhythm-library-catalogue-gap-audit.md) — reviewed product-planning input, not runtime authority or an implementation specification.
 
-These documents describe proposed future behavior. No day-profile, availability-inference, persistent-recurrence, rhythm-instance or expanded-pack behavior is implemented.
+These documents define approved future direction and planning input. No day-profile, availability-inference, persistent-recurrence, rhythm-instance, or expanded-pack behaviour is implemented.
+
+The first bounded implementation includes:
+
+- Workday and Non-workday profile data structures;
+- weekday-to-profile assignment;
+- preservation of existing settings as compatibility context;
+- an explicit migration-review state.
+
+It explicitly does not include:
+
+- profile-derived candidate availability;
+- derived work-hour suggestion behaviour;
+- removal of current explicit `openCapacity`;
+- rhythm recurrence or rhythm-instance implementation;
+- automatic scheduling or calendar writes.
 
 Next recommended sequence:
 
-1. PR #109 Plan Soft Ledger checkpoint merged.
-2. Approve day-profile and availability contract.
-3. Approve rhythm recurrence and instance contract.
-4. Implement Workday and Non-workday profiles.
+1. PR #109 Plan Soft Ledger checkpoint — completed.
+2. Day-profile and availability contract approval — completed in PR #110.
+3. Rhythm recurrence and instance contract approval — completed in PR #110.
+4. First bounded day-profile persistence and safe-migration foundation — next.
 5. Migrate safely from current global anchors.
 6. Implement derived work-hour boundaries and planning-use selection.
 7. Implement persistent rhythm enablement and recurrence.
@@ -1103,7 +1122,7 @@ Life Rhythm is currently best understood as:
 
 > A local-first ADHD-optimised rhythm and re-entry app with calm task initiation, safe ad hoc task holding, protected time, backup-safe persistence, opt-in signed-in local profiles, and user-confirmed local soft placements currently based on explicit open capacity.
 
-The proposed future product direction adds Workday/Non-workday profiles, derived candidate windows, persistent Library rhythm plans, and stable generated rhythm instances only after the new contracts, migrations, schemas, repositories, backup boundaries, and user-confirmed behavior are separately approved and implemented.
+The approved future product direction adds Workday/Non-workday profiles, derived candidate windows, persistent Library rhythm plans, and stable generated rhythm instances only through separately reviewed migrations, schemas, repositories, backup boundaries, and user-confirmed implementation work.
 
 It is not:
 

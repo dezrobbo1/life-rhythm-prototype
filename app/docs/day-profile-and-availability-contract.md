@@ -1,6 +1,6 @@
 # Day Profile and Availability Contract
 
-Status: Draft product contract for review; no implementation is authorized by this document
+Status: Approved product contract; no runtime behaviour is implemented by this document
 
 Scope: Future Workday and Non-workday profiles, profile-specific day context, derived planning boundaries, candidate-window calculation, migration, backup, and testing requirements for the `/app` architecture
 
@@ -17,7 +17,13 @@ This contract defines the product boundary for:
 - candidate windows derived primarily by subtracting unavailable and leave-alone time from a usable-day envelope;
 - safe migration from the current global Life Shape fields.
 
-This is product-definition work only. It does not change settings, schemas, persistence, suggestions, placements, Today, Pool, Library, backup formats, or the protected root 1.4.6 runtime.
+This approved contract defines product direction only. It does not change settings, schemas, persistence, suggestions, placements, Today, Pool, Library, backup formats, or the protected root 1.4.6 runtime.
+
+### Implementation authority
+
+- The locked product direction in this contract may now be implemented through separately reviewed, bounded pull requests.
+- Every unresolved decision in Section 17 must be decided before code whose correctness depends on it is written.
+- Approval of this contract does not itself activate schemas, migrations, persistence, profile derivation, availability inference, placements, or calendar behaviour.
 
 ## 2. Current and Future Boundaries
 
@@ -35,7 +41,7 @@ The future model defined here must not be activated by a schema migration alone.
 
 [`soft-scheduling-protected-time-contract.md`](soft-scheduling-protected-time-contract.md) remains authoritative for current runtime behavior: blank and loose time are not available, and explicit `openCapacity` is the only addable suggestion source.
 
-If this draft is approved, it will replace that contract's future assumption that every possible planning interval must first be explicitly opened, but only after the profile schema, migration review gate, typed boundary calculation, backup changes, and user-facing controls are separately approved and implemented. Until activation, this document does not broaden availability or supersede current behavior.
+Under this approved contract, that contract's future assumption that every possible planning interval must first be explicitly opened is replaced as product direction, but the new model becomes operative only after the profile schema, migration review gate, typed boundary calculation, backup changes, and user-facing controls are separately reviewed and implemented. Until activation, this document does not broaden availability or supersede current behavior.
 
 ## 3. Product Definitions
 
@@ -324,7 +330,7 @@ Life Rhythm must not try to consume every remaining interval.
 
 ## 10. Relationship to Current `openCapacity`
 
-Until a profile implementation is separately approved and released:
+Until a separately reviewed profile implementation is released:
 
 - current suggestions continue to use explicit `openCapacity` only;
 - current `askFirst` and unavailable behavior remains unchanged;
