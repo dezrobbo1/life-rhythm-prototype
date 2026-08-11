@@ -2,9 +2,9 @@
 
 Status: Living design specification
 Scope: Product direction, current implementation state, design boundaries, source authority, and near-term roadmap
-Last consolidated for: PR #107 merge - Visual Foundation Pass 1 / Soft Ledger shell and Pool
+Last consolidated for: PR #109 merge - Plan Soft Ledger checkpoint and next product-contract sequence
 
-Current baseline note: PR #107 is merged into `main` at `e11d6d5022a6118f96712b48ef5776d0a6acffbd`. The merged checkpoint establishes the quiet shared shell and page-heading foundation plus Pool as the first bounded Soft Ledger / Holding Tray reference surface. The current next bounded visual sequence is Plan card-soup and pill-chip reduction, then Today dominant-active-object refinement, with Library and Setup reserved for later passes.
+Current baseline note: the latest application-code and visual implementation checkpoint is PR #109, merged through merge commit `81f4211dd6970ce08dc63d717a570111388876be`. PR #107 established the quiet shared shell and Pool Holding Tray foundation; PR #109 added the bounded Plan Soft Ledger presentation. The next product-definition work is approval of the day-profile/availability and rhythm recurrence/instance contracts. Today remains the next bounded visual object pass after that model work, with Library and Setup reserved for later visual refinement.
 
 The repository-level authority map is `docs/DOCUMENTATION_AUTHORITY.md`. It defines the distinction between the protected root 1.4.6 legacy runtime, the current `/app` architecture, source evidence, and historical contracts.
 
@@ -65,6 +65,8 @@ The intended product spine is:
 
 > capture → hold safely → find soft window → user confirms → re-enter later if missed or deferred → respect usefulness windows.
 
+The current ad hoc capture path is the implemented entry path under this spine. A distinct recurring entry path is proposed in Section 12; it does not replace or route through the ad hoc Holding Tray path.
+
 The product should help users protect their life from overfilling, not simply find more gaps to consume.
 
 ## 3. Source Authority and Research Governance
@@ -116,7 +118,7 @@ Corrected V3 packet order:
 9. Merge Packets 6 + 14
 10. Refresh Packet 10
 
-## 4. Current Implementation State after PR #107
+## 4. Current Implementation State after PR #109
 
 The app has a real local-first foundation. It is no longer a static prototype shell.
 
@@ -206,14 +208,28 @@ Implemented:
 - restrained local active-navigation marker and flat Settings active treatment
 - content-led Pool Holding Tray treatment with ruled ledger rows, aligned metadata and an integrated empty row
 - clarified Pool action hierarchy with Add to Today primary, Find soft window secondary and independent Other choices disclosures
+- three equal-weight outer Plan cards removed
+- clear Day Shape → Soft suggestions → Soft placements reading order
+- Day Shape treated as the dominant connected Plan object
+- suggestions and placements presented as quieter ruled sections and rows
+- reduced Plan nested boxes, large pills, shadows and heavy empty states
+- consolidated Plan scheduling-safety guidance
+- Plan mobile, desktop, populated-state, keyboard and theme-parity visual review passed
+
+PR #109 changed presentation only. It did not change selected-day behaviour; Day Shape content or ordering; explicit `openCapacity` behaviour; suggestion, eligibility or usefulness-window logic; user-confirmed placement or placement removal/reconfirmation; persistence, repositories, schemas, statuses, routes, task ordering or task lifecycle behaviour. It added no automatic scheduling, calendar writes, AI, backend, sync, notifications, analytics or restore/import behaviour.
 
 Not implemented yet:
 
-- Plan card-soup and pill-chip reduction
 - Today dominant-active-object refinement
 - later bounded Library visual refinement
 - later bounded Setup visual refinement
+- Workday and Non-workday profiles or weekday-to-profile assignment
+- profile-specific meal, wake, sleep and usable-day context
+- profile-derived candidate availability or work-hour planning boundaries
+- persistent rhythm enablement and complete recurrence rules
 - repeating rhythm instances
+- rhythm-instance generation and deduplication
+- curated Library catalogue and pack expansion
 - broader resurfacing for parked, not-today, and rhythm-instance tasks
 - missed-task detection
 - missed status persistence
@@ -236,9 +252,9 @@ Current practical status:
 - A basic personal manual trial can exercise local settings, Library rhythms, active Today tasks, one-off time edges, protected time, Day Shape preview, Re-entry review, Task Pool capture, deferred holding, Pool-based soft suggestions, user-confirmed open-capacity soft placements, Task Pool and soft placement backups, Reset relief-valve actions, and opt-in signed-in local profiles.
 - Task pool capture exists in the Pool/shared Pool panel, and captured ad hoc tasks can be safely held outside Today.
 - Pool can show captured, parked, not-today, deferred and ready-to-revisit items. Held tasks are not automatically scheduled or added to Today.
-- Merged `main` removes the shared hero-card/icon-tile treatment and establishes Pool as a bounded Soft Ledger / Holding Tray reference surface through PR #107. Plan still has card-soup and pill-chip risk, Today still needs a dominant-active-object pass, and Library and Setup remain later bounded visual passes.
-- A meaningful test of the full intended soft scheduling product should wait until repeating rhythm instances, broader calm resurfacing, the remaining Plan and Today hierarchy work, and backup confidence for all intended data classes are stronger.
-- External tester readiness should wait until onboarding, backup confidence, Clerk invite-only/public-signup configuration, and the remaining visual/object-grammar alignment are stronger; first-class Pool navigation and the merged PR #107 treatment are no longer missing blockers.
+- The merged application includes the PR #107 shared-shell/Pool foundation and the PR #109 Plan Soft Ledger presentation. Today still needs a dominant-active-object pass, and Library and Setup remain later bounded visual passes.
+- A meaningful test of the full intended soft scheduling product should wait until day-profile and recurrence contracts are approved and implemented, repeating rhythm instances exist, broader calm resurfacing is stronger, Today hierarchy is refined, and backup confidence covers the intended data classes.
+- External tester readiness should wait until onboarding, backup confidence, Clerk invite-only/public-signup configuration, and the remaining visual/object-grammar alignment are stronger; first-class Pool navigation and the merged PR #107/#109 treatments are no longer missing blockers.
 
 ## 5. PR Milestone Snapshot
 
@@ -307,8 +323,9 @@ Recent key milestones:
 - PR #105 merged: add Task Pool backup export/read-only validation, timezone-safe fixture reconciliation, and documentation authority consolidation
 - PR #106 merged: add repository-level Codex guidance and refresh current-status documentation
 - PR #107 merged at `e11d6d5022a6118f96712b48ef5776d0a6acffbd`: establish Visual Foundation Pass 1 with quiet shared headings/header/navigation and Pool as a Soft Ledger / Holding Tray reference surface
+- PR #109 merged through `81f4211dd6970ce08dc63d717a570111388876be`: refine Plan with a Day Shape → Soft suggestions → Soft placements Soft Ledger hierarchy without changing behaviour
 
-The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then bounded soft suggestions and user-confirmed placement. After the merged PR #107 checkpoint, the next visual stage is bounded Plan card/pill reduction followed by Today dominant-object refinement, with Library and Setup later, before repeating rhythm instances or broader resurfacing widen the product surface.
+The app foundation is deliberately staged: schema and persistence first, then read-only previews, then controlled user-facing behaviour, then bounded soft suggestions and user-confirmed placement. PR #107 established the shared shell and Pool visual foundation, and PR #109 completed the bounded Plan Soft Ledger checkpoint. The next stage is contract approval for day profiles, derived availability, recurrence and rhythm instances before those behaviors widen the product surface.
 
 ## 6. Data and Write Boundaries
 
@@ -435,6 +452,10 @@ Core rule:
 
 Open capacity is the only block type that should be treated as potentially available by default, and even then scheduler output must remain suggestive, explainable, and user-confirmed.
 
+The proposed future product direction is described in [`day-profile-and-availability-contract.md`](day-profile-and-availability-contract.md). It replaces one mandatory global day pattern with at least Workday and Non-workday profiles, weekday assignment, optional profile-specific meal/sleep/usable-day context, derived work boundaries, and candidate windows calculated primarily by subtracting unavailable and leave-alone time from the usable-day envelope.
+
+That profile model is not implemented. No schema, repository, migration, work-boundary, availability-inference, or per-date override behavior exists yet. Until a later approved implementation and migration gate, explicit `openCapacity` remains the only current addable suggestion source and all current placement behavior remains user-confirmed.
+
 ## 8. Today Model
 
 Today is the main action surface. It should show one useful next action and avoid overwhelming the user.
@@ -491,7 +512,7 @@ Today rules:
 
 ## 9. Task Pool / Holding Tray Model
 
-Task Pool is the safe holding layer for captured, parked, not-today, deferred, and future missed/re-entry objects.
+Task Pool is primarily the safe holding layer for ad hoc captured, parked, not-today, deferred, and future missed/re-entry tasks.
 
 Current implemented behaviour:
 
@@ -515,6 +536,9 @@ Future intended behaviour:
 - Pool should preserve the implemented ledger rows and holding-tray grouping as future held states are added, not regress to card soup.
 - Pool should not show red counts, overdue counts, guilt totals, inbox-zero pressure, or backlog language.
 - No-longer-needed items should be quiet/collapsed, not a failure list.
+- A Library rhythm template must never move into Pool.
+- A generated rhythm instance must retain its template, rhythm-plan and occurrence identity.
+- If held rhythm instances are displayed near Pool later, they must remain visibly and semantically separate from ad hoc Pool items.
 
 Pool must not become:
 
@@ -625,7 +649,21 @@ The intended loop is:
 
 > capture → hold safely → find soft window → user confirms → re-enter later if missed or deferred → respect usefulness windows.
 
-Life Rhythm is not a rigid scheduler. It should capture ad hoc tasks and repeating rhythm instances into a safe task pool, hold parked/not-today/deferred items without turning them into a guilt list, use explicit open capacity for soft suggestions, and bring items back calmly when there is a plausible window.
+### Proposed future dual-entry model
+
+Current ad hoc path:
+
+> capture → hold safely → suggest a window → user confirms → Today / re-entry
+
+Proposed recurring path:
+
+> turn on rhythm → generate stable instance → suggest a window → user confirms → Today / re-entry
+
+Only ad hoc work begins in Task Pool. Rhythm templates stay in Library, and generated rhythm instances retain their rhythm-template and occurrence identity. A generated instance must not be routed through Pool merely to reuse the ad hoc flow.
+
+After the recurrence model is approved and implemented, Plan, Today, and re-entry may serve both paths while preserving their different source identities. The recurring path is proposed future behavior and is not implemented by this documentation work.
+
+Life Rhythm is not a rigid scheduler. Pool should safely hold ad hoc tasks without turning them into a guilt list. Future generated rhythm instances remain distinct occurrence objects with stable template identity; if they are shown near Pool later, they must be clearly separated from ad hoc Pool items. Current suggestions use explicit open capacity and bring eligible held tasks back calmly when there is a plausible window.
 
 Scheduler-owned placement is not implemented. The current implementation is a bounded, user-confirmed Pool suggestion flow rather than an automatic scheduler.
 
@@ -653,6 +691,10 @@ Current implemented soft-placement-adjacent behaviour:
 - Task Pool backup does not include settings, Today tasks, Library rhythms, soft placements, calendar data, scheduler output, or restore/import execution.
 
 Future soft-window expansion must be explainable, user-led, and respectful of protected/loose/open capacity. Current v1 is deliberately limited to eligible Pool items, explicit `openCapacity`, one user-confirmed placement path, and no automatic Today insertion.
+
+The proposed future direction is defined by [`day-profile-and-availability-contract.md`](day-profile-and-availability-contract.md): start with a profile-specific usable-day envelope, then subtract unavailable periods, protected or leave-alone time, fixed commitments, protected meal windows, restricted work time, commute/travel, and transition buffers. Remaining intervals are only possible suggestion windows. This derivation is not implemented and does not change current explicit-`openCapacity` behavior.
+
+The proposed recurring-object direction is defined by [`rhythm-recurrence-and-instance-contract.md`](rhythm-recurrence-and-instance-contract.md). Library rhythms remain templates, persistent rhythm plans hold recurrence intent, and generated instances retain stable occurrence identity. None of that recurrence, enablement, generation, deduplication or Plan integration is implemented yet.
 
 The current and future soft-window logic must not:
 
@@ -702,7 +744,7 @@ The interface must not feel like:
 
 Known current UI risk:
 
-PR #107 aligns the merged shared shell/page-heading treatment and Pool with the first bounded Soft Ledger / Holding Tray implementation. Plan still contains card-soup and pill-chip risk, Today still needs one dominant active object, and Library and Setup remain later bounded passes. The runtime is therefore still only partially aligned with the full object grammar.
+PR #107 aligns the shared shell/page-heading treatment and Pool with the first bounded Soft Ledger / Holding Tray implementation. PR #109 extends that grammar to Plan by establishing Day Shape as the dominant connected planning object and making suggestions and placements quieter ruled sections. Today still needs one dominant active object, and Library and Setup remain later bounded passes. The runtime is therefore still only partially aligned with the full object grammar.
 
 Current visual contracts:
 
@@ -718,13 +760,18 @@ Current token foundation:
 - Paper / Tide / Clay / Night token foundations exist
 - legacy theme aliases remain compatible
 
-Near-term visual implementation priority:
+Remaining bounded visual work:
 
-1. Reduce Plan card soup and decorative pill-chip metadata so Plan does not feel like a dashboard.
-2. Refine Today around one dominant active object with quiet exits.
-3. Complete a later bounded Library visual pass.
-4. Complete a later bounded Setup visual pass.
-5. Preserve plain labels, no badges, no counters, no urgency states throughout those passes.
+1. Refine Today around one dominant active object with quiet exits after the next product-model contracts and foundations.
+2. Complete a later bounded Library visual pass.
+3. Complete a later bounded Setup visual pass.
+4. Preserve plain labels, no badges, no counters, no urgency states throughout those passes.
+
+Non-blocking Plan follow-ups retained after the approved PR #109 visual review:
+
+- inherited preferred-task context can remain briefly visible after placement above the no-held-tasks state;
+- mobile empty-state copy can be reduced further during later product-model work;
+- the global keyboard-focus colour needs a separate strict contrast audit.
 
 Visual PRs must not introduce:
 
@@ -847,7 +894,8 @@ It is not yet sufficient to test the full intended soft scheduling loop because 
 
 Meaningful full-product trial should wait for:
 
-- Plan card/pill reduction
+- approved and implemented Workday/Non-workday profiles and safe migration from global anchors
+- approved and implemented persistent rhythm recurrence and generated instances
 - Today dominant-object refinement
 - later bounded Library and Setup visual passes
 - broader resurfacing for parked, not today, and rhythm-instance tasks
@@ -867,7 +915,7 @@ External tester trial should wait until:
 - onboarding is clearer
 - backup/export is trustworthy
 - auth/privacy boundary exists and Clerk invite-only/public-signup settings are operationally verified
-- the remaining Plan, Today, Library and Setup visual passes are stable enough for external use
+- the remaining Today, Library and Setup visual passes are stable enough for external use
 - at least one personal trial has been completed
 - language has had a non-clinical safety pass
 
@@ -926,30 +974,39 @@ Completed foundation:
 - Task Pool backup export and read-only validation with saved status and deferral metadata
 - UTC/Perth verification and documentation reconciliation through PR #106 on merged `main`
 - PR #107 merged for Visual Foundation Pass 1 / Soft Ledger shell and Pool at `e11d6d5022a6118f96712b48ef5776d0a6acffbd`
+- PR #109 Plan Soft Ledger checkpoint merged through `81f4211dd6970ce08dc63d717a570111388876be`
 
-Current next implementation priority:
+Current next product-definition priority:
 
-> Reduce Plan card soup and pill-chip overload first, then refine Today around one dominant active object. Keep Library and Setup as later bounded visual passes.
+> Approve the day-profile and availability contract, then approve the rhythm recurrence and instance contract. Do not implement either model until its contract and migration boundaries are approved.
 
 Purpose:
 
-Reduce generic AI-coded / SaaS / dashboard UI risk and align the app with the Soft Ledger / Holding Tray direction without widening product behaviour.
+Define the missing day, availability, recurrence and occurrence objects before widening persistence or suggestion behavior. Preserve the local-first, user-led, no-calendar-write and no-catch-up boundaries.
+
+Draft product-definition documents for review:
+
+- [`day-profile-and-availability-contract.md`](day-profile-and-availability-contract.md)
+- [`rhythm-recurrence-and-instance-contract.md`](rhythm-recurrence-and-instance-contract.md)
+- [`rhythm-library-catalogue-gap-audit.md`](rhythm-library-catalogue-gap-audit.md)
+
+These documents describe proposed future behavior. No day-profile, availability-inference, persistent-recurrence, rhythm-instance or expanded-pack behavior is implemented.
 
 Next recommended sequence:
 
-1. Reduce Plan card soup and pill-chip overload enough that Plan does not feel like a dashboard.
-2. Refine Today around one dominant active object with quiet secondary exits.
-3. Complete a later bounded Library visual pass.
-4. Complete a later bounded Setup visual pass.
-5. Repeating rhythm instance contract.
-6. Repeating rhythm instance suggestions without backlog or streak debt.
-7. Broader re-entry resurfacing for parked, not-today, and rhythm-instance tasks.
-8. Deadline and usefulness salience.
-9. Move/edit soft placement.
-10. Backup support for rhythm instances.
-11. Final non-AI prototype smoke QA and seven-day personal trial.
-12. Operationally verify Clerk invite-only/public-signup settings before external testers.
-13. Add a cloud sync contract only if later trial learning shows a clear need.
+1. PR #109 Plan Soft Ledger checkpoint merged.
+2. Approve day-profile and availability contract.
+3. Approve rhythm recurrence and instance contract.
+4. Implement Workday and Non-workday profiles.
+5. Migrate safely from current global anchors.
+6. Implement derived work-hour boundaries and planning-use selection.
+7. Implement persistent rhythm enablement and recurrence.
+8. Implement rhythm-instance generation and deduplication.
+9. Integrate rhythm instances and approved suggestion behaviour with Plan.
+10. Expand the curated Library and packs.
+11. Perform Today dominant-active-object visual pass.
+12. Complete later bounded Library and Setup visual refinement.
+13. Continue broader re-entry, placement editing, backup and trial-readiness work.
 
 Cloud sync remains intentionally unimplemented.
 
@@ -958,8 +1015,13 @@ Cloud sync remains intentionally unimplemented.
 Open product and implementation decisions:
 
 - What secondary Settings/Reset affordance is calmest after removal from primary navigation?
-- How much card/pill reduction is required before a meaningful personal product trial?
-- How should repeating rhythm instances be generated without backlog or streak debt?
+- How should per-date day-profile overrides interact with reusable weekday assignments?
+- Should custom day profiles ship with the first Workday/Non-workday implementation or later?
+- What is the bounded rhythm-instance generation horizon and weekly-period identity?
+- How should recurrence edits affect already generated but untouched instances?
+- How should monthly recurrence handle a target day that does not exist in a shorter month?
+- Should and when may the future `Place softly` mode receive separate approval to change the current user-confirmed-write boundary?
+- Which contextual-support entries should leave Library rather than become recurring templates?
 - How should resurfacing limits avoid alert fatigue?
 - What operational Clerk invite-only settings are required before external testers?
 - Should cloud sync be deferred until after a meaningful soft-scheduling product trial?
@@ -1026,7 +1088,9 @@ Codex prompts must be object-specific and boundary-specific. Do not ask Codex to
 
 Life Rhythm is currently best understood as:
 
-> A local-first ADHD-optimised rhythm and re-entry app with calm task initiation, safe task holding, protected time, backup-safe persistence, opt-in signed-in local profiles, user-confirmed local soft placements, and a future soft scheduling loop based on task pool, open capacity, user confirmation, resurfacing, and usefulness windows.
+> A local-first ADHD-optimised rhythm and re-entry app with calm task initiation, safe ad hoc task holding, protected time, backup-safe persistence, opt-in signed-in local profiles, and user-confirmed local soft placements currently based on explicit open capacity.
+
+The proposed future product direction adds Workday/Non-workday profiles, derived candidate windows, persistent Library rhythm plans, and stable generated rhythm instances only after the new contracts, migrations, schemas, repositories, backup boundaries, and user-confirmed behavior are separately approved and implemented.
 
 It is not:
 

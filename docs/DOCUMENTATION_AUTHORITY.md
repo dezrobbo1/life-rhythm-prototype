@@ -1,10 +1,10 @@
 # Life Rhythm Documentation Authority
 
 Status: Current repository documentation map
-Date: 2026-07-19
+Date: 2026-08-09
 Merged baseline branch: `main`
-Merged code baseline commit: `e11d6d5022a6118f96712b48ef5776d0a6acffbd`
-Latest merged visual checkpoint: PR #107, merge commit `e11d6d5022a6118f96712b48ef5776d0a6acffbd` — Visual Foundation Pass 1 / Soft Ledger shell and Pool
+Latest application-code checkpoint: PR #109, merge commit `81f4211dd6970ce08dc63d717a570111388876be`
+Latest visual implementation checkpoint: PR #109 — Plan Soft Ledger hierarchy
 
 ## Purpose
 
@@ -15,11 +15,19 @@ The current product direction is a local-first, non-clinical Life Rhythm applica
 ## Authority order
 
 1. **Current product authority** — `app/docs/life-rhythm-current-design-spec.md`
-2. **Current boundary contracts** — applicable contracts in `app/docs/`, provided they are marked current and do not contradict the current design spec. The implemented Task Pool backup boundary is documented in `app/docs/task-pool-backup-contract.md`.
+2. **Current boundary contracts** — applicable contracts in `app/docs/`, provided they are marked current and do not contradict the current design spec. The implemented Task Pool backup boundary is documented in `app/docs/task-pool-backup-contract.md`. Drafts awaiting product approval do not authorize implementation.
 3. **Evidence and UX weighting** — `docs/ux/Life_Rhythm_Design_Specification_v1_2_Evidence_Balanced.md` and the source archive. This layer supports rationale and traceability; it does not override current runtime status or navigation.
 4. **Source governance** — `app/docs/research/source-status.md`, `packet-v3-priority.md`, `research-to-mvp-map.md`, and `non-canonical-source-notes.md`.
 5. **Historical plans and pre-write contracts** — documents explicitly marked historical or superseded. These preserve rationale but must not be used as current implementation status.
 6. **Visual boards and source prototypes** — visual references only. They do not override the current object grammar, navigation, data boundaries or implementation contracts.
+
+Current draft product-definition work awaiting approval:
+
+- [`app/docs/day-profile-and-availability-contract.md`](../app/docs/day-profile-and-availability-contract.md) — future Workday/Non-workday profiles, derived boundaries and candidate-window rules; not implemented.
+- [`app/docs/rhythm-recurrence-and-instance-contract.md`](../app/docs/rhythm-recurrence-and-instance-contract.md) — future persistent rhythm plans, recurrence and stable instances; not implemented.
+- [`app/docs/rhythm-library-catalogue-gap-audit.md`](../app/docs/rhythm-library-catalogue-gap-audit.md) — catalogue/product audit only, not runtime authority or research evidence.
+
+Applicable current contracts continue to govern runtime and currently approved future boundaries while these drafts are under review. If a draft is approved, any conflicting future-facing clauses in current contracts must be reconciled explicitly; approval alone does not activate schema, migration, persistence, suggestion, placement, or surface behavior.
 
 ## Two application generations
 
@@ -34,7 +42,7 @@ The root app remains live while `/app` is developed. Its older scheduling and ta
 
 ## Current `/app` product state
 
-The merged `main` branch includes the Personal Trial v1 loop through PR #105, including the bounded PR #104 soft-placement fixes and PR #105 Task Pool backup follow-up, the PR #106 repository-guidance and documentation refresh, and the PR #107 Visual Foundation Pass 1 checkpoint, at `e11d6d5022a6118f96712b48ef5776d0a6acffbd`:
+The merged application includes the Personal Trial v1 loop through PR #105, the PR #106 repository-guidance and documentation refresh, the PR #107 Visual Foundation Pass 1 shell/Pool checkpoint, and the PR #109 Plan Soft Ledger checkpoint:
 
 - four primary destinations: Today, Plan, Pool, Library;
 - Reset and Settings as secondary shell destinations;
@@ -58,7 +66,21 @@ PR #107 implements on merged `main`:
 - Pool as a content-led Soft Ledger / Holding Tray with ledger rows and dividers;
 - a clarified Pool action hierarchy with Add to Today primary, Find soft window secondary and independent Other choices disclosures.
 
-PR #107 is limited to visual hierarchy and action presentation: capture behaviour, action meaning and order, persistence, repositories, schemas, statuses, routes, task ordering, task lifecycle behaviour and user-confirmed placement remain unchanged. It adds no automatic scheduling, calendar writes, AI, backend, sync, notifications, analytics or restore/import behaviour. The current next bounded visual sequence is Plan card-soup and pill-chip reduction, then Today dominant-active-object refinement, with Library and Setup reserved for later passes.
+PR #107 is limited to visual hierarchy and action presentation: capture behaviour, action meaning and order, persistence, repositories, schemas, statuses, routes, task ordering, task lifecycle behaviour and user-confirmed placement remain unchanged. It adds no automatic scheduling, calendar writes, AI, backend, sync, notifications, analytics or restore/import behaviour.
+
+PR #109, merged through `81f4211dd6970ce08dc63d717a570111388876be`, implements:
+
+- removal of the three equal-weight Plan outer cards;
+- a clear Day Shape → Soft suggestions → Soft placements reading order;
+- Day Shape as the dominant connected planning object;
+- quieter ruled sections and rows for suggestions and placements;
+- reduced nested boxes, large pills, shadows and heavy empty states;
+- consolidated Plan scheduling-safety guidance;
+- approved mobile, desktop, populated-state, keyboard and theme-parity visual review.
+
+PR #109 changed presentation only. It did not change selected-day behaviour; Day Shape content or ordering; explicit `openCapacity` behaviour; suggestion, eligibility or usefulness-window logic; user-confirmed placement or placement removal/reconfirmation; persistence, repositories, schemas, statuses, routes, task ordering or task lifecycle behaviour. It added no automatic scheduling, calendar writes, AI, backend, sync, notifications, analytics or restore/import behaviour.
+
+The current product-definition priority is approval of the day-profile/availability and rhythm recurrence/instance contracts. The remaining bounded visual sequence is Today dominant-active-object refinement, then later Library and Setup passes. The full recommended sequence is maintained in `app/docs/life-rhythm-current-design-spec.md`.
 
 ## Canonical navigation and theme naming
 

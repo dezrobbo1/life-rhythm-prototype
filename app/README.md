@@ -11,7 +11,7 @@ Read the repository documentation map first:
 
 ## Current implementation
 
-The merged `/app` baseline through PR #107 at `e11d6d5022a6118f96712b48ef5776d0a6acffbd` currently contains:
+The latest application-code checkpoint is PR #109, merged through `81f4211dd6970ce08dc63d717a570111388876be`. The current `/app` implementation contains:
 
 - Today, Plan, Pool and Library as the four primary destinations;
 - Reset and Settings as secondary destinations;
@@ -30,7 +30,12 @@ The merged `/app` baseline through PR #107 at `e11d6d5022a6118f96712b48ef5776d0a
 - a compact shared header;
 - a restrained local active-navigation marker;
 - Pool as a content-led Soft Ledger / Holding Tray with ledger rows and dividers;
-- a clarified Pool action hierarchy with Add to Today primary, Find soft window secondary and independent Other choices disclosures.
+- a clarified Pool action hierarchy with Add to Today primary, Find soft window secondary and independent Other choices disclosures;
+- Plan without the previous three equal-weight outer cards;
+- a clear Day Shape → Soft suggestions → Soft placements reading order;
+- Day Shape as the dominant connected planning object;
+- quieter ruled suggestion and placement sections with consolidated scheduling-safety guidance;
+- approved Plan mobile, desktop, populated-state, keyboard and theme-parity visual review.
 
 ## Current boundaries
 
@@ -41,11 +46,21 @@ The `/app` implementation does not provide:
 - AI-written task state or AI authority;
 - notifications or analytics;
 - import/restore execution;
+- Workday/Non-workday profiles or profile-derived availability;
+- persistent rhythm enablement or complete recurrence rules;
 - repeating rhythm instances;
 - broad parked/not-today/rhythm-instance resurfacing;
 - external tester readiness.
 
-`main` is at `e11d6d5022a6118f96712b48ef5776d0a6acffbd` after PR #107. The merged Visual Foundation Pass 1 checkpoint leaves capture behaviour, action meaning and order, persistence, repositories, schemas, statuses, routes, task ordering, task lifecycle behaviour, placement ownership and the boundaries above unchanged. The current next bounded visual work is Plan card-soup and pill-chip reduction followed by Today dominant-active-object refinement; Library and Setup remain later bounded passes.
+PR #109 changed presentation only. It did not change selected-day behaviour; Day Shape content or ordering; explicit `openCapacity` behaviour; suggestion, eligibility or usefulness-window logic; user-confirmed placement or placement removal/reconfirmation; persistence, repositories, schemas, statuses, routes, task ordering or task lifecycle behaviour. It added no automatic scheduling, calendar writes, AI, backend, sync, notifications, analytics or restore/import behaviour.
+
+## Proposed product-definition work — not implemented
+
+- [`docs/day-profile-and-availability-contract.md`](docs/day-profile-and-availability-contract.md)
+- [`docs/rhythm-recurrence-and-instance-contract.md`](docs/rhythm-recurrence-and-instance-contract.md)
+- [`docs/rhythm-library-catalogue-gap-audit.md`](docs/rhythm-library-catalogue-gap-audit.md)
+
+The next product step is approval of the day-profile/availability contract followed by the rhythm recurrence/instance contract. Implementation then proceeds through safe settings migration, derived work boundaries, persistent rhythm plans, stable generated instances, Plan integration and curated Library expansion. Today remains the next bounded visual object pass after that model work; Library and Setup remain later visual passes. The canonical sequence is in the [current design spec](docs/life-rhythm-current-design-spec.md#18-current-near-term-roadmap).
 
 ## Commands
 
