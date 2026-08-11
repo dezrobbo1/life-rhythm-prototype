@@ -197,7 +197,7 @@ Other data classes remain separate:
 - Library continues to own the template and rhythm plan;
 - Pool continues to own ad hoc items.
 
-A repository operation that routes a generated instance into Today or a placement must update the instance link/state and create or update the projection atomically. Removing a projection clears that route without deleting the instance or template. One instance must not acquire competing live Today or placement projections unless a later transition contract explicitly permits and explains them.
+A repository operation that routes a generated instance into Today or a placement must update the instance link/state and create or update the projection atomically. Removing a projection clears that route without deleting the instance or template. A live Today projection and a live soft placement may coexist only when the user separately authorizes each; neither action creates the other. One instance must not acquire duplicate live Today projections or duplicate live soft placements.
 
 ## 5. Primary and Secondary Library Actions
 
@@ -219,19 +219,28 @@ The secondary override may remain:
 
 > Add to Today once
 
-`Add to Today once` means:
+`Add to Today once` is an explicit secondary action. It does not require a `RhythmPlan` and may be used when the template has no plan, a disabled plan, a paused plan, or an enabled plan. It:
 
-- create one manual occurrence for Today after explicit user action;
-- retain the template identity;
-- do not enable or disable the recurring plan;
-- do not change recurrence;
-- do not create future occurrences by itself;
-- do not create a Pool item;
-- do not create a calendar event.
+- creates or surfaces one occurrence for Today after explicit user action;
+- retains the template identity;
+- never turns the rhythm on or off;
+- never edits recurrence;
+- never creates future occurrences by itself;
+- never creates a Pool item;
+- never creates a calendar event;
+- never fabricates a `rhythmPlanId` merely to support the manual action.
 
-This manual override is an active Today task linked to the template, not a generated `RhythmInstance`, because it has no enabled `RhythmPlan`. It therefore does not require or fabricate a `rhythmPlanId`. A future decision may introduce an explicit manual-occurrence object, but it must not overload generated-instance identity or alter current Add to Today behavior by implication.
+When no enabled plan or matching generated occurrence applies, the action may create one template-linked manual Today task. That task is not automatically a generated `RhythmInstance` and must retain explicit manual one-occurrence identity. Any collision context needed for later deduplication must be represented without fabricating a `rhythmPlanId` on the manual task or overloading generated-instance identity.
 
-Whether repeated use on the same template and local date reuses the same manual Today occurrence or allows another one is an unresolved deduplication decision.
+When an enabled plan exists:
+
+- the implementation must check for an existing or prospectively matching generated occurrence for the same logical rhythm occurrence;
+- it must not silently create both a manual Today task and a generated instance for that logical occurrence;
+- it must either reuse or surface the matching instance, or obtain an explicit user choice under a separately approved collision rule;
+- a manual override must not silently consume a recurrence quota slot unless an approved matching or reuse rule explicitly does so;
+- the collision outcome must remain durable enough that later background generation does not create a duplicate after the manual Today action.
+
+Repeated use must follow the same collision rule and must not silently create a duplicate logical occurrence. The exact reuse, linking, or explicit-choice behavior remains unresolved implementation work; it must not alter enablement or recurrence.
 
 ## 6. Supported Recurrence Forms
 
@@ -297,6 +306,7 @@ Generation rules:
 - no instance is generated before the plan or governing revision's `effectiveFromLocalDate`;
 - current and historical periods are never backfilled automatically;
 - one logical occurrence produces at most one instance record;
+- generation must honor durable manual one-occurrence collision outcomes so that a later run does not create another representation of the same logical occurrence; a manual action may reserve a quota slot only under an approved matching or reuse rule;
 - fixed cadence uses a canonical local occurrence date or anchored interval position;
 - flexible quota uses stable numbered slots inside a canonical period, such as `2026-W33#1`;
 - quota slot numbers are deduplication identities only; they do not imply priority, order, debt, or an obligation to complete every slot;
@@ -391,6 +401,8 @@ A flexible weekly quota may use remaining room in the current period only while 
 `Place softly` would change the current user-confirmed-write boundary because the current app writes a placement only after an immediate confirmation. It requires separate product approval, schema/repository review, migration/backup design, and tests before implementation.
 
 Neither planning mode is implemented by this document.
+
+A soft placement remains optional and separate from Today. Confirming a suggestion creates only the approved local placement and never routes the instance into Today. Add to Today remains a separate explicit user action that may occur with or without a soft placement.
 
 ## 12. Relationship to Day Profiles and Plan
 
@@ -495,6 +507,8 @@ Future persistence must keep separate validated data classes for:
 5. ad hoc Pool items;
 6. soft placements.
 
+Any manual Today task created through `Add to Today once` must preserve its explicit manual one-occurrence identity and any separately approved collision or reuse link needed for deduplication. Backup and validation rules must preserve and check that identity without fabricating a rhythm-plan link.
+
 Backup design must define:
 
 - a versioned template format when recurrence-related template fields change;
@@ -555,7 +569,15 @@ Tests must cover:
 - completion state separate from template state;
 - no future generation while paused or disabled;
 - no catch-up debt after skipped or missed occurrences;
-- Add to Today once leaving recurrence unchanged;
+- Add to Today once with no `RhythmPlan`;
+- Add to Today once with a disabled plan;
+- Add to Today once with a paused plan;
+- Add to Today once with an enabled plan and no matching instance;
+- Add to Today once with an enabled plan and an existing matching instance;
+- generator execution after a manual same-date occurrence;
+- repeated Add to Today once actions;
+- recurrence and enablement remaining unchanged after Add to Today once;
+- no duplicate logical occurrence after Add to Today once;
 - templates never moving into Pool;
 - held instances retaining template and occurrence identity;
 - pack overlap and individual deselection;
@@ -596,7 +618,7 @@ The following decisions must be resolved before their affected implementation:
 - whether already generated but untouched instances follow an edited rule;
 - the exact feasible-slot allocation policy for a partial first quota period;
 - how pause differs from disable in user-facing copy and generation cutoff;
-- whether `Add to Today once` deduplicates per template and local date;
+- the exact reuse, linking, or explicit-choice behavior when `Add to Today once` collides with an existing or prospectively matching generated occurrence;
 - the lineage or tombstone policy that prevents deletion and later recreation of a rhythm plan from resurrecting historical occurrences;
 - the first set of lifecycle and completion enum values;
 - retention and backup scope for completed instances;

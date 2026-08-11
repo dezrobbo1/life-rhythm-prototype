@@ -653,13 +653,26 @@ The intended loop is:
 
 Current ad hoc path:
 
-> capture → hold safely → suggest a window → user confirms → Today / re-entry
+> capture → hold safely → optionally suggest and confirm a local soft placement → separately choose Add to Today → Today
+
+If the user does not add it to Today, it remains safely held or can re-enter later.
 
 Proposed recurring path:
 
-> turn on rhythm → generate stable instance → suggest a window → user confirms → Today / re-entry
+> turn on rhythm → generate stable instance → optionally suggest and confirm a local soft placement → separately choose Add to Today → Today
 
-Only ad hoc work begins in Task Pool. Rhythm templates stay in Library, and generated rhythm instances retain their rhythm-template and occurrence identity. A generated instance must not be routed through Pool merely to reuse the ad hoc flow.
+If the user does not add it to Today, the instance remains eligible, held, or available for calm re-entry according to its approved lifecycle.
+
+For both paths:
+
+- A soft placement is optional.
+- Add to Today may occur with or without a soft placement.
+- Confirming a suggestion creates only the approved local placement.
+- Confirming a placement does not automatically move anything into Today.
+- Adding to Today is a separate explicit user action.
+- Neither path creates an external calendar event.
+
+Only ad hoc work begins in Task Pool. Rhythm templates stay in Library, and generated rhythm instances retain their rhythm-template, rhythm-plan, and occurrence identity. A generated instance must not be routed through Pool merely to reuse the ad hoc flow.
 
 After the recurrence model is approved and implemented, Plan, Today, and re-entry may serve both paths while preserving their different source identities. The recurring path is proposed future behavior and is not implemented by this documentation work.
 
