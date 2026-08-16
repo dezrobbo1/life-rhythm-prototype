@@ -6,6 +6,7 @@ import { validateSettingsBackupImport } from './settingsImportValidation';
 import {
   createDefaultSettings,
   saveSettings,
+  SETTINGS_APP_VERSION,
   type SettingsStore,
   type SettingsWriteInput,
 } from './settingsRepository';
@@ -240,10 +241,10 @@ describe('settings export backup', () => {
     expect(put).not.toHaveBeenCalled();
   });
 
-  it('exports a migrated version-2 view of legacy settings without persisting migration', async () => {
+  it('keeps a migrated non-semantic settings row immediately backupable without persisting migration', async () => {
     const current = createDefaultSettings('2026-06-15T00:00:00.000Z');
     const legacySettings = {
-      appVersion: current.appVersion,
+      appVersion: 'dev',
       bedTime: current.lifeShape.sleepWakeAnchors.sleep,
       breakfastTime: current.lifeShape.mealAnchors.breakfast,
       createdAt: current.createdAt,
@@ -266,6 +267,7 @@ describe('settings export backup', () => {
       workEnd: '18:00',
       workStart: '10:00',
     };
+    const storedBeforeExport = structuredClone(legacySettings);
     let stored: unknown = legacySettings;
     const put = vi.fn(async (settings: unknown) => {
       stored = settings;
@@ -278,12 +280,23 @@ describe('settings export backup', () => {
     } as unknown as SettingsStore;
 
     const backup = await exportSettingsBackup(store, '2026-06-16T00:00:00.000Z');
+    const validation = validateSettingsBackupImport(backup.payload);
 
     expect(backup.payload.formatVersion).toBe(2);
+    expect(backup.payload.appVersion).toBe(SETTINGS_APP_VERSION);
+    expect(backup.payload.settings.appVersion).toBe(SETTINGS_APP_VERSION);
+    expect(
+      backup.payload.settings.dayProfileMigrationState.sourceSettingsVersion,
+    ).toBe('dev');
     expect(backup.payload.settings.dayProfileMigrationState.reviewState).toBe('needsReview');
-    expect(backup.payload.settings.dayProfiles[0].workPeriod).toEqual({ end: '18:00', start: '10:00' });
+    expect(backup.payload.settings.dayProfiles[0].workPeriod).toEqual({
+      end: '18:00',
+      start: '10:00',
+    });
+    expect(validation.ok).toBe(true);
     expect(put).not.toHaveBeenCalled();
-    expect(stored).toEqual(legacySettings);
+    expect(stored).toStrictEqual(storedBeforeExport);
+    expect(legacySettings).toStrictEqual(storedBeforeExport);
   });
 
   it('projects only approved profile fields and remains import-compatible', async () => {

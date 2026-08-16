@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { migrateSettingsDayProfileFoundation } from './dayProfileMigration';
 import {
   loadSettingsForBackup,
+  SETTINGS_APP_VERSION,
   type SettingsStore,
 } from './settingsRepository';
 import {
@@ -118,14 +119,15 @@ export function buildSettingsBackupPayload(settings: unknown, exportedAt = nowIs
   }
 
   const parsedSettings = migratedSettings.settings;
+  const backupAppVersion = SETTINGS_APP_VERSION;
 
   return settingsBackupSchema.parse({
-    appVersion: parsedSettings.appVersion,
+    appVersion: backupAppVersion,
     exportedAt,
     format: 'life-rhythm-settings-backup',
     formatVersion: 2,
     settings: {
-      appVersion: parsedSettings.appVersion,
+      appVersion: backupAppVersion,
       createdAt: parsedSettings.createdAt,
       dayProfileMigrationState: parsedSettings.dayProfileMigrationState,
       dayProfiles: parsedSettings.dayProfiles.map((profile) => ({
