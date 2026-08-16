@@ -6,10 +6,16 @@ import {
   SETTINGS_ID,
   createDefaultSettings,
   loadSettings,
+  loadSettingsResult,
   resetSettingsToDefaults,
   saveSettings,
 } from './settingsRepository';
-import { activeTaskSchema, type Settings } from './schemas';
+import {
+  NON_WORKDAY_PROFILE_ID,
+  WORKDAY_PROFILE_ID,
+  activeTaskSchema,
+  type Settings,
+} from './schemas';
 
 let testDatabaseIndex = 0;
 
@@ -69,9 +75,13 @@ function validInput(overrides: Partial<SettingsWriteInput> = {}): SettingsWriteI
   };
 }
 
-function createFakeStore(initialSettings?: unknown) {
+function createFakeStore(initialSettings?: unknown, options: { failPut?: boolean } = {}) {
   let storedSettings = initialSettings;
   const put = vi.fn(async (settings: Settings) => {
+    if (options.failPut) {
+      throw new Error('put failed');
+    }
+
     storedSettings = settings;
     return settings.id;
   });
@@ -79,6 +89,7 @@ function createFakeStore(initialSettings?: unknown) {
 
   return {
     get,
+    getRawSettings: () => storedSettings,
     getStoredSettings: () => storedSettings as Settings | undefined,
     put,
     store: {
@@ -88,6 +99,17 @@ function createFakeStore(initialSettings?: unknown) {
       },
     } as unknown as SettingsStore,
   };
+}
+
+function withoutDayProfileFoundation(settings: Settings = createDefaultSettings()) {
+  const {
+    dayProfileMigrationState: _migrationState,
+    dayProfiles: _dayProfiles,
+    weekdayProfileAssignments: _assignments,
+    ...legacy
+  } = settings;
+
+  return legacy;
 }
 
 describe('settings repository', () => {
@@ -116,6 +138,136 @@ describe('settings repository', () => {
     expect(settings.id).toBe(SETTINGS_ID);
     expect(settings.theme).toBe('exhale');
     expect(settings.lifeShape.transitionBufferMinutes).toBe(10);
+    expect(settings.dayProfiles.map((profile) => profile.id)).toEqual([
+      WORKDAY_PROFILE_ID,
+      NON_WORKDAY_PROFILE_ID,
+    ]);
+    expect(settings.weekdayProfileAssignments).toHaveLength(7);
+    expect(settings.dayProfileMigrationState.reviewState).toBe('notStarted');
+    expect(settings.dayProfiles.every((profile) => profile.usableDay === undefined)).toBe(true);
+    expect(fake.put).not.toHaveBeenCalled();
+  });
+
+  it('migrates and persists legacy settings without resetting existing values', async () => {
+    const current = createDefaultSettings('2026-08-12T00:00:00.000Z');
+    const legacy = withoutDayProfileFoundation({
+      ...current,
+      appVersion: 'dev',
+      lifeShape: {
+        ...current.lifeShape,
+        commuteMinutes: 30,
+        fixedCommitments: [
+          {
+            bufferMinutes: 5,
+            days: ['Tuesday'],
+            id: 'appointment',
+            label: 'Appointment',
+            travelMinutes: 10,
+          },
+        ],
+        mealAnchors: {
+          breakfast: '07:20',
+          dinner: '18:40',
+          lunch: '12:20',
+        },
+        timeBlocks: [
+          {
+            days: ['Thursday'],
+            end: '15:00',
+            id: 'open-thursday',
+            label: 'Open Thursday',
+            schedulerUse: 'available',
+            start: '14:00',
+            type: 'openCapacity',
+          },
+        ],
+        usualWorkHours: {
+          days: ['Tuesday', 'Thursday', 'Saturday'],
+          end: '18:00',
+          start: '10:00',
+        },
+      },
+      theme: 'grounded',
+    });
+    const fake = createFakeStore(legacy);
+    const result = await loadSettingsResult(fake.store);
+
+    expect(result.status).toBe('migrated');
+    expect(result.migrationPersisted).toBe(true);
+    expect(result.settings.theme).toBe('grounded');
+    expect(result.settings.lifeShape.fixedCommitments).toEqual(legacy.lifeShape.fixedCommitments);
+    expect(result.settings.lifeShape.timeBlocks).toEqual(legacy.lifeShape.timeBlocks);
+    expect(result.settings.dayProfileMigrationState.reviewState).toBe('needsReview');
+    expect(result.settings.appVersion).toBe('dev');
+    expect(result.settings.dayProfileMigrationState.sourceSettingsVersion).toBe(legacy.appVersion);
+    expect(result.settings.dayProfiles[0].workPeriod).toEqual({ end: '18:00', start: '10:00' });
+    expect(
+      result.settings.weekdayProfileAssignments
+        .filter((assignment) => assignment.profileId === WORKDAY_PROFILE_ID)
+        .map((assignment) => assignment.weekday),
+    ).toEqual(['Tuesday', 'Thursday', 'Saturday']);
+    expect(fake.put).toHaveBeenCalledTimes(1);
+    expect(fake.getStoredSettings()).toEqual(result.settings);
+
+    const repeated = await loadSettingsResult(fake.store);
+
+    expect(repeated.status).toBe('loaded');
+    expect(repeated.settings).toEqual(result.settings);
+    expect(fake.put).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a validated migrated representation without replacing the row when migration persistence fails', async () => {
+    const legacy = withoutDayProfileFoundation(createDefaultSettings('2026-08-12T00:00:00.000Z'));
+    const fake = createFakeStore(legacy, { failPut: true });
+    const result = await loadSettingsResult(fake.store);
+
+    expect(result.status).toBe('migrationPersistenceFailed');
+    expect(result.migrationPersisted).toBe(false);
+    expect(result.settings.dayProfileMigrationState.reviewState).toBe('needsReview');
+    expect(result.errors.join(' ')).toContain('original row was left unchanged');
+    expect(fake.getRawSettings()).toEqual(legacy);
+    expect(fake.put).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not overwrite malformed profile-aware settings during load or a later save', async () => {
+    const current = createDefaultSettings('2026-08-12T00:00:00.000Z');
+    const malformed = {
+      ...current,
+      weekdayProfileAssignments: current.weekdayProfileAssignments.map((assignment) =>
+        assignment.weekday === 'Monday'
+          ? { ...assignment, profileId: 'missing-profile' }
+          : assignment,
+      ),
+    };
+    const fake = createFakeStore(malformed);
+    const loaded = await loadSettingsResult(fake.store);
+    const saveResult = await saveSettings(validInput({ theme: 'grounded' }), fake.store);
+
+    expect(loaded.status).toBe('invalid');
+    expect(loaded.errors.join(' ')).toContain('existing day profile');
+    expect(saveResult.ok).toBe(false);
+    expect(fake.put).not.toHaveBeenCalled();
+    expect(fake.getRawSettings()).toEqual(malformed);
+  });
+
+  it('rejects malformed migration compatibility state without default repair', async () => {
+    const current = createDefaultSettings('2026-08-12T00:00:00.000Z');
+    const malformed = {
+      ...current,
+      dayProfileMigrationState: {
+        ...current.dayProfileMigrationState,
+        legacyMealAnchors: {},
+        reviewedAt: 'tomorrow',
+      },
+    };
+    const fake = createFakeStore(malformed);
+    const loaded = await loadSettingsResult(fake.store);
+
+    expect(loaded.status).toBe('invalid');
+    expect(loaded.errors.join(' ')).toContain('dayProfileMigrationState.legacyMealAnchors.breakfast');
+    expect(loaded.errors.join(' ')).toContain('dayProfileMigrationState.reviewedAt');
+    expect(fake.getRawSettings()).toEqual(malformed);
+    expect(fake.put).not.toHaveBeenCalled();
   });
 
   it('saves and reloads theme settings', async () => {
@@ -151,6 +303,139 @@ describe('settings repository', () => {
       id: 'protected-writing',
       schedulerUse: 'unavailable',
       type: 'protectedTime',
+    });
+  });
+
+  it('preserves hidden profile fields during current Setup and theme saves', async () => {
+    const current = createDefaultSettings('2026-08-12T00:00:00.000Z');
+    const profileAware = {
+      ...current,
+      dayProfileMigrationState: {
+        ...current.dayProfileMigrationState,
+        legacyMealAnchors: {
+          breakfast: '06:50',
+          dinner: '19:10',
+          lunch: '12:10',
+        },
+        reviewState: 'needsReview' as const,
+      },
+      dayProfiles: current.dayProfiles.map((profile) =>
+        profile.kind === 'workday'
+          ? {
+              ...profile,
+              name: 'My workday',
+              workPeriod: {
+                end: '18:30',
+                start: '10:30',
+              },
+              workPlanningUse: 'askFirst' as const,
+            }
+          : profile,
+      ),
+      weekdayProfileAssignments: current.weekdayProfileAssignments.map((assignment) =>
+        assignment.weekday === 'Friday'
+          ? { ...assignment, profileId: NON_WORKDAY_PROFILE_ID }
+          : assignment,
+      ),
+    };
+    const fake = createFakeStore(profileAware);
+    const result = await saveSettings(
+      validInput({
+        lifeShape: {
+          ...(validInput().lifeShape as Record<string, unknown>),
+          mealAnchors: {
+            breakfast: '08:00',
+            dinner: '20:00',
+            lunch: '13:00',
+          },
+          usualWorkHours: {
+            days: ['Monday', 'Tuesday', 'Wednesday'],
+            end: '15:00',
+            start: '07:00',
+          },
+        },
+        theme: 'grounded',
+      }),
+      fake.store,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.settings.theme).toBe('grounded');
+    expect(result.settings.lifeShape.usualWorkHours).toEqual({
+      days: ['Monday', 'Tuesday', 'Wednesday'],
+      end: '15:00',
+      start: '07:00',
+    });
+    expect(result.settings.dayProfiles).toEqual(profileAware.dayProfiles);
+    expect(result.settings.weekdayProfileAssignments).toEqual(profileAware.weekdayProfileAssignments);
+    expect(result.settings.dayProfileMigrationState).toEqual(profileAware.dayProfileMigrationState);
+    expect(result.settings.dayProfiles[0].workPeriod).toEqual({ end: '18:30', start: '10:30' });
+    expect(result.settings.dayProfileMigrationState.legacyMealAnchors.breakfast).toBe('06:50');
+    expect(result.settings.dayProfiles.some((profile) => 'mealWindows' in profile)).toBe(false);
+  });
+
+  it('preserves surfaced legacy conflicts during an unrelated theme save', async () => {
+    const current = createDefaultSettings('2026-08-12T00:00:00.000Z');
+    const conflicted = {
+      ...current,
+      breakfastTime: '06:45',
+      workStart: '07:30',
+    };
+    const fake = createFakeStore(conflicted);
+    const result = await saveSettings(
+      {
+        lifeShape: conflicted.lifeShape,
+        startBoostSafety: conflicted.startBoostSafety,
+        theme: 'grounded',
+      },
+      fake.store,
+    );
+    const reloaded = await loadSettingsResult(fake.store);
+
+    expect(result.ok).toBe(true);
+    expect(fake.getStoredSettings()?.breakfastTime).toBe('06:45');
+    expect(fake.getStoredSettings()?.workStart).toBe('07:30');
+    expect(reloaded.conflicts.map((conflict) => conflict.field)).toEqual([
+      'workStart',
+      'breakfastTime',
+    ]);
+  });
+
+  it('preserves future-compatible profile-owned fields through load and save', async () => {
+    const current = createDefaultSettings('2026-08-12T00:00:00.000Z');
+    const futureAware = {
+      ...current,
+      dayProfiles: current.dayProfiles.map((profile) =>
+        profile.kind === 'workday'
+          ? {
+              ...profile,
+              futureProfileContext: { mode: 'preserve-me' },
+              workPeriod: {
+                ...profile.workPeriod,
+                futureRangeContext: 'preserve-me-too',
+              },
+            }
+          : profile,
+      ),
+    };
+    const fake = createFakeStore(futureAware);
+    const loaded = await loadSettingsResult(fake.store);
+    const saved = await saveSettings(
+      {
+        lifeShape: loaded.settings.lifeShape,
+        startBoostSafety: loaded.settings.startBoostSafety,
+        theme: 'clear',
+      },
+      fake.store,
+    );
+    const reloaded = await loadSettingsResult(fake.store);
+
+    expect(loaded.status).toBe('loaded');
+    expect(saved.ok).toBe(true);
+    expect(reloaded.settings.dayProfiles[0]).toMatchObject({
+      futureProfileContext: { mode: 'preserve-me' },
+      workPeriod: { futureRangeContext: 'preserve-me-too' },
     });
   });
 
@@ -233,6 +518,15 @@ describe('settings repository', () => {
 
     expect(resetSettings.theme).toBe('exhale');
     expect(resetSettings.lifeShape.timeBlocks).toEqual([]);
+    expect(resetSettings.dayProfiles.map((profile) => profile.id)).toEqual([
+      WORKDAY_PROFILE_ID,
+      NON_WORKDAY_PROFILE_ID,
+    ]);
+    expect(resetSettings.dayProfiles[1].workPeriod).toBeUndefined();
+    expect(resetSettings.dayProfiles.every((profile) => profile.usableDay === undefined)).toBe(true);
+    expect(resetSettings.weekdayProfileAssignments).toHaveLength(7);
+    expect(resetSettings.dayProfileMigrationState.reviewState).toBe('notStarted');
+    expect(resetSettings.dayProfileMigrationState.reviewedAt).toBeUndefined();
     expect(fake.getStoredSettings()?.theme).toBe('exhale');
     expect(fake.put).toHaveBeenCalledTimes(2);
   });

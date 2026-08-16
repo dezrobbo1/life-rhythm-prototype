@@ -11,11 +11,11 @@ import { SetupScreen } from './screens/SetupScreen';
 import type { ThemeName } from './app/theme';
 import { AppSnapshotProvider } from './data/AppSnapshotProvider';
 import {
-  createDefaultSettings,
-  loadSettings,
+  loadSettingsResult,
   resetSettingsToDefaults,
   saveSettings,
   type Settings,
+  type SettingsLoadResult,
   type SettingsWriteInput,
   type SettingsWriteResult,
 } from './data/settingsRepository';
@@ -135,7 +135,8 @@ function ExamplePreview({ onReturnToPersonalTrial, theme }: ExamplePreviewProps)
 export default function App() {
   const [activeScreen, setActiveScreen] = useState<ScreenId>('today');
   const [theme, setTheme] = useState<ThemeName>('exhale');
-  const [settings, setSettings] = useState<Settings>(() => createDefaultSettings());
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [settingsLoadStatus, setSettingsLoadStatus] = useState<SettingsLoadResult['status'] | 'loading'>('loading');
   const [exampleOpen, setExampleOpen] = useState(false);
   const [preferredPlanPlacementDate, setPreferredPlanPlacementDate] = useState<string | null>(null);
   const [preferredPlanTaskId, setPreferredPlanTaskId] = useState<string | null>(null);
@@ -143,12 +144,31 @@ export default function App() {
   useEffect(() => {
     let active = true;
 
-    loadSettings().then((loadedSettings) => {
-      if (!active) return;
+    loadSettingsResult()
+      .then((result) => {
+        if (!active) return;
 
-      setSettings(loadedSettings);
-      setTheme(loadedSettings.theme);
-    });
+        setSettingsLoadStatus(result.status);
+
+        if (
+          result.status === 'defaulted' ||
+          result.status === 'loaded' ||
+          result.status === 'migrated' ||
+          result.status === 'migrationPersistenceFailed'
+        ) {
+          setSettings(result.settings);
+          setTheme(result.settings.theme);
+          return;
+        }
+
+        setSettings(null);
+      })
+      .catch(() => {
+        if (!active) return;
+
+        setSettings(null);
+        setSettingsLoadStatus('readFailed');
+      });
 
     return () => {
       active = false;
@@ -161,6 +181,7 @@ export default function App() {
     if (result.ok) {
       setSettings(result.settings);
       setTheme(result.settings.theme);
+      setSettingsLoadStatus('loaded');
     }
 
     return result;
@@ -171,6 +192,7 @@ export default function App() {
 
     setSettings(resetSettings);
     setTheme(resetSettings.theme);
+    setSettingsLoadStatus('loaded');
 
     return resetSettings;
   }
@@ -216,18 +238,40 @@ export default function App() {
   }
 
   const appSnapshot = useMemo<AppDataSnapshot>(
-    () => ({
-      ...emptyAppSnapshot,
-      futureModules: [],
-      settings: {
-        ...emptyAppSnapshot.settings,
-        lifeShape: settings.lifeShape,
-        startBoostSafety: settings.startBoostSafety,
-        theme: settings.theme,
-      },
-    }),
+    () => settings === null
+      ? emptyAppSnapshot
+      : ({
+          ...emptyAppSnapshot,
+          futureModules: [],
+          settings: {
+            ...emptyAppSnapshot.settings,
+            lifeShape: settings.lifeShape,
+            startBoostSafety: settings.startBoostSafety,
+            theme: settings.theme,
+          },
+        }),
     [settings],
   );
+
+  if (settingsLoadStatus === 'loading') {
+    return (
+      <main aria-busy="true">
+        <p role="status">Loading your saved Life Rhythm settings...</p>
+      </main>
+    );
+  }
+
+  if (settings === null || settingsLoadStatus === 'invalid' || settingsLoadStatus === 'readFailed') {
+    return (
+      <main>
+        <section aria-labelledby="settings-load-error-title" role="alert">
+          <h1 id="settings-load-error-title">Saved settings could not be loaded.</h1>
+          <p>Nothing stored on this device was changed.</p>
+          <p>Life Rhythm has not replaced the saved settings with defaults.</p>
+        </section>
+      </main>
+    );
+  }
 
   if (exampleOpen) {
     return (
@@ -265,6 +309,11 @@ export default function App() {
 
   return (
     <AppSnapshotProvider snapshot={appSnapshot} source="personal">
+      {settingsLoadStatus === 'migrationPersistenceFailed' ? (
+        <p role="status">
+          Your settings were loaded for this session, but the updated settings foundation could not be saved. Nothing already stored on this device was changed. The migration will need to be retried.
+        </p>
+      ) : null}
       <AppShell
         activeScreen={activeScreen}
         onScreenChange={handleScreenChange}

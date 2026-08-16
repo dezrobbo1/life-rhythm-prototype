@@ -726,7 +726,7 @@ describe('Plan screen', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Plan' }));
 
     const nav = screen.getByRole('navigation', { name: 'Primary' });
     expect(within(nav).getByRole('button', { name: 'Today' })).toBeTruthy();

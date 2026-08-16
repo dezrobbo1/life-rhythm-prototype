@@ -202,7 +202,7 @@ describe('Pool screen', () => {
 
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Pool' }));
+    await user.click(await screen.findByRole('button', { name: 'Pool' }));
     await user.click(screen.getByRole('button', { name: 'Capture task' }));
     await user.type(screen.getByLabelText('Task title'), 'Task held outside Today');
     await user.type(screen.getByLabelText('Minimum version'), 'Write the first note');

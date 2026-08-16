@@ -9,6 +9,7 @@ import {
   serializeLibraryRhythmBackup,
 } from '../../data/libraryRhythmBackup';
 import { activeTaskSchema, rhythmTemplateSchema, type ActiveTask, type RhythmTemplate } from '../../data/schemas';
+import { createDefaultSettings } from '../../data/settingsRepository';
 
 const activeTaskRepositoryMocks = vi.hoisted(() => ({
   createActiveTaskId: vi.fn((prefix = 'active-task') => `${prefix}-test-id`),
@@ -22,8 +23,20 @@ const libraryRepositoryMocks = vi.hoisted(() => ({
   saveCustomLibraryRhythm: vi.fn(),
 }));
 
+const settingsRepositoryMocks = vi.hoisted(() => ({
+  loadSettingsResult: vi.fn(),
+}));
+
 vi.mock('../../data/activeTaskRepository', () => activeTaskRepositoryMocks);
 vi.mock('../../data/libraryRhythmRepository', () => libraryRepositoryMocks);
+vi.mock('../../data/settingsRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../data/settingsRepository')>();
+
+  return {
+    ...actual,
+    loadSettingsResult: settingsRepositoryMocks.loadSettingsResult,
+  };
+});
 
 import App from '../../App';
 import { LibraryScreen } from '../../screens/LibraryScreen';
@@ -103,6 +116,13 @@ beforeEach(() => {
   libraryRepositoryMocks.saveCustomLibraryRhythm.mockImplementation(async (rhythm: unknown) => ({
     ok: true,
     rhythm: rhythmTemplateSchema.parse(rhythm),
+  }));
+  settingsRepositoryMocks.loadSettingsResult.mockImplementation(async () => ({
+    conflicts: [],
+    errors: [],
+    migrationPersisted: false,
+    settings: createDefaultSettings('2026-08-15T00:00:00.000Z'),
+    status: 'defaulted',
   }));
 });
 
@@ -509,7 +529,7 @@ describe('Library screen', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Library' }));
+    await user.click(await screen.findByRole('button', { name: 'Library' }));
     await fillCreateRhythmForm(user);
     await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
 
@@ -559,7 +579,7 @@ describe('Library screen', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Reset' }));
+    await user.click(await screen.findByRole('button', { name: 'Reset' }));
     expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Settings' }));
@@ -571,7 +591,7 @@ describe('Library screen', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Library' }));
+    await user.click(await screen.findByRole('button', { name: 'Library' }));
 
     const nav = screen.getByRole('navigation', { name: 'Primary' });
     expect(within(nav).getByRole('button', { name: 'Today' })).toBeTruthy();

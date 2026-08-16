@@ -2,13 +2,39 @@
 
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDefaultSettings } from '../../data/settingsRepository';
+
+const settingsRepositoryMocks = vi.hoisted(() => ({
+  loadSettingsResult: vi.fn(),
+}));
+
+vi.mock('../../data/settingsRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../data/settingsRepository')>();
+
+  return {
+    ...actual,
+    loadSettingsResult: settingsRepositoryMocks.loadSettingsResult,
+  };
+});
+
 import App from '../../App';
 import { activeTaskSchema, type ActiveTask, type ActiveTaskStatus } from '../../data/schemas';
 import { ResetScreen } from '../../screens/ResetScreen';
 
+beforeEach(() => {
+  settingsRepositoryMocks.loadSettingsResult.mockImplementation(async () => ({
+    conflicts: [],
+    errors: [],
+    migrationPersisted: false,
+    settings: createDefaultSettings('2026-08-15T00:00:00.000Z'),
+    status: 'defaulted',
+  }));
+});
+
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   vi.restoreAllMocks();
 });
 
@@ -241,7 +267,7 @@ describe('Reset screen', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(await screen.findByRole('button', { name: 'Settings' }));
 
     expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Start Boost safety' })).toBeTruthy();
@@ -251,7 +277,7 @@ describe('Reset screen', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Reset' }));
+    await user.click(await screen.findByRole('button', { name: 'Reset' }));
 
     const nav = screen.getByRole('navigation', { name: 'Primary' });
     expect(within(nav).getByRole('button', { name: 'Today' })).toBeTruthy();

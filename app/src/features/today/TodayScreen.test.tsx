@@ -21,7 +21,19 @@ const activeTaskRepositoryMocks = vi.hoisted(() => ({
   updateActiveTaskStatus: vi.fn(),
 }));
 
+const settingsRepositoryMocks = vi.hoisted(() => ({
+  loadSettingsResult: vi.fn(),
+}));
+
 vi.mock('../../data/activeTaskRepository', () => activeTaskRepositoryMocks);
+vi.mock('../../data/settingsRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../data/settingsRepository')>();
+
+  return {
+    ...actual,
+    loadSettingsResult: settingsRepositoryMocks.loadSettingsResult,
+  };
+});
 
 import App from '../../App';
 import { TodayScreen } from '../../screens/TodayScreen';
@@ -97,6 +109,13 @@ beforeEach(() => {
       visibleToday,
     };
   });
+  settingsRepositoryMocks.loadSettingsResult.mockImplementation(async () => ({
+    conflicts: [],
+    errors: [],
+    migrationPersisted: false,
+    settings: settingsRepository.createDefaultSettings('2026-08-15T00:00:00.000Z'),
+    status: 'defaulted',
+  }));
 });
 
 afterEach(() => {
@@ -142,10 +161,10 @@ describe('Today screen', () => {
     expect(within(stateGroup).getByRole('radio', { name: /Bored \/ low stimulation/ })).toBeTruthy();
   });
 
-  it('keeps the bottom navigation available in the app shell', () => {
+  it('keeps the bottom navigation available in the app shell', async () => {
     render(<App />);
 
-    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    const nav = await screen.findByRole('navigation', { name: 'Primary' });
     expect(within(nav).getByRole('button', { name: 'Today' })).toBeTruthy();
     expect(within(nav).getByRole('button', { name: 'Plan' })).toBeTruthy();
     expect(within(nav).getByRole('button', { name: 'Pool' })).toBeTruthy();
@@ -1333,7 +1352,7 @@ describe('Today screen', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Add one-off' }));
+    await user.click(await screen.findByRole('button', { name: 'Add one-off' }));
     await user.type(screen.getByLabelText('Task title'), 'Pay water bill');
     await user.clear(screen.getByLabelText('Area'));
     await user.type(screen.getByLabelText('Area'), 'Money');

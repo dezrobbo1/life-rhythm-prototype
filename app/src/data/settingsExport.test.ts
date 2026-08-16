@@ -2,7 +2,13 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
 import { createLifeRhythmDatabase } from './db';
 import { exportSettingsBackup, settingsBackupSchema } from './settingsExport';
-import { saveSettings, type SettingsStore, type SettingsWriteInput } from './settingsRepository';
+import { validateSettingsBackupImport } from './settingsImportValidation';
+import {
+  createDefaultSettings,
+  saveSettings,
+  type SettingsStore,
+  type SettingsWriteInput,
+} from './settingsRepository';
 
 let testDatabaseIndex = 0;
 
@@ -60,19 +66,32 @@ describe('settings export backup', () => {
       await saveSettings(validInput(), database);
       const backup = await exportSettingsBackup(database, '2026-06-16T00:00:00.000Z');
 
-      expect(Object.keys(backup.payload).sort()).toEqual(['appVersion', 'exportedAt', 'format', 'settings']);
+      expect(Object.keys(backup.payload).sort()).toEqual([
+        'appVersion',
+        'exportedAt',
+        'format',
+        'formatVersion',
+        'settings',
+      ]);
       expect(Object.keys(backup.payload.settings).sort()).toEqual([
         'appVersion',
         'createdAt',
+        'dayProfileMigrationState',
+        'dayProfiles',
         'id',
         'lifeShape',
         'startBoostSafety',
         'theme',
         'updatedAt',
+        'weekdayProfileAssignments',
       ]);
+      expect(backup.payload.formatVersion).toBe(2);
       expect(backup.payload.settings.theme).toBe('clear');
       expect(backup.payload.settings.startBoostSafety.avoidFoodRewards).toBe(true);
       expect(backup.payload.settings.lifeShape.commuteMinutes).toBe(25);
+      expect(backup.payload.settings.dayProfiles).toHaveLength(2);
+      expect(backup.payload.settings.weekdayProfileAssignments).toHaveLength(7);
+      expect(backup.payload.settings.dayProfileMigrationState.reviewState).toBe('notStarted');
       expect(backup.fileName).toBe('life-rhythm-settings-backup-2026-06-16.json');
     } finally {
       await database.delete();
@@ -88,12 +107,13 @@ describe('settings export backup', () => {
       expect(backup.payload.settings.theme).toBe('exhale');
       expect(backup.payload.settings.lifeShape.transitionBufferMinutes).toBe(10);
       expect(backup.payload.settings.startBoostSafety.avoidScrollingRewards).toBe(true);
+      expect(backup.payload.settings.dayProfiles.every((profile) => profile.usableDay === undefined)).toBe(true);
     } finally {
       await database.delete();
     }
   });
 
-  it('exports safe defaults when stored settings are invalid', async () => {
+  it('fails visibly instead of exporting defaults when stored settings are invalid', async () => {
     const database = createTestDatabase();
 
     try {
@@ -105,10 +125,10 @@ describe('settings export backup', () => {
         updatedAt: '2026-06-16T00:00:00.000Z',
       } as never);
 
-      const backup = await exportSettingsBackup(database, '2026-06-16T00:00:00.000Z');
-
-      expect(backup.payload.settings.theme).toBe('exhale');
-      expect(backup.payload.settings.lifeShape.lowCapacityPreference).toBe('protect-evening');
+      await expect(
+        exportSettingsBackup(database, '2026-06-16T00:00:00.000Z'),
+      ).rejects.toThrow('Settings backup could not be created');
+      expect(await database.settings.get('settings')).toMatchObject({ theme: 'warm-cream' });
     } finally {
       await database.delete();
     }
@@ -218,5 +238,81 @@ describe('settings export backup', () => {
 
     expect(get).toHaveBeenCalledWith('settings');
     expect(put).not.toHaveBeenCalled();
+  });
+
+  it('exports a migrated version-2 view of legacy settings without persisting migration', async () => {
+    const current = createDefaultSettings('2026-06-15T00:00:00.000Z');
+    const legacySettings = {
+      appVersion: current.appVersion,
+      bedTime: current.lifeShape.sleepWakeAnchors.sleep,
+      breakfastTime: current.lifeShape.mealAnchors.breakfast,
+      createdAt: current.createdAt,
+      dinnerTime: current.lifeShape.mealAnchors.dinner,
+      id: current.id,
+      lifeShape: {
+        ...current.lifeShape,
+        usualWorkHours: {
+          days: ['Tuesday', 'Thursday'],
+          end: '18:00',
+          start: '10:00',
+        },
+      },
+      lunchTime: current.lifeShape.mealAnchors.lunch,
+      startBoostSafety: current.startBoostSafety,
+      theme: current.theme,
+      updatedAt: current.updatedAt,
+      wakeTime: current.lifeShape.sleepWakeAnchors.wake,
+      workDays: ['Tuesday', 'Thursday'],
+      workEnd: '18:00',
+      workStart: '10:00',
+    };
+    let stored: unknown = legacySettings;
+    const put = vi.fn(async (settings: unknown) => {
+      stored = settings;
+    });
+    const store = {
+      settings: {
+        get: vi.fn(async () => stored),
+        put,
+      },
+    } as unknown as SettingsStore;
+
+    const backup = await exportSettingsBackup(store, '2026-06-16T00:00:00.000Z');
+
+    expect(backup.payload.formatVersion).toBe(2);
+    expect(backup.payload.settings.dayProfileMigrationState.reviewState).toBe('needsReview');
+    expect(backup.payload.settings.dayProfiles[0].workPeriod).toEqual({ end: '18:00', start: '10:00' });
+    expect(put).not.toHaveBeenCalled();
+    expect(stored).toEqual(legacySettings);
+  });
+
+  it('projects only approved profile fields and remains import-compatible', async () => {
+    const current = createDefaultSettings('2026-06-15T00:00:00.000Z');
+    const futureAware = {
+      ...current,
+      dayProfiles: current.dayProfiles.map((profile) =>
+        profile.kind === 'workday'
+          ? {
+              ...profile,
+              activeTasks: [{ id: 'must-not-export' }],
+              futureProfileContext: { mode: 'preserve-in-settings-only' },
+            }
+          : profile,
+      ),
+    };
+    const store = {
+      settings: {
+        get: vi.fn(async () => futureAware),
+        put: vi.fn(),
+      },
+    } as unknown as SettingsStore;
+
+    const backup = await exportSettingsBackup(store, '2026-06-16T00:00:00.000Z');
+    const validation = validateSettingsBackupImport(backup.payload);
+
+    expect(backup.json).not.toContain('activeTasks');
+    expect(backup.json).not.toContain('futureProfileContext');
+    expect(validation.ok).toBe(true);
+    expect(store.settings.put).not.toHaveBeenCalled();
   });
 });

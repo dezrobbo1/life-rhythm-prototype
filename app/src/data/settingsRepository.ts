@@ -1,4 +1,8 @@
 import type { Table } from 'dexie';
+import {
+  migrateSettingsDayProfileFoundation,
+  type LegacySettingsConflict,
+} from './dayProfileMigration';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   settingsSchema,
@@ -34,6 +38,24 @@ export type SettingsWriteResult =
       settings: Settings;
     };
 
+export type SettingsLoadResult = {
+  conflicts: LegacySettingsConflict[];
+  errors: string[];
+  migrationPersisted: boolean;
+  settings: Settings;
+  status:
+    | 'defaulted'
+    | 'invalid'
+    | 'loaded'
+    | 'migrated'
+    | 'migrationPersistenceFailed'
+    | 'readFailed';
+};
+
+type SettingsLoadOptions = {
+  persistMigration?: boolean;
+};
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -54,38 +76,131 @@ export function createDefaultSettings(timestamp = nowIso()): Settings {
   });
 }
 
-export async function loadSettings(store: SettingsStore = getCurrentLifeRhythmDatabase()): Promise<Settings> {
-  try {
-    const saved = await store.settings.get(SETTINGS_ID);
-    const parsed = settingsSchema.safeParse(saved);
+export async function loadSettingsResult(
+  store: SettingsStore = getCurrentLifeRhythmDatabase(),
+  options: SettingsLoadOptions = {},
+): Promise<SettingsLoadResult> {
+  let saved: unknown;
 
-    return parsed.success ? parsed.data : createDefaultSettings();
+  try {
+    saved = await store.settings.get(SETTINGS_ID);
   } catch {
-    return createDefaultSettings();
+    return {
+      conflicts: [],
+      errors: ['settings: Saved settings could not be read.'],
+      migrationPersisted: false,
+      settings: createDefaultSettings(),
+      status: 'readFailed',
+    };
   }
+
+  if (saved === undefined) {
+    return {
+      conflicts: [],
+      errors: [],
+      migrationPersisted: false,
+      settings: createDefaultSettings(),
+      status: 'defaulted',
+    };
+  }
+
+  const migration = migrateSettingsDayProfileFoundation(saved);
+
+  if (!migration.ok) {
+    return {
+      conflicts: [],
+      errors: migration.errors,
+      migrationPersisted: false,
+      settings: createDefaultSettings(),
+      status: 'invalid',
+    };
+  }
+
+  if (migration.status === 'unchanged') {
+    return {
+      conflicts: migration.conflicts,
+      errors: [],
+      migrationPersisted: false,
+      settings: migration.settings,
+      status: 'loaded',
+    };
+  }
+
+  if (options.persistMigration === false) {
+    return {
+      conflicts: migration.conflicts,
+      errors: [],
+      migrationPersisted: false,
+      settings: migration.settings,
+      status: 'migrated',
+    };
+  }
+
+  try {
+    await store.settings.put(migration.settings);
+  } catch {
+    return {
+      conflicts: migration.conflicts,
+      errors: ['settings: Day-profile migration could not be saved; the original row was left unchanged.'],
+      migrationPersisted: false,
+      settings: migration.settings,
+      status: 'migrationPersistenceFailed',
+    };
+  }
+
+  return {
+    conflicts: migration.conflicts,
+    errors: [],
+    migrationPersisted: true,
+    settings: migration.settings,
+    status: 'migrated',
+  };
+}
+
+export async function loadSettings(store: SettingsStore = getCurrentLifeRhythmDatabase()): Promise<Settings> {
+  return (await loadSettingsResult(store)).settings;
+}
+
+export async function loadSettingsForBackup(
+  store: SettingsStore = getCurrentLifeRhythmDatabase(),
+): Promise<SettingsLoadResult> {
+  return loadSettingsResult(store, { persistMigration: false });
 }
 
 function settingsCandidateFromInput(
   current: Settings,
   input: SettingsWriteInput,
+  conflicts: LegacySettingsConflict[],
   timestamp = nowIso(),
 ) {
+  const lifeShape = input.lifeShape as Partial<LifeShapeSettings> | undefined;
+  const conflictedFields = new Set(conflicts.map((conflict) => conflict.field));
+  const preserveConflict = <T>(field: string, nextValue: T | undefined, currentValue: T) => {
+    return conflictedFields.has(field)
+      ? currentValue
+      : nextValue ?? currentValue;
+  };
+
   return {
     ...current,
     appVersion: SETTINGS_APP_VERSION,
-    bedTime: (input.lifeShape as Partial<LifeShapeSettings> | undefined)?.sleepWakeAnchors?.sleep ?? current.bedTime,
-    breakfastTime: (input.lifeShape as Partial<LifeShapeSettings> | undefined)?.mealAnchors?.breakfast ?? current.breakfastTime,
-    dinnerTime: (input.lifeShape as Partial<LifeShapeSettings> | undefined)?.mealAnchors?.dinner ?? current.dinnerTime,
+    bedTime: preserveConflict('bedTime', lifeShape?.sleepWakeAnchors?.sleep, current.bedTime),
+    breakfastTime: preserveConflict(
+      'breakfastTime',
+      lifeShape?.mealAnchors?.breakfast,
+      current.breakfastTime,
+    ),
+    dinnerTime: preserveConflict('dinnerTime', lifeShape?.mealAnchors?.dinner, current.dinnerTime),
     id: SETTINGS_ID,
     lifeShape: input.lifeShape,
-    lunchTime: (input.lifeShape as Partial<LifeShapeSettings> | undefined)?.mealAnchors?.lunch ?? current.lunchTime,
+    lunchTime: preserveConflict('lunchTime', lifeShape?.mealAnchors?.lunch, current.lunchTime),
     startBoostSafety: input.startBoostSafety,
     theme: input.theme as ThemeName,
     updatedAt: timestamp,
-    wakeTime: (input.lifeShape as Partial<LifeShapeSettings> | undefined)?.sleepWakeAnchors?.wake ?? current.wakeTime,
-    workDays: (input.lifeShape as Partial<LifeShapeSettings> | undefined)?.usualWorkHours?.days ?? current.workDays,
-    workEnd: (input.lifeShape as Partial<LifeShapeSettings> | undefined)?.usualWorkHours?.end ?? current.workEnd,
-    workStart: (input.lifeShape as Partial<LifeShapeSettings> | undefined)?.usualWorkHours?.start ?? current.workStart,
+    wakeTime: preserveConflict('wakeTime', lifeShape?.sleepWakeAnchors?.wake, current.wakeTime),
+    workDays: preserveConflict('workDays', lifeShape?.usualWorkHours?.days, current.workDays),
+    workEnd: preserveConflict('workEnd', lifeShape?.usualWorkHours?.end, current.workEnd),
+    workStart: preserveConflict('workStart', lifeShape?.usualWorkHours?.start, current.workStart),
   };
 }
 
@@ -93,8 +208,24 @@ export async function saveSettings(
   input: SettingsWriteInput,
   store: SettingsStore = getCurrentLifeRhythmDatabase(),
 ): Promise<SettingsWriteResult> {
-  const current = await loadSettings(store);
-  const parsed = settingsSchema.safeParse(settingsCandidateFromInput(current, input));
+  const loadResult = await loadSettingsResult(store);
+  const current = loadResult.settings;
+
+  if (
+    loadResult.status === 'invalid' ||
+    loadResult.status === 'migrationPersistenceFailed' ||
+    loadResult.status === 'readFailed'
+  ) {
+    return {
+      errors: loadResult.errors,
+      ok: false,
+      settings: current,
+    };
+  }
+
+  const parsed = settingsSchema.safeParse(
+    settingsCandidateFromInput(current, input, loadResult.conflicts),
+  );
 
   if (!parsed.success) {
     return {

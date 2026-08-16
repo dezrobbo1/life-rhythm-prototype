@@ -5,13 +5,19 @@ import { createLifeRhythmDatabase } from './db';
 import {
   createAuthLocalDataNamespace,
   getCurrentLocalDataNamespace,
+  getLifeRhythmDatabaseForNamespace,
   getLegacyLocalDataNamespace,
   inspectLegacyLocalData,
   resetCurrentLocalDataNamespace,
   setCurrentLocalDataNamespace,
   type LocalDataNamespace,
 } from './localDataNamespace';
-import { loadSettings, saveSettings, type SettingsWriteInput } from './settingsRepository';
+import {
+  createDefaultSettings,
+  loadSettings,
+  saveSettings,
+  type SettingsWriteInput,
+} from './settingsRepository';
 import { exportSettingsBackup } from './settingsExport';
 import {
   loadActiveTodayTasks,
@@ -177,17 +183,54 @@ describe('local data namespace', () => {
 
   it('keeps user A and user B settings separate on the same browser', async () => {
     setCurrentLocalDataNamespace(userANamespace);
-    await saveSettings(validSettingsInput({ theme: 'grounded' }));
+    const savedA = await saveSettings(validSettingsInput({ theme: 'grounded' }));
+    expect(savedA.ok).toBe(true);
+    if (!savedA.ok) return;
+    const userASettings = {
+      ...savedA.settings,
+      dayProfiles: savedA.settings.dayProfiles.map((profile) =>
+        profile.kind === 'workday'
+          ? { ...profile, name: 'User A workday' }
+          : profile,
+      ),
+      weekdayProfileAssignments: savedA.settings.weekdayProfileAssignments.map((assignment) =>
+        assignment.weekday === 'Friday'
+          ? { ...assignment, profileId: 'profile-non-workday' }
+          : assignment,
+      ),
+    };
+    await getLifeRhythmDatabaseForNamespace(userANamespace).settings.put(userASettings);
 
     setCurrentLocalDataNamespace(userBNamespace);
     expect((await loadSettings()).theme).toBe('exhale');
-    await saveSettings(validSettingsInput({ theme: 'clear' }));
+    const savedB = await saveSettings(validSettingsInput({ theme: 'clear' }));
+    expect(savedB.ok).toBe(true);
+    if (!savedB.ok) return;
+    const userBSettings = {
+      ...savedB.settings,
+      dayProfiles: savedB.settings.dayProfiles.map((profile) =>
+        profile.kind === 'workday'
+          ? { ...profile, name: 'User B workday' }
+          : profile,
+      ),
+    };
+    await getLifeRhythmDatabaseForNamespace(userBNamespace).settings.put(userBSettings);
 
     setCurrentLocalDataNamespace(userANamespace);
-    expect((await loadSettings()).theme).toBe('grounded');
-
+    const loadedA = await loadSettings();
     setCurrentLocalDataNamespace(userBNamespace);
-    expect((await loadSettings()).theme).toBe('clear');
+    const loadedB = await loadSettings();
+
+    expect(loadedA.theme).toBe('grounded');
+    expect(loadedB.theme).toBe('clear');
+    expect(loadedA.dayProfiles[0].name).toBe('User A workday');
+    expect(loadedB.dayProfiles[0].name).toBe('User B workday');
+    expect(
+      loadedA.weekdayProfileAssignments.find((assignment) => assignment.weekday === 'Friday')?.profileId,
+    ).toBe('profile-non-workday');
+    expect(
+      loadedB.weekdayProfileAssignments.find((assignment) => assignment.weekday === 'Friday')?.profileId,
+    ).toBe('profile-workday');
   });
 
   it('keeps user A active tasks separate from user B active tasks', async () => {
