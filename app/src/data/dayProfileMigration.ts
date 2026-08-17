@@ -1,3 +1,4 @@
+import { findBlockedDataClassKey } from './dataClassBoundary';
 import {
   ALL_WEEKDAYS,
   NON_WORKDAY_PROFILE_ID,
@@ -181,6 +182,21 @@ export function migrateSettingsDayProfileFoundation(input: unknown): DayProfileM
   if (!isRecord(input)) {
     return {
       errors: ['settings: Expected a stored settings object.'],
+      ok: false,
+      profileFoundationPresent: false,
+      status: 'invalid',
+    };
+  }
+
+  // Day profiles stay forward-compatible via passthrough, so a malformed or
+  // newer row could otherwise hide another data class inside a profile object.
+  const blockedDataClassKey = findBlockedDataClassKey(input);
+
+  if (blockedDataClassKey) {
+    return {
+      errors: [
+        `${blockedDataClassKey}: Settings cannot hold task, rhythm, placement, scheduler, calendar, legacy, migration or telemetry data.`,
+      ],
       ok: false,
       profileFoundationPresent: false,
       status: 'invalid',

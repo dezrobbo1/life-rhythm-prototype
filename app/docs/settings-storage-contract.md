@@ -96,6 +96,8 @@ The first persistence PR should keep rollback simple:
 - allow a future settings reset to delete or replace only the `/app` settings record,
 - never clear root app storage as part of `/app` rollback.
 
+The settings store holds two records. `settings` is the settings row and keeps the field set the previous application version validates. `dayProfileFoundation` holds the day-profile foundation added by the day-profile persistence work. Splitting them keeps rollback non-destructive: a previous version reads and writes the settings row normally and never sees the foundation record, and rolling forward again recovers it. Foundation keys must not be written onto the settings row; a row written that way by an earlier build is moved into the split shape on the next load.
+
 If a settings read fails, the app should fall back to validated defaults.
 
 ## Root App Protection

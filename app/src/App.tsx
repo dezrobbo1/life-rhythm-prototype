@@ -19,6 +19,7 @@ import {
   type SettingsWriteInput,
   type SettingsWriteResult,
 } from './data/settingsRepository';
+import type { LegacySettingsConflict } from './data/dayProfileMigration';
 import { exportSettingsBackup, type SettingsBackupExport } from './data/settingsExport';
 import { exportSoftPlacementBackup, type SoftPlacementBackupExport } from './data/softPlacementBackup';
 import { exportTaskPoolBackup, type TaskPoolBackupExport } from './data/taskPoolBackup';
@@ -34,6 +35,50 @@ type ExamplePreviewProps = {
   onReturnToPersonalTrial: () => void;
   theme: ThemeName;
 };
+
+const legacyConflictFieldLabels: Record<string, string> = {
+  bedTime: 'Sleep time',
+  breakfastTime: 'Breakfast anchor',
+  dinnerTime: 'Dinner anchor',
+  lunchTime: 'Lunch anchor',
+  wakeTime: 'Wake time',
+  workDays: 'Work days',
+  workEnd: 'Work end',
+  workStart: 'Work start',
+};
+
+function conflictFieldLabel(field: string) {
+  return legacyConflictFieldLabels[field] ?? field;
+}
+
+function conflictValueLabel(value: unknown) {
+  return Array.isArray(value) ? value.join(', ') : String(value);
+}
+
+/**
+ * The day-profile contract requires duplicated legacy settings fields to be
+ * surfaced for review rather than silently resolved.
+ */
+function LegacySettingsConflictNotice({ conflicts }: { conflicts: LegacySettingsConflict[] }) {
+  return (
+    <section aria-labelledby="settings-conflict-title" role="status">
+      <h2 id="settings-conflict-title">Two saved values to check</h2>
+      <p>
+        Your earlier settings kept some values in two places, and they do not match. Nothing was changed and
+        nothing was scheduled. Open Setup to confirm the value you want; saving Setup keeps the Life Shape
+        value shown there.
+      </p>
+      <ul>
+        {conflicts.map((conflict) => (
+          <li key={conflict.field}>
+            {conflictFieldLabel(conflict.field)}: earlier value {conflictValueLabel(conflict.legacyRootValue)},
+            Life Shape value {conflictValueLabel(conflict.lifeShapeValue)}.
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 function downloadJsonBackup(backup: JsonBackupExport) {
   if (
@@ -137,6 +182,7 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeName>('exhale');
   const [settings, setSettings] = useState<Settings | null>(null);
   const [settingsLoadStatus, setSettingsLoadStatus] = useState<SettingsLoadResult['status'] | 'loading'>('loading');
+  const [settingsConflicts, setSettingsConflicts] = useState<LegacySettingsConflict[]>([]);
   const [exampleOpen, setExampleOpen] = useState(false);
   const [preferredPlanPlacementDate, setPreferredPlanPlacementDate] = useState<string | null>(null);
   const [preferredPlanTaskId, setPreferredPlanTaskId] = useState<string | null>(null);
@@ -149,6 +195,7 @@ export default function App() {
         if (!active) return;
 
         setSettingsLoadStatus(result.status);
+        setSettingsConflicts(result.conflicts);
 
         if (
           result.status === 'defaulted' ||
@@ -167,6 +214,7 @@ export default function App() {
         if (!active) return;
 
         setSettings(null);
+        setSettingsConflicts([]);
         setSettingsLoadStatus('readFailed');
       });
 
@@ -181,6 +229,7 @@ export default function App() {
     if (result.ok) {
       setSettings(result.settings);
       setTheme(result.settings.theme);
+      setSettingsConflicts([]);
       setSettingsLoadStatus('loaded');
     }
 
@@ -192,6 +241,7 @@ export default function App() {
 
     setSettings(resetSettings);
     setTheme(resetSettings.theme);
+    setSettingsConflicts([]);
     setSettingsLoadStatus('loaded');
 
     return resetSettings;
@@ -309,6 +359,9 @@ export default function App() {
 
   return (
     <AppSnapshotProvider snapshot={appSnapshot} source="personal">
+      {settingsConflicts.length > 0 ? (
+        <LegacySettingsConflictNotice conflicts={settingsConflicts} />
+      ) : null}
       {settingsLoadStatus === 'migrationPersistenceFailed' ? (
         <p role="status">
           Your settings were loaded for this session, but the updated settings foundation could not be saved. Nothing already stored on this device was changed. The migration will need to be retried.

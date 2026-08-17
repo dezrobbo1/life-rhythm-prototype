@@ -13,7 +13,26 @@ import {
 import type { ThemeName } from '../app/theme';
 
 export const SETTINGS_ID = 'settings';
+
+/**
+ * The day-profile foundation is stored as its own record in the settings table
+ * rather than as extra keys on the settings row.
+ *
+ * The settings row therefore keeps the exact shape the previous application
+ * version validates with its strict settings schema, so a rollback still reads
+ * and writes real user settings instead of falling back to defaults and then
+ * overwriting them. Rolling forward again recovers the foundation untouched.
+ * This uses the existing settings store and needs no database version change.
+ */
+export const DAY_PROFILE_FOUNDATION_ID = 'dayProfileFoundation';
+
 export const SETTINGS_APP_VERSION = '1.4.6';
+
+const profileFoundationKeys = [
+  'dayProfileMigrationState',
+  'dayProfiles',
+  'weekdayProfileAssignments',
+] as const;
 
 type SettingsTable = Pick<Table<Settings, string>, 'get' | 'put'>;
 
@@ -67,6 +86,77 @@ function issuesToMessages(issues: Array<{ message: string; path: Array<string | 
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasInlineProfileFoundation(row: Record<string, unknown>) {
+  return profileFoundationKeys.some((key) => Object.prototype.hasOwnProperty.call(row, key));
+}
+
+/**
+ * Rebuilds the in-memory settings shape from the rollback-readable settings row
+ * and its sibling foundation record.
+ *
+ * Rows written by an earlier build of this branch still carry the foundation
+ * inline. Those are read as-is and rewritten into the split shape on the next
+ * persist, so no already-migrated row is stranded.
+ */
+function combineStoredRecords(settingsRow: unknown, foundationRow: unknown): unknown {
+  if (!isRecord(settingsRow) || hasInlineProfileFoundation(settingsRow) || !isRecord(foundationRow)) {
+    return settingsRow;
+  }
+
+  const foundation: Record<string, unknown> = {};
+
+  for (const key of profileFoundationKeys) {
+    if (Object.prototype.hasOwnProperty.call(foundationRow, key)) {
+      foundation[key] = foundationRow[key];
+    }
+  }
+
+  return { ...settingsRow, ...foundation };
+}
+
+/** The settings row exactly as the previous application version expects it. */
+function settingsRowFrom(settings: Settings) {
+  const {
+    dayProfileMigrationState: _migrationState,
+    dayProfiles: _dayProfiles,
+    weekdayProfileAssignments: _assignments,
+    ...rollbackReadableRow
+  } = settings;
+
+  return rollbackReadableRow as unknown as Settings;
+}
+
+function foundationRowFrom(settings: Settings) {
+  return {
+    appVersion: settings.appVersion,
+    dayProfileMigrationState: settings.dayProfileMigrationState,
+    dayProfiles: settings.dayProfiles,
+    id: DAY_PROFILE_FOUNDATION_ID,
+    updatedAt: settings.updatedAt,
+    weekdayProfileAssignments: settings.weekdayProfileAssignments,
+  } as unknown as Settings;
+}
+
+/**
+ * Writes the foundation record first so an interrupted write never strips the
+ * foundation from a row that still carries it inline.
+ */
+async function persistSettingsRecords(
+  store: SettingsStore,
+  settings: Settings,
+  options: { rewriteSettingsRow: boolean },
+) {
+  await store.settings.put(foundationRowFrom(settings));
+
+  if (options.rewriteSettingsRow) {
+    await store.settings.put(settingsRowFrom(settings));
+  }
+}
+
 export function createDefaultSettings(timestamp = nowIso()): Settings {
   return settingsSchema.parse({
     appVersion: SETTINGS_APP_VERSION,
@@ -80,10 +170,14 @@ export async function loadSettingsResult(
   store: SettingsStore = getCurrentLifeRhythmDatabase(),
   options: SettingsLoadOptions = {},
 ): Promise<SettingsLoadResult> {
-  let saved: unknown;
+  let savedSettingsRow: unknown;
+  let savedFoundationRow: unknown;
 
   try {
-    saved = await store.settings.get(SETTINGS_ID);
+    [savedSettingsRow, savedFoundationRow] = await Promise.all([
+      store.settings.get(SETTINGS_ID),
+      store.settings.get(DAY_PROFILE_FOUNDATION_ID),
+    ]);
   } catch {
     return {
       conflicts: [],
@@ -94,7 +188,7 @@ export async function loadSettingsResult(
     };
   }
 
-  if (saved === undefined) {
+  if (savedSettingsRow === undefined) {
     return {
       conflicts: [],
       errors: [],
@@ -104,7 +198,11 @@ export async function loadSettingsResult(
     };
   }
 
-  const migration = migrateSettingsDayProfileFoundation(saved);
+  const storedInlineFoundation =
+    isRecord(savedSettingsRow) && hasInlineProfileFoundation(savedSettingsRow);
+  const migration = migrateSettingsDayProfileFoundation(
+    combineStoredRecords(savedSettingsRow, savedFoundationRow),
+  );
 
   if (!migration.ok) {
     return {
@@ -116,7 +214,8 @@ export async function loadSettingsResult(
     };
   }
 
-  if (migration.status === 'unchanged') {
+  // Nothing to write when the foundation is already stored in the split shape.
+  if (migration.status === 'unchanged' && !storedInlineFoundation) {
     return {
       conflicts: migration.conflicts,
       errors: [],
@@ -126,18 +225,22 @@ export async function loadSettingsResult(
     };
   }
 
+  const status = migration.status === 'unchanged' ? 'loaded' : 'migrated';
+
   if (options.persistMigration === false) {
     return {
       conflicts: migration.conflicts,
       errors: [],
       migrationPersisted: false,
       settings: migration.settings,
-      status: 'migrated',
+      status,
     };
   }
 
   try {
-    await store.settings.put(migration.settings);
+    await persistSettingsRecords(store, migration.settings, {
+      rewriteSettingsRow: storedInlineFoundation,
+    });
   } catch {
     return {
       conflicts: migration.conflicts,
@@ -153,7 +256,7 @@ export async function loadSettingsResult(
     errors: [],
     migrationPersisted: true,
     settings: migration.settings,
-    status: 'migrated',
+    status,
   };
 }
 
@@ -167,40 +270,35 @@ export async function loadSettingsForBackup(
   return loadSettingsResult(store, { persistMigration: false });
 }
 
+/**
+ * Life Shape is the value Setup shows and edits, so a save resolves any
+ * duplicated legacy root field towards it. Conflicts are reported by
+ * `loadSettingsResult` for review before this point; they are not resolved by
+ * discarding the edit the user just made.
+ */
 function settingsCandidateFromInput(
   current: Settings,
   input: SettingsWriteInput,
-  conflicts: LegacySettingsConflict[],
   timestamp = nowIso(),
 ) {
   const lifeShape = input.lifeShape as Partial<LifeShapeSettings> | undefined;
-  const conflictedFields = new Set(conflicts.map((conflict) => conflict.field));
-  const preserveConflict = <T>(field: string, nextValue: T | undefined, currentValue: T) => {
-    return conflictedFields.has(field)
-      ? currentValue
-      : nextValue ?? currentValue;
-  };
 
   return {
     ...current,
     appVersion: SETTINGS_APP_VERSION,
-    bedTime: preserveConflict('bedTime', lifeShape?.sleepWakeAnchors?.sleep, current.bedTime),
-    breakfastTime: preserveConflict(
-      'breakfastTime',
-      lifeShape?.mealAnchors?.breakfast,
-      current.breakfastTime,
-    ),
-    dinnerTime: preserveConflict('dinnerTime', lifeShape?.mealAnchors?.dinner, current.dinnerTime),
+    bedTime: lifeShape?.sleepWakeAnchors?.sleep ?? current.bedTime,
+    breakfastTime: lifeShape?.mealAnchors?.breakfast ?? current.breakfastTime,
+    dinnerTime: lifeShape?.mealAnchors?.dinner ?? current.dinnerTime,
     id: SETTINGS_ID,
     lifeShape: input.lifeShape,
-    lunchTime: preserveConflict('lunchTime', lifeShape?.mealAnchors?.lunch, current.lunchTime),
+    lunchTime: lifeShape?.mealAnchors?.lunch ?? current.lunchTime,
     startBoostSafety: input.startBoostSafety,
     theme: input.theme as ThemeName,
     updatedAt: timestamp,
-    wakeTime: preserveConflict('wakeTime', lifeShape?.sleepWakeAnchors?.wake, current.wakeTime),
-    workDays: preserveConflict('workDays', lifeShape?.usualWorkHours?.days, current.workDays),
-    workEnd: preserveConflict('workEnd', lifeShape?.usualWorkHours?.end, current.workEnd),
-    workStart: preserveConflict('workStart', lifeShape?.usualWorkHours?.start, current.workStart),
+    wakeTime: lifeShape?.sleepWakeAnchors?.wake ?? current.wakeTime,
+    workDays: lifeShape?.usualWorkHours?.days ?? current.workDays,
+    workEnd: lifeShape?.usualWorkHours?.end ?? current.workEnd,
+    workStart: lifeShape?.usualWorkHours?.start ?? current.workStart,
   };
 }
 
@@ -223,9 +321,7 @@ export async function saveSettings(
     };
   }
 
-  const parsed = settingsSchema.safeParse(
-    settingsCandidateFromInput(current, input, loadResult.conflicts),
-  );
+  const parsed = settingsSchema.safeParse(settingsCandidateFromInput(current, input));
 
   if (!parsed.success) {
     return {
@@ -235,7 +331,7 @@ export async function saveSettings(
     };
   }
 
-  await store.settings.put(parsed.data);
+  await persistSettingsRecords(store, parsed.data, { rewriteSettingsRow: true });
 
   return {
     ok: true,
@@ -245,7 +341,8 @@ export async function saveSettings(
 
 export async function resetSettingsToDefaults(store: SettingsStore = getCurrentLifeRhythmDatabase()): Promise<Settings> {
   const defaults = createDefaultSettings();
-  await store.settings.put(defaults);
+
+  await persistSettingsRecords(store, defaults, { rewriteSettingsRow: true });
 
   return defaults;
 }

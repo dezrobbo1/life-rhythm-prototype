@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { findBlockedDataClassKey } from './dataClassBoundary';
 import {
   dayProfileFoundationSchema,
   dayProfileMigrationStateSchema,
@@ -22,40 +23,6 @@ const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:MM'
 const minuteAmount = z.number().int().min(0).max(480);
 const transitionBufferMinutes = z.number().int().min(0).max(180);
 
-const blockedDataKeys = new Set([
-  'activeTasks',
-  'analytics',
-  'calendar',
-  'calendarData',
-  'devTickets',
-  'futureModules',
-  'imports',
-  'legacy',
-  'legacyData',
-  'legacyLocalStorage',
-  'libraryEnablement',
-  'lifeRhythmPrototype13',
-  'lifeRhythm_v140',
-  'lifeRhythm_v143',
-  'lifeRhythm_v146',
-  'migrationLog',
-  'migrations',
-  'oneOff',
-  'oneOffs',
-  'quickPacks',
-  'resetLog',
-  'resetLogs',
-  'rhythmTemplates',
-  'rhythmInstances',
-  'rhythmPlans',
-  'rhythms',
-  'schedulerOutput',
-  'softPlacements',
-  'placements',
-  'taskPoolItems',
-  'tasks',
-  'telemetry',
-]);
 
 function minutesFromTime(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
@@ -306,40 +273,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function findBlockedDataKey(value: unknown, path: Array<string | number> = []): string | undefined {
-  if (Array.isArray(value)) {
-    for (const [index, child] of value.entries()) {
-      const nestedPath = findBlockedDataKey(child, [...path, index]);
-
-      if (nestedPath) {
-        return nestedPath;
-      }
-    }
-
-    return undefined;
-  }
-
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  for (const [key, child] of Object.entries(value)) {
-    const nextPath = [...path, key];
-
-    if (blockedDataKeys.has(key)) {
-      return nextPath.join('.');
-    }
-
-    const nestedPath = findBlockedDataKey(child, nextPath);
-
-    if (nestedPath) {
-      return nestedPath;
-    }
-  }
-
-  return undefined;
-}
-
 function countEnabledSafetyFlags(settings: SettingsBackupImportPayload['settings']) {
   return Object.values(settings.startBoostSafety).filter(Boolean).length;
 }
@@ -370,7 +303,7 @@ export function validateSettingsBackupImport(input: unknown): SettingsBackupImpo
     };
   }
 
-  const blockedDataKey = findBlockedDataKey(input);
+  const blockedDataKey = findBlockedDataClassKey(input);
 
   if (blockedDataKey) {
     return {

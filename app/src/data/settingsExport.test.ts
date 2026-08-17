@@ -307,7 +307,6 @@ describe('settings export backup', () => {
         profile.kind === 'workday'
           ? {
               ...profile,
-              activeTasks: [{ id: 'must-not-export' }],
               futureProfileContext: { mode: 'preserve-in-settings-only' },
             }
           : profile,
@@ -323,9 +322,35 @@ describe('settings export backup', () => {
     const backup = await exportSettingsBackup(store, '2026-06-16T00:00:00.000Z');
     const validation = validateSettingsBackupImport(backup.payload);
 
-    expect(backup.json).not.toContain('activeTasks');
     expect(backup.json).not.toContain('futureProfileContext');
     expect(validation.ok).toBe(true);
     expect(store.settings.put).not.toHaveBeenCalled();
+  });
+
+  it('refuses to export a row hiding another data class inside a day profile', async () => {
+    const current = createDefaultSettings('2026-06-15T00:00:00.000Z');
+    const smuggled = {
+      ...current,
+      dayProfiles: current.dayProfiles.map((profile) =>
+        profile.kind === 'workday'
+          ? {
+              ...profile,
+              activeTasks: [{ id: 'must-not-export' }],
+            }
+          : profile,
+      ),
+    };
+    const put = vi.fn();
+    const store = {
+      settings: {
+        get: vi.fn(async () => smuggled),
+        put,
+      },
+    } as unknown as SettingsStore;
+
+    await expect(exportSettingsBackup(store, '2026-06-16T00:00:00.000Z')).rejects.toThrow(
+      /dayProfiles\.0\.activeTasks/,
+    );
+    expect(put).not.toHaveBeenCalled();
   });
 });

@@ -11,7 +11,7 @@ Read the repository documentation map first:
 
 ## Current implementation
 
-The latest application-code checkpoint remains PR #109, merged through `81f4211dd6970ce08dc63d717a570111388876be`. PR #110 is the approved product-contract checkpoint for day profiles, availability, rhythm recurrence, and rhythm instances; the catalogue gap audit is reviewed as planning input. None of that future runtime behaviour is implemented. The current `/app` implementation contains:
+PR #109 was the previous application-code checkpoint, merged through `81f4211dd6970ce08dc63d717a570111388876be`. PR #110 is the approved product-contract checkpoint for day profiles, availability, rhythm recurrence, and rhythm instances; the catalogue gap audit is reviewed as planning input. PR #112 implements the first day-profile persistence and safe-migration foundation from that contract. No availability inference, rhythm recurrence, or rhythm-instance behaviour is implemented. The current `/app` implementation contains:
 
 - Today, Plan, Pool and Library as the four primary destinations;
 - Reset and Settings as secondary destinations;
@@ -24,6 +24,10 @@ The latest application-code checkpoint remains PR #109, merged through `81f4211d
 - Pool-based soft suggestions from explicit `openCapacity` blocks;
 - user-confirmed local soft placements and safe removal/reconfirmation;
 - Task Pool backup export and read-only validation, including saved status and deferral metadata;
+- settings-owned Workday and Non-workday day-profile foundation with weekday assignment, preserved legacy compatibility context, and an explicit migration-review state;
+- rollback-readable split settings storage, so the settings row stays valid for the previous application version;
+- surfaced duplicated legacy settings-field conflicts for user review;
+- settings backup format version 2, with frozen read-only version-1 validation retained;
 - opt-in Clerk identity shell with separate local namespaces, but no sync;
 - data-class-specific backup export and read-only validation previews;
 - quiet shared in-flow page headings;
@@ -46,7 +50,7 @@ The `/app` implementation does not provide:
 - AI-written task state or AI authority;
 - notifications or analytics;
 - import/restore execution;
-- Workday/Non-workday profiles or profile-derived availability;
+- profile-derived availability, derived work boundaries, per-date overrides, or Setup profile controls;
 - persistent rhythm enablement or complete recurrence rules;
 - repeating rhythm instances;
 - broad parked/not-today/rhythm-instance resurfacing;
@@ -62,14 +66,14 @@ Until separately reviewed implementation activates an approved future model, cur
 - [`docs/rhythm-recurrence-and-instance-contract.md`](docs/rhythm-recurrence-and-instance-contract.md) — approved product contract.
 - [`docs/rhythm-library-catalogue-gap-audit.md`](docs/rhythm-library-catalogue-gap-audit.md) — reviewed product-planning input, not runtime authority.
 
-The next bounded implementation is the first day-profile persistence and safe-migration foundation:
+The first day-profile persistence and safe-migration foundation is implemented:
 
 - Workday and Non-workday profile data structures;
 - weekday-to-profile assignment;
 - preservation of existing settings as compatibility context;
 - an explicit migration-review state.
 
-It does not yet add profile-derived availability, derived work-hour suggestion behaviour, removal of current explicit `openCapacity`, rhythm recurrence, rhythm instances, automatic scheduling, or calendar writes. Later work continues through reviewed settings migration and activation, derived work boundaries, persistent rhythm plans, stable generated instances, Plan integration, and curated Library expansion. Today remains the next bounded visual object pass after that model work; Library and Setup remain later visual passes. The canonical sequence is in the [current design spec](docs/life-rhythm-current-design-spec.md#18-current-near-term-roadmap).
+It does not add profile-derived availability, derived work-hour suggestion behaviour, removal of current explicit `openCapacity`, rhythm recurrence, rhythm instances, automatic scheduling, or calendar writes. Later work continues through reviewed settings migration and activation, derived work boundaries, persistent rhythm plans, stable generated instances, Plan integration, and curated Library expansion. Today remains the next bounded visual object pass after that model work; Library and Setup remain later visual passes. The canonical sequence is in the [current design spec](docs/life-rhythm-current-design-spec.md#18-current-near-term-roadmap).
 
 ## Commands
 

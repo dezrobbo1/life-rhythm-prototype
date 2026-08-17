@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createLifeRhythmDatabase } from './db';
 import type { SettingsStore, SettingsWriteInput } from './settingsRepository';
 import {
+  DAY_PROFILE_FOUNDATION_ID,
   SETTINGS_ID,
   createDefaultSettings,
   loadSettings,
@@ -14,6 +15,7 @@ import {
   NON_WORKDAY_PROFILE_ID,
   WORKDAY_PROFILE_ID,
   activeTaskSchema,
+  legacySettingsSchema,
   type Settings,
 } from './schemas';
 
@@ -76,22 +78,29 @@ function validInput(overrides: Partial<SettingsWriteInput> = {}): SettingsWriteI
 }
 
 function createFakeStore(initialSettings?: unknown, options: { failPut?: boolean } = {}) {
-  let storedSettings = initialSettings;
-  const put = vi.fn(async (settings: Settings) => {
+  const rows = new Map<string, unknown>();
+
+  if (initialSettings !== undefined) {
+    rows.set(SETTINGS_ID, initialSettings);
+  }
+
+  const put = vi.fn(async (record: Settings) => {
     if (options.failPut) {
       throw new Error('put failed');
     }
 
-    storedSettings = settings;
-    return settings.id;
+    rows.set(record.id, record);
+    return record.id;
   });
-  const get = vi.fn(async (id: string) => (id === SETTINGS_ID ? storedSettings : undefined));
+  const get = vi.fn(async (id: string) => rows.get(id));
 
   return {
     get,
-    getRawSettings: () => storedSettings,
-    getStoredSettings: () => storedSettings as Settings | undefined,
+    getRawSettings: () => rows.get(SETTINGS_ID),
+    getStoredFoundation: () => rows.get(DAY_PROFILE_FOUNDATION_ID) as Record<string, unknown> | undefined,
+    getStoredSettings: () => rows.get(SETTINGS_ID) as Settings | undefined,
     put,
+    rowIds: () => [...rows.keys()].sort(),
     store: {
       settings: {
         get,
@@ -99,6 +108,23 @@ function createFakeStore(initialSettings?: unknown, options: { failPut?: boolean
       },
     } as unknown as SettingsStore,
   };
+}
+
+/** Seeds the rollback-readable split shape: a legacy-shaped settings row plus its foundation record. */
+function createSplitFakeStore(settings: Settings = createDefaultSettings()) {
+  const fake = createFakeStore(withoutDayProfileFoundation(settings));
+
+  fake.put({
+    appVersion: settings.appVersion,
+    dayProfileMigrationState: settings.dayProfileMigrationState,
+    dayProfiles: settings.dayProfiles,
+    id: DAY_PROFILE_FOUNDATION_ID,
+    updatedAt: settings.updatedAt,
+    weekdayProfileAssignments: settings.weekdayProfileAssignments,
+  } as unknown as Settings);
+  fake.put.mockClear();
+
+  return fake;
 }
 
 function withoutDayProfileFoundation(settings: Settings = createDefaultSettings()) {
@@ -123,9 +149,16 @@ describe('settings repository', () => {
       expect(loaded.theme).toBe('grounded');
       expect(loaded.startBoostSafety.avoidFoodRewards).toBe(true);
       expect(loaded.lifeShape.commuteMinutes).toBe(25);
-      expect(await database.settings.count()).toBe(1);
+      expect(await database.settings.count()).toBe(2);
       expect(await database.activeTasks.count()).toBe(0);
       expect(await database.rhythmTemplates.count()).toBe(0);
+
+      // The settings row keeps the shape the previous version validates, so a
+      // rollback still reads real settings instead of falling back to defaults.
+      const storedRow = (await database.settings.get(SETTINGS_ID)) as Record<string, unknown>;
+
+      expect(legacySettingsSchema.safeParse(storedRow).success).toBe(true);
+      expect(Object.keys(storedRow)).not.toContain('dayProfiles');
     } finally {
       await database.delete();
     }
@@ -207,7 +240,15 @@ describe('settings repository', () => {
         .map((assignment) => assignment.weekday),
     ).toEqual(['Tuesday', 'Thursday', 'Saturday']);
     expect(fake.put).toHaveBeenCalledTimes(1);
-    expect(fake.getStoredSettings()).toEqual(result.settings);
+    expect(fake.rowIds()).toEqual([DAY_PROFILE_FOUNDATION_ID, SETTINGS_ID]);
+    expect(fake.getRawSettings()).toEqual(legacy);
+    expect(legacySettingsSchema.safeParse(fake.getRawSettings()).success).toBe(true);
+    expect(fake.getStoredFoundation()).toMatchObject({
+      dayProfileMigrationState: result.settings.dayProfileMigrationState,
+      dayProfiles: result.settings.dayProfiles,
+      id: DAY_PROFILE_FOUNDATION_ID,
+      weekdayProfileAssignments: result.settings.weekdayProfileAssignments,
+    });
 
     const repeated = await loadSettingsResult(fake.store);
 
@@ -375,7 +416,68 @@ describe('settings repository', () => {
     expect(result.settings.dayProfiles.some((profile) => 'mealWindows' in profile)).toBe(false);
   });
 
-  it('preserves surfaced legacy conflicts during an unrelated theme save', async () => {
+  it('keeps the stored settings row readable by the previous application version', async () => {
+    const legacy = withoutDayProfileFoundation(createDefaultSettings('2026-08-12T00:00:00.000Z'));
+    const fake = createFakeStore({ ...legacy, theme: 'grounded', workStart: '09:30' });
+
+    await loadSettingsResult(fake.store);
+    await saveSettings(validInput({ theme: 'clear' }), fake.store);
+
+    const storedRow = fake.getRawSettings() as Record<string, unknown>;
+
+    // The previous version parses the settings row with a strict schema. If the
+    // day-profile keys were written onto this row it would load defaults and the
+    // next save would overwrite real user settings.
+    expect(legacySettingsSchema.safeParse(storedRow).success).toBe(true);
+
+    for (const key of ['dayProfiles', 'weekdayProfileAssignments', 'dayProfileMigrationState']) {
+      expect(Object.prototype.hasOwnProperty.call(storedRow, key)).toBe(false);
+    }
+
+    expect(fake.getStoredFoundation()).toBeDefined();
+  });
+
+  it('moves an inline profile foundation written by an earlier build into its own record', async () => {
+    const inline = createDefaultSettings('2026-08-12T00:00:00.000Z');
+    const fake = createFakeStore({ ...inline, theme: 'grounded' });
+
+    const result = await loadSettingsResult(fake.store);
+
+    expect(result.status).toBe('loaded');
+    expect(result.migrationPersisted).toBe(true);
+    expect(result.settings.theme).toBe('grounded');
+    expect(legacySettingsSchema.safeParse(fake.getRawSettings()).success).toBe(true);
+    expect(fake.getStoredFoundation()?.id).toBe(DAY_PROFILE_FOUNDATION_ID);
+
+    // Healing is idempotent: a second load has nothing left to rewrite.
+    fake.put.mockClear();
+
+    const repeated = await loadSettingsResult(fake.store);
+
+    expect(repeated.status).toBe('loaded');
+    expect(repeated.migrationPersisted).toBe(false);
+    expect(repeated.settings).toEqual(result.settings);
+    expect(fake.put).not.toHaveBeenCalled();
+  });
+
+  it('rejects a stored row hiding another data class inside a day profile', async () => {
+    const current = createDefaultSettings('2026-08-12T00:00:00.000Z');
+    const smuggled = {
+      ...current,
+      dayProfiles: current.dayProfiles.map((profile) =>
+        profile.kind === 'workday' ? { ...profile, softPlacements: [{ id: 'leaked' }] } : profile,
+      ),
+    };
+    const fake = createFakeStore(smuggled);
+
+    const result = await loadSettingsResult(fake.store);
+
+    expect(result.status).toBe('invalid');
+    expect(result.errors.join(' ')).toContain('dayProfiles.0.softPlacements');
+    expect(fake.put).not.toHaveBeenCalled();
+  });
+
+  it('surfaces duplicated legacy field conflicts for review instead of resolving them silently', async () => {
     const current = createDefaultSettings('2026-08-12T00:00:00.000Z');
     const conflicted = {
       ...current,
@@ -383,23 +485,56 @@ describe('settings repository', () => {
       workStart: '07:30',
     };
     const fake = createFakeStore(conflicted);
+    const loaded = await loadSettingsResult(fake.store);
+
+    expect(loaded.conflicts).toEqual([
+      {
+        field: 'workStart',
+        legacyRootValue: '07:30',
+        lifeShapeValue: current.lifeShape.usualWorkHours.start,
+      },
+      {
+        field: 'breakfastTime',
+        legacyRootValue: '06:45',
+        lifeShapeValue: current.lifeShape.mealAnchors.breakfast,
+      },
+    ]);
+  });
+
+  it('resolves a surfaced conflict towards Life Shape on save instead of discarding the edit', async () => {
+    const current = createDefaultSettings('2026-08-12T00:00:00.000Z');
+    const conflicted = {
+      ...current,
+      breakfastTime: '06:45',
+      workStart: '07:30',
+    };
+    const fake = createFakeStore(conflicted);
+    const editedLifeShape = {
+      ...current.lifeShape,
+      usualWorkHours: {
+        ...current.lifeShape.usualWorkHours,
+        start: '10:00',
+      },
+    };
     const result = await saveSettings(
       {
-        lifeShape: conflicted.lifeShape,
+        lifeShape: editedLifeShape,
         startBoostSafety: conflicted.startBoostSafety,
         theme: 'grounded',
       },
       fake.store,
     );
-    const reloaded = await loadSettingsResult(fake.store);
 
     expect(result.ok).toBe(true);
-    expect(fake.getStoredSettings()?.breakfastTime).toBe('06:45');
-    expect(fake.getStoredSettings()?.workStart).toBe('07:30');
-    expect(reloaded.conflicts.map((conflict) => conflict.field)).toEqual([
-      'workStart',
-      'breakfastTime',
-    ]);
+    // The value Setup shows and edits wins; the stale duplicate does not survive.
+    expect(result.settings.workStart).toBe('10:00');
+    expect(fake.getStoredSettings()?.workStart).toBe('10:00');
+    expect(fake.getStoredSettings()?.breakfastTime).toBe(current.lifeShape.mealAnchors.breakfast);
+
+    const reloaded = await loadSettingsResult(fake.store);
+
+    // The conflict is resolved rather than recomputed on every later load.
+    expect(reloaded.conflicts).toEqual([]);
   });
 
   it('preserves future-compatible profile-owned fields through load and save', async () => {
@@ -441,7 +576,7 @@ describe('settings repository', () => {
 
   it('does not save invalid work hours', async () => {
     const existing = createDefaultSettings();
-    const fake = createFakeStore(existing);
+    const fake = createSplitFakeStore(existing);
     const result = await saveSettings(
       validInput({
         lifeShape: {
@@ -463,7 +598,7 @@ describe('settings repository', () => {
 
   it('does not save invalid travel or buffer values', async () => {
     const existing = createDefaultSettings();
-    const fake = createFakeStore(existing);
+    const fake = createSplitFakeStore(existing);
     const result = await saveSettings(
       validInput({
         lifeShape: {
@@ -484,7 +619,7 @@ describe('settings repository', () => {
 
   it('does not save invalid Life Shape time blocks', async () => {
     const existing = createDefaultSettings();
-    const fake = createFakeStore(existing);
+    const fake = createSplitFakeStore(existing);
     const result = await saveSettings(
       validInput({
         lifeShape: {
@@ -528,7 +663,7 @@ describe('settings repository', () => {
     expect(resetSettings.dayProfileMigrationState.reviewState).toBe('notStarted');
     expect(resetSettings.dayProfileMigrationState.reviewedAt).toBeUndefined();
     expect(fake.getStoredSettings()?.theme).toBe('exhale');
-    expect(fake.put).toHaveBeenCalledTimes(2);
+    expect(fake.put).toHaveBeenCalledTimes(4);
   });
 
   it('resets only the Dexie settings table row to defaults', async () => {
@@ -562,7 +697,7 @@ describe('settings repository', () => {
       const resetSettings = await resetSettingsToDefaults(database);
 
       expect(resetSettings.theme).toBe('exhale');
-      expect(await database.settings.count()).toBe(1);
+      expect(await database.settings.count()).toBe(2);
       expect(await database.activeTasks.count()).toBe(1);
       expect(await database.rhythmTemplates.count()).toBe(0);
     } finally {
