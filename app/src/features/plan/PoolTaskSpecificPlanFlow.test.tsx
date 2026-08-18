@@ -63,7 +63,7 @@ describe('task-specific Pool to Plan routing', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Pool' }));
+    await user.click(await screen.findByRole('button', { name: 'Pool' }));
     await captureTask(user, 'Older task');
     await captureTask(user, 'Chosen task');
 
@@ -114,7 +114,7 @@ describe('task-specific Pool to Plan routing', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Pool' }));
+    await user.click(await screen.findByRole('button', { name: 'Pool' }));
     const taskRow = (await screen.findByText('Placed task')).closest('li');
     if (!taskRow) throw new Error('Placed task row was not found.');
 

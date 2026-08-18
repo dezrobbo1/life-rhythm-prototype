@@ -2,7 +2,22 @@
 
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDefaultSettings } from './settingsRepository';
+
+const settingsRepositoryMocks = vi.hoisted(() => ({
+  loadSettingsResult: vi.fn(),
+}));
+
+vi.mock('./settingsRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./settingsRepository')>();
+
+  return {
+    ...actual,
+    loadSettingsResult: settingsRepositoryMocks.loadSettingsResult,
+  };
+});
+
 import App from '../App';
 import {
   AppSnapshotProvider,
@@ -20,8 +35,19 @@ function SnapshotProbe() {
   );
 }
 
+beforeEach(() => {
+  settingsRepositoryMocks.loadSettingsResult.mockImplementation(async () => ({
+    conflicts: [],
+    errors: [],
+    migrationPersisted: false,
+    settings: createDefaultSettings('2026-08-15T00:00:00.000Z'),
+    status: 'defaulted',
+  }));
+});
+
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   vi.restoreAllMocks();
 });
 
@@ -110,7 +136,7 @@ describe('AppSnapshotProvider', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    const nav = await screen.findByRole('navigation', { name: 'Primary' });
     const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
 
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();

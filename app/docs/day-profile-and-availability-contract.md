@@ -394,6 +394,8 @@ Any future `Place softly` rhythm mode is governed by the separate rhythm recurre
 
 Migration must be local, validated, reversible at the data-version level, and separately implemented.
 
+Implemented. The startup migration is local, deterministic, idempotent, and validated. Data-version reversibility is met by storing the profile foundation as its own record in the settings store, keyed `dayProfileFoundation`, instead of adding keys to the settings row. The settings row therefore continues to satisfy the previous version's strict settings schema, so a rollback reads and writes real user settings rather than falling back to defaults and overwriting them. Rolling forward again recovers the foundation record unchanged. No database version change is required.
+
 ### Initial profile creation
 
 - Create one Workday profile from the validated current work-hours fields.
@@ -434,6 +436,8 @@ A migration must persist `DayProfileMigrationState.reviewState`. Profile derivat
 - no newly derived candidate windows appear.
 
 Conflicts between duplicated legacy settings fields must be surfaced in validation rather than silently resolved.
+
+Implemented. `loadSettingsResult` returns every detected conflict and the app shows a calm, non-blocking review notice naming each field and both saved values. Nothing is scheduled and nothing is changed by the notice. A later Setup save resolves the duplicate towards the Life Shape value, because that is the value Setup displays and edits; a save never discards the edit the user just made in order to keep a stale duplicate.
 
 ## 14. Persistence and Backup Requirements
 

@@ -457,7 +457,11 @@ Open capacity is the only block type that should be treated as potentially avail
 
 The approved future product-contract direction is described in [`day-profile-and-availability-contract.md`](day-profile-and-availability-contract.md). It replaces one mandatory global day pattern with at least Workday and Non-workday profiles, weekday assignment, optional profile-specific meal/sleep/usable-day context, derived work boundaries, and candidate windows calculated primarily by subtracting unavailable and leave-alone time from the usable-day envelope.
 
-That profile model is not implemented. No schema, repository, migration, work-boundary, availability-inference, or per-date override behavior exists yet. Until a later approved implementation and migration gate, explicit `openCapacity` remains the only current addable suggestion source and all current placement behavior remains user-confirmed.
+That profile model is only partly implemented. The settings-owned day-profile foundation now exists: a stable Workday and Non-workday profile, weekday-to-profile assignment, preserved legacy compatibility context, and an explicit migration-review state, with a deterministic startup migration, settings-backup format version 2, and read-only version-1 validation retained.
+
+No work-boundary derivation, availability inference, per-date override, or Setup profile control exists yet. The migration never activates profile-derived availability, and `DayProfileMigrationState.reviewState` remains the activation gate. Until a later approved implementation passes that gate, explicit `openCapacity` remains the only current addable suggestion source and all current placement behavior remains user-confirmed.
+
+The foundation is stored as its own record in the settings store rather than as extra keys on the settings row, so the settings row keeps the shape the previous application version validates and a rollback stays non-destructive. See [`settings-storage-contract.md`](settings-storage-contract.md).
 
 ## 8. Today Model
 
@@ -992,10 +996,11 @@ Completed foundation:
 - PR #107 merged for Visual Foundation Pass 1 / Soft Ledger shell and Pool at `e11d6d5022a6118f96712b48ef5776d0a6acffbd`
 - PR #109 Plan Soft Ledger checkpoint merged through `81f4211dd6970ce08dc63d717a570111388876be`
 - PR #110 product review completed for the day-profile/availability and rhythm recurrence/instance contracts, with the catalogue gap audit reviewed as planning input
+- PR #112 day-profile persistence and safe-migration foundation, with rollback-readable split settings storage and surfaced legacy-field conflicts
 
 Current next bounded implementation priority:
 
-> Implement the first day-profile persistence and safe-migration foundation.
+> Implement the reviewed settings migration review and activation gate for day profiles.
 
 Purpose:
 
@@ -1007,9 +1012,9 @@ Approved product-definition documents:
 - [`rhythm-recurrence-and-instance-contract.md`](rhythm-recurrence-and-instance-contract.md) — approved product contract governing future bounded implementation.
 - [`rhythm-library-catalogue-gap-audit.md`](rhythm-library-catalogue-gap-audit.md) — reviewed product-planning input, not runtime authority or an implementation specification.
 
-These documents define approved future direction and planning input. No day-profile, availability-inference, persistent-recurrence, rhythm-instance, or expanded-pack behaviour is implemented.
+These documents define approved future direction and planning input. The first day-profile persistence and safe-migration foundation is implemented. No availability-inference, persistent-recurrence, rhythm-instance, or expanded-pack behaviour is implemented.
 
-The first bounded implementation includes:
+The first bounded implementation, now delivered, includes:
 
 - Workday and Non-workday profile data structures;
 - weekday-to-profile assignment;

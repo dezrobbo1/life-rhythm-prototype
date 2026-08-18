@@ -1,16 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildSettingsBackupPayload } from './settingsExport';
+import { buildSettingsBackupPayload, type SettingsBackup } from './settingsExport';
 import {
   parseSettingsBackupImportJson,
   settingsBackupImportSchema,
+  settingsBackupV1ImportSchema,
+  settingsBackupV2ImportSchema,
   validateSettingsBackupImport,
-  type SettingsBackupImportPayload,
 } from './settingsImportValidation';
 import { settingsSchema } from './schemas';
 
 const exportedAt = '2026-06-16T00:00:00.000Z';
 
-function validPayload(): SettingsBackupImportPayload {
+function validPayload(): SettingsBackup {
   const settings = settingsSchema.parse({
     appVersion: '1.4.6',
     createdAt: '2026-06-15T00:00:00.000Z',
@@ -77,7 +78,52 @@ function validPayload(): SettingsBackupImportPayload {
     updatedAt: '2026-06-15T01:00:00.000Z',
   });
 
-  return settingsBackupImportSchema.parse(buildSettingsBackupPayload(settings, exportedAt));
+  return settingsBackupV2ImportSchema.parse(buildSettingsBackupPayload(settings, exportedAt));
+}
+
+function validVersion1Payload() {
+  return settingsBackupV1ImportSchema.parse({
+    appVersion: '1.4.6',
+    exportedAt,
+    format: 'life-rhythm-settings-backup',
+    settings: {
+      appVersion: '1.4.6',
+      createdAt: '2026-06-15T00:00:00.000Z',
+      id: 'settings',
+      lifeShape: {
+        commuteMinutes: 25,
+        fixedCommitments: [],
+        lowCapacityPreference: 'minimum-first',
+        mealAnchors: {
+          breakfast: '07:30',
+          dinner: '18:30',
+          lunch: '12:30',
+        },
+        sleepWakeAnchors: {
+          sleep: '22:00',
+          wake: '06:30',
+        },
+        timeBlocks: [],
+        transitionBufferMinutes: 20,
+        travelMinutes: 25,
+        usualWorkHours: {
+          days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+          end: '17:00',
+          start: '09:00',
+        },
+      },
+      startBoostSafety: {
+        avoidAccountabilityPrompts: true,
+        avoidFoodRewards: true,
+        avoidScrollingRewards: true,
+        avoidShoppingRewards: true,
+        avoidStreakPressure: true,
+        avoidUrgencyCountdowns: true,
+      },
+      theme: 'clear',
+      updatedAt: '2026-06-15T01:00:00.000Z',
+    },
+  });
 }
 
 function clone<T>(value: T): T {
@@ -86,18 +132,49 @@ function clone<T>(value: T): T {
 
 describe('settings backup import validation', () => {
   it('parses a valid settings backup and returns a preview', () => {
-    const result = validateSettingsBackupImport(validPayload());
+    const payload = validPayload();
+    const result = validateSettingsBackupImport(payload);
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(settingsBackupImportSchema.parse(result.payload)).toEqual(validPayload());
+      expect(settingsBackupImportSchema.parse(result.payload)).toEqual(payload);
       expect(result.preview.theme).toBe('clear');
+      expect(result.preview.formatVersion).toBe(2);
+      expect(result.preview.profileFoundationSummary).toContain('Profile foundation present');
+      expect(result.preview.profileFoundationSummary).toContain('does not activate derived availability');
       expect(result.preview.lifeShapeSummary).toContain('09:00-17:00');
       expect(result.preview.startBoostSafetySummary).toBe('6 safety choices on');
       expect(result.payload.settings.lifeShape.timeBlocks[0]).toMatchObject({
         id: 'protected-writing',
         schedulerUse: 'unavailable',
       });
+    }
+  });
+
+  it('accepts a frozen legacy version-1 backup and reports future migration review without restoring', () => {
+    const legacyPayload = validVersion1Payload();
+    const result = validateSettingsBackupImport(legacyPayload);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.preview.formatVersion).toBe(1);
+      expect(result.preview.profileFoundationSummary).toContain('Profile foundation absent');
+      expect(result.preview.profileFoundationSummary).toContain('migration and user review');
+      expect(result.preview.profileFoundationSummary).toContain('No restore occurred');
+      expect('formatVersion' in result.payload).toBe(false);
+    }
+  });
+
+  it('rejects explicit unknown settings-backup versions', () => {
+    const result = validateSettingsBackupImport({
+      ...validPayload(),
+      formatVersion: 3,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.join(' ')).toContain('formatVersion');
+      expect(result.errors.join(' ')).toContain('legacy version-1');
     }
   });
 
@@ -300,6 +377,7 @@ describe('settings backup import validation', () => {
               end: '09:00',
               id: 'bad-range',
               label: 'Bad range',
+              schedulerUse: 'unavailable',
               start: '10:00',
               type: 'protectedTime',
             },
@@ -319,6 +397,7 @@ describe('settings backup import validation', () => {
               end: '12:00',
               id: 'bad-day',
               label: 'Bad day',
+              schedulerUse: 'askFirst',
               start: '10:00',
               type: 'looseTime',
             },
@@ -339,6 +418,7 @@ describe('settings backup import validation', () => {
               id: 'unknown-field',
               label: 'Unknown field',
               scheduleIntoThis: true,
+              schedulerUse: 'available',
               start: '10:00',
               type: 'openCapacity',
             },
@@ -359,20 +439,182 @@ describe('settings backup import validation', () => {
     }
   });
 
+  it('accepts a non-semantic stored source-version label without broadening backup metadata', () => {
+    const payload = clone(validPayload());
+    const result = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        dayProfileMigrationState: {
+          ...payload.settings.dayProfileMigrationState,
+          sourceSettingsVersion: 'dev',
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok && 'formatVersion' in result.payload) {
+      expect(result.payload.settings.dayProfileMigrationState.sourceSettingsVersion).toBe('dev');
+    }
+  });
+
+  it('rejects duplicate profile identities and profile kinds in version 2', () => {
+    const payload = clone(validPayload());
+    const duplicate = payload.settings.dayProfiles[0];
+    const result = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        dayProfiles: [duplicate, duplicate],
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const errors = result.errors.join(' ');
+      expect(errors).toContain('IDs must be unique');
+      expect(errors).toContain('kinds must be unique');
+    }
+  });
+
+  it('rejects duplicate or missing weekday assignments in version 2', () => {
+    const payload = clone(validPayload());
+    const duplicateWeekday = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        weekdayProfileAssignments: payload.settings.weekdayProfileAssignments.map((assignment) =>
+          assignment.weekday === 'Sunday'
+            ? { ...assignment, weekday: 'Saturday' }
+            : assignment,
+        ),
+      },
+    });
+    const missingWeekday = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        weekdayProfileAssignments: payload.settings.weekdayProfileAssignments.slice(0, 6),
+      },
+    });
+
+    expect(duplicateWeekday.ok).toBe(false);
+    expect(missingWeekday.ok).toBe(false);
+    if (!duplicateWeekday.ok && !missingWeekday.ok) {
+      expect(duplicateWeekday.errors.join(' ')).toContain('assigned exactly once');
+      expect(duplicateWeekday.errors.join(' ')).toContain('Sunday must have');
+      expect(missingWeekday.errors.join(' ')).toContain('7');
+    }
+  });
+
+  it('rejects unknown profile references and malformed profile values in version 2', () => {
+    const payload = clone(validPayload());
+    const unknownReference = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        weekdayProfileAssignments: payload.settings.weekdayProfileAssignments.map((assignment) =>
+          assignment.weekday === 'Monday'
+            ? { ...assignment, profileId: 'missing-profile' }
+            : assignment,
+        ),
+      },
+    });
+    const unknownKind = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        dayProfiles: payload.settings.dayProfiles.map((profile) =>
+          profile.kind === 'workday'
+            ? { ...profile, kind: 'shiftDay' }
+            : profile,
+        ),
+      },
+    });
+    const invalidWorkUse = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        dayProfiles: payload.settings.dayProfiles.map((profile) =>
+          profile.kind === 'workday'
+            ? { ...profile, workPlanningUse: 'automatic' }
+            : profile,
+        ),
+      },
+    });
+    const invalidReviewState = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        dayProfileMigrationState: {
+          ...payload.settings.dayProfileMigrationState,
+          reviewState: 'activeWithoutReview',
+        },
+      },
+    });
+
+    expect(unknownReference.ok).toBe(false);
+    expect(unknownKind.ok).toBe(false);
+    expect(invalidWorkUse.ok).toBe(false);
+    expect(invalidReviewState.ok).toBe(false);
+    if (!unknownReference.ok && !unknownKind.ok && !invalidWorkUse.ok && !invalidReviewState.ok) {
+      expect(unknownReference.errors.join(' ')).toContain('existing day profile');
+      expect(unknownKind.errors.join(' ')).toContain('settings.dayProfiles.0.kind');
+      expect(invalidWorkUse.errors.join(' ')).toContain('settings.dayProfiles.0.workPlanningUse');
+      expect(invalidReviewState.errors.join(' ')).toContain('settings.dayProfileMigrationState.reviewState');
+    }
+  });
+
+  it('rejects malformed migration compatibility state instead of repairing it', () => {
+    const payload = clone(validPayload());
+    const missingAnchors = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        dayProfileMigrationState: {
+          ...payload.settings.dayProfileMigrationState,
+          legacyMealAnchors: {},
+        },
+      },
+    });
+    const invalidReviewedAt = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        dayProfileMigrationState: {
+          ...payload.settings.dayProfileMigrationState,
+          reviewedAt: 'tomorrow',
+        },
+      },
+    });
+
+    expect(missingAnchors.ok).toBe(false);
+    expect(invalidReviewedAt.ok).toBe(false);
+    if (!missingAnchors.ok && !invalidReviewedAt.ok) {
+      expect(missingAnchors.errors.join(' ')).toContain(
+        'settings.dayProfileMigrationState.legacyMealAnchors.breakfast',
+      );
+      expect(invalidReviewedAt.errors.join(' ')).toContain(
+        'settings.dayProfileMigrationState.reviewedAt',
+      );
+    }
+  });
+
   it('rejects payloads containing task, rhythm, or legacy data', () => {
+    const payload = validPayload();
     const activeTasks = validateSettingsBackupImport({
-      ...validPayload(),
+      ...payload,
       activeTasks: [],
     });
     const rhythmTemplates = validateSettingsBackupImport({
-      ...validPayload(),
+      ...payload,
       settings: {
-        ...validPayload().settings,
+        ...payload.settings,
         rhythmTemplates: [],
       },
     });
     const legacyRootData = validateSettingsBackupImport({
-      ...validPayload(),
+      ...payload,
       lifeRhythm_v146: {
         tasks: [],
       },
@@ -388,6 +630,45 @@ describe('settings backup import validation', () => {
       expect(errors).toContain('settings.rhythmTemplates');
       expect(errors).toContain('lifeRhythm_v146');
       expect(errors).toContain('cannot include app, legacy, task, rhythm, or migration data');
+    }
+  });
+
+  it('rejects blocked Pool, placement, rhythm-instance, calendar, and telemetry data inside arrays', () => {
+    const payload = validPayload();
+    const result = validateSettingsBackupImport({
+      ...payload,
+      notes: [
+        {
+          nested: {
+            taskPoolItems: [],
+          },
+        },
+      ],
+    });
+    const blockedKeys = [
+      'softPlacements',
+      'rhythmPlans',
+      'rhythmInstances',
+      'calendarData',
+      'analytics',
+      'telemetry',
+    ];
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.join(' ')).toContain('notes.0.nested.taskPoolItems');
+    }
+
+    for (const key of blockedKeys) {
+      const blocked = validateSettingsBackupImport({
+        ...payload,
+        [key]: [],
+      });
+
+      expect(blocked.ok).toBe(false);
+      if (!blocked.ok) {
+        expect(blocked.errors.join(' ')).toContain(key);
+      }
     }
   });
 
@@ -407,6 +688,34 @@ describe('settings backup import validation', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errors.join(' ')).toContain('settings.lifeShape.transitionBufferMinutes');
+    }
+  });
+
+  it('does not fill version-2 time blocks or scheduler-use defaults', () => {
+    const payload = clone(validPayload());
+    const missingBlocks = validateSettingsBackupImport({
+      ...payload,
+      settings: {
+        ...payload.settings,
+        lifeShape: {
+          ...payload.settings.lifeShape,
+          timeBlocks: undefined,
+        },
+      },
+    });
+    const blockWithoutSchedulerUse = clone(validPayload());
+    delete (blockWithoutSchedulerUse.settings.lifeShape.timeBlocks[0] as {
+      schedulerUse?: string;
+    }).schedulerUse;
+    const missingSchedulerUse = validateSettingsBackupImport(blockWithoutSchedulerUse);
+
+    expect(missingBlocks.ok).toBe(false);
+    expect(missingSchedulerUse.ok).toBe(false);
+    if (!missingBlocks.ok && !missingSchedulerUse.ok) {
+      expect(missingBlocks.errors.join(' ')).toContain('settings.lifeShape.timeBlocks');
+      expect(missingSchedulerUse.errors.join(' ')).toContain(
+        'settings.lifeShape.timeBlocks.0.schedulerUse',
+      );
     }
   });
 
@@ -446,9 +755,12 @@ describe('settings backup import validation', () => {
     });
 
     try {
-      const result = parseSettingsBackupImportJson(JSON.stringify(validPayload()));
+      const results = [
+        parseSettingsBackupImportJson(JSON.stringify(validPayload())),
+        parseSettingsBackupImportJson(JSON.stringify(validVersion1Payload())),
+      ];
 
-      expect(result.ok).toBe(true);
+      expect(results.every((result) => result.ok)).toBe(true);
       expect(indexedDB.open).not.toHaveBeenCalled();
       expect(indexedDB.deleteDatabase).not.toHaveBeenCalled();
     } finally {

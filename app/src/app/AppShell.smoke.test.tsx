@@ -2,11 +2,37 @@
 
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDefaultSettings } from '../data/settingsRepository';
+
+const settingsRepositoryMocks = vi.hoisted(() => ({
+  loadSettingsResult: vi.fn(),
+}));
+
+vi.mock('../data/settingsRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/settingsRepository')>();
+
+  return {
+    ...actual,
+    loadSettingsResult: settingsRepositoryMocks.loadSettingsResult,
+  };
+});
+
 import App from '../App';
+
+beforeEach(() => {
+  settingsRepositoryMocks.loadSettingsResult.mockImplementation(async () => ({
+    conflicts: [],
+    errors: [],
+    migrationPersisted: false,
+    settings: createDefaultSettings('2026-08-15T00:00:00.000Z'),
+    status: 'defaulted',
+  }));
+});
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
   Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 });
 });
@@ -16,7 +42,7 @@ describe('primary app shell navigation', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    const nav = await screen.findByRole('navigation', { name: 'Primary' });
 
     expect(screen.getByText('Personal trial')).toBeTruthy();
     expect(screen.getByText('Start small. Keep rhythm.')).toBeTruthy();
@@ -79,7 +105,7 @@ describe('primary app shell navigation', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Today' })).toBeTruthy();
     expect(screen.queryByText("Set tomorrow's first step")).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Example day' }));
@@ -103,7 +129,7 @@ describe('primary app shell navigation', () => {
     window.dispatchEvent(new Event('resize'));
     render(<App />);
 
-    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    const nav = await screen.findByRole('navigation', { name: 'Primary' });
     const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
 
     await user.click(within(secondaryNav).getByRole('button', { name: 'Settings' }));

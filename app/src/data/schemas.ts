@@ -8,6 +8,9 @@ const strictIsoDateTimePattern =
   /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,3}))?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
 
 export const appVersionSchema = z.string().min(1);
+export const semanticAppVersionSchema = z
+  .string()
+  .regex(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/, 'Expected a valid app version');
 export const idSchema = z.string().min(1);
 
 export const themeNameSchema = z.enum(['exhale', 'clear', 'grounded']);
@@ -121,6 +124,22 @@ export const lifeShapeTimeBlockTypeSchema = z.enum([
   'openCapacity',
 ]);
 export const lifeShapeSchedulerUseSchema = z.enum(['unavailable', 'askFirst', 'available']);
+export const dayProfileKindSchema = z.enum(['workday', 'nonWorkday']);
+export const dayProfileWorkPlanningUseSchema = z.enum([
+  'workRhythmsOnly',
+  'unavailable',
+  'askFirst',
+  'allowSuitableTasks',
+]);
+export const dayProfileMigrationReviewStateSchema = z.enum([
+  'notStarted',
+  'needsReview',
+  'reviewedAndEnabled',
+]);
+
+export const WORKDAY_PROFILE_ID = 'profile-workday';
+export const NON_WORKDAY_PROFILE_ID = 'profile-non-workday';
+export const ALL_WEEKDAYS = dayOfWeekSchema.options;
 
 const minuteAmountSchema = z.number().int().min(0).max(480);
 const transitionBufferMinutesSchema = z.number().int().min(0).max(180);
@@ -189,10 +208,12 @@ function isValidStrictIsoDateTime(value: string): boolean {
   );
 }
 
-export const activeTaskDeadlineIsoDateTimeSchema = z
+export const strictIsoDateTimeSchema = z
   .string()
   .regex(strictIsoDateTimePattern, 'Expected a valid ISO timestamp')
   .refine(isValidStrictIsoDateTime, 'Expected a valid ISO timestamp');
+
+export const activeTaskDeadlineIsoDateTimeSchema = strictIsoDateTimeSchema;
 
 export const softPlacementDateSchema = z
   .string()
@@ -395,7 +416,217 @@ export const lifeShapeSettingsSchema = z
     timeBlocks: [],
   });
 
-export const settingsSchema = z
+const dayProfileTimeRangeSchema = z
+  .object({
+    end: timeOfDay,
+    start: timeOfDay,
+  })
+  .passthrough()
+  .superRefine((range, context) => {
+    if (minutesFromTime(range.start) >= minutesFromTime(range.end)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'End must be later than start.',
+        path: ['end'],
+      });
+    }
+  });
+
+export const dayProfileSchema = z
+  .object({
+    id: idSchema,
+    kind: dayProfileKindSchema,
+    name: z.string().min(1),
+    usableDay: dayProfileTimeRangeSchema.optional(),
+    workPeriod: dayProfileTimeRangeSchema.optional(),
+    workPlanningUse: dayProfileWorkPlanningUseSchema,
+  })
+  .passthrough();
+
+export const weekdayProfileAssignmentSchema = z
+  .object({
+    profileId: idSchema,
+    weekday: dayOfWeekSchema,
+  })
+  .strict();
+
+export const dayProfileMigrationStateSchema = z
+  .object({
+    legacyCommuteTransitionContext: z
+      .object({
+        commuteMinutes: minuteAmountSchema,
+        transitionBufferMinutes: transitionBufferMinutesSchema,
+    })
+      .strict(),
+    legacyLowCapacityPreference: lowCapacityPreferenceSchema,
+    legacyMealAnchors: z
+      .object({
+        breakfast: timeOfDay,
+        dinner: timeOfDay,
+        lunch: timeOfDay,
+      })
+      .strict(),
+    legacySleepWakeAnchors: z
+      .object({
+        sleep: timeOfDay,
+        wake: timeOfDay,
+      })
+      .strict(),
+    legacyTravelContext: z
+      .object({
+        travelMinutes: minuteAmountSchema,
+      })
+      .strict(),
+    reviewedAt: strictIsoDateTimeSchema.optional(),
+    reviewState: dayProfileMigrationReviewStateSchema,
+    sourceSettingsVersion: appVersionSchema,
+  })
+  .strict();
+
+const defaultDayProfiles = [
+  {
+    id: WORKDAY_PROFILE_ID,
+    kind: 'workday' as const,
+    name: 'Workday',
+    workPeriod: {
+      end: '16:00',
+      start: '08:00',
+    },
+    workPlanningUse: 'workRhythmsOnly' as const,
+  },
+  {
+    id: NON_WORKDAY_PROFILE_ID,
+    kind: 'nonWorkday' as const,
+    name: 'Non-workday',
+    workPlanningUse: 'unavailable' as const,
+  },
+];
+
+const defaultWeekdayProfileAssignments = ALL_WEEKDAYS.map((weekday) => ({
+  profileId:
+    weekday === 'Saturday' || weekday === 'Sunday'
+      ? NON_WORKDAY_PROFILE_ID
+      : WORKDAY_PROFILE_ID,
+  weekday,
+}));
+
+const defaultDayProfileMigrationState = {
+  legacyCommuteTransitionContext: {
+    commuteMinutes: 0,
+    transitionBufferMinutes: 10,
+  },
+  legacyLowCapacityPreference: 'protect-evening' as const,
+  legacyMealAnchors: {
+    breakfast: '07:00',
+    dinner: '18:00',
+    lunch: '12:00',
+  },
+  legacySleepWakeAnchors: {
+    sleep: '21:30',
+    wake: '06:30',
+  },
+  legacyTravelContext: {
+    travelMinutes: 0,
+  },
+  reviewState: 'notStarted' as const,
+  sourceSettingsVersion: '1.4.6',
+};
+
+const dayProfilesSchema = z.array(dayProfileSchema).length(2);
+const weekdayProfileAssignmentsSchema = z.array(weekdayProfileAssignmentSchema).length(7);
+
+type DayProfileFoundationInput = {
+  dayProfileMigrationState: z.infer<typeof dayProfileMigrationStateSchema>;
+  dayProfiles: z.infer<typeof dayProfileSchema>[];
+  weekdayProfileAssignments: z.infer<typeof weekdayProfileAssignmentSchema>[];
+};
+
+function validateDayProfileFoundation(
+  foundation: DayProfileFoundationInput,
+  context: z.RefinementCtx,
+) {
+  const profileIds = foundation.dayProfiles.map((profile) => profile.id);
+  const profileKinds = foundation.dayProfiles.map((profile) => profile.kind);
+  const uniqueProfileIds = new Set(profileIds);
+  const uniqueProfileKinds = new Set(profileKinds);
+
+  if (uniqueProfileIds.size !== profileIds.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Day profile IDs must be unique.',
+      path: ['dayProfiles'],
+    });
+  }
+
+  if (uniqueProfileKinds.size !== profileKinds.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Day profile kinds must be unique.',
+      path: ['dayProfiles'],
+    });
+  }
+
+  const workday = foundation.dayProfiles.find((profile) => profile.kind === 'workday');
+  const nonWorkday = foundation.dayProfiles.find((profile) => profile.kind === 'nonWorkday');
+
+  if (workday?.id !== WORKDAY_PROFILE_ID) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `The Workday profile must use ID ${WORKDAY_PROFILE_ID}.`,
+      path: ['dayProfiles'],
+    });
+  }
+
+  if (nonWorkday?.id !== NON_WORKDAY_PROFILE_ID) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `The Non-workday profile must use ID ${NON_WORKDAY_PROFILE_ID}.`,
+      path: ['dayProfiles'],
+    });
+  }
+
+  const assignedWeekdays = foundation.weekdayProfileAssignments.map((assignment) => assignment.weekday);
+  const uniqueAssignedWeekdays = new Set(assignedWeekdays);
+
+  if (uniqueAssignedWeekdays.size !== assignedWeekdays.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Each weekday must be assigned exactly once.',
+      path: ['weekdayProfileAssignments'],
+    });
+  }
+
+  for (const weekday of ALL_WEEKDAYS) {
+    if (!uniqueAssignedWeekdays.has(weekday)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${weekday} must have a profile assignment.`,
+        path: ['weekdayProfileAssignments'],
+      });
+    }
+  }
+
+  for (const [index, assignment] of foundation.weekdayProfileAssignments.entries()) {
+    if (!uniqueProfileIds.has(assignment.profileId)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Assignment must reference an existing day profile.',
+        path: ['weekdayProfileAssignments', index, 'profileId'],
+      });
+    }
+  }
+}
+
+export const dayProfileFoundationSchema = z
+  .object({
+    dayProfileMigrationState: dayProfileMigrationStateSchema,
+    dayProfiles: dayProfilesSchema,
+    weekdayProfileAssignments: weekdayProfileAssignmentsSchema,
+  })
+  .strict()
+  .superRefine(validateDayProfileFoundation);
+
+export const legacySettingsSchema = z
   .object({
     id: idSchema.default('settings'),
     appVersion: appVersionSchema,
@@ -414,6 +645,22 @@ export const settingsSchema = z
     updatedAt: isoDateTime,
   })
   .strict();
+
+export const profileAwareSettingsSchema = legacySettingsSchema
+  .extend({
+    dayProfileMigrationState: dayProfileMigrationStateSchema,
+    dayProfiles: dayProfilesSchema,
+    weekdayProfileAssignments: weekdayProfileAssignmentsSchema,
+  })
+  .superRefine(validateDayProfileFoundation);
+
+export const settingsSchema = legacySettingsSchema
+  .extend({
+    dayProfileMigrationState: dayProfileMigrationStateSchema.default(defaultDayProfileMigrationState),
+    dayProfiles: dayProfilesSchema.default(defaultDayProfiles),
+    weekdayProfileAssignments: weekdayProfileAssignmentsSchema.default(defaultWeekdayProfileAssignments),
+  })
+  .superRefine(validateDayProfileFoundation);
 
 export const taskVersionSchema = z
   .object({
@@ -697,9 +944,14 @@ export const appExportSchema = z
   .strict();
 
 export type Settings = z.infer<typeof settingsSchema>;
+export type LegacySettings = z.infer<typeof legacySettingsSchema>;
 export type StartBoostSafetySettings = z.infer<typeof startBoostSafetySettingsSchema>;
 export type LifeShapeSettings = z.infer<typeof lifeShapeSettingsSchema>;
 export type LifeShapeTimeBlock = z.infer<typeof lifeShapeTimeBlockSchema>;
+export type DayProfile = z.infer<typeof dayProfileSchema>;
+export type WeekdayProfileAssignment = z.infer<typeof weekdayProfileAssignmentSchema>;
+export type DayProfileMigrationState = z.infer<typeof dayProfileMigrationStateSchema>;
+export type DayOfWeek = z.infer<typeof dayOfWeekSchema>;
 export type RhythmTemplate = z.infer<typeof rhythmTemplateSchema>;
 export type ActiveTask = z.infer<typeof activeTaskSchema>;
 export type ActiveTaskStatus = z.infer<typeof activeTaskStatusSchema>;

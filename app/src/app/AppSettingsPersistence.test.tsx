@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { settingsSchema, type Settings } from '../data/schemas';
 import { buildSettingsBackupPayload } from '../data/settingsExport';
 import { buildSoftPlacementBackupPayload } from '../data/softPlacementBackup';
-import type { SettingsWriteInput } from '../data/settingsRepository';
+import type { SettingsLoadResult, SettingsWriteInput } from '../data/settingsRepository';
 
 const settingsMocks = vi.hoisted(() => ({
-  loadSettings: vi.fn(),
+  loadSettingsResult: vi.fn(),
   resetSettingsToDefaults: vi.fn(),
   saveSettings: vi.fn(),
 }));
@@ -27,7 +27,7 @@ vi.mock('../data/settingsRepository', async (importOriginal) => {
 
   return {
     ...actual,
-    loadSettings: settingsMocks.loadSettings,
+    loadSettingsResult: settingsMocks.loadSettingsResult,
     resetSettingsToDefaults: settingsMocks.resetSettingsToDefaults,
     saveSettings: settingsMocks.saveSettings,
   };
@@ -64,15 +64,29 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
   });
 }
 
+function makeLoadResult(
+  settings: Settings,
+  status: SettingsLoadResult['status'] = 'loaded',
+  errors: string[] = [],
+): SettingsLoadResult {
+  return {
+    conflicts: [],
+    errors,
+    migrationPersisted: status === 'migrated',
+    settings,
+    status,
+  };
+}
+
 afterEach(() => {
   cleanup();
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 describe('App settings persistence wiring', () => {
   it('loads persisted settings into Setup and the app theme', async () => {
-    settingsMocks.loadSettings.mockResolvedValue(
-      makeSettings({
+    settingsMocks.loadSettingsResult.mockResolvedValue(
+      makeLoadResult(makeSettings({
         lifeShape: {
           commuteMinutes: 35,
           fixedCommitments: [
@@ -122,7 +136,7 @@ describe('App settings persistence wiring', () => {
           avoidUrgencyCountdowns: true,
         },
         theme: 'clear',
-      }),
+      }), 'migrated'),
     );
 
     const user = userEvent.setup();
@@ -138,10 +152,11 @@ describe('App settings persistence wiring', () => {
     expect((screen.getByLabelText('Time block 1 label') as HTMLInputElement).value).toBe('Protected writing space');
     expect((screen.getByLabelText('Time block 1 scheduler use') as HTMLSelectElement).value).toBe('unavailable');
     expect(within(screen.getByRole('radiogroup', { name: 'Appearance theme' })).getByRole('radio', { name: /Clear/ }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.queryByText(/updated settings foundation could not be saved/i)).toBeNull();
   });
 
   it('saves normalized Setup settings explicitly', async () => {
-    settingsMocks.loadSettings.mockResolvedValue(makeSettings());
+    settingsMocks.loadSettingsResult.mockResolvedValue(makeLoadResult(makeSettings()));
     settingsMocks.saveSettings.mockImplementation(async (input: SettingsWriteInput) => ({
       ok: true,
       settings: makeSettings({
@@ -154,7 +169,7 @@ describe('App settings persistence wiring', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(await screen.findByRole('button', { name: 'Settings' }));
     await user.click(screen.getByRole('radio', { name: /Clear/ }));
     await user.click(screen.getByRole('checkbox', { name: /Avoid food rewards/ }));
     await user.clear(screen.getByLabelText('Commute / travel time'));
@@ -193,7 +208,7 @@ describe('App settings persistence wiring', () => {
   });
 
   it('resets settings to defaults only', async () => {
-    settingsMocks.loadSettings.mockResolvedValue(makeSettings({ theme: 'clear' }));
+    settingsMocks.loadSettingsResult.mockResolvedValue(makeLoadResult(makeSettings({ theme: 'clear' })));
     settingsMocks.resetSettingsToDefaults.mockResolvedValue(makeSettings());
 
     const user = userEvent.setup();
@@ -209,7 +224,7 @@ describe('App settings persistence wiring', () => {
   });
 
   it('exports a settings-only backup from Setup', async () => {
-    settingsMocks.loadSettings.mockResolvedValue(makeSettings());
+    settingsMocks.loadSettingsResult.mockResolvedValue(makeLoadResult(makeSettings()));
     settingsExportMocks.exportSettingsBackup.mockResolvedValue({
       fileName: 'life-rhythm-settings-backup-2026-06-16.json',
       json: '{}',
@@ -230,7 +245,7 @@ describe('App settings persistence wiring', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(await screen.findByRole('button', { name: 'Settings' }));
     await user.click(screen.getByRole('button', { name: 'Export settings backup' }));
 
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Settings backup created on this device.'));
@@ -243,13 +258,13 @@ describe('App settings persistence wiring', () => {
   });
 
   it('checks a settings backup without saving or resetting settings', async () => {
-    settingsMocks.loadSettings.mockResolvedValue(makeSettings());
+    settingsMocks.loadSettingsResult.mockResolvedValue(makeLoadResult(makeSettings()));
     const backupJson = JSON.stringify(buildSettingsBackupPayload(makeSettings({ theme: 'clear' }), '2026-06-16T00:00:00.000Z'));
 
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(await screen.findByRole('button', { name: 'Settings' }));
     fireEvent.change(screen.getByLabelText('Settings backup text'), {
       target: {
         value: backupJson,
@@ -264,7 +279,7 @@ describe('App settings persistence wiring', () => {
   });
 
   it('exports a soft placement backup from Setup without saving settings', async () => {
-    settingsMocks.loadSettings.mockResolvedValue(makeSettings());
+    settingsMocks.loadSettingsResult.mockResolvedValue(makeLoadResult(makeSettings()));
     softPlacementBackupMocks.exportSoftPlacementBackup.mockResolvedValue({
       fileName: 'life-rhythm-soft-placements-backup-2026-06-18.json',
       json: '{}',
@@ -301,7 +316,7 @@ describe('App settings persistence wiring', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(await screen.findByRole('button', { name: 'Settings' }));
     await user.click(screen.getByRole('button', { name: 'Export soft placement backup' }));
 
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Soft placement backup created on this device.'));
@@ -312,5 +327,87 @@ describe('App settings persistence wiring', () => {
     expect(createObjectUrl).toHaveBeenCalledTimes(1);
     expect(anchorClick).toHaveBeenCalledTimes(1);
     expect(revokeObjectUrl).toHaveBeenCalledWith('blob:soft-placement-backup');
+  });
+
+  it('shows an explicit loading state without mounting the normal app or writing settings', async () => {
+    let resolveLoad: ((result: SettingsLoadResult) => void) | undefined;
+    settingsMocks.loadSettingsResult.mockReturnValue(new Promise((resolve) => {
+      resolveLoad = resolve;
+    }));
+
+    render(<App />);
+
+    expect(screen.getByRole('status').textContent).toContain('Loading your saved Life Rhythm settings');
+    expect(screen.queryByRole('button', { name: 'Today' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Settings' })).toBeNull();
+    expect(settingsMocks.saveSettings).not.toHaveBeenCalled();
+    expect(settingsMocks.resetSettingsToDefaults).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveLoad?.(makeLoadResult(makeSettings()));
+    });
+
+    expect(await screen.findByRole('button', { name: 'Today' })).toBeTruthy();
+  });
+
+  it('blocks the normal app when profile-aware saved settings are malformed', async () => {
+    settingsMocks.loadSettingsResult.mockResolvedValue(
+      makeLoadResult(
+        makeSettings(),
+        'invalid',
+        ['weekdayProfileAssignments.0.profileId: Expected an existing day profile'],
+      ),
+    );
+
+    render(<App />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Saved settings could not be loaded.');
+    expect(alert.textContent).toContain('Nothing stored on this device was changed.');
+    expect(alert.textContent).toContain('Life Rhythm has not replaced the saved settings with defaults.');
+    expect(screen.queryByRole('button', { name: 'Today' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Plan' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull();
+    expect(settingsMocks.saveSettings).not.toHaveBeenCalled();
+    expect(settingsMocks.resetSettingsToDefaults).not.toHaveBeenCalled();
+    expect(settingsExportMocks.exportSettingsBackup).not.toHaveBeenCalled();
+  });
+
+  it('blocks the normal app when saved settings cannot be read', async () => {
+    settingsMocks.loadSettingsResult.mockResolvedValue(
+      makeLoadResult(makeSettings(), 'readFailed', ['settings: Saved settings could not be read.']),
+    );
+
+    render(<App />);
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Saved settings could not be loaded.');
+    expect(screen.queryByRole('button', { name: 'Today' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Settings' })).toBeNull();
+    expect(settingsMocks.saveSettings).not.toHaveBeenCalled();
+    expect(settingsMocks.resetSettingsToDefaults).not.toHaveBeenCalled();
+    expect(settingsExportMocks.exportSettingsBackup).not.toHaveBeenCalled();
+  });
+
+  it('uses a validated in-memory migration candidate and reports that persistence failed', async () => {
+    settingsMocks.loadSettingsResult.mockResolvedValue(
+      makeLoadResult(
+        makeSettings({ theme: 'clear' }),
+        'migrationPersistenceFailed',
+        ['settings: Day-profile migration could not be saved; the original row was left unchanged.'],
+      ),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole('button', { name: 'Today' })).toBeTruthy();
+    expect(document.querySelector('.app-shell')?.getAttribute('data-theme')).toBe('clear');
+    expect(screen.getByRole('status').textContent).toContain(
+      'Your settings were loaded for this session, but the updated settings foundation could not be saved.',
+    );
+    expect(screen.getByRole('status').textContent).toContain('Nothing already stored on this device was changed.');
+    expect(screen.getByRole('status').textContent).toContain('The migration will need to be retried.');
+    expect(settingsMocks.loadSettingsResult).toHaveBeenCalledTimes(1);
+    expect(settingsMocks.saveSettings).not.toHaveBeenCalled();
+    expect(settingsMocks.resetSettingsToDefaults).not.toHaveBeenCalled();
   });
 });

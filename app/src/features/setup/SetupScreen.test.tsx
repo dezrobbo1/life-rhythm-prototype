@@ -2,13 +2,17 @@
 
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { themeBackgrounds } from '../../app/theme';
 import { buildSettingsBackupPayload } from '../../data/settingsExport';
 import { buildSoftPlacementBackupPayload } from '../../data/softPlacementBackup';
 import { buildTaskPoolBackupPayload } from '../../data/taskPoolBackup';
-import type { SettingsWriteInput, SettingsWriteResult } from '../../data/settingsRepository';
+import {
+  createDefaultSettings,
+  type SettingsWriteInput,
+  type SettingsWriteResult,
+} from '../../data/settingsRepository';
 import {
   settingsSchema,
   softPlacementSchema,
@@ -18,8 +22,32 @@ import {
 } from '../../data/schemas';
 import { SetupScreen } from '../../screens/SetupScreen';
 
+const settingsRepositoryMocks = vi.hoisted(() => ({
+  loadSettingsResult: vi.fn(),
+}));
+
+vi.mock('../../data/settingsRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../data/settingsRepository')>();
+
+  return {
+    ...actual,
+    loadSettingsResult: settingsRepositoryMocks.loadSettingsResult,
+  };
+});
+
+beforeEach(() => {
+  settingsRepositoryMocks.loadSettingsResult.mockImplementation(async () => ({
+    conflicts: [],
+    errors: [],
+    migrationPersisted: false,
+    settings: createDefaultSettings('2026-08-15T00:00:00.000Z'),
+    status: 'defaulted',
+  }));
+});
+
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   vi.restoreAllMocks();
 });
 
@@ -334,7 +362,7 @@ describe('Setup screen', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(await screen.findByRole('button', { name: 'Settings' }));
     await user.click(screen.getByRole('radio', { name: /Clear/ }));
 
     expect(document.querySelector('.app-shell')?.getAttribute('data-theme')).toBe('clear');
@@ -729,7 +757,7 @@ describe('Setup screen', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(await screen.findByRole('button', { name: 'Settings' }));
 
     const nav = screen.getByRole('navigation', { name: 'Primary' });
     expect(within(nav).getByRole('button', { name: 'Today' })).toBeTruthy();

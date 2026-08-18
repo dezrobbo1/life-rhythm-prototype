@@ -1,82 +1,28 @@
 import { z } from 'zod';
+import { findBlockedDataClassKey } from './dataClassBoundary';
 import {
+  dayProfileFoundationSchema,
+  dayProfileMigrationStateSchema,
+  dayProfileSchema,
   dayOfWeekSchema,
   idSchema,
   lifeShapeSchedulerUseSchema,
   lifeShapeTimeBlockTypeSchema,
   lowCapacityPreferenceSchema,
+  semanticAppVersionSchema,
+  strictIsoDateTimeSchema,
   themeNameSchema,
+  weekdayProfileAssignmentSchema,
 } from './schemas';
 import { settingsBackupSchema } from './settingsExport';
 
-const appVersion = z
-  .string()
-  .regex(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/, 'Expected a valid app version');
-const isoDateTimePattern =
-  /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,3}))?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
-
-function isValidIsoDateTime(value: string): boolean {
-  const match = isoDateTimePattern.exec(value);
-
-  if (!match) {
-    return false;
-  }
-
-  const [, yearValue, monthValue, dayValue, hourValue, minuteValue, secondValue, millisecondValue = '0'] = match;
-  const year = Number(yearValue);
-  const month = Number(monthValue);
-  const day = Number(dayValue);
-  const hour = Number(hourValue);
-  const minute = Number(minuteValue);
-  const second = Number(secondValue);
-  const millisecond = Number(millisecondValue.padEnd(3, '0'));
-  const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second, millisecond));
-
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day &&
-    date.getUTCHours() === hour &&
-    date.getUTCMinutes() === minute &&
-    date.getUTCSeconds() === second &&
-    date.getUTCMilliseconds() === millisecond
-  );
-}
-
-const isoDateTime = z
-  .string()
-  .regex(isoDateTimePattern, 'Expected a valid ISO timestamp')
-  .refine(isValidIsoDateTime, 'Expected a valid ISO timestamp');
+const appVersion = semanticAppVersionSchema;
+const isoDateTime = strictIsoDateTimeSchema;
 const settingsId = z.literal('settings');
 const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:MM');
 const minuteAmount = z.number().int().min(0).max(480);
 const transitionBufferMinutes = z.number().int().min(0).max(180);
 
-const blockedDataKeys = new Set([
-  'activeTasks',
-  'devTickets',
-  'futureModules',
-  'imports',
-  'legacy',
-  'legacyData',
-  'legacyLocalStorage',
-  'libraryEnablement',
-  'lifeRhythmPrototype13',
-  'lifeRhythm_v140',
-  'lifeRhythm_v143',
-  'lifeRhythm_v146',
-  'migrationLog',
-  'migrations',
-  'oneOff',
-  'oneOffs',
-  'quickPacks',
-  'resetLog',
-  'resetLogs',
-  'rhythmTemplates',
-  'rhythms',
-  'schedulerOutput',
-  'tasks',
-]);
 
 function minutesFromTime(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
@@ -196,7 +142,7 @@ const lifeShapeImportSchema = z
   })
   .strict();
 
-const settingsBackupImportSettingsSchema = z
+export const settingsBackupV1ImportSettingsSchema = z
   .object({
     appVersion,
     createdAt: isoDateTime,
@@ -208,24 +154,100 @@ const settingsBackupImportSettingsSchema = z
   })
   .strict();
 
-export const settingsBackupImportSchema = z
+const lifeShapeV2ImportSchema = lifeShapeImportSchema.extend({
+  timeBlocks: z.array(
+    z
+      .object({
+        days: z.array(dayOfWeekSchema),
+        end: timeOfDay,
+        id: idSchema,
+        label: z.string().min(1),
+        notes: z.string().max(240).optional(),
+        schedulerUse: lifeShapeSchedulerUseSchema,
+        start: timeOfDay,
+        type: lifeShapeTimeBlockTypeSchema,
+      })
+      .strict()
+      .superRefine((block, context) => {
+        if (minutesFromTime(block.start) >= minutesFromTime(block.end)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Time block end must be later than start.',
+            path: ['end'],
+          });
+        }
+      }),
+  ),
+});
+
+export const settingsBackupV1ImportSchema = z
   .object({
     appVersion,
     exportedAt: isoDateTime,
     format: z.literal('life-rhythm-settings-backup'),
-    settings: settingsBackupImportSettingsSchema,
+    settings: settingsBackupV1ImportSettingsSchema,
   })
   .strict();
+
+export const settingsBackupV2ImportSettingsSchema = z
+  .object({
+    appVersion,
+    createdAt: isoDateTime,
+    dayProfileMigrationState: dayProfileMigrationStateSchema,
+    dayProfiles: z.array(dayProfileSchema).length(2),
+    id: settingsId,
+    lifeShape: lifeShapeV2ImportSchema,
+    startBoostSafety: startBoostSafetyImportSchema,
+    theme: themeNameSchema,
+    updatedAt: isoDateTime,
+    weekdayProfileAssignments: z.array(weekdayProfileAssignmentSchema).length(7),
+  })
+  .strict()
+  .superRefine((settings, context) => {
+    const foundation = dayProfileFoundationSchema.safeParse({
+      dayProfileMigrationState: settings.dayProfileMigrationState,
+      dayProfiles: settings.dayProfiles,
+      weekdayProfileAssignments: settings.weekdayProfileAssignments,
+    });
+
+    if (!foundation.success) {
+      for (const issue of foundation.error.issues) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: issue.message,
+          path: issue.path,
+        });
+      }
+    }
+
+  });
+
+export const settingsBackupV2ImportSchema = z
+  .object({
+    appVersion,
+    exportedAt: isoDateTime,
+    format: z.literal('life-rhythm-settings-backup'),
+    formatVersion: z.literal(2),
+    settings: settingsBackupV2ImportSettingsSchema,
+  })
+  .strict();
+
+export const settingsBackupImportSchema = z.union([
+  settingsBackupV2ImportSchema,
+  settingsBackupV1ImportSchema,
+]);
 
 export type SettingsBackupImportPayload = z.infer<typeof settingsBackupImportSchema>;
 
 export type SettingsBackupPreview = {
   appVersion: string;
   exportedAt: string;
+  formatVersion: 1 | 2;
   lifeShapeSummary: string;
+  profileFoundationSummary: string;
   settingsUpdatedAt: string;
   startBoostSafetySummary: string;
-  theme: SettingsBackupImportPayload['settings']['theme'];
+  theme: z.infer<typeof themeNameSchema>;
 };
 
 export type SettingsBackupImportValidationResult =
@@ -251,39 +273,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function findBlockedDataKey(value: unknown, path: Array<string | number> = []): string | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  for (const [key, child] of Object.entries(value)) {
-    const nextPath = [...path, key];
-
-    if (blockedDataKeys.has(key)) {
-      return nextPath.join('.');
-    }
-
-    const nestedPath = findBlockedDataKey(child, nextPath);
-
-    if (nestedPath) {
-      return nestedPath;
-    }
-  }
-
-  return undefined;
-}
-
 function countEnabledSafetyFlags(settings: SettingsBackupImportPayload['settings']) {
   return Object.values(settings.startBoostSafety).filter(Boolean).length;
 }
 
 function buildPreview(payload: SettingsBackupImportPayload): SettingsBackupPreview {
   const workHours = payload.settings.lifeShape.usualWorkHours;
+  const isVersion2 = 'formatVersion' in payload;
 
   return {
     appVersion: payload.appVersion,
     exportedAt: payload.exportedAt,
+    formatVersion: isVersion2 ? 2 : 1,
     lifeShapeSummary: `${workHours.start}-${workHours.end}, ${payload.settings.lifeShape.transitionBufferMinutes} min buffer`,
+    profileFoundationSummary: isVersion2
+      ? `Profile foundation present; review state is ${payload.settings.dayProfileMigrationState.reviewState}. Presence does not activate derived availability.`
+      : 'Profile foundation absent; a future restore would require migration and user review. No restore occurred.',
     settingsUpdatedAt: payload.settings.updatedAt,
     startBoostSafetySummary: `${countEnabledSafetyFlags(payload.settings)} safety choices on`,
     theme: payload.settings.theme,
@@ -298,7 +303,7 @@ export function validateSettingsBackupImport(input: unknown): SettingsBackupImpo
     };
   }
 
-  const blockedDataKey = findBlockedDataKey(input);
+  const blockedDataKey = findBlockedDataClassKey(input);
 
   if (blockedDataKey) {
     return {
@@ -307,7 +312,31 @@ export function validateSettingsBackupImport(input: unknown): SettingsBackupImpo
     };
   }
 
-  const parsed = settingsBackupImportSchema.safeParse(input);
+  if (input.formatVersion === undefined) {
+    const parsed = settingsBackupV1ImportSchema.safeParse(input);
+
+    if (!parsed.success) {
+      return {
+        errors: issuesToMessages(parsed.error.issues),
+        ok: false,
+      };
+    }
+
+    return {
+      ok: true,
+      payload: parsed.data,
+      preview: buildPreview(parsed.data),
+    };
+  }
+
+  if (input.formatVersion !== 2) {
+    return {
+      errors: ['formatVersion: Expected 2, or omit the field for a legacy version-1 backup.'],
+      ok: false,
+    };
+  }
+
+  const parsed = settingsBackupV2ImportSchema.safeParse(input);
 
   if (!parsed.success) {
     return {
