@@ -3,7 +3,7 @@ import { createDefaultSettings } from '../data/settingsRepository';
 import { settingsSchema } from '../data/schemas';
 import { IcsCalendarAdapter } from './calendarAdapter';
 import { deriveGate2Availability } from './calendarAvailability';
-import { DeterministicScheduler } from './scheduler';
+import { DeterministicScheduler, scheduler } from './scheduler';
 import type {
   CandidateSchedulingInterval,
   InternalIntention,
