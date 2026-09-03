@@ -246,7 +246,7 @@ describe('Gate 2 calendar-aware availability', () => {
     expect(result.candidateIntervals[0].provenance.join(' ')).toContain('10 minutes of uncertainty reserve');
   });
 
-  it('uses current sleep/wake anchors as a non-persisting fallback when a day profile has no usable-day envelope', () => {
+  it('does not infer candidate windows when the assigned profile has no explicit usable-day boundary', () => {
     const base = gate2Settings();
     const settings = settingsSchema.parse({
       ...base,
@@ -268,13 +268,10 @@ describe('Gate 2 calendar-aware availability', () => {
       timezone: 'Australia/Perth',
     });
 
-    expect(result.usableDay).toEqual({
-      start: '07:00',
-      end: '22:00',
-      source: 'sleepWakeFallback',
-    });
+    expect(result.usableDay).toBeUndefined();
+    expect(result.candidateIntervals).toEqual([]);
     expect(result.warnings).toContain(
-      'The day profile has no explicit usable-day envelope yet; current sleep/wake anchors were used as a non-persisting fallback.',
+      'The assigned day profile has no explicit usable-day boundary; inferred candidate intervals were not generated.',
     );
   });
 
