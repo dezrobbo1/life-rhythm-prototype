@@ -37,6 +37,15 @@ type ParsedProperty = {
   value: string;
 };
 
+type LocalDateTimeComponents = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+};
+
 type ParsedDateValue = {
   allDay: boolean;
   date: string;
@@ -92,7 +101,7 @@ function formatTime(hour: number, minute: number): string {
   return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
 
-function partsInZone(epochMs: number, timezone: string) {
+function partsInZone(epochMs: number, timezone: string): LocalDateTimeComponents {
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
     year: 'numeric',
@@ -116,8 +125,17 @@ function partsInZone(epochMs: number, timezone: string) {
   };
 }
 
+function localComponentsMatch(left: LocalDateTimeComponents, right: LocalDateTimeComponents): boolean {
+  return left.year === right.year &&
+    left.month === right.month &&
+    left.day === right.day &&
+    left.hour === right.hour &&
+    left.minute === right.minute &&
+    left.second === right.second;
+}
+
 function zonedLocalToEpoch(
-  components: { year: number; month: number; day: number; hour: number; minute: number; second: number },
+  components: LocalDateTimeComponents,
   timezone: string,
 ): number {
   let guess = Date.UTC(
@@ -152,6 +170,11 @@ function zonedLocalToEpoch(
     guess -= delta;
   }
 
+  const represented = partsInZone(guess, timezone);
+  if (!localComponentsMatch(represented, components)) {
+    throw new RangeError(`Local calendar time cannot be represented in timezone ${timezone}.`);
+  }
+
   return guess;
 }
 
@@ -183,7 +206,7 @@ function parseDateProperty(
   const match = property.value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/);
   if (!match) return null;
 
-  const components = {
+  const components: LocalDateTimeComponents = {
     year: Number(match[1]),
     month: Number(match[2]),
     day: Number(match[3]),
@@ -206,7 +229,7 @@ function parseDateProperty(
     );
   }
 
-  const sourceTimezone = property.params.TZID;
+  const sourceTimezone = property.params.TZID?.replace(/^"|"$/g, '');
   if (!sourceTimezone) {
     warnings.push(`Floating calendar time ${property.value} was interpreted in ${targetTimezone}.`);
     return {
@@ -288,7 +311,7 @@ export class IcsCalendarAdapter implements CalendarAdapter {
       throw new Error('Calendar read window start must not be after the end date.');
     }
 
-    // Validate the requested zone up front so bad configuration fails visibly.
+    // Validate the requested zone up front so bad application configuration fails visibly.
     partsInZone(Date.now(), options.targetTimezone);
 
     for (const block of collectEventBlocks(unfoldLines(source))) {
@@ -309,8 +332,16 @@ export class IcsCalendarAdapter implements CalendarAdapter {
         warnings.push(`Recurring event ${uid} is imported as its DTSTART occurrence only in Gate 2.`);
       }
 
-      const start = parseDateProperty(startProperty, options.targetTimezone, warnings);
-      const end = parseDateProperty(endProperty, options.targetTimezone, warnings);
+      let start: ParsedDateValue | null;
+      let end: ParsedDateValue | null;
+      try {
+        start = parseDateProperty(startProperty, options.targetTimezone, warnings);
+        end = parseDateProperty(endProperty, options.targetTimezone, warnings);
+      } catch {
+        warnings.push(`Calendar event ${uid} was skipped because its timezone or local time could not be resolved.`);
+        continue;
+      }
+
       if (!start || !end || start.allDay !== end.allDay) {
         warnings.push(`Calendar event ${uid} was skipped because its date/time form is unsupported.`);
         continue;
