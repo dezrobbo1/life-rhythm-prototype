@@ -24,6 +24,13 @@ export type CurrentPersistedSchedulingState = {
   softPlacements: SoftPlacement[];
 };
 
+const schedulableActiveTaskStatuses: readonly ActiveTask['status'][] = [
+  'active',
+  'inProgress',
+  'paused',
+  'minimumDone',
+];
+
 function variantsFromRecord(record: Pick<ActiveTask | TaskPoolItem | RhythmTemplate, 'minimum' | 'normal' | 'full'>): TaskVariant[] {
   return [
     { kind: 'minimum', ...record.minimum },
@@ -37,7 +44,7 @@ function poolItemEligible(item: TaskPoolItem): boolean {
 }
 
 function activeTaskEligible(task: ActiveTask): boolean {
-  return task.status === 'active';
+  return schedulableActiveTaskStatuses.includes(task.status);
 }
 
 function intentionFromPoolItem(item: TaskPoolItem): InternalIntention {
