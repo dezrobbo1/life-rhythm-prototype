@@ -154,6 +154,48 @@ describe('ICS calendar adapter', () => {
     ]);
   });
 
+  it('skips an event with an unresolvable TZID without aborting other calendar events', () => {
+    const adapter = new IcsCalendarAdapter();
+    const result = adapter.read(calendar(
+      event([
+        'UID:custom-zone',
+        'SUMMARY:Unsupported timezone',
+        'DTSTART;TZID="Custom/Office":20260907T090000',
+        'DTEND;TZID="Custom/Office":20260907T100000',
+      ]),
+      event([
+        'UID:valid-after-bad-zone',
+        'SUMMARY:Valid event',
+        'DTSTART;TZID=Australia/Perth:20260907T110000',
+        'DTEND;TZID=Australia/Perth:20260907T120000',
+      ]),
+    ), options);
+
+    expect(result.events.map((candidate) => candidate.sourceEventId)).toEqual(['valid-after-bad-zone']);
+    expect(result.warnings).toEqual([
+      'Calendar event custom-zone was skipped because its timezone or local time could not be resolved.',
+    ]);
+  });
+
+  it('skips a nonexistent DST local time rather than silently normalizing it', () => {
+    const adapter = new IcsCalendarAdapter();
+    const result = adapter.read(calendar(event([
+      'UID:spring-gap',
+      'SUMMARY:Nonexistent local time',
+      'DTSTART;TZID=America/New_York:20260308T023000',
+      'DTEND;TZID=America/New_York:20260308T033000',
+    ])), {
+      targetTimezone: 'America/New_York',
+      windowStartDate: '2026-03-08',
+      windowEndDate: '2026-03-08',
+    });
+
+    expect(result.events).toEqual([]);
+    expect(result.warnings).toEqual([
+      'Calendar event spring-gap was skipped because its timezone or local time could not be resolved.',
+    ]);
+  });
+
   it('rejects an inverted read window', () => {
     const adapter = new IcsCalendarAdapter();
     expect(() => adapter.read(calendar(), {
