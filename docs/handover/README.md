@@ -1,43 +1,70 @@
 # Life Rhythm handover
 
-Use this folder for continuity notes between research, design, implementation and Codex work.
+Use this folder for continuity notes between research, design, implementation and agent work.
 
-## Current status
+## Current authority
+
+Start with the active repository documents, in this order:
+
+1. [`../../PRODUCT.md`](../../PRODUCT.md) — product purpose, direction and true invariants.
+2. [`../../MVP_PLAN.md`](../../MVP_PLAN.md) — current path to MVP and active gate sequence.
+3. [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) — target technical architecture and transition strategy.
+4. [`../RESEARCH_BASIS.md`](../RESEARCH_BASIS.md) — concise evidence translation and scientific boundaries.
+5. [`../DOCUMENTATION_AUTHORITY.md`](../DOCUMENTATION_AUTHORITY.md) — repository documentation hierarchy.
+
+The former `app/docs/life-rhythm-current-design-spec.md` is retained only as a historical redirect. It is not current product authority and its former roadmap is not the implementation sequence.
+
+## Current implementation baseline
 
 - Root `index.html` remains the protected public 1.4.6 legacy PWA.
-- `/app` is the current React/Vite/TypeScript local-first Personal Trial v1 architecture.
-- Latest application-code checkpoint: PR #109, merge commit `81f4211dd6970ce08dc63d717a570111388876be`.
-- Latest visual implementation checkpoint: PR #109 — Plan Soft Ledger hierarchy.
-- Approved product-contract checkpoint: PR #110 — day-profile/availability and rhythm recurrence/instance contracts; catalogue audit reviewed as planning input.
-- Earlier shared foundation: PR #107 — quiet shared shell and Pool Soft Ledger / Holding Tray.
-- Current product authority: `app/docs/life-rhythm-current-design-spec.md`.
-- Current documentation map: `docs/DOCUMENTATION_AUTHORITY.md`.
-- Current source provenance bundle: `Life_Rhythm_All_Project_Sources_2026-07-12.zip` supplied for the 2026-07-12 consolidation.
+- `/app` is the current React/Vite/TypeScript implementation path for the adaptive MVP.
+- Current merged application baseline is PR #112 (`e0c1d175e9082f7e5bdc5f1aeae6980146e4994b`).
+- Existing `/app` work includes local Dexie/Zod persistence, task/Pool/Today/placement lifecycle state, usefulness/deadline support, Minimum Done, re-entry behaviour, protected/recovery/open-capacity concepts, rhythm persistence, backup/export paths, timezone coverage, the day-profile persistence foundation, and responsive/accessibility foundations.
 
-## Current implementation rule
+The current code still uses explicit `openCapacity` for suggestions and user-confirmed private placements. It does not yet read a real calendar, schedule private work automatically, perform rolling repair, learn behavioural preferences, or provide optional AI interpretation. Those are current implementation limitations, not product prohibitions.
 
-Do not rewrite the live 1.4.6 app in place. New work belongs in `/app` and must preserve local-first, non-clinical, user-confirmed and no-calendar-write boundaries.
+## Current product direction
 
-The current `/app` loop includes Today, Plan, Pool and Library, Pool capture/holding, Pool-based explicit-`openCapacity` suggestions, user-confirmed soft placement, data-class-specific backup export/check paths including Task Pool status and deferral metadata, and local persistence for approved data classes. Current behaviour remains local-first: soft placement is local and user-confirmed, nothing moves into Today automatically, and no calendar write occurs. PR #107 establishes quiet shared headings/header/navigation and Pool as a Soft Ledger / Holding Tray. PR #109 removes the three equal-weight outer Plan cards, establishes the Day Shape → Soft suggestions → Soft placements hierarchy, makes Day Shape the dominant connected planning object, and presents suggestions and placements as quieter ruled sections and rows. Its mobile, desktop, populated-state, keyboard and theme-parity visual review passed.
+Life Rhythm is being developed as an adaptive external executive-function support system for adults with ADHD.
 
-PR #109 changed presentation only. Selected-day behaviour, Day Shape content and ordering, explicit `openCapacity`, suggestion/eligibility/usefulness logic, user-confirmed placement, placement removal/reconfirmation, persistence, repositories, schemas, statuses, routes, task ordering and task lifecycle behaviour remain unchanged. Automatic scheduling, calendar writes, repeating rhythm instances, broader resurfacing, `askFirst` placement, AI, backend, sync, notifications, analytics and restore/import execution remain future work.
+The intended direction is:
 
-Approved product direction — runtime not implemented:
+```text
+real commitments + tasks + rhythms + protected life context
+        ↓
+deterministic scheduling-domain model
+        ↓
+automatic private planning and rolling repair
+        ↓
+Reduced Day / Minimum Done / recovery / re-entry integration
+        ↓
+simple behavioural learning
+        ↓
+optional AI interpretation later
+```
 
-- [`../../app/docs/day-profile-and-availability-contract.md`](../../app/docs/day-profile-and-availability-contract.md) — approved product contract.
-- [`../../app/docs/rhythm-recurrence-and-instance-contract.md`](../../app/docs/rhythm-recurrence-and-instance-contract.md) — approved product contract.
-- [`../../app/docs/rhythm-library-catalogue-gap-audit.md`](../../app/docs/rhythm-library-catalogue-gap-audit.md) — reviewed product-planning input, not runtime authority.
+Automatic private scheduling, automatic private rescheduling, calendar alignment and behavioural learning are central MVP hypotheses to build and test. They do not require a new product contract merely because the existing runtime is manual.
 
-Day profiles, derived availability, persistent recurrence, and rhythm instances remain unimplemented. The next bounded implementation is the first day-profile persistence and safe-migration foundation: Workday and Non-workday profile data structures, weekday assignment, preservation of existing settings as compatibility context, and an explicit migration-review state. It does not yet add profile-derived availability, derived work-hour suggestion behaviour, remove current explicit `openCapacity`, implement recurrence or instances, schedule automatically, or write calendars.
+The primary product question is:
 
-Later work continues through reviewed settings migration and activation, derived work boundaries, persistent rhythm plans and generated instances, Plan integration, and curated Library expansion. Today then receives the next bounded visual object pass, with Library and Setup later. Use the [current design spec roadmap](../../app/docs/life-rhythm-current-design-spec.md#18-current-near-term-roadmap) as the canonical sequence.
+> Does the app make fewer executive decisions necessary?
 
-Non-blocking Plan follow-ups:
+## Current next gate
 
-- inherited preferred-task context can remain briefly visible after placement;
-- mobile empty-state copy can be reduced further;
-- the global keyboard-focus colour needs a strict contrast audit.
+Use [`../../MVP_PLAN.md`](../../MVP_PLAN.md) as the canonical sequence.
 
-## Evidence rule
+The next implementation milestone after the governance reset is:
 
-Use the feature-specific packet anchors in the v1.2 evidence-balanced design spec. Packets 22 and 25 are global constraints, not default evidence for every feature.
+> **Gate 1 — Canonical life model and scheduler seam.**
+
+The objective is to project reusable current persisted state into a coherent scheduling-domain model behind a stable scheduler interface, without a destructive rewrite.
+
+Do not resume the previous contract-first sequence of day-profile activation → recurrence → visual passes merely because older handovers or contracts describe it.
+
+## Research and historical material
+
+The consolidated `Life_Rhythm_All_Project_Sources_2026-07-12.zip`, packet collection, older design specifications, visual contracts, handovers and source-library records remain useful evidence, provenance and implementation history.
+
+They do not override `PRODUCT.md`, `MVP_PLAN.md`, `ARCHITECTURE.md`, current code/tests, or `docs/RESEARCH_BASIS.md`.
+
+Research should establish evidence strength, scientific boundaries and worthwhile hypotheses. It should not silently convert an unvalidated implementation idea into either a permanent requirement or a permanent prohibition.
