@@ -1,133 +1,178 @@
 # Life Rhythm Documentation Authority
 
-Status: Current repository documentation map
-Date: 2026-08-11
-Merged baseline branch: `main`
-Latest application-code checkpoint: PR #109, merge commit `81f4211dd6970ce08dc63d717a570111388876be`
-Latest visual implementation checkpoint: PR #109 — Plan Soft Ledger hierarchy
-Product-contract approval checkpoint: PR #110 — day-profile/availability and rhythm recurrence/instance contracts
+Status: Current repository authority map
+Baseline before reset: `main` at `e0c1d175e9082f7e5bdc5f1aeae6980146e4994b` (PR #112)
 
 ## Purpose
 
-This file prevents the repository from treating historical prototype documents as current product requirements.
+This file prevents two opposite failures:
 
-The current product direction is a local-first, non-clinical Life Rhythm application with a calm task-capture, safe-holding, soft-placement and re-entry loop.
+1. treating historical prototype material as current product law;
+2. turning research uncertainty into permanent prohibitions that stop Life Rhythm from testing its central product hypotheses.
 
-## Authority order
+The repository is now organised around a small current authority set.
 
-1. **Current product authority** — `app/docs/life-rhythm-current-design-spec.md`
-2. **Current boundary contracts** — applicable contracts in `app/docs/`, provided they are marked current or approved and do not contradict the current design spec. Current runtime contracts govern implemented behaviour; approved future product contracts authorize only separately reviewed, bounded implementation work and do not activate runtime behaviour by publication alone. The implemented Task Pool backup boundary is documented in `app/docs/task-pool-backup-contract.md`.
-3. **Evidence and UX weighting** — `docs/ux/Life_Rhythm_Design_Specification_v1_2_Evidence_Balanced.md` and the source archive. This layer supports rationale and traceability; it does not override current runtime status or navigation.
-4. **Source governance** — `app/docs/research/source-status.md`, `packet-v3-priority.md`, `research-to-mvp-map.md`, and `non-canonical-source-notes.md`.
-5. **Historical plans and pre-write contracts** — documents explicitly marked historical or superseded. These preserve rationale but must not be used as current implementation status.
-6. **Visual boards and source prototypes** — visual references only. They do not override the current object grammar, navigation, data boundaries or implementation contracts.
+## Current authority order
 
-Approved current product contracts governing future bounded implementation:
+### 1. Product direction
 
-- [`app/docs/day-profile-and-availability-contract.md`](../app/docs/day-profile-and-availability-contract.md) — future Workday/Non-workday profiles, derived boundaries and candidate-window rules; not implemented.
-- [`app/docs/rhythm-recurrence-and-instance-contract.md`](../app/docs/rhythm-recurrence-and-instance-contract.md) — future persistent rhythm plans, recurrence and stable instances; not implemented.
+[`../PRODUCT.md`](../PRODUCT.md)
 
-Reviewed product-planning input:
+Defines what Life Rhythm is, the product thesis and the true scientific/safety/product invariants.
 
-- [`app/docs/rhythm-library-catalogue-gap-audit.md`](../app/docs/rhythm-library-catalogue-gap-audit.md) — reviewed catalogue planning input only; it is not runtime authority, research evidence, or an implementation specification.
+### 2. Current delivery target
 
-PR #110 is the approval checkpoint for the day-profile and rhythm-recurrence product contracts. Current runtime contracts remain authoritative for implemented behaviour, and current explicit `openCapacity` behaviour remains unchanged. Contract approval does not activate schemas, migrations, persistence, profile derivation, availability inference, suggestions, placements, Today movement, calendar behaviour, or any other runtime surface. Conflicting older future-facing language must be reconciled when an affected implementation pull request is created. High-risk migrations and write paths still require separately reviewed, bounded implementation work.
+[`../MVP_PLAN.md`](../MVP_PLAN.md)
+
+Defines the current MVP, delivery gates, exit criteria and explicit non-goals.
+
+### 3. Target technical architecture
+
+[`../ARCHITECTURE.md`](../ARCHITECTURE.md)
+
+Defines the intended system boundaries: canonical structured state, deterministic scheduler, calendar adapter, behavioural learning, optional AI and risk-calibrated actions.
+
+Architecture choices remain changeable when implementation evidence shows a better route.
+
+### 4. Current implementation and tests
+
+The `/app` source, schemas, migrations, repositories and tests are authoritative for what the application actually does today.
+
+Implementation facts do not automatically become permanent product requirements.
+
+### 5. Research basis
+
+[`RESEARCH_BASIS.md`](RESEARCH_BASIS.md)
+
+Summarises the current evidence classifications, scientific claim boundaries and architecture research.
+
+Research constrains claims and identifies risks. It also identifies hypotheses worth testing. `Not validated` does not mean `forbidden to prototype`.
+
+### 6. Historical/reference material
+
+Existing contracts, design specifications, visual boards, research-governance files, handovers and source packs remain useful history and implementation reference unless explicitly promoted by the authority files above.
+
+They do not override `PRODUCT.md`, `MVP_PLAN.md` or `ARCHITECTURE.md`.
+
+## Status of previous current-design and contract documents
+
+The following classes of documents are no longer top-level product authority:
+
+- `app/docs/life-rhythm-current-design-spec.md`;
+- soft-scheduling contracts;
+- navigation redesign contracts;
+- object-grammar and visual-direction contracts;
+- day-profile/availability future-product contract;
+- rhythm-recurrence/instance future-product contract;
+- catalogue planning audits;
+- older research-to-MVP governance maps;
+- `.codex/tasks/*` instructions not explicitly referenced by a current task.
+
+They remain useful for:
+
+- understanding why existing code looks the way it does;
+- preserving migration/data-model rationale;
+- reusing good interaction or visual work;
+- locating previous decisions and tests;
+- avoiding accidental regression of implemented data integrity.
+
+They must not be read as prohibiting current MVP work such as automatic private scheduling, automatic private rescheduling, calendar reading, derived candidate availability or behavioural learning.
+
+## Binding runtime contracts
+
+An older contract may still be binding for an **implemented technical invariant** when changing that subsystem, for example:
+
+- persisted schema compatibility;
+- migration safety;
+- backup format compatibility;
+- data-class boundaries currently required to avoid corruption;
+- timezone/date semantics;
+- transactional lifecycle invariants;
+- accessibility behaviour already depended on by tests/users.
+
+That technical binding does not make the contract's broader future-product assumptions authoritative.
+
+If a current MVP change needs to alter an implemented invariant, update code, tests, migration/backup handling and the smallest relevant current documentation together.
 
 ## Two application generations
 
 | Area | Status | Authority |
 | --- | --- | --- |
-| Root `index.html` | Live GitHub Pages 1.4.6 legacy prototype | Protected legacy runtime; not the current `/app` architecture authority |
-| `/app` | Current React/Vite/TypeScript personal-trial architecture | Current implementation path for new work |
-| `/app` data | Dexie/Zod local-first persistence with user-scoped local namespaces when opt-in auth is enabled | Current data boundary |
-| Cloud sync, backend, calendar writes, AI writes, import/restore execution | Not implemented | Must have a separate approved contract before work |
+| Root `index.html`, `manifest.json`, `service-worker.js` | Live legacy 1.4.6 PWA | Protected deployment/runtime unless explicitly targeted |
+| `/app` | Current React/Vite/TypeScript implementation | Current implementation path for MVP |
+| `/app` data | Dexie/Zod local-first state | Reusable implementation foundation; may evolve safely |
+| Future scheduler/learning/AI | Target defined in current top-level docs | Build and validate incrementally |
 
-The root app remains live while `/app` is developed. Its older scheduling and task behaviours must not be copied into `/app` merely because they exist in the legacy runtime.
+Do not rewrite the legacy root app as a side effect of `/app` work.
 
-## Current `/app` product state
+Do not copy legacy behaviour merely because it exists.
 
-The merged application includes the Personal Trial v1 loop through PR #105, the PR #106 repository-guidance and documentation refresh, the PR #107 Visual Foundation Pass 1 shell/Pool checkpoint, and the PR #109 Plan Soft Ledger checkpoint:
+## Current implementation snapshot
 
-- four primary destinations: Today, Plan, Pool, Library;
-- Reset and Settings as secondary shell destinations;
-- settings and Life Shape persistence;
-- custom Library rhythm persistence;
-- active Today task and status persistence;
-- Task Pool capture, safe holding, deferral and Pool-to-Today movement;
-- Pool-based soft suggestions from explicit `openCapacity` blocks;
-- user-confirmed local soft placements and safe removal/reconfirmation;
-- linked Pool, Today and placement state updates;
-- local backup export and validation previews for the currently supported data classes;
-- Task Pool backup export and validation preview, including saved status and deferral metadata;
-- opt-in Clerk identity shell without automatic upload or sync;
-- no automatic scheduling, calendar writes, AI writes, notifications, analytics or restore/import execution.
+At baseline PR #112, `/app` includes:
 
-PR #107 implements on merged `main`:
+- settings/Life Shape persistence;
+- Workday/Non-workday day-profile persistence foundation and safe migration handling;
+- custom rhythm persistence;
+- active Today task/status persistence;
+- Task Pool capture, holding and deferral;
+- usefulness/deadline support;
+- Minimum Done/completion endpoints;
+- re-entry work;
+- explicit protected/open-capacity concepts;
+- user-confirmed private soft placements;
+- linked Pool/Today/placement transitions;
+- local backup/export validation paths;
+- opt-in local identity namespaces;
+- current visual shell/Soft Ledger work.
 
-- quiet shared in-flow page headings;
-- a compact shared header;
-- a restrained local active-navigation marker;
-- Pool as a content-led Soft Ledger / Holding Tray with ledger rows and dividers;
-- a clarified Pool action hierarchy with Add to Today primary, Find soft window secondary and independent Other choices disclosures.
+It does not yet implement the target automatic scheduler, real calendar adapter, automatic private replanning, behavioural learning or optional AI layer.
 
-PR #107 is limited to visual hierarchy and action presentation: capture behaviour, action meaning and order, persistence, repositories, schemas, statuses, routes, task ordering, task lifecycle behaviour and user-confirmed placement remain unchanged. It adds no automatic scheduling, calendar writes, AI, backend, sync, notifications, analytics or restore/import behaviour.
+The current next programme is defined only by `MVP_PLAN.md`, not by the older contract-first roadmap.
 
-PR #109, merged through `81f4211dd6970ce08dc63d717a570111388876be`, implements:
+## Product hypotheses explicitly in scope
 
-- removal of the three equal-weight Plan outer cards;
-- a clear Day Shape → Soft suggestions → Soft placements reading order;
-- Day Shape as the dominant connected planning object;
-- quieter ruled sections and rows for suggestions and placements;
-- reduced nested boxes, large pills, shadows and heavy empty states;
-- consolidated Plan scheduling-safety guidance;
-- approved mobile, desktop, populated-state, keyboard and theme-parity visual review.
+These may be implemented through bounded MVP experiments without first writing a new product contract:
 
-PR #109 changed presentation only. It did not change selected-day behaviour; Day Shape content or ordering; explicit `openCapacity` behaviour; suggestion, eligibility or usefulness-window logic; user-confirmed placement or placement removal/reconfirmation; persistence, repositories, schemas, statuses, routes, task ordering or task lifecycle behaviour. It added no automatic scheduling, calendar writes, AI, backend, sync, notifications, analytics or restore/import behaviour.
+- automatic private scheduling;
+- automatic private rescheduling;
+- calendar-aware planning;
+- derived candidate availability;
+- schedule inertia;
+- Reduced Day scheduler behaviour;
+- Minimum Done substitution;
+- flexible rhythm scheduling;
+- re-entry recalculation;
+- simple behavioural learning;
+- preference confidence/decay;
+- sparse enjoyment/restoration feedback;
+- later optional AI interpretation through typed validated commands.
 
-The current next bounded implementation priority is the first day-profile persistence and safe-migration foundation. The remaining bounded visual sequence is Today dominant-active-object refinement, then later Library and Setup passes. The full recommended sequence is maintained in `app/docs/life-rhythm-current-design-spec.md`.
+A product contract is appropriate when it helps resolve a genuinely high-risk write/migration/privacy/external-action boundary. It is not a prerequisite for ordinary product discovery.
 
-## Canonical navigation and theme naming
+## True boundaries that remain protected
 
-Primary navigation is:
+See `PRODUCT.md` and `AGENTS.md`. In summary:
 
-1. Today
-2. Plan
-3. Pool
-4. Library
+- non-clinical positioning and no unsupported neurochemical/health-state claims;
+- deterministic canonical state validation;
+- no silent destructive/relational/external consequential action;
+- blank calendar time is not automatically capacity;
+- automatic internal work remains correctable/reversible;
+- personal data remain user-controlled and minimised;
+- no shame/debt/streak/productivity-punishment framing;
+- core planner does not depend on AI.
 
-Reset and Settings are secondary destinations. They are not primary daily tabs.
+## Updating documentation
 
-Product-facing theme names remain:
+Do not reconcile every old contract after every PR.
 
-- Exhale
-- Clear
-- Grounded
+Update:
 
-The visual token layer also contains Paper, Tide, Clay and Night. Exhale maps to Paper, Clear maps to Tide, and Grounded maps to Clay. Night is a token foundation only and is not exposed by the current product selector.
+- `PRODUCT.md` only when product direction or true invariants change;
+- `MVP_PLAN.md` when gates, exit criteria or current programme change;
+- `ARCHITECTURE.md` when architectural boundaries materially change;
+- `RESEARCH_BASIS.md` when a new reviewed research source materially changes the evidence position;
+- implementation-specific docs only when their technical subsystem needs them.
 
-## Source archive status
-
-The supplied `Life_Rhythm_All_Project_Sources_2026-07-12.zip` is the current provenance bundle for source review. It contains:
-
-- the extracted Design Source Pack v1.2;
-- the packet source collection covering Packets 1-25;
-- the project-source governance additions;
-- current research/design documents, handovers and visual review references;
-- the extracted `/app` preview build.
-
-The embedded packet collection's Packet 1 file is the evidence-strengthened V2 packet. The standalone `Re-entry and Missed-Task Recovery in Adult ADHD for Life Rhythm` research document and the project-source additions provide the current re-entry/V3 governance direction. These are related source layers, not interchangeable filenames.
-
-The source archive is provenance material. It is not loaded by the runtime and is not a substitute for updating the repository's current design spec.
-
-## Backup disclosure
-
-Current backup exports are data-class-specific. Settings, custom Library rhythms, active Today tasks, soft placements, and Task Pool items have separate export/check paths.
-
-Task Pool backup includes saved Pool rows, their status, useful-window fields, and `bringBackAfter` deferral metadata. It does not include settings, Today tasks, Library rhythms, soft placements, calendar data, scheduler output, or restore/import execution. Backup checking remains read-only.
-
-## Verification policy
-
-- `npm run build` must pass for `/app`.
-- Tests involving local dates and ISO timestamps must be timezone-deterministic; they must not assume that a `Z` timestamp represents local wall-clock time.
-- Automated tests do not replace a mobile, desktop and keyboard walkthrough.
-- A future PR that changes implementation status must update this authority map and the current design spec in the same PR.
+Historical documents should remain historical rather than being repeatedly rewritten to look current.

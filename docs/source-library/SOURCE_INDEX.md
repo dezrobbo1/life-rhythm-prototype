@@ -1,18 +1,22 @@
 # Life Rhythm source index
 
-Status: Current source map
-Date: 2026-07-12
+Status: Current source/provenance map
+Date: 2026-09-03
 
-This index records the source material used to guide Life Rhythm. It is evidence and provenance material, not runtime input.
+This index records evidence and historical design material used to inform Life Rhythm. It is not runtime input and it is not current product authority.
 
 ## Repository authority
 
-The current implementation and documentation hierarchy are defined in:
+Current product and implementation direction are defined in:
 
-- `../DOCUMENTATION_AUTHORITY.md`
-- `../../app/docs/life-rhythm-current-design-spec.md`
+- [`../../PRODUCT.md`](../../PRODUCT.md) — product purpose, direction and true invariants;
+- [`../../MVP_PLAN.md`](../../MVP_PLAN.md) — active MVP gate sequence;
+- [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) — target architecture and transition strategy;
+- current `/app` code and tests — implemented behaviour;
+- [`../RESEARCH_BASIS.md`](../RESEARCH_BASIS.md) — concise evidence translation and scientific boundaries;
+- [`../DOCUMENTATION_AUTHORITY.md`](../DOCUMENTATION_AUTHORITY.md) — repository authority map.
 
-The current design spec governs product direction and implementation status. Source documents can support rationale, safety boundaries and design hypotheses, but cannot silently expand product scope.
+The former `app/docs/life-rhythm-current-design-spec.md` and the many feature contracts in `app/docs` remain historical rationale, current-runtime references where still accurate, and implementation evidence. They do not override the active MVP direction.
 
 ## Current provenance bundle
 
@@ -20,24 +24,27 @@ The supplied source bundle is:
 
 - `Life_Rhythm_All_Project_Sources_2026-07-12.zip`
 
-The bundle is external provenance material supplied for the 2026-07-12 consolidation. It contains the extracted Design Source Pack v1.2, the Packet 1-25 source collection, project-source governance additions, primary research/design documents, handovers, text derivatives, visual review references and the current `/app` preview build.
+The bundle is external provenance material. It contains the extracted Design Source Pack v1.2, Packet 1-25 source collection, project-source governance additions, research/design documents, handovers, text derivatives, visual references and historical `/app` previews.
 
-The bundle is not loaded by the app runtime and is not a substitute for the repository's current design documents.
+The bundle is not loaded by the app runtime and is not a substitute for current repository product documents.
 
 ## Active source layers
 
-| Layer | Current source | Use |
+| Layer | Source | Use |
 | --- | --- | --- |
-| Product authority | `app/docs/life-rhythm-current-design-spec.md` | Current product identity, boundaries, implementation state and roadmap |
-| Evidence-balanced UX | `docs/ux/Life_Rhythm_Design_Specification_v1_2_Evidence_Balanced.md` | Packet weighting, screen responsibilities and non-clinical UX guardrails |
-| Design source pack | Design Source Pack v1.2 in the consolidated bundle | Visual boards and evidence-to-design traceability; visual reference only |
-| Packet evidence | Packet source collection, Packets 1-25 | Evidence context and domain-specific cautions |
-| Source governance | `app/docs/research/` and Project Source Additions v1.0 in the bundle | Canonical/provisional/source-only/quarantined classification |
-| Current visual contracts | `app/docs/visual-design-direction-contract.md`, `object-grammar-spec.md`, `navigation-redesign-contract.md`, `theme-system-contract.md` | Current visual and interaction implementation boundaries |
+| Product direction | `PRODUCT.md` | Product purpose, direction and true invariants |
+| MVP roadmap | `MVP_PLAN.md` | Current development gates and evidence targets |
+| Target architecture | `ARCHITECTURE.md` | Scheduling, learning, AI and migration direction |
+| Current implementation | `/app` code + tests | What the product actually does today |
+| Evidence translation | `docs/RESEARCH_BASIS.md` | Current scientific/safety interpretation |
+| Evidence-balanced UX | `docs/ux/Life_Rhythm_Design_Specification_v1_2_Evidence_Balanced.md` | Research traceability and historical UX rationale |
+| Packet evidence | Packet source collection, Packets 1-25 | Domain evidence, cautions and hypotheses |
+| Historical contracts/design | `app/docs/*` | Rationale and implementation history; not higher product authority |
+| Visual references | Design Source Pack and visual contracts | Reusable visual/interaction evidence where still useful |
 
 ## Packet coverage
 
-The active packet collection covers Packets 1-25:
+The provenance packet collection covers Packets 1-25:
 
 - 1: re-entry and missed-task recovery
 - 2: delayed rewards and small progress
@@ -63,22 +70,29 @@ The active packet collection covers Packets 1-25:
 - 22: sensory load, environment, transitions and decompression
 - 23: social support, accountability and co-regulation
 - 24: Start Boost and anti-dopamine-hack boundaries
-- 25: calendar load, fixed commitments, buffers and soft planning
+- 25: calendar load, fixed commitments, buffers and planning realism
 
-The embedded packet collection contains the evidence-strengthened Packet 1 V2 PDF. The current re-entry/V3 governance direction is represented separately by the standalone `Re-entry and Missed-Task Recovery in Adult ADHD for Life Rhythm` document and the Project Source Additions material in the consolidated bundle. These source layers must not be conflated.
+The embedded packet collection contains the evidence-strengthened Packet 1 V2 PDF. The later re-entry/V3 material is represented separately by the standalone re-entry research and Project Source Additions material. Keep those layers distinct when citing historical rationale.
 
 ## Evidence weighting rule
 
-Use the packet that matches the feature. Packets 22 and 25 are global guardrails for sensory/visual/interruption load and calendar/load realism; they are not default evidence for every screen.
+Use the evidence source that matches the question and preserve its strength and limitations.
 
-Do not use source packets to justify:
+Research can support:
 
-- diagnosis, treatment or clinical outcome claims;
-- automatic scheduling or calendar write-back;
-- AI authority or AI-written state;
-- financial, nutrition, exercise or crisis-support advice;
-- surveillance, adherence scoring, streak pressure or public accountability.
+- why executive-function offloading is worth pursuing;
+- why prospective-memory support, calendar context, task right-sizing, recovery, Reduced Day, rhythms and context-sensitive adaptation are useful hypotheses;
+- scientific and safety boundaries;
+- prototype questions and evaluation measures.
+
+Research does **not** automatically prove that a specific Life Rhythm algorithm, screen, recurrence grammar or scheduling policy works.
+
+Equally, lack of direct validation for a particular implementation must not be silently converted into a permanent product prohibition. Automatic private scheduling, automatic rescheduling, calendar alignment and behavioural learning are current product hypotheses explicitly authorised by `PRODUCT.md` and `MVP_PLAN.md` for bounded experimentation.
+
+Hard scientific boundaries remain: do not use source material to claim diagnosis, treatment, clinical outcomes, measured/regulated dopamine, hidden neurological-state detection, or other physiological/clinical abilities that the product does not validly provide.
 
 ## Runtime rule
 
-No file in `/docs` should be imported by the production app. Research and design documents must be translated into an approved contract or current design-spec change before implementation.
+No file in `/docs` is runtime input.
+
+Implementation changes must preserve data integrity, privacy, deterministic state validation and the true invariants in `PRODUCT.md`. Ordinary product experiments do not require a new research packet or long-form contract merely because they challenge an older product hypothesis.

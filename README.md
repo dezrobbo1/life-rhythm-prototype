@@ -1,60 +1,99 @@
-# Life Rhythm Prototype
+# Life Rhythm
 
-Current deployable version: 1.4.6.
+Life Rhythm is an adaptive external executive-function support system designed primarily for adults with ADHD.
 
-Life Rhythm is a local-first, non-clinical self-management prototype for daily rhythm, task initiation, realistic time planning, and reset/re-entry after disrupted days.
+Its purpose is to reduce the cognitive and administrative work involved in remembering, organising, prioritising, initiating and replanning everyday life.
 
-## Active app
+> Power underneath. Calm on the surface.
 
-The live GitHub Pages app is the root `index.html`. It is a single-file app shell with embedded CSS and JavaScript, now versioned as 1.4.6 with the richer 1.3.6 planning behaviour, the 1.4.5 library-first task model, visible state-based plan shaping, library removal, full app reset, and local dev tickets.
+## Current product direction
 
-The older modular `app.js` and `styles.css` files are not part of the live app path.
+The MVP is not a conventional task manager or manual soft-placement planner.
 
-## Repository architecture map
+Life Rhythm is intended to combine real calendar commitments, tasks, rhythms, protected time, Reduced Day, Minimum Done, re-entry and explicit preferences into an automatically maintained private plan. Flexible internal work may be scheduled and rescheduled automatically. The user remains able to move, protect, defer, undo and correct the plan.
 
-The repository contains two deliberately separate app generations:
+Behavioural learning should later improve durations, timing and preference choices from ordinary use. Optional AI may interpret natural language, decompose tasks and explain decisions, but it does not own canonical scheduling state.
 
-- **Root `index.html`** — live GitHub Pages 1.4.6 legacy prototype. It remains protected while the replacement architecture is validated.
-- **`/app`** — current React/Vite/TypeScript Personal Trial v1 architecture for new work. It uses Dexie/Zod local persistence and the four-tab Today / Plan / Pool / Library model.
+Read these first:
 
-The `/app` documentation authority is [`docs/DOCUMENTATION_AUTHORITY.md`](docs/DOCUMENTATION_AUTHORITY.md). Do not copy legacy root scheduling behaviour into `/app` without an approved contract.
+1. [`PRODUCT.md`](PRODUCT.md) — product thesis and true invariants.
+2. [`MVP_PLAN.md`](MVP_PLAN.md) — current gates and MVP exit criteria.
+3. [`ARCHITECTURE.md`](ARCHITECTURE.md) — target technical architecture.
+4. [`docs/RESEARCH_BASIS.md`](docs/RESEARCH_BASIS.md) — concise evidence and claim boundaries.
+5. [`docs/DOCUMENTATION_AUTHORITY.md`](docs/DOCUMENTATION_AUTHORITY.md) — current documentation authority.
 
-## GitHub Pages
+## Repository generations
 
-- Deploy from `main` and the repository root.
-- Preview URL: `https://dezrobbo1.github.io/life-rhythm-prototype/`
-- The app uses relative paths so it works under the `/life-rhythm-prototype/` project path.
-- `manifest.json` supports Home Screen installation.
-- `service-worker.js` caches the 1.4.6 single-file shell, manifest, and icon.
+The repository contains two app generations:
 
-If Safari or a Home Screen install shows an older version, refresh once, close and reopen the app, or remove and re-add the Home Screen icon.
+- **Root `index.html`, `manifest.json`, `service-worker.js`** — protected live GitHub Pages 1.4.6 legacy PWA.
+- **`/app`** — current React/Vite/TypeScript implementation path for the adaptive MVP.
 
-## Testing checklist
+The legacy root remains useful historical/product evidence but is not the authority for new `/app` behaviour.
 
-- Open the GitHub Pages URL on desktop and iPhone Safari.
-- Confirm the title/version line shows 1.4.6.
-- Confirm a fresh install shows no auto-seeded Today tasks and prompts the user to choose rhythms or add one task.
-- Confirm standard rhythms remain templates until enabled, and disabled templates never appear in Today or Schedule.
-- Confirm enabling one rhythm does not flood Today, and Add to Today now places exactly one selected item into Today.
-- Confirm quick packs enable rhythms without dumping the full pack into Today.
-- Confirm legacy 1.4.4 starter tasks migrate into enabled library rhythms without duplicates, while user-created tasks survive.
-- Test bottom navigation: Today, Plan, Library, Reset, Setup.
-- Test the compact "How today feels" selector and confirm it visibly reshapes Today with a Plan adjusted line.
-- Add, edit, delete, complete, shrink, park, and move tasks.
-- Test Reset actions: Too much today, move extras, restart with one action.
-- Test Start Boost selection and contextual feedback with safety exclusions enabled.
-- Start, pause, cancel, and finish timers.
-- Export JSON, then import it again and confirm data restores.
-- Test Remove from my library and Delete custom template.
-- Test Reset whole app after exporting.
-- Create a dev ticket, copy open tickets as Markdown, export tickets JSON, and import tickets JSON.
-- Confirm local storage persists after reload.
-- Confirm mobile layout does not clip the bottom navigation or modal controls.
+## Current `/app` baseline
 
-The checklist above applies to the root 1.4.6 legacy app. For the current `/app` Personal Trial v1 checklist, use [`app/docs/personal-trial-checklist.md`](app/docs/personal-trial-checklist.md).
+The current `main` baseline is merged PR #112 (`e0c1d175e9082f7e5bdc5f1aeae6980146e4994b`).
 
-## Data and safety boundary
+The `/app` already contains substantial reusable foundations, including:
 
-The root 1.4.6 app stores data locally in the browser and has no backend or cloud sync. The newer `/app` architecture has an opt-in identity shell with separate local namespaces, but login is not sync and does not silently upload Life Rhythm data. Export the relevant local backups before clearing browser data, replacing a device, or reinstalling the Home Screen app.
+- React/Vite/TypeScript;
+- Dexie local persistence and Zod validation;
+- settings and Life Shape data;
+- Workday/Non-workday day-profile persistence foundations;
+- custom rhythms;
+- active Today task state;
+- Task Pool capture/holding/deferral;
+- usefulness/deadline support;
+- Minimum Done/completion endpoints;
+- re-entry work;
+- protected/open-capacity concepts;
+- user-confirmed internal soft placements;
+- linked task/Pool/placement lifecycle logic;
+- backup/export validation paths;
+- timezone-sensitive tests;
+- accessible responsive UI foundations.
 
-Life Rhythm is not a medical device, diagnostic tool, treatment, therapy, coaching service, exercise prescription, nutrition plan, financial advice tool, or crisis-support tool.
+Those are reusable implementation assets. They are not permanent product constraints.
+
+Current main does **not** yet implement the target automatic scheduler, real calendar adapter, automatic private rescheduling, behavioural learning or optional AI layer.
+
+## Current delivery gate
+
+The current programme is defined in [`MVP_PLAN.md`](MVP_PLAN.md).
+
+The first implementation gate after the product/documentation reset is:
+
+> **Gate 1 — Canonical life model and scheduler seam**
+
+The code should evolve incrementally from the existing `/app`. Do not rewrite the application from scratch merely to match the new architecture.
+
+## Product and research boundary
+
+Life Rhythm is non-clinical. Do not claim that it diagnoses or treats ADHD, regulates dopamine, detects hidden neurological states or provides medical advice.
+
+Research supports external executive-function scaffolding and prospective-memory offloading strongly at the principle level. Automatic scheduling, automatic rescheduling and personalised sequencing are central product hypotheses that require real product validation rather than prohibition.
+
+The primary MVP test is:
+
+> **Does the app make fewer executive decisions necessary?**
+
+## Development
+
+For `/app`:
+
+```bash
+cd app
+npm ci
+npm test
+npm run build
+npm run dev
+```
+
+Date/time/scheduling tests should be checked in UTC and Australia/Perth when relevant.
+
+See [`AGENTS.md`](AGENTS.md) before implementation work.
+
+## Legacy GitHub Pages
+
+The root 1.4.6 PWA remains deployed from repository root on `main`. It should not be changed as a side effect of `/app` MVP work unless a task explicitly targets the legacy app or deployment transition.

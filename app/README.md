@@ -1,79 +1,109 @@
 # Life Rhythm `/app`
 
-Status: Current React/Vite/TypeScript Personal Trial v1 architecture
+Status: Current React/Vite/TypeScript implementation path for the adaptive MVP
 
-This is the current implementation path for new Life Rhythm work. It does not replace the protected root `index.html`, `manifest.json`, or `service-worker.js` runtime. The root 1.4.6 app remains the live GitHub Pages legacy prototype.
+The root 1.4.6 GitHub Pages PWA remains a protected legacy runtime. New product work targets `/app` unless a task explicitly says otherwise.
 
-Read the repository documentation map first:
+Read first:
 
+- [`../PRODUCT.md`](../PRODUCT.md)
+- [`../MVP_PLAN.md`](../MVP_PLAN.md)
+- [`../ARCHITECTURE.md`](../ARCHITECTURE.md)
+- [`../docs/RESEARCH_BASIS.md`](../docs/RESEARCH_BASIS.md)
 - [`../docs/DOCUMENTATION_AUTHORITY.md`](../docs/DOCUMENTATION_AUTHORITY.md)
-- [`docs/life-rhythm-current-design-spec.md`](docs/life-rhythm-current-design-spec.md)
 
-## Current implementation
+## Current implementation baseline
 
-PR #109 was the previous application-code checkpoint, merged through `81f4211dd6970ce08dc63d717a570111388876be`. PR #110 is the approved product-contract checkpoint for day profiles, availability, rhythm recurrence, and rhythm instances; the catalogue gap audit is reviewed as planning input. PR #112 implements the first day-profile persistence and safe-migration foundation from that contract. No availability inference, rhythm recurrence, or rhythm-instance behaviour is implemented. The current `/app` implementation contains:
+Current `main` baseline: merged PR #112 (`e0c1d175e9082f7e5bdc5f1aeae6980146e4994b`).
 
-- Today, Plan, Pool and Library as the four primary destinations;
-- Reset and Settings as secondary destinations;
-- React/Vite/TypeScript app shell and semantic theme tokens;
-- Dexie local persistence with Zod validation;
+Reusable implementation includes:
+
+- React/Vite/TypeScript application shell;
+- Dexie local persistence and Zod validation;
 - settings and Life Shape persistence;
 - custom Library rhythm persistence;
-- active Today task and status persistence;
-- Task Pool capture, safe holding, deferral and Pool-to-Today movement;
-- Pool-based soft suggestions from explicit `openCapacity` blocks;
-- user-confirmed local soft placements and safe removal/reconfirmation;
-- Task Pool backup export and read-only validation, including saved status and deferral metadata;
-- settings-owned Workday and Non-workday day-profile foundation with weekday assignment, preserved legacy compatibility context, and an explicit migration-review state;
-- rollback-readable split settings storage, so the settings row stays valid for the previous application version;
-- surfaced duplicated legacy settings-field conflicts for user review;
-- settings backup format version 2, with frozen read-only version-1 validation retained;
-- opt-in Clerk identity shell with separate local namespaces, but no sync;
-- data-class-specific backup export and read-only validation previews;
-- quiet shared in-flow page headings;
-- a compact shared header;
-- a restrained local active-navigation marker;
-- Pool as a content-led Soft Ledger / Holding Tray with ledger rows and dividers;
-- a clarified Pool action hierarchy with Add to Today primary, Find soft window secondary and independent Other choices disclosures;
-- Plan without the previous three equal-weight outer cards;
-- a clear Day Shape → Soft suggestions → Soft placements reading order;
-- Day Shape as the dominant connected planning object;
-- quieter ruled suggestion and placement sections with consolidated scheduling-safety guidance;
-- approved Plan mobile, desktop, populated-state, keyboard and theme-parity visual review.
+- active Today task/status persistence;
+- Task Pool capture, safe holding and deferral;
+- linked Pool/Today/placement lifecycle transitions;
+- usefulness/deadline fields and one-off time edges;
+- Minimum Done and completion endpoints;
+- re-entry preview/actions;
+- protected/recovery/open-capacity concepts;
+- current user-confirmed private soft placements;
+- settings-owned Workday/Non-workday profile foundation with weekday assignment and safe rollback/migration handling;
+- data-class-specific backup/export and read-only validation paths;
+- user-scoped local namespaces under the optional identity shell;
+- timezone-sensitive test coverage;
+- responsive/accessibility and Soft Ledger visual foundations.
 
-## Current boundaries
+## Current implementation limitations
 
-The `/app` implementation does not provide:
+These are implementation facts, not product prohibitions.
 
-- automatic scheduling or calendar writes;
-- backend storage or cloud sync;
-- AI-written task state or AI authority;
-- notifications or analytics;
-- import/restore execution;
-- profile-derived availability, derived work boundaries, per-date overrides, or Setup profile controls;
-- persistent rhythm enablement or complete recurrence rules;
-- repeating rhythm instances;
-- broad parked/not-today/rhythm-instance resurfacing;
-- external tester readiness.
+`/app` does not yet provide:
 
-PR #109 changed presentation only. It did not change selected-day behaviour; Day Shape content or ordering; explicit `openCapacity` behaviour; suggestion, eligibility or usefulness-window logic; user-confirmed placement or placement removal/reconfirmation; persistence, repositories, schemas, statuses, routes, task ordering or task lifecycle behaviour. It added no automatic scheduling, calendar writes, AI, backend, sync, notifications, analytics or restore/import behaviour.
+- a real calendar adapter;
+- derived candidate availability from calendar + usable-day boundaries;
+- automatic private scheduling;
+- automatic private rescheduling;
+- rolling schedule repair or schedule inertia;
+- behavioural duration/preference learning;
+- an inspectable learnt-preference model;
+- optional AI interpretation;
+- external calendar writes;
+- cloud sync;
+- full import/restore execution;
+- external tester readiness for the new adaptive MVP.
 
-Until separately reviewed implementation activates an approved future model, current suggestions continue to use explicit `openCapacity` only, placements remain local and user-confirmed, nothing moves into Today automatically, no calendar writes occur, and local-first boundaries remain active.
+Current suggestions still use explicit `openCapacity` and current private placements remain user-confirmed because that is what the existing code implements. The MVP plan explicitly intends to replace that manual-only path with bounded automatic private scheduling once the scheduler seam and calendar model are ready.
 
-## Approved product direction — runtime not implemented
+## Current next gate
 
-- [`docs/day-profile-and-availability-contract.md`](docs/day-profile-and-availability-contract.md) — approved product contract.
-- [`docs/rhythm-recurrence-and-instance-contract.md`](docs/rhythm-recurrence-and-instance-contract.md) — approved product contract.
-- [`docs/rhythm-library-catalogue-gap-audit.md`](docs/rhythm-library-catalogue-gap-audit.md) — reviewed product-planning input, not runtime authority.
+See [`../MVP_PLAN.md`](../MVP_PLAN.md).
 
-The first day-profile persistence and safe-migration foundation is implemented:
+The next implementation gate after the governance reset is:
 
-- Workday and Non-workday profile data structures;
-- weekday-to-profile assignment;
-- preservation of existing settings as compatibility context;
-- an explicit migration-review state.
+> Gate 1 — Canonical life model and scheduler seam.
 
-It does not add profile-derived availability, derived work-hour suggestion behaviour, removal of current explicit `openCapacity`, rhythm recurrence, rhythm instances, automatic scheduling, or calendar writes. Later work continues through reviewed settings migration and activation, derived work boundaries, persistent rhythm plans, stable generated instances, Plan integration, and curated Library expansion. Today remains the next bounded visual object pass after that model work; Library and Setup remain later visual passes. The canonical sequence is in the [current design spec](docs/life-rhythm-current-design-spec.md#18-current-near-term-roadmap).
+The objective is to project current persisted records into one scheduling-domain model without a destructive rewrite.
+
+Reuse existing code where useful. Preserve data/migration safety, not historical abstractions for their own sake.
+
+## Architectural transition
+
+The intended progression is:
+
+```text
+existing persisted task/rhythm/settings state
+        ↓
+canonical scheduling-domain adapters
+        ↓
+stable scheduler interface
+        ↓
+real calendar context + usable-day model
+        ↓
+automatic private placement
+        ↓
+rolling repair + schedule inertia
+        ↓
+Reduced Day / Minimum Done / rhythm / re-entry integration
+        ↓
+simple behavioural learning
+        ↓
+optional AI interpretation later
+```
+
+Do not make the domain model inseparable from OR-Tools, CP-SAT or another solver. A deterministic heuristic can prove early vertical slices behind the same scheduler interface.
+
+## Product direction relevant to `/app`
+
+The primary product question is:
+
+> Does the app make fewer executive decisions necessary?
+
+This means the existing four-tab shell, Holding Tray terminology, manual placement flow and visual object grammar can change when the MVP demonstrates a simpler interaction.
+
+Retain good interaction/accessibility work where it serves the product.
 
 ## Commands
 
@@ -84,6 +114,6 @@ npm test
 npm run build
 ```
 
-Use a deterministic timezone when running date-sensitive tests. Test fixtures must not assume that a `Z` timestamp represents local wall-clock time.
+When date/time/scheduling/calendar/re-entry behaviour changes, run timezone-sensitive tests in both UTC and Australia/Perth where the environment permits.
 
-The build output for `/app` is a preview artifact. It is not the root GitHub Pages deployment source.
+The `/app` build is currently a preview artifact and is not the protected root GitHub Pages deployment source.
