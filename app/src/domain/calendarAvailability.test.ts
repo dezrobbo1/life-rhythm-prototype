@@ -48,6 +48,20 @@ function gate2Settings(overrides: Record<string, unknown> = {}) {
   });
 }
 
+function withWorkPlanningUse(
+  settings: ReturnType<typeof gate2Settings>,
+  workPlanningUse: 'unavailable' | 'askFirst' | 'workRhythmsOnly' | 'allowSuitableTasks',
+) {
+  return settingsSchema.parse({
+    ...settings,
+    dayProfiles: settings.dayProfiles.map((profile) =>
+      profile.kind === 'workday'
+        ? { ...profile, workPlanningUse }
+        : profile,
+    ),
+  });
+}
+
 const adapter = new IcsCalendarAdapter();
 
 function calendarEvent(start = '20260907T170000', end = '20260907T180000') {
@@ -176,6 +190,43 @@ describe('Gate 2 calendar-aware availability', () => {
       ['06:30', '08:00'],
       ['17:00', '21:30'],
     ]);
+  });
+
+  it.each(['unavailable', 'askFirst', 'workRhythmsOnly'] as const)(
+    'keeps generic candidate intervals out of work hours when work planning use is %s',
+    (workPlanningUse) => {
+      const base = gate2Settings({ lifeShape: { timeBlocks: [] } });
+      const settings = withWorkPlanningUse(base, workPlanningUse);
+
+      const result = deriveGate2Availability({
+        settings,
+        calendarEvents: [],
+        date: '2026-09-07',
+        timezone: 'Australia/Perth',
+      });
+
+      expect(result.candidateIntervals.map(({ start, end }) => [start, end])).toEqual([
+        ['06:30', '08:00'],
+        ['16:00', '21:30'],
+      ]);
+    },
+  );
+
+  it('allows the work period into generic candidates only when suitable tasks are explicitly allowed', () => {
+    const base = gate2Settings({ lifeShape: { timeBlocks: [] } });
+    const settings = withWorkPlanningUse(base, 'allowSuitableTasks');
+
+    const result = deriveGate2Availability({
+      settings,
+      calendarEvents: [],
+      date: '2026-09-07',
+      timezone: 'Australia/Perth',
+    });
+
+    expect(result.candidateIntervals.map(({ start, end }) => [start, end])).toEqual([
+      ['06:30', '21:30'],
+    ]);
+    expect(result.candidateIntervals[0].capacityMeaning).toBe('candidate-not-capacity');
   });
 
   it('can retain an explicit uncertainty reserve without treating it as a universal ADHD buffer', () => {
