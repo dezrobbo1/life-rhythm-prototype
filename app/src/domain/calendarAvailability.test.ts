@@ -255,9 +255,9 @@ describe('Gate 2 calendar-aware availability', () => {
     expect(result.candidateIntervals).toEqual([]);
   });
 
-  it('fails closed for overnight usable-day envelopes instead of inventing daytime capacity', () => {
+  it('rejects overnight usable-day envelopes at the current validated settings boundary', () => {
     const base = gate2Settings();
-    const settings = settingsSchema.parse({
+    const parsed = settingsSchema.safeParse({
       ...base,
       dayProfiles: base.dayProfiles.map((profile) =>
         profile.kind === 'workday'
@@ -266,16 +266,13 @@ describe('Gate 2 calendar-aware availability', () => {
       ),
     });
 
-    const result = deriveGate2Availability({
-      settings,
-      calendarEvents: [],
-      date: '2026-09-07',
-      timezone: 'Australia/Perth',
-    });
-
-    expect(result.candidateIntervals).toEqual([]);
-    expect(result.warnings).toContain(
-      'Overnight usable-day envelopes are not supported by the Gate 2 candidate-interval slice yet.',
-    );
+    expect(parsed.success).toBe(false);
+    if (parsed.success) throw new Error('Expected the current settings schema to reject an overnight usable-day envelope.');
+    expect(parsed.error.issues).toEqual([
+      expect.objectContaining({
+        message: 'End must be later than start.',
+        path: ['dayProfiles', 0, 'usableDay', 'end'],
+      }),
+    ]);
   });
 });
