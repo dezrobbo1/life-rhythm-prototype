@@ -110,7 +110,7 @@ describe('current persisted state projection', () => {
     const disabled = rhythmTemplateSchema.parse({
       id: 'disabled-rhythm',
       title: 'Disabled rhythm',
-      area: 'home',
+      area: 'house',
       enabled: false,
       createdAt: timestamp,
       updatedAt: timestamp,
