@@ -76,8 +76,8 @@ function addDays(date: string, amount: number): string {
     .padStart(2, '0')}-${next.getUTCDate().toString().padStart(2, '0')}`;
 }
 
-function sanitizeId(value: string): string {
-  return value.replace(/[^a-zA-Z0-9._-]+/g, '_');
+function sourceIdSegment(value: string): string {
+  return encodeURIComponent(value);
 }
 
 function recurringIntervalRange(interval: SchedulingInterval, date: string): MinuteRange | null {
@@ -147,11 +147,14 @@ export function externalCommitmentsFromCalendarEvents(events: CalendarReadEvent[
   const commitments: ExternalCommitment[] = [];
 
   for (const event of events) {
+    if (!event.busy) continue;
+    const encodedSourceId = sourceIdSegment(event.sourceEventId);
+
     if (event.allDay) {
       let date = event.start.date;
       while (date < event.end.date) {
         commitments.push({
-          id: `calendar:${event.adapterId}:${sanitizeId(event.sourceEventId)}:${date}`,
+          id: `calendar:${event.adapterId}:${encodedSourceId}:${date}`,
           title: event.title,
           source: 'calendar',
           sourceId: event.sourceEventId,
@@ -182,7 +185,7 @@ export function externalCommitmentsFromCalendarEvents(events: CalendarReadEvent[
 
       if (minutesFromTime(start) < minutesFromTime(end)) {
         commitments.push({
-          id: `calendar:${event.adapterId}:${sanitizeId(event.sourceEventId)}:${date}:${start}`,
+          id: `calendar:${event.adapterId}:${encodedSourceId}:${date}:${start}`,
           title: event.title,
           source: 'calendar',
           sourceId: event.sourceEventId,
@@ -245,7 +248,25 @@ function genericCandidateWorkPeriodIsRestricted(
   return workPlanningUse !== 'allowSuitableTasks';
 }
 
+function validateCandidateOptions(input: Gate2AvailabilityInput): void {
+  if (
+    input.uncertaintyReserveMinutes !== undefined &&
+    (!Number.isFinite(input.uncertaintyReserveMinutes) || input.uncertaintyReserveMinutes < 0)
+  ) {
+    throw new Error('uncertaintyReserveMinutes must be a finite non-negative number.');
+  }
+
+  if (
+    input.minimumCandidateMinutes !== undefined &&
+    (!Number.isFinite(input.minimumCandidateMinutes) || input.minimumCandidateMinutes <= 0)
+  ) {
+    throw new Error('minimumCandidateMinutes must be a finite positive number.');
+  }
+}
+
 export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2AvailabilityResult {
+  validateCandidateOptions(input);
+
   const warnings: string[] = [];
   const minimumCandidateMinutes = input.minimumCandidateMinutes ?? 15;
   const uncertaintyReserveMinutes = input.uncertaintyReserveMinutes ?? 0;
