@@ -1,4 +1,4 @@
-import type { Settings } from '../data/schemas';
+import type { DayOfWeek, Settings } from '../data/schemas';
 import type { CalendarReadEvent } from './calendarAdapter';
 import type { ExternalCommitment, SchedulingInterval } from './schedulingModel';
 
@@ -41,7 +41,7 @@ type MinuteRange = {
   reason: string;
 };
 
-const weekdays = [
+const weekdays: readonly DayOfWeek[] = [
   'Sunday',
   'Monday',
   'Tuesday',
@@ -49,9 +49,9 @@ const weekdays = [
   'Thursday',
   'Friday',
   'Saturday',
-] as const;
+];
 
-function weekdayForDate(date: string): string {
+function weekdayForDate(date: string): DayOfWeek {
   const [year, month, day] = date.split('-').map(Number);
   return weekdays[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
 }
@@ -239,6 +239,16 @@ function profileContext(settings: Settings, date: string) {
   };
 }
 
+function genericCandidateWorkPeriodIsRestricted(
+  workPlanningUse: Settings['dayProfiles'][number]['workPlanningUse'] | undefined,
+): boolean {
+  // Gate 2 emits generic candidate intervals, not task-specific work eligibility.
+  // Only allowSuitableTasks can safely expose the core work period as a generic
+  // candidate; workRhythmsOnly needs rhythm identity, askFirst needs a decision,
+  // and unavailable is blocked outright.
+  return workPlanningUse !== 'allowSuitableTasks';
+}
+
 export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2AvailabilityResult {
   const warnings: string[] = [];
   const minimumCandidateMinutes = input.minimumCandidateMinutes ?? 15;
@@ -278,7 +288,10 @@ export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2Ava
   };
   const blockers: MinuteRange[] = [];
 
-  if (context.workPeriod && context.profile?.workPlanningUse !== 'available') {
+  if (
+    context.workPeriod &&
+    genericCandidateWorkPeriodIsRestricted(context.profile?.workPlanningUse)
+  ) {
     blockers.push({
       start: minutesFromTime(context.workPeriod.start),
       end: minutesFromTime(context.workPeriod.end),
@@ -328,7 +341,7 @@ export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2Ava
       capacityMeaning: 'candidate-not-capacity',
       provenance: [
         `Inside the broad usable-day envelope (${context.usableDay.source}).`,
-        'Known hard commitments, work-unavailable time, protected time and ask-first time were removed.',
+        'Known hard commitments, generic-task-restricted work time, protected time and ask-first time were removed.',
         uncertaintyReserveMinutes > 0
           ? `${uncertaintyReserveMinutes} minutes of uncertainty reserve were kept at the end of this gap.`
           : 'No extra uncertainty reserve was applied.',
