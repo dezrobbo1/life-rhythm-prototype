@@ -1,10 +1,10 @@
 # UX notes
 
-The evidence-balanced UX specification is:
+The historical evidence-balanced UX reference is:
 
 [`Life_Rhythm_Design_Specification_v1_2_Evidence_Balanced.md`](./Life_Rhythm_Design_Specification_v1_2_Evidence_Balanced.md)
 
-It remains useful for evidence weighting, screen-level research traceability and historical rationale. It is not current product authority.
+It remains useful for packet/evidence weighting, screen-level research traceability and historical rationale. It is **not** current product authority, implementation authority, navigation authority or an active roadmap. Prescriptive wording inside that document describes the v1.2 checkpoint unless independently reaffirmed by current authority.
 
 For current direction, use:
 
