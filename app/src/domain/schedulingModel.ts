@@ -96,14 +96,44 @@ export type CapacityWindow = {
   sourceId: string;
 };
 
+export type CandidateSchedulingInterval = {
+  id: string;
+  date: LocalDate;
+  start: LocalTime;
+  end: LocalTime;
+  timezone: string;
+  capacityMeaning: 'candidate-not-capacity';
+  provenance: string[];
+};
+
+export type SchedulingPreference = {
+  id: string;
+  targetKind: 'intention' | 'rhythm' | 'area' | 'taskType';
+  targetValue: string;
+  relation: 'prefer' | 'avoid';
+  days?: string[];
+  start?: LocalTime;
+  end?: LocalTime;
+  provenance: string;
+};
+
+export type SchedulerPlanningPolicy = {
+  maxInternalScheduledMinutesPerDay?: number;
+  maxAutomaticPlacementsPerDay?: number;
+};
+
 export type InternalPlacement = {
   id: string;
   intentionId: string;
   date: LocalDate;
   start: LocalTime;
   end: LocalTime;
+  timezone?: string;
   origin: 'existingUserConfirmed' | 'scheduler';
   sourcePlacementId?: string;
+  targetKind?: 'intention' | 'rhythm';
+  rhythmId?: string;
+  variantKind?: TaskVariantKind;
   provenance: string[];
 };
 
@@ -130,13 +160,20 @@ export type SchedulingDomainModel = {
   capacityWindows: CapacityWindow[];
   placements: InternalPlacement[];
   dayProfiles: DayProfileContext[];
+  candidateIntervals?: CandidateSchedulingInterval[];
+  preferences?: SchedulingPreference[];
+  planningPolicy?: SchedulerPlanningPolicy;
 };
 
 export type SchedulerViolationCode =
   | 'unknown-intention'
+  | 'unknown-rhythm'
   | 'placement-overlap'
   | 'protected-window-overlap'
-  | 'external-commitment-overlap';
+  | 'external-commitment-overlap'
+  | 'outside-candidate-interval'
+  | 'timing-constraint-violation'
+  | 'capacity-limit-exceeded';
 
 export type SchedulerViolation = {
   code: SchedulerViolationCode;
@@ -153,6 +190,7 @@ export type RejectedPlacement = {
 export type SchedulerPlan = {
   placements: InternalPlacement[];
   unscheduledIntentionIds: string[];
+  unscheduledRhythmIds: string[];
   rejectedExistingPlacements: RejectedPlacement[];
 };
 
@@ -164,5 +202,7 @@ export type SchedulerChange = {
 export type PlacementExplanation = {
   placementId: string;
   intentionId: string;
+  targetKind?: 'intention' | 'rhythm';
+  variantKind?: TaskVariantKind;
   provenance: string[];
 };
