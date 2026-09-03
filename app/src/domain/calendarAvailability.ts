@@ -19,7 +19,7 @@ export type Gate2AvailabilityResult = {
   usableDay?: {
     start: string;
     end: string;
-    source: 'dayProfile' | 'sleepWakeFallback';
+    source: 'dayProfile';
   };
   externalCommitments: ExternalCommitment[];
   candidateIntervals: CandidateSchedulingInterval[];
@@ -216,11 +216,7 @@ function profileContext(settings: Settings, date: string) {
 
   const usableDay = profile?.usableDay
     ? { ...profile.usableDay, source: 'dayProfile' as const }
-    : {
-        start: settings.lifeShape.sleepWakeAnchors.wake,
-        end: settings.lifeShape.sleepWakeAnchors.sleep,
-        source: 'sleepWakeFallback' as const,
-      };
+    : undefined;
 
   const workPeriod = profile?.workPeriod
     ? { ...profile.workPeriod }
@@ -259,6 +255,29 @@ export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2Ava
     ...externalCommitmentsFromCalendarEvents(input.calendarEvents),
   ];
 
+  if (!context.profile) {
+    warnings.push(`No day profile is assigned to ${context.weekday}; inferred candidate intervals were not generated.`);
+    return {
+      date: input.date,
+      timezone: input.timezone,
+      externalCommitments,
+      candidateIntervals: [],
+      warnings,
+    };
+  }
+
+  if (!context.usableDay) {
+    warnings.push('The assigned day profile has no explicit usable-day boundary; inferred candidate intervals were not generated.');
+    return {
+      date: input.date,
+      timezone: input.timezone,
+      profileId: context.profile.id,
+      externalCommitments,
+      candidateIntervals: [],
+      warnings,
+    };
+  }
+
   const usableStart = minutesFromTime(context.usableDay.start);
   const usableEnd = minutesFromTime(context.usableDay.end);
 
@@ -267,18 +286,12 @@ export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2Ava
     return {
       date: input.date,
       timezone: input.timezone,
-      profileId: context.profile?.id,
+      profileId: context.profile.id,
       usableDay: context.usableDay,
       externalCommitments,
       candidateIntervals: [],
       warnings,
     };
-  }
-
-  if (!context.profile) {
-    warnings.push(`No day profile was assigned to ${context.weekday}; sleep/wake anchors were used as the broad envelope.`);
-  } else if (context.usableDay.source === 'sleepWakeFallback') {
-    warnings.push('The day profile has no explicit usable-day envelope yet; current sleep/wake anchors were used as a non-persisting fallback.');
   }
 
   const envelope: MinuteRange = {
@@ -290,12 +303,12 @@ export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2Ava
 
   if (
     context.workPeriod &&
-    genericCandidateWorkPeriodIsRestricted(context.profile?.workPlanningUse)
+    genericCandidateWorkPeriodIsRestricted(context.profile.workPlanningUse)
   ) {
     blockers.push({
       start: minutesFromTime(context.workPeriod.start),
       end: minutesFromTime(context.workPeriod.end),
-      reason: `work period (${context.profile?.workPlanningUse ?? 'unavailable'})`,
+      reason: `work period (${context.profile.workPlanningUse})`,
     });
   }
 
@@ -340,7 +353,7 @@ export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2Ava
       timezone: input.timezone,
       capacityMeaning: 'candidate-not-capacity',
       provenance: [
-        `Inside the broad usable-day envelope (${context.usableDay.source}).`,
+        'Inside an explicit day-profile usable-day boundary.',
         'Known hard commitments, generic-task-restricted work time, protected time and ask-first time were removed.',
         uncertaintyReserveMinutes > 0
           ? `${uncertaintyReserveMinutes} minutes of uncertainty reserve were kept at the end of this gap.`
@@ -360,7 +373,7 @@ export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2Ava
   return {
     date: input.date,
     timezone: input.timezone,
-    profileId: context.profile?.id,
+    profileId: context.profile.id,
     usableDay: context.usableDay,
     externalCommitments,
     candidateIntervals: gaps,
