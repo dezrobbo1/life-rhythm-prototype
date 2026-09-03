@@ -4,10 +4,11 @@ export type CalendarLocalPoint = {
 };
 
 export type CalendarReadEvent = {
-  adapterId: 'ics';
+  adapterId: string;
   sourceEventId: string;
   title: string;
   allDay: boolean;
+  busy: boolean;
   start: CalendarLocalPoint;
   end: CalendarLocalPoint;
   timezone: string;
@@ -330,11 +331,13 @@ export class IcsCalendarAdapter implements CalendarAdapter {
       const recurrenceId = firstProperty(properties, 'RECURRENCE-ID')?.value;
       const sourceEventId = recurrenceId ? `${uid}::${recurrenceId}` : uid;
       const title = decodeText(firstProperty(properties, 'SUMMARY')?.value ?? 'Calendar commitment');
+      const busy = firstProperty(properties, 'TRANSP')?.value.toUpperCase() !== 'TRANSPARENT';
       const event: CalendarReadEvent = {
-        adapterId: 'ics',
+        adapterId: this.id,
         sourceEventId,
         title,
         allDay: start.allDay,
+        busy,
         start: { date: start.date, time: start.time },
         end: { date: end.date, time: end.time },
         timezone: options.targetTimezone,
