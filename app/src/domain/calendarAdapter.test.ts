@@ -37,6 +37,7 @@ describe('ICS calendar adapter', () => {
         sourceEventId: 'utc-meeting',
         title: 'Project review',
         allDay: false,
+        busy: true,
         start: { date: '2026-09-07', time: '09:00' },
         end: { date: '2026-09-07', time: '10:00' },
         timezone: 'Australia/Perth',
@@ -55,11 +56,32 @@ describe('ICS calendar adapter', () => {
     ])), options);
 
     expect(result.events[0]).toMatchObject({
+      adapterId: 'ics',
       sourceEventId: 'provider-event-123@example.com',
+      busy: true,
       start: { date: '2026-09-07', time: '15:30' },
       end: { date: '2026-09-07', time: '16:30' },
       sourceTimezone: 'Australia/Perth',
     });
+  });
+
+  it('keeps transparent events readable without classifying them as busy', () => {
+    const adapter = new IcsCalendarAdapter();
+    const result = adapter.read(calendar(event([
+      'UID:free-reminder',
+      'SUMMARY:Optional reminder',
+      'TRANSP:TRANSPARENT',
+      'DTSTART;TZID=Australia/Perth:20260907T170000',
+      'DTEND;TZID=Australia/Perth:20260907T180000',
+    ])), options);
+
+    expect(result.events).toEqual([
+      expect.objectContaining({
+        adapterId: 'ics',
+        sourceEventId: 'free-reminder',
+        busy: false,
+      }),
+    ]);
   });
 
   it('imports all-day events using exclusive DTEND dates and skips cancelled events', () => {
@@ -84,6 +106,7 @@ describe('ICS calendar adapter', () => {
     expect(result.events[0]).toMatchObject({
       sourceEventId: 'all-day',
       allDay: true,
+      busy: true,
       start: { date: '2026-09-07' },
       end: { date: '2026-09-08' },
     });
