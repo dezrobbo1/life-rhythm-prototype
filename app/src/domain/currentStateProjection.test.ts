@@ -96,6 +96,66 @@ describe('current persisted state projection', () => {
     ]);
   });
 
+  it.each(['active', 'inProgress', 'paused', 'minimumDone'] as const)(
+    'keeps live Today status %s eligible for scheduling',
+    (status) => {
+      const activeTask = activeTaskSchema.parse({
+        id: `task-${status}`,
+        source: 'adhoc',
+        title: `Task ${status}`,
+        area: 'admin',
+        status,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        ...versions(),
+      });
+
+      const projected = projectCurrentStateToSchedulingDomain({
+        settings: settings(),
+        activeTasks: [activeTask],
+        taskPoolItems: [],
+        rhythmTemplates: [],
+        softPlacements: [],
+      });
+
+      expect(projected.intentions[0]).toMatchObject({
+        id: `task-${status}`,
+        eligibleForScheduling: true,
+        lifecycle: { activeTaskStatus: status },
+      });
+    },
+  );
+
+  it.each(['done', 'parked', 'skipped', 'notToday'] as const)(
+    'keeps inactive Today status %s out of current scheduling eligibility',
+    (status) => {
+      const activeTask = activeTaskSchema.parse({
+        id: `task-${status}`,
+        source: 'adhoc',
+        title: `Task ${status}`,
+        area: 'admin',
+        status,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        ...versions(),
+      });
+
+      const projected = projectCurrentStateToSchedulingDomain({
+        settings: settings(),
+        activeTasks: [activeTask],
+        taskPoolItems: [],
+        rhythmTemplates: [],
+        softPlacements: [],
+      });
+
+      expect(projected.intentions[0]).toMatchObject({
+        id: `task-${status}`,
+        eligibleForScheduling: false,
+        lifecycle: { activeTaskStatus: status },
+      });
+    },
+  );
+
   it('projects only enabled, unarchived rhythms as current scheduling requirements', () => {
     const enabled = rhythmTemplateSchema.parse({
       id: 'exercise',
