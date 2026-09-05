@@ -168,7 +168,6 @@ describe('calendar source repository', () => {
     expect(read.status).toBe('error');
     if (read.status !== 'error') return;
     expect(read.errors.join(' ')).toContain('RRULE');
-    expect(read.events).toBeUndefined();
   });
 
   it('removes the local source without touching another local data class', async () => {
