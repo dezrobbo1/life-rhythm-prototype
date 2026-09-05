@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
 import { AppShell, type ScreenId } from './components/AppShell/AppShell';
 import { BrandMark, Button } from './components';
@@ -9,6 +9,7 @@ import { LibraryScreen } from './screens/LibraryScreen';
 import { ResetScreen } from './screens/ResetScreen';
 import { SetupScreen } from './screens/SetupScreen';
 import { CalendarSourceControl } from './features/plan/CalendarSourceControl';
+import { TimeDisruptionRepairWatcher } from './features/plan/TimeDisruptionRepairWatcher';
 import type { ThemeName } from './app/theme';
 import { AppSnapshotProvider } from './data/AppSnapshotProvider';
 import {
@@ -188,6 +189,9 @@ export default function App() {
   const [preferredPlanPlacementDate, setPreferredPlanPlacementDate] = useState<string | null>(null);
   const [preferredPlanTaskId, setPreferredPlanTaskId] = useState<string | null>(null);
   const [planRevision, setPlanRevision] = useState(0);
+  const handlePrivatePlanChanged = useCallback(() => {
+    setPlanRevision((revision) => revision + 1);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -343,9 +347,7 @@ export default function App() {
           preferredPlacementDate={preferredPlanPlacementDate}
           preferredTaskId={preferredPlanTaskId}
         />
-        <CalendarSourceControl
-          onPlanRepaired={() => setPlanRevision((revision) => revision + 1)}
-        />
+        <CalendarSourceControl onPlanRepaired={handlePrivatePlanChanged} />
       </>
     ),
     pool: <PoolScreen onOpenPlan={openPlanForTask} />,
@@ -367,6 +369,7 @@ export default function App() {
 
   return (
     <AppSnapshotProvider snapshot={appSnapshot} source="personal">
+      <TimeDisruptionRepairWatcher onPlanChanged={handlePrivatePlanChanged} />
       {settingsConflicts.length > 0 ? (
         <LegacySettingsConflictNotice conflicts={settingsConflicts} />
       ) : null}
