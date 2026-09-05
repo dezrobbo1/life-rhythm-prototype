@@ -21,11 +21,7 @@ export function TimeDisruptionRepairWatcher({
       checking = true;
       try {
         const result = await maintainCurrentPrivatePlanForTimeDisruption();
-        if (
-          active &&
-          result.ok &&
-          (result.action === 'built' || result.action === 'repaired')
-        ) {
+        if (active && result.ok && result.action === 'repaired') {
           onPlanChanged?.();
         }
       } catch {
