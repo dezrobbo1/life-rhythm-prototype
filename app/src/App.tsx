@@ -8,6 +8,7 @@ import { PoolScreen } from './screens/PoolScreen';
 import { LibraryScreen } from './screens/LibraryScreen';
 import { ResetScreen } from './screens/ResetScreen';
 import { SetupScreen } from './screens/SetupScreen';
+import { CalendarSourceControl } from './features/plan/CalendarSourceControl';
 import type { ThemeName } from './app/theme';
 import { AppSnapshotProvider } from './data/AppSnapshotProvider';
 import {
@@ -186,6 +187,7 @@ export default function App() {
   const [exampleOpen, setExampleOpen] = useState(false);
   const [preferredPlanPlacementDate, setPreferredPlanPlacementDate] = useState<string | null>(null);
   const [preferredPlanTaskId, setPreferredPlanTaskId] = useState<string | null>(null);
+  const [planRevision, setPlanRevision] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -335,10 +337,16 @@ export default function App() {
   const screens: Record<ScreenId, ReactElement> = {
     today: <TodayScreen />,
     plan: (
-      <PersonalPlanScreen
-        preferredPlacementDate={preferredPlanPlacementDate}
-        preferredTaskId={preferredPlanTaskId}
-      />
+      <>
+        <PersonalPlanScreen
+          key={`personal-plan-${planRevision}`}
+          preferredPlacementDate={preferredPlanPlacementDate}
+          preferredTaskId={preferredPlanTaskId}
+        />
+        <CalendarSourceControl
+          onPlanRepaired={() => setPlanRevision((revision) => revision + 1)}
+        />
+      </>
     ),
     pool: <PoolScreen onOpenPlan={openPlanForTask} />,
     library: <LibraryScreen />,
