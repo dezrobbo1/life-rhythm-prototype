@@ -679,9 +679,10 @@ describe('future data schemas', () => {
   it('defines Dexie tables for each schema group', () => {
     const db = createLifeRhythmDatabase('life-rhythm-test-schema-only');
 
-    expect(DATABASE_VERSION).toBe(4);
+    expect(DATABASE_VERSION).toBe(5);
     expect(db.tables.map((table) => table.name).sort()).toEqual([
       'activeTasks',
+      'calendarSources',
       'completionLog',
       'devTickets',
       'migrationLog',
