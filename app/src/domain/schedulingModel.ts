@@ -132,6 +132,11 @@ export type ReducedDayPlanningPolicy = {
    * placements remain authoritative.
    */
   preferMinimumForFlexibleWork?: boolean;
+  /**
+   * Rhythms are preserved by default. A rhythm may use its minimum form on a
+   * Reduced Day only when its id is explicitly listed here.
+   */
+  minimumEligibleRhythmIds?: string[];
 };
 
 export type SchedulerPlanningPolicy = {
