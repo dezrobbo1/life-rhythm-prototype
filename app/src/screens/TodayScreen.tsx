@@ -12,6 +12,7 @@ import {
   parseActiveTaskBackupJson,
   serializeActiveTaskBackup,
 } from '../data/activeTaskBackup';
+import { repairCurrentPrivatePlan } from '../data/schedulerPlanCoordinator';
 import { activeTaskSchema, type ActiveTask, type ActiveTaskStatus } from '../data/schemas';
 import {
   mockTodayTask,
@@ -187,6 +188,17 @@ function downloadJsonFile(fileName: string, json: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+async function repairPrivatePlanAfterTodayChange(
+  trigger: 'completionChanged' | 'userCorrection',
+  reason: string,
+) {
+  try {
+    await repairCurrentPrivatePlan({ trigger, reason });
+  } catch {
+    // The user-owned Today change is already saved. Scheduler maintenance is best-effort here.
+  }
 }
 
 function createOneOffActiveTask(input: MockAddTaskInput): ActiveTask {
@@ -432,6 +444,12 @@ export function TodayScreen() {
     }
 
     refreshPersistedTasks(result.task, feedback);
+    await repairPrivatePlanAfterTodayChange(
+      status === 'done' ? 'completionChanged' : 'userCorrection',
+      status === 'done'
+        ? 'A Today task was completed.'
+        : 'A Today choice changed which private work remains active.',
+    );
   }
 
   async function applyReentryStatus(
@@ -463,6 +481,11 @@ export function TodayScreen() {
     if (nextActiveTask?.id === taskId || !nextActiveTask) {
       showPersistedTask(visibleTasks[0] ?? null);
     }
+
+    await repairPrivatePlanAfterTodayChange(
+      'userCorrection',
+      'A re-entry choice changed which private work remains active.',
+    );
   }
 
   useEffect(() => {
@@ -506,6 +529,11 @@ export function TodayScreen() {
     setCompletionFeedback('One-off saved to Today on this device. It will not go into Library.');
     setAddTaskOpen(false);
     setBoostOpen(false);
+
+    await repairPrivatePlanAfterTodayChange(
+      'userCorrection',
+      'A private one-off task was added from Today.',
+    );
 
     return true;
   }
