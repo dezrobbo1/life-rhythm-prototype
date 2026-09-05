@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, ScreenHero } from '../components';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
+import {
+  ensureCurrentPrivatePlan,
+  repairCurrentPrivatePlan,
+  undoCurrentPrivatePlan,
+  type PrivatePlanActionResult,
+} from '../data/schedulerPlanCoordinator';
 import { loadSoftPlacementsForDate } from '../data/softPlacementRepository';
 import { loadTaskPoolItems } from '../data/taskPoolRepository';
 import {
@@ -8,6 +14,7 @@ import {
   removeTaskPoolSoftPlacement,
 } from '../data/taskSoftPlacementRepository';
 import type { SoftPlacement, TaskPoolItem } from '../data/schemas';
+import type { SchedulerPlan, SchedulerPlanChange } from '../domain/schedulingModel';
 import {
   buildPoolSoftSuggestions,
   type PoolSoftSuggestion,
@@ -41,10 +48,55 @@ type PlacementFeedback = {
   lines: string[];
 };
 
+type PrivatePlanViewState =
+  | { status: 'loading' }
+  | {
+      status: 'error';
+      errors: string[];
+    }
+  | {
+      status: 'ready';
+      plan: SchedulerPlan;
+      titleByTargetId: Record<string, string>;
+      warnings: string[];
+    };
+
 type PersonalPlanScreenProps = {
   preferredPlacementDate?: string | null;
   preferredTaskId?: string | null;
 };
+
+function placementTitle(
+  titleByTargetId: Record<string, string>,
+  targetId: string,
+) {
+  return titleByTargetId[targetId] ?? 'Private task';
+}
+
+function formatChangedLine(
+  change: SchedulerPlanChange,
+  titleByTargetId: Record<string, string>,
+) {
+  const title = placementTitle(titleByTargetId, change.targetId);
+  const from = change.from
+    ? `${change.from.date} ${change.from.start}-${change.from.end}`
+    : null;
+  const to = change.to
+    ? `${change.to.date} ${change.to.start}-${change.to.end}`
+    : null;
+
+  switch (change.kind) {
+    case 'added':
+      return `${title} was added${to ? ` at ${to}` : ''}.`;
+    case 'removed':
+      return `${title} was removed${from ? ` from ${from}` : ''}.`;
+    case 'variantChanged':
+      return `${title} changed form${to ? ` at ${to}` : ''}.`;
+    case 'moved':
+    default:
+      return `${title} moved${from ? ` from ${from}` : ''}${to ? ` to ${to}` : ''}.`;
+  }
+}
 
 export function PersonalPlanScreen({
   preferredPlacementDate = null,
@@ -62,6 +114,9 @@ export function PersonalPlanScreen({
   const [placingSuggestionId, setPlacingSuggestionId] = useState<string | null>(null);
   const [removingPlacementId, setRemovingPlacementId] = useState<string | null>(null);
   const [placementFeedback, setPlacementFeedback] = useState<PlacementFeedback | null>(null);
+  const [privatePlanState, setPrivatePlanState] = useState<PrivatePlanViewState>({ status: 'loading' });
+  const [privatePlanBusy, setPrivatePlanBusy] = useState<'refresh' | 'undo' | null>(null);
+  const [privatePlanFeedback, setPrivatePlanFeedback] = useState<string | null>(null);
 
   const dayShapePreview = useMemo(
     () => buildDayShapePreviewViewModel(snapshot, selectedDay),
@@ -99,6 +154,35 @@ export function PersonalPlanScreen({
       taskPoolItems,
     ],
   );
+  const automaticPlacements = useMemo(() => {
+    if (privatePlanState.status !== 'ready') return [];
+    return privatePlanState.plan.placements.filter(
+      (placement) =>
+        placement.origin === 'scheduler' &&
+        placement.date === selectedPlacementDate,
+    );
+  }, [privatePlanState, selectedPlacementDate]);
+  const changedItems = privatePlanState.status === 'ready'
+    ? privatePlanState.plan.repair?.changes ?? []
+    : [];
+
+  const applyPrivatePlanResult = useCallback((result: PrivatePlanActionResult) => {
+    if (!result.ok) {
+      setPrivatePlanState({
+        status: 'error',
+        errors: result.errors,
+      });
+      return false;
+    }
+
+    setPrivatePlanState({
+      status: 'ready',
+      plan: result.plan,
+      titleByTargetId: result.titleByTargetId,
+      warnings: result.warnings,
+    });
+    return true;
+  }, []);
 
   const refreshPlanData = useCallback(async () => {
     const [placements, items] = await Promise.all([
@@ -109,6 +193,39 @@ export function PersonalPlanScreen({
     setSavedSoftPlacements(placements);
     setTaskPoolItems(items);
   }, [selectedPlacementDate]);
+
+  const repairAfterUserPlacementChange = useCallback(async () => {
+    const result = await repairCurrentPrivatePlan({
+      reason: 'A user-confirmed private placement changed.',
+      trigger: 'userCorrection',
+    });
+
+    return applyPrivatePlanResult(result);
+  }, [applyPrivatePlanResult]);
+
+  useEffect(() => {
+    let active = true;
+
+    setPrivatePlanState({ status: 'loading' });
+    setPrivatePlanFeedback(null);
+
+    ensureCurrentPrivatePlan()
+      .then((result) => {
+        if (active) applyPrivatePlanResult(result);
+      })
+      .catch(() => {
+        if (active) {
+          setPrivatePlanState({
+            status: 'error',
+            errors: ['Private plan could not be loaded. Saved scheduler state was left unchanged.'],
+          });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [applyPrivatePlanResult]);
 
   useEffect(() => {
     let active = true;
@@ -144,6 +261,47 @@ export function PersonalPlanScreen({
     setSelectedPlacementDateOverride(preferredPlacementDate);
   }, [preferredPlacementDate]);
 
+  const refreshPrivatePlan = useCallback(async () => {
+    setPrivatePlanBusy('refresh');
+    setPrivatePlanFeedback(null);
+
+    try {
+      const result = await repairCurrentPrivatePlan({
+        reason: 'You asked Life Rhythm to refresh flexible private work.',
+        trigger: 'manualReplan',
+      });
+      const applied = applyPrivatePlanResult(result);
+      setPrivatePlanFeedback(
+        applied
+          ? 'Flexible private work was refreshed. External calendar events were not changed.'
+          : 'Private plan was not changed.',
+      );
+    } catch {
+      setPrivatePlanFeedback('Private plan was not changed.');
+    } finally {
+      setPrivatePlanBusy(null);
+    }
+  }, [applyPrivatePlanResult]);
+
+  const undoPrivatePlan = useCallback(async () => {
+    setPrivatePlanBusy('undo');
+    setPrivatePlanFeedback(null);
+
+    try {
+      const result = await undoCurrentPrivatePlan();
+      const applied = applyPrivatePlanResult(result);
+      setPrivatePlanFeedback(
+        applied
+          ? 'The previous private plan was restored.'
+          : 'The previous private plan could not be restored.',
+      );
+    } catch {
+      setPrivatePlanFeedback('The previous private plan could not be restored.');
+    } finally {
+      setPrivatePlanBusy(null);
+    }
+  }, [applyPrivatePlanResult]);
+
   const addSoftPlacement = useCallback(async (suggestion: PoolSoftSuggestion) => {
     setPlacingSuggestionId(suggestion.id);
     setPlacementFeedback(null);
@@ -166,25 +324,30 @@ export function PersonalPlanScreen({
       if (!result.ok) {
         setPlacementFeedback({
           kind: 'error',
-          lines: ['Soft placement was not added.', 'Nothing else changed.'],
+          lines: ['User-confirmed placement was not added.', 'Nothing else changed.'],
         });
         return;
       }
 
       await refreshPlanData();
+      const repaired = await repairAfterUserPlacementChange();
       setPlacementFeedback({
         kind: 'success',
-        lines: ['Soft placement added.', 'No calendar event created.', 'You can remove it later.'],
+        lines: [
+          'User-confirmed placement added.',
+          'No calendar event created.',
+          repaired ? 'Flexible automatic placements were checked around it.' : 'The automatic private plan could not update; the placement is still saved.',
+        ],
       });
     } catch {
       setPlacementFeedback({
         kind: 'error',
-        lines: ['Soft placement was not added.', 'Nothing else changed.'],
+        lines: ['User-confirmed placement was not added.', 'Nothing else changed.'],
       });
     } finally {
       setPlacingSuggestionId(null);
     }
-  }, [refreshPlanData]);
+  }, [refreshPlanData, repairAfterUserPlacementChange]);
 
   const removeSoftPlacement = useCallback(async (placement: SoftPlacement) => {
     setRemovingPlacementId(placement.id);
@@ -196,45 +359,166 @@ export function PersonalPlanScreen({
       if (!result.ok) {
         setPlacementFeedback({
           kind: 'error',
-          lines: ['Soft placement was not removed.', 'Nothing else changed.'],
+          lines: ['User-confirmed placement was not removed.', 'Nothing else changed.'],
         });
         return;
       }
 
       await refreshPlanData();
+      const repaired = await repairAfterUserPlacementChange();
       setPlacementFeedback({
         kind: 'success',
-        lines: ['Soft placement removed.', 'Task was not deleted.', 'No calendar event changed.'],
+        lines: [
+          'User-confirmed placement removed.',
+          'Task was not deleted. No calendar event changed.',
+          repaired ? 'Flexible automatic placements were checked again.' : 'The automatic private plan could not update; the removal is still saved.',
+        ],
       });
     } catch {
       setPlacementFeedback({
         kind: 'error',
-        lines: ['Soft placement was not removed.', 'Nothing else changed.'],
+        lines: ['User-confirmed placement was not removed.', 'Nothing else changed.'],
       });
     } finally {
       setRemovingPlacementId(null);
     }
-  }, [refreshPlanData]);
+  }, [refreshPlanData, repairAfterUserPlacementChange]);
 
   const suggestionEmptyTitle = poolSoftSuggestions.openCapacityBlockCount === 0
     ? `No open capacity blocks for ${dayShapePreview.selectedDay}.`
     : poolSoftSuggestions.eligibleTaskCount === 0
-      ? 'No safely held tasks need a soft window.'
+      ? 'No safely held tasks need a manual window.'
       : 'No held task fits the available block.';
   const suggestionEmptyMessage = poolSoftSuggestions.openCapacityBlockCount === 0
     ? 'Blank time stays blank. Add an open-capacity block in Settings only when it is genuinely available.'
     : poolSoftSuggestions.eligibleTaskCount === 0
-      ? 'Capture or return a task to Pool when you want help finding a possible place.'
-      : 'The minimum version or useful window does not fit. Nothing was placed.';
+      ? 'Capture or return a task to Pool when you want a manual placement option.'
+      : 'The minimum version or useful window does not fit. Nothing was manually placed.';
 
   return (
     <div className="screen-stack plan-screen personal-plan-screen">
       <ScreenHero
         className="plan-hero"
-        tagline="Plan with the time you marked as protected, loose, or open."
+        tagline="Life Rhythm maintains flexible private work around the boundaries you set."
         title="Plan"
         titleId="plan-title"
       />
+
+      <section
+        className="private-plan plan-section plan-section--private"
+        aria-labelledby="personal-private-plan-title"
+      >
+        <div className="soft-placements__header">
+          <p className="section-label">Automatic private plan</p>
+          <h2 id="personal-private-plan-title">Private plan</h2>
+          <div className="plan-section__guidance">
+            <p>
+              Life Rhythm can place flexible private work inside usable or explicitly available time.
+              It does not create, move, or cancel external calendar events.
+            </p>
+          </div>
+        </div>
+
+        {privatePlanState.status === 'loading' ? (
+          <div className="soft-placements__empty" role="status">
+            <h3>Preparing the private plan.</h3>
+          </div>
+        ) : privatePlanState.status === 'error' ? (
+          <div className="soft-suggestions__feedback soft-suggestions__feedback--error" role="alert">
+            <h3>Private plan needs attention.</h3>
+            {privatePlanState.errors.map((error) => <p key={error}>{error}</p>)}
+            <p>Saved scheduler state was left unchanged.</p>
+          </div>
+        ) : automaticPlacements.length > 0 ? (
+          <ul className="soft-placements__list">
+            {automaticPlacements.map((placement) => {
+              const targetId = placement.targetKind === 'rhythm'
+                ? placement.rhythmId ?? placement.intentionId
+                : placement.intentionId;
+              return (
+                <li key={placement.id}>
+                  <div className="soft-placements__item-copy">
+                    <div>
+                      <strong>{placementTitle(privatePlanState.titleByTargetId, targetId)}</strong>
+                      <span>{placement.start}-{placement.end}</span>
+                    </div>
+                    <p>
+                      Automatic private placement
+                      {placement.variantKind ? ` · ${placement.variantKind}` : ''}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="soft-placements__empty">
+            <h3>No automatic private placements for {dayShapePreview.selectedDay}.</h3>
+            <p>Blank time is not assumed to be usable capacity.</p>
+          </div>
+        )}
+
+        <div className="button-row">
+          <Button
+            disabled={privatePlanBusy !== null || privatePlanState.status === 'loading'}
+            onClick={() => void refreshPrivatePlan()}
+          >
+            {privatePlanBusy === 'refresh' ? 'Refreshing plan' : 'Refresh flexible plan'}
+          </Button>
+        </div>
+
+        {privatePlanState.status === 'ready' && privatePlanState.warnings.length > 0 ? (
+          <details className="plan-section__details">
+            <summary>Planning notes</summary>
+            <ul>
+              {privatePlanState.warnings.slice(0, 4).map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+
+        {privatePlanFeedback ? <p role="status">{privatePlanFeedback}</p> : null}
+      </section>
+
+      <section
+        className="private-plan-changed plan-section plan-section--changed"
+        aria-labelledby="personal-private-plan-changed-title"
+      >
+        <div className="soft-placements__header">
+          <p className="section-label">Recent automatic repair</p>
+          <h2 id="personal-private-plan-changed-title">Changed</h2>
+          <div className="plan-section__guidance">
+            <p>Only the latest private-plan repair is shown here.</p>
+          </div>
+        </div>
+
+        {privatePlanState.status === 'ready' && changedItems.length > 0 ? (
+          <ul className="soft-placements__list">
+            {changedItems.map((change, index) => (
+              <li key={`${change.targetKind}:${change.targetId}:${change.kind}:${index}`}>
+                <div className="soft-placements__item-copy">
+                  <strong>{formatChangedLine(change, privatePlanState.titleByTargetId)}</strong>
+                  <p>{change.reason}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="soft-placements__empty">
+            <h3>No recent automatic changes.</h3>
+          </div>
+        )}
+
+        {privatePlanState.status === 'ready' && privatePlanState.plan.repair?.undo ? (
+          <Button
+            disabled={privatePlanBusy !== null}
+            onClick={() => void undoPrivatePlan()}
+          >
+            {privatePlanBusy === 'undo' ? 'Restoring plan' : 'Undo last repair'}
+          </Button>
+        ) : null}
+      </section>
 
       <section
         className="day-shape-preview plan-section plan-section--day-shape"
@@ -314,10 +598,12 @@ export function PersonalPlanScreen({
         aria-labelledby="personal-soft-suggestions-title"
       >
           <div className="soft-suggestions__header">
-            <p className="section-label">User-confirmed possibilities</p>
+            <p className="section-label">Optional manual choices</p>
             <h2 id="personal-soft-suggestions-title">Soft suggestions</h2>
             <div className="plan-section__guidance">
-              <p>Suggestions use only blocks you marked as open capacity; nothing is placed or scheduled unless you choose it.</p>
+              <p>
+                The automatic private plan runs separately. These suggestions remain available when you want to choose a specific open-capacity block yourself.
+              </p>
               {preferredTask ? (
                 <p className="plan-section__context">
                   Showing {preferredTask.title} first because you chose it in Pool.
@@ -344,7 +630,7 @@ export function PersonalPlanScreen({
                     onClick={() => void addSoftPlacement(suggestion)}
                     variant="primary"
                   >
-                    {placingSuggestionId === suggestion.id ? 'Adding placement' : 'Add soft placement'}
+                    {placingSuggestionId === suggestion.id ? 'Adding placement' : 'Add manual placement'}
                   </Button>
                 </li>
               ))}
@@ -359,7 +645,7 @@ export function PersonalPlanScreen({
           {askFirstBlocks.length > 0 ? (
             <div className="soft-suggestions__ask-first">
               <h3>Ask-first time remains protected</h3>
-              <p>Life Rhythm will not suggest or place tasks here without a separate future confirmation flow.</p>
+              <p>Life Rhythm will not automatically place tasks here. A separate explicit choice is required.</p>
               <ul>
                 {askFirstBlocks.map((block) => (
                   <li key={block.id}>
@@ -377,10 +663,12 @@ export function PersonalPlanScreen({
         aria-labelledby="personal-soft-placements-title"
       >
           <div className="soft-placements__header">
-            <p className="section-label">Local placement notes</p>
-            <h2 id="personal-soft-placements-title">Soft placements</h2>
+            <p className="section-label">Manual private placements</p>
+            <h2 id="personal-soft-placements-title">User-confirmed placements</h2>
             <div className="plan-section__guidance">
-              <p>Nothing is placed automatically; confirmed soft placements stay local and do not create calendar events.</p>
+              <p>
+                These are placements you chose yourself. They stay separate from automatic scheduler placements and do not create calendar events.
+              </p>
             </div>
           </div>
 
@@ -407,7 +695,7 @@ export function PersonalPlanScreen({
             </ul>
           ) : (
             <div className="soft-placements__empty">
-              <h3>No saved soft placements for {dayShapePreview.selectedDay}.</h3>
+              <h3>No user-confirmed placements for {dayShapePreview.selectedDay}.</h3>
             </div>
           )}
 
