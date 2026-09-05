@@ -117,9 +117,28 @@ export type SchedulingPreference = {
   provenance: string;
 };
 
+export type SchedulerDayMode = 'normal' | 'reduced';
+
+export type ReducedDayPlanningPolicy = {
+  /**
+   * Optional stricter caps for Reduced Day. These are product-configurable
+   * trial parameters rather than ADHD-wide defaults.
+   */
+  maxInternalScheduledMinutesPerDay?: number;
+  maxAutomaticPlacementsPerDay?: number;
+  /**
+   * Defaults to true when dayMode is reduced. Only scheduler-owned flexible
+   * work is right-sized; time-critical, must-do, in-progress and user-owned
+   * placements remain authoritative.
+   */
+  preferMinimumForFlexibleWork?: boolean;
+};
+
 export type SchedulerPlanningPolicy = {
   maxInternalScheduledMinutesPerDay?: number;
   maxAutomaticPlacementsPerDay?: number;
+  dayMode?: SchedulerDayMode;
+  reducedDay?: ReducedDayPlanningPolicy;
 };
 
 export type InternalPlacement = {
