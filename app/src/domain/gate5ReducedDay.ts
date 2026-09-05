@@ -100,7 +100,9 @@ function effectiveInput(input: SchedulingDomainModel): SchedulingDomainModel {
     rhythms: preferMinimum
       ? input.rhythms.map((rhythm) => ({
           ...rhythm,
-          variants: minimumOnly(rhythm.variants),
+          variants: rhythm.reducedDayBehavior === 'preserve'
+            ? rhythm.variants
+            : minimumOnly(rhythm.variants),
         }))
       : input.rhythms,
     planningPolicy: {
@@ -125,7 +127,8 @@ function reducedMinimumForPlacement(
 
   if (targetKind(placement) === 'rhythm') {
     const rhythm = input.rhythms.find((candidate) => candidate.id === targetId(placement));
-    return rhythm ? minimumVariant(rhythm.variants) : undefined;
+    if (!rhythm || rhythm.reducedDayBehavior === 'preserve') return undefined;
+    return minimumVariant(rhythm.variants);
   }
 
   const intention = input.intentions.find((candidate) => candidate.id === placement.intentionId);
