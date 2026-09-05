@@ -42,6 +42,11 @@ const version3Stores = {
   taskPoolItems: 'id, status, source, createdAt, updatedAt, dueAt, notUsefulAfter, bringBackAfter, templateId',
 };
 
+const version4Stores = {
+  ...version3Stores,
+  schedulerPlanState: 'id, updatedAt',
+};
+
 function createTestDatabase() {
   databaseIndex += 1;
   return createLifeRhythmDatabase(`life-rhythm-scheduler-plan-state-test-${databaseIndex}`);
@@ -109,6 +114,7 @@ async function expectOnlySchedulerPlanStateWritten(
   expect(await database.migrationLog.count()).toBe(0);
   expect(await database.softPlacements.count()).toBe(0);
   expect(await database.taskPoolItems.count()).toBe(0);
+  expect(await database.calendarSources.count()).toBe(0);
 }
 
 afterEach(() => {
@@ -342,19 +348,63 @@ describe('persisted Gate 4 scheduler plan state', () => {
       try {
         await upgraded.open();
 
-        expect(DATABASE_VERSION).toBe(4);
-        expect(upgraded.verno).toBe(4);
+        expect(DATABASE_VERSION).toBe(5);
+        expect(upgraded.verno).toBe(5);
         expect(await upgraded.taskPoolItems.get('legacy-row')).toMatchObject({
           id: 'legacy-row',
           status: 'captured',
         });
         expect(upgraded.tables.map((table) => table.name)).toContain('schedulerPlanState');
+        expect(upgraded.tables.map((table) => table.name)).toContain('calendarSources');
         expect(await upgraded.schedulerPlanState.count()).toBe(0);
+        expect(await upgraded.calendarSources.count()).toBe(0);
       } finally {
         await upgraded.delete();
       }
     } finally {
       legacy.close();
+    }
+  });
+
+  it('upgrades a real version-4 IndexedDB without losing scheduler plan state', async () => {
+    databaseIndex += 1;
+    const databaseName = `life-rhythm-calendar-source-upgrade-test-${databaseIndex}`;
+    const version4 = new Dexie(databaseName);
+    version4.version(4).stores(version4Stores);
+    const storedPlan = {
+      id: 'current',
+      version: 1,
+      updatedAt: '2026-09-07T00:00:00.000Z',
+      plan: {
+        placements: [],
+        unscheduledIntentionIds: ['legacy-task'],
+        unscheduledRhythmIds: [],
+        rejectedExistingPlacements: [],
+      },
+    };
+
+    try {
+      await version4.table('schedulerPlanState').put(storedPlan);
+      version4.close();
+
+      const upgraded = createLifeRhythmDatabase(databaseName);
+      try {
+        await upgraded.open();
+
+        expect(upgraded.verno).toBe(5);
+        expect(upgraded.tables.map((table) => table.name)).toContain('calendarSources');
+        expect(await upgraded.schedulerPlanState.get('current')).toEqual(storedPlan);
+        expect(await upgraded.calendarSources.count()).toBe(0);
+        const loaded = await loadSchedulerPlanState(upgraded);
+        expect(loaded.status).toBe('ok');
+        if (loaded.status === 'ok') {
+          expect(loaded.plan.unscheduledIntentionIds).toEqual(['legacy-task']);
+        }
+      } finally {
+        await upgraded.delete();
+      }
+    } finally {
+      version4.close();
     }
   });
 
