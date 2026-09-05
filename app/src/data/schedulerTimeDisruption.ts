@@ -1,10 +1,10 @@
 import type {
-  CandidateSchedulingInterval,
   InternalPlacement,
   SchedulerPlan,
   SchedulerRepairNow,
   SchedulingDomainModel,
 } from '../domain/schedulingModel';
+import { clipSchedulingInputToNow } from '../domain/elapsedTimeCapacity';
 import {
   buildCurrentLiveSchedulingContext,
   type PrivatePlanCoordinatorOptions,
@@ -38,40 +38,6 @@ export type TimeDisruptionMaintenanceResult =
 
 function isIntentionPlacement(placement: InternalPlacement) {
   return (placement.targetKind ?? 'intention') === 'intention';
-}
-
-function clipCandidateIntervalToNow(
-  interval: CandidateSchedulingInterval,
-  now: SchedulerRepairNow,
-): CandidateSchedulingInterval | null {
-  if (interval.date < now.date) return null;
-  if (interval.date > now.date) return interval;
-  if (interval.end <= now.time) return null;
-  if (interval.start >= now.time) return interval;
-
-  return {
-    ...interval,
-    start: now.time,
-    provenance: [
-      ...interval.provenance,
-      'Elapsed time was removed before rolling repair so private work is not placed back into the past.',
-    ],
-  };
-}
-
-function clipInputToNow(
-  input: SchedulingDomainModel,
-  now: SchedulerRepairNow,
-): SchedulingDomainModel {
-  if (!input.candidateIntervals) return input;
-
-  return {
-    ...input,
-    candidateIntervals: input.candidateIntervals.flatMap((interval) => {
-      const clipped = clipCandidateIntervalToNow(interval, now);
-      return clipped ? [clipped] : [];
-    }),
-  };
 }
 
 function statusByIntentionId(input: SchedulingDomainModel) {
@@ -161,7 +127,7 @@ export async function maintainCurrentPrivatePlanForTimeDisruption(
   const live = await buildCurrentLiveSchedulingContext(options);
   if (!live.ok) return live;
 
-  const input = clipInputToNow(live.context.input, live.now);
+  const input = clipSchedulingInputToNow(live.context.input, live.now);
   const disruption = detectTimeDisruption(current.plan, input, live.now);
   if (!disruption) {
     return {
