@@ -123,8 +123,8 @@ describe('task-specific Pool to Plan routing', () => {
     expect(await screen.findByRole('heading', { name: 'Plan' })).toBeTruthy();
     expect((screen.getByLabelText('Selected day') as HTMLSelectElement).value).toBe('Tuesday');
 
-    const placements = (await screen.findByRole('heading', { name: 'Soft placements' })).closest('section');
-    if (!placements) throw new Error('Soft placements section was not found.');
+    const placements = (await screen.findByRole('heading', { name: 'User-confirmed placements' })).closest('section');
+    if (!placements) throw new Error('User-confirmed placements section was not found.');
 
     expect(await within(placements).findByText('Placed task')).toBeTruthy();
     expect(within(placements).getByText('Open morning capacity · 10:00-10:30')).toBeTruthy();
