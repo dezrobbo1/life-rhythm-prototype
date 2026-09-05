@@ -5,6 +5,7 @@ const localTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected 
 const variantKindSchema = z.enum(['minimum', 'normal', 'full']);
 const placementOriginSchema = z.enum(['existingUserConfirmed', 'scheduler']);
 const targetKindSchema = z.enum(['intention', 'rhythm']);
+const schedulerDayModeSchema = z.enum(['normal', 'reduced']);
 
 function minutesFromTime(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
@@ -175,8 +176,19 @@ export const schedulerPlanStateRecordSchema = z
     id: z.literal('current'),
     version: z.literal(1),
     updatedAt: strictIsoDateTimeSchema,
+    dayMode: schedulerDayModeSchema.optional(),
+    dayModeDate: softPlacementDateSchema.optional(),
     plan: persistedSchedulerPlanSchema,
   })
-  .strict();
+  .strict()
+  .superRefine((record, context) => {
+    if (Boolean(record.dayMode) !== Boolean(record.dayModeDate)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'dayMode and dayModeDate must be stored together.',
+        path: record.dayMode ? ['dayModeDate'] : ['dayMode'],
+      });
+    }
+  });
 
 export type SchedulerPlanStateRecord = z.infer<typeof schedulerPlanStateRecordSchema>;
