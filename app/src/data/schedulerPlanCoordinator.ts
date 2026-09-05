@@ -360,7 +360,7 @@ export async function buildCurrentLiveSchedulingContext(
     database,
   );
 
-  if (calendarRead.status === 'invalid' || calendarRead.status === 'error') {
+  if (!('events' in calendarRead)) {
     return {
       ok: false,
       errors: calendarRead.errors,
