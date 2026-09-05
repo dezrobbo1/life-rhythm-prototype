@@ -187,16 +187,67 @@ export type RejectedPlacement = {
   violations: SchedulerViolation[];
 };
 
-export type SchedulerPlan = {
+export type SchedulerPlanSnapshot = {
   placements: InternalPlacement[];
   unscheduledIntentionIds: string[];
   unscheduledRhythmIds: string[];
   rejectedExistingPlacements: RejectedPlacement[];
 };
 
+export type SchedulerRepairTrigger =
+  | 'calendarChanged'
+  | 'overrun'
+  | 'missedStart'
+  | 'completionChanged'
+  | 'userCorrection'
+  | 'manualReplan';
+
+export type SchedulerRepairNow = {
+  date: LocalDate;
+  time: LocalTime;
+  timezone: string;
+};
+
+export type SchedulerPlacementPoint = {
+  date: LocalDate;
+  start: LocalTime;
+  end: LocalTime;
+  variantKind?: TaskVariantKind;
+};
+
+export type SchedulerPlanChangeKind = 'moved' | 'added' | 'removed' | 'variantChanged';
+
+export type SchedulerPlanChange = {
+  kind: SchedulerPlanChangeKind;
+  targetKind: 'intention' | 'rhythm';
+  targetId: string;
+  from?: SchedulerPlacementPoint;
+  to?: SchedulerPlacementPoint;
+  reason: string;
+};
+
+export type SchedulerRepairMetadata = {
+  trigger?: SchedulerRepairTrigger;
+  reason: string;
+  now?: SchedulerRepairNow;
+  frozenPastPlacementIds: string[];
+  preservedPlacementIds: string[];
+  changes: SchedulerPlanChange[];
+  undo: SchedulerPlanSnapshot;
+};
+
+export type SchedulerPlan = SchedulerPlanSnapshot & {
+  repair?: SchedulerRepairMetadata;
+};
+
 export type SchedulerChange = {
   reason: string;
   nextInput: SchedulingDomainModel;
+  trigger?: SchedulerRepairTrigger;
+  now?: SchedulerRepairNow;
+  releasePlacementIds?: string[];
+  surfacedPlacementIds?: string[];
+  pinnedPlacementIds?: string[];
 };
 
 export type PlacementExplanation = {
