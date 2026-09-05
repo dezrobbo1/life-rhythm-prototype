@@ -10,7 +10,6 @@ import {
   type PrivatePlanCoordinatorOptions,
 } from './schedulerPlanCoordinator';
 import {
-  buildAndPersistSchedulerPlan,
   loadSchedulerPlanState,
   repairAndPersistSchedulerPlan,
 } from './schedulerPlanStateRepository';
@@ -21,12 +20,6 @@ export type TimeDisruptionMaintenanceResult =
   | {
       ok: true;
       action: 'none';
-      warnings: string[];
-    }
-  | {
-      ok: true;
-      action: 'built';
-      plan: SchedulerPlan;
       warnings: string[];
     }
   | {
@@ -155,38 +148,20 @@ function detectTimeDisruption(
 export async function maintainCurrentPrivatePlanForTimeDisruption(
   options: PrivatePlanCoordinatorOptions = {},
 ): Promise<TimeDisruptionMaintenanceResult> {
+  // Time disruption checks maintain an already-created private plan. They do
+  // not create a new plan merely because the app shell mounted.
+  const current = await loadSchedulerPlanState();
+  if (current.status === 'missing') {
+    return { ok: true, action: 'none', warnings: [] };
+  }
+  if (current.status === 'invalid' || current.status === 'error') {
+    return { ok: false, errors: current.errors, warnings: [] };
+  }
+
   const live = await buildCurrentLiveSchedulingContext(options);
   if (!live.ok) return live;
 
   const input = clipInputToNow(live.context.input, live.now);
-  const current = await loadSchedulerPlanState();
-
-  if (current.status === 'invalid' || current.status === 'error') {
-    return {
-      ok: false,
-      errors: current.errors,
-      warnings: live.context.warnings,
-    };
-  }
-
-  if (current.status === 'missing') {
-    const built = await buildAndPersistSchedulerPlan(input);
-    if (!built.ok) {
-      return {
-        ok: false,
-        errors: built.errors,
-        warnings: live.context.warnings,
-      };
-    }
-
-    return {
-      ok: true,
-      action: 'built',
-      plan: built.plan,
-      warnings: live.context.warnings,
-    };
-  }
-
   const disruption = detectTimeDisruption(current.plan, input, live.now);
   if (!disruption) {
     return {
