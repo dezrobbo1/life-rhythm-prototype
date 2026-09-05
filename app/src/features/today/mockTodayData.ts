@@ -89,8 +89,8 @@ export const mockTodayTask: MockTask = {
   minimumVersion: 'Write one first step for tomorrow.',
   normalVersion: 'Choose the first step, place one needed item, and park the rest.',
   fullVersion: "Review tomorrow's top three and clear one hidden edge.",
-  timingReality: 'Best before shutdown. If the day is full, two minutes still counts.',
-  hiddenEdges: ['Find the note or place to capture it', 'Decide what is hidden rather than deleted'],
+  timingReality: '',
+  hiddenEdges: [],
   whyThis: 'A small shutdown step protects tomorrow without turning tonight into a planning session.',
   startBarriers: [
     'Too big',
