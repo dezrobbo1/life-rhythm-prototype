@@ -13,9 +13,10 @@ import type {
   TaskHistory,
 } from './schemas';
 import type { SchedulerPlanStateRecord } from './schedulerPlanStateSchema';
+import type { CalendarSourceRecord } from './calendarSourceSchema';
 
 export const DATABASE_NAME = 'life-rhythm-app';
-export const DATABASE_VERSION = 4;
+export const DATABASE_VERSION = 5;
 
 const VERSION_3_STORES = {
   settings: 'id, appVersion, updatedAt',
@@ -31,6 +32,11 @@ const VERSION_3_STORES = {
   taskPoolItems: 'id, status, source, createdAt, updatedAt, dueAt, notUsefulAfter, bringBackAfter, templateId',
 } as const;
 
+const VERSION_4_STORES = {
+  ...VERSION_3_STORES,
+  schedulerPlanState: 'id, updatedAt',
+} as const;
+
 export class LifeRhythmDatabase extends Dexie {
   settings!: Table<Settings, string>;
   rhythmTemplates!: Table<RhythmTemplate, string>;
@@ -44,14 +50,16 @@ export class LifeRhythmDatabase extends Dexie {
   softPlacements!: Table<SoftPlacement, string>;
   taskPoolItems!: Table<TaskPoolItem, string>;
   schedulerPlanState!: Table<SchedulerPlanStateRecord, string>;
+  calendarSources!: Table<CalendarSourceRecord, string>;
 
   constructor(databaseName = DATABASE_NAME) {
     super(databaseName);
 
     this.version(3).stores(VERSION_3_STORES);
+    this.version(4).stores(VERSION_4_STORES);
     this.version(DATABASE_VERSION).stores({
-      ...VERSION_3_STORES,
-      schedulerPlanState: 'id, updatedAt',
+      ...VERSION_4_STORES,
+      calendarSources: 'id, adapterId, updatedAt',
     });
   }
 }
