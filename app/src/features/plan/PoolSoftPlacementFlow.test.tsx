@@ -71,11 +71,11 @@ describe('Pool soft placement flow', () => {
     expect(await within(suggestions).findByText('Send school form')).toBeTruthy();
     expect(within(suggestions).getByText('Open morning capacity · 10:00-10:30')).toBeTruthy();
     expect(within(suggestions).getByText('Minimum: Open the form · 5 min')).toBeTruthy();
-    await user.click(within(suggestions).getByRole('button', { name: 'Add soft placement' }));
+    await user.click(within(suggestions).getByRole('button', { name: 'Add manual placement' }));
 
-    expect(await screen.findByText('Soft placement added.')).toBeTruthy();
-    const placements = screen.getByRole('heading', { name: 'Soft placements' }).closest('section');
-    if (!placements) throw new Error('Soft placements section was not found.');
+    expect(await screen.findByText('User-confirmed placement added.')).toBeTruthy();
+    const placements = screen.getByRole('heading', { name: 'User-confirmed placements' }).closest('section');
+    if (!placements) throw new Error('User-confirmed placements section was not found.');
 
     expect(await within(placements).findByText('Send school form')).toBeTruthy();
     expect(within(placements).getByText('Open morning capacity · 10:00-10:30')).toBeTruthy();
@@ -95,8 +95,8 @@ describe('Pool soft placement flow', () => {
     expect(await database.activeTasks.count()).toBe(0);
 
     await user.click(within(placements).getByRole('button', { name: 'Remove placement' }));
-    expect(await screen.findByText('Soft placement removed.')).toBeTruthy();
-    expect(await within(placements).findByText(/No saved soft placements for/)).toBeTruthy();
+    expect(await screen.findByText('User-confirmed placement removed.')).toBeTruthy();
+    expect(await within(placements).findByText(/No user-confirmed placements for/)).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Pool' }));
     expect(await screen.findByText('Send school form')).toBeTruthy();
