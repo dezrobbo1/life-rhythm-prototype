@@ -11,6 +11,7 @@ export const blockedDataClassKeys = new Set([
   'analytics',
   'calendar',
   'calendarData',
+  'calendarSources',
   'devTickets',
   'futureModules',
   'imports',
