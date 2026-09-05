@@ -1,5 +1,6 @@
 import type { Table } from 'dexie';
 import { scheduler } from '../domain/primaryScheduler';
+import { clipSchedulingInputToNow } from '../domain/schedulingClock';
 import type {
   LocalDate,
   SchedulerChange,
@@ -192,9 +193,16 @@ export async function repairAndPersistSchedulerPlan(
     return { ok: false, errors: current.errors };
   }
 
-  const inferredContext = change.now && change.nextInput.planningPolicy?.dayMode
+  const nextInput = change.now
+    ? clipSchedulingInputToNow(change.nextInput, change.now)
+    : change.nextInput;
+  const effectiveChange: SchedulerChange = {
+    ...change,
+    nextInput,
+  };
+  const inferredContext = change.now && nextInput.planningPolicy?.dayMode
     ? {
-        dayMode: change.nextInput.planningPolicy.dayMode,
+        dayMode: nextInput.planningPolicy.dayMode,
         dayModeDate: change.now.date,
       }
     : undefined;
@@ -202,8 +210,8 @@ export async function repairAndPersistSchedulerPlan(
 
   try {
     const plan = current.status === 'missing'
-      ? scheduler.buildPlan(change.nextInput)
-      : scheduler.repairPlan(current.plan, change);
+      ? scheduler.buildPlan(nextInput)
+      : scheduler.repairPlan(current.plan, effectiveChange);
     const saved = await saveSchedulerPlanState(plan, store, updatedAt, nextModeContext);
 
     if (!saved.ok) {
