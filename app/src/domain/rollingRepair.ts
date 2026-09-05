@@ -10,8 +10,8 @@ import type {
   SchedulingDomainModel,
 } from './schedulingModel';
 
-export type RollingRepairStatus = 'gate4-rolling-repair-v0';
-export const rollingRepairStatus: RollingRepairStatus = 'gate4-rolling-repair-v0';
+export type RollingRepairStatus = 'gate4-rolling-repair-v1';
+export const rollingRepairStatus: RollingRepairStatus = 'gate4-rolling-repair-v1';
 
 function placementTargetKind(placement: InternalPlacement): 'intention' | 'rhythm' {
   return placement.targetKind ?? 'intention';
@@ -70,6 +70,41 @@ function isPastPlacement(placement: InternalPlacement, now?: SchedulerRepairNow)
   return placement.start < now.time;
 }
 
+function localDateOrdinal(date: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const [year, month, day] = date.split('-').map(Number);
+  const epoch = Date.UTC(year, month - 1, day);
+  if (!Number.isFinite(epoch)) return null;
+  const roundTrip = new Date(epoch);
+  if (
+    roundTrip.getUTCFullYear() !== year ||
+    roundTrip.getUTCMonth() + 1 !== month ||
+    roundTrip.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return Math.floor(epoch / 86_400_000);
+}
+
+function placementInertiaRank(placement: InternalPlacement, change: SchedulerChange): number {
+  if ((change.pinnedPlacementIds ?? []).includes(placement.id)) return 10_000;
+  if ((change.surfacedPlacementIds ?? []).includes(placement.id)) return 2_000;
+  if (!change.now) return 1_000;
+
+  const placementDay = localDateOrdinal(placement.date);
+  const nowDay = localDateOrdinal(change.now.date);
+  if (placementDay === null || nowDay === null) return 1_000;
+
+  const distance = placementDay - nowDay;
+  if (distance <= 0) return 1_500;
+  if (distance === 1) return 750;
+  return 250;
+}
+
+function isPinnedPlacement(placement: InternalPlacement, change: SchedulerChange): boolean {
+  return (change.pinnedPlacementIds ?? []).includes(placement.id);
+}
+
 function targetStillSchedulable(
   placement: InternalPlacement,
   input: SchedulingDomainModel,
@@ -100,6 +135,10 @@ function sameVariant(left: InternalPlacement, right: InternalPlacement): boolean
 
 function targetKey(placement: InternalPlacement): string {
   return `${placementTargetKind(placement)}:${placementTargetId(placement)}`;
+}
+
+function planTargetKeys(plan: SchedulerPlan): Set<string> {
+  return new Set(plan.placements.map(targetKey));
 }
 
 function changeForPair(
@@ -224,6 +263,21 @@ function suppressFrozenPastIntentions(
   };
 }
 
+function lostCurrentTargets(
+  currentPlacements: InternalPlacement[],
+  plan: SchedulerPlan,
+  frozenIds: Set<string>,
+  input: SchedulingDomainModel,
+): InternalPlacement[] {
+  const scheduledTargets = planTargetKeys(plan);
+  return currentPlacements.filter(
+    (placement) =>
+      !frozenIds.has(placement.id) &&
+      targetStillSchedulable(placement, input) &&
+      !scheduledTargets.has(targetKey(placement)),
+  );
+}
+
 export class RollingRepairScheduler extends DeterministicScheduler {
   repairPlan(currentPlan: SchedulerPlan, change: SchedulerChange): SchedulerPlan {
     if (change.now && !isValidNow(change.now)) {
@@ -248,15 +302,89 @@ export class RollingRepairScheduler extends DeterministicScheduler {
       frozenPastPlacements,
     );
 
-    const seededInput: SchedulingDomainModel = {
-      ...nextInputWithFrozenSuppressed,
-      placements: uniquePlacements([
-        ...change.nextInput.placements.map(clonePlacement),
-        ...preservedFuture.map(clonePlacement),
-      ]),
+    const frozenIds = new Set(frozenPastPlacements.map((placement) => placement.id));
+    const autoReleasedIds = new Set<string>();
+
+    const buildWithReleased = (additionalReleasedIds: Set<string>): SchedulerPlan => {
+      const excludedIds = new Set([...releaseIds, ...additionalReleasedIds]);
+      const seededInput: SchedulingDomainModel = {
+        ...nextInputWithFrozenSuppressed,
+        placements: uniquePlacements([
+          ...change.nextInput.placements.map(clonePlacement),
+          ...preservedFuture.map(clonePlacement),
+        ]).filter((placement) => !excludedIds.has(placement.id)),
+      };
+      return super.buildPlan(seededInput);
     };
 
-    const rebuilt = super.buildPlan(seededInput);
+    let rebuilt = buildWithReleased(autoReleasedIds);
+
+    const currentRankByTarget = new Map<string, number>();
+    for (const placement of currentPlacements) {
+      const key = targetKey(placement);
+      currentRankByTarget.set(
+        key,
+        Math.max(currentRankByTarget.get(key) ?? 0, placementInertiaRank(placement, change)),
+      );
+    }
+
+    const initialLostTargets = lostCurrentTargets(
+      currentPlacements,
+      rebuilt,
+      frozenIds,
+      change.nextInput,
+    ).sort((left, right) => {
+      const rankDifference =
+        (currentRankByTarget.get(targetKey(right)) ?? 0) -
+        (currentRankByTarget.get(targetKey(left)) ?? 0);
+      if (rankDifference !== 0) return rankDifference;
+      return targetKey(left).localeCompare(targetKey(right));
+    });
+
+    for (const lostPlacement of initialLostTargets) {
+      const lostKey = targetKey(lostPlacement);
+      if (planTargetKeys(rebuilt).has(lostKey)) continue;
+      const lostRank = currentRankByTarget.get(lostKey) ?? 0;
+
+      const releaseCandidates = preservedFuture
+        .filter(
+          (placement) =>
+            placement.origin === 'scheduler' &&
+            targetKey(placement) !== lostKey &&
+            !isPinnedPlacement(placement, change) &&
+            placementInertiaRank(placement, change) < lostRank &&
+            !autoReleasedIds.has(placement.id),
+        )
+        .sort((left, right) => {
+          const rankDifference =
+            placementInertiaRank(left, change) - placementInertiaRank(right, change);
+          if (rankDifference !== 0) return rankDifference;
+          return `${right.date}:${right.start}:${right.id}`.localeCompare(
+            `${left.date}:${left.start}:${left.id}`,
+          );
+        });
+
+      if (releaseCandidates.length === 0) continue;
+
+      const trialReleasedIds = new Set(autoReleasedIds);
+      let successfulPlan: SchedulerPlan | null = null;
+
+      for (const candidate of releaseCandidates) {
+        trialReleasedIds.add(candidate.id);
+        const trial = buildWithReleased(trialReleasedIds);
+        if (planTargetKeys(trial).has(lostKey)) {
+          successfulPlan = trial;
+          break;
+        }
+      }
+
+      if (successfulPlan) {
+        autoReleasedIds.clear();
+        for (const id of trialReleasedIds) autoReleasedIds.add(id);
+        rebuilt = successfulPlan;
+      }
+    }
+
     const rebuiltFuture = rebuilt.placements.filter(
       (placement) => !isPastPlacement(placement, change.now),
     );
@@ -265,12 +393,15 @@ export class RollingRepairScheduler extends DeterministicScheduler {
       ...rebuiltFuture.map(clonePlacement),
     ]);
 
-    const frozenIds = new Set(frozenPastPlacements.map((placement) => placement.id));
     const beforeForChanges = currentPlacements.filter((placement) => !frozenIds.has(placement.id));
     const afterForChanges = repairedPlacements.filter((placement) => !frozenIds.has(placement.id));
     const repairedIds = new Set(repairedPlacements.map((placement) => placement.id));
     const preservedPlacementIds = preservedFuture
-      .filter((placement) => repairedIds.has(placement.id))
+      .filter(
+        (placement) =>
+          repairedIds.has(placement.id) &&
+          !autoReleasedIds.has(placement.id),
+      )
       .map((placement) => placement.id)
       .sort();
 
