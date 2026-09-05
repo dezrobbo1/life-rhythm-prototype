@@ -39,6 +39,19 @@ const calendar = [
   'END:VCALENDAR',
 ].join('\r\n');
 
+const recurringCalendar = [
+  'BEGIN:VCALENDAR',
+  'VERSION:2.0',
+  'BEGIN:VEVENT',
+  'UID:recurring-meeting',
+  'DTSTART:20260907T010000Z',
+  'DTEND:20260907T020000Z',
+  'RRULE:FREQ=WEEKLY;COUNT=4',
+  'SUMMARY:Weekly meeting',
+  'END:VEVENT',
+  'END:VCALENDAR',
+].join('\r\n');
+
 beforeEach(() => {
   resetCurrentLocalDataNamespace();
   namespaceIndex += 1;
@@ -109,6 +122,53 @@ describe('calendar source repository', () => {
     expect(loaded.status).toBe('ok');
     if (loaded.status !== 'ok') return;
     expect(loaded.record.label).toBe('Family calendar');
+  });
+
+  it('rejects unsupported recurrence without replacing a safe saved source', async () => {
+    const first = await importIcsCalendarSource({
+      label: 'Family calendar',
+      source: calendar,
+      options,
+      importedAt: '2026-09-05T06:00:00.000Z',
+    });
+    expect(first.ok).toBe(true);
+
+    const recurring = await importIcsCalendarSource({
+      label: 'Recurring calendar',
+      source: recurringCalendar,
+      options,
+      importedAt: '2026-09-05T06:10:00.000Z',
+    });
+
+    expect(recurring.ok).toBe(false);
+    if (recurring.ok) return;
+    expect(recurring.errors.join(' ')).toContain('RRULE');
+    expect(recurring.errors.join(' ')).toContain('not supported safely yet');
+
+    const loaded = await loadCalendarSource();
+    expect(loaded.status).toBe('ok');
+    if (loaded.status !== 'ok') return;
+    expect(loaded.record.label).toBe('Family calendar');
+  });
+
+  it('fails closed if unsupported recurrence is already present in persisted source data', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    await database.calendarSources.put({
+      id: 'primary',
+      version: 1,
+      adapterId: 'ics',
+      label: 'Old recurring source',
+      source: recurringCalendar,
+      importedAt: '2026-09-05T06:00:00.000Z',
+      updatedAt: '2026-09-05T06:00:00.000Z',
+    });
+
+    const read = await readPersistedCalendarEvents(options);
+
+    expect(read.status).toBe('error');
+    if (read.status !== 'error') return;
+    expect(read.errors.join(' ')).toContain('RRULE');
+    expect(read.events).toBeUndefined();
   });
 
   it('removes the local source without touching another local data class', async () => {
