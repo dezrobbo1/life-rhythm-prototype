@@ -55,6 +55,12 @@ export type RhythmRequirement = {
   preferredDays: string[];
   preferredTime: string;
   maxPerDay: number;
+  /**
+   * Explicit user/product policy for Reduced Day. `preserve` means this rhythm
+   * must keep its ordinary form rather than being automatically right-sized.
+   * Absence retains the current default of allowing the minimum form.
+   */
+  reducedDayBehavior?: 'allowMinimum' | 'preserve';
   variants: TaskVariant[];
   sourceRecords: SourceRecordRef[];
 };
