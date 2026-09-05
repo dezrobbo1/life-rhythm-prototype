@@ -198,8 +198,8 @@ describe('Gate 4 graded schedule inertia', () => {
 });
 
 describe('primary scheduler entry point', () => {
-  it('uses the Gate 5 primary scheduler while retaining Gate 4 rolling-repair behavior', () => {
-    expect(primarySchedulerStatus).toBe('gate5-primary-reduced-day');
+  it('uses the guarded Gate 5 primary scheduler while retaining Gate 4 rolling-repair behavior', () => {
+    expect(primarySchedulerStatus).toBe('gate5-primary-review-guards');
 
     const input = model([intention('task')], [candidate('slot', today)]);
     const before = primaryScheduler.buildPlan(input);
