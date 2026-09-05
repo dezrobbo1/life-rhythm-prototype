@@ -729,6 +729,32 @@ function rhythmPlacementsInPeriod(
   );
 }
 
+function rhythmPlacementsInDateRange(
+  rhythm: RhythmRequirement,
+  startDate: string,
+  endDate: string,
+  placements: InternalPlacement[],
+): InternalPlacement[] {
+  return placements.filter((placement) =>
+    targetKind(placement) === 'rhythm' &&
+    rhythmIdForPlacement(placement) === rhythm.id &&
+    placement.date >= startDate &&
+    placement.date <= endDate,
+  );
+}
+
+function rhythmPlanningDates(input: SchedulingDomainModel): string[] {
+  const dates = input.rhythmPlanningDates ??
+    (input.candidateIntervals ?? []).map((candidate) => candidate.date);
+  return [...new Set(dates)].sort();
+}
+
+function isBoundedWeeklyHorizon(rhythm: RhythmRequirement, dates: string[]): boolean {
+  return rhythm.period === 'week' &&
+    dates.length > 0 &&
+    dates[dates.length - 1] <= addDays(dates[0], 6);
+}
+
 function findPlacementForRhythm(
   rhythm: RhythmRequirement,
   accepted: InternalPlacement[],
@@ -870,23 +896,27 @@ function scheduleRhythms(
   accepted: InternalPlacement[],
   input: SchedulingDomainModel,
 ): string[] {
-  const candidateDates = [...new Set([
-    ...(input.rhythmPlanningDates ?? []),
-    ...(input.candidateIntervals ?? []).map((candidate) => candidate.date),
-  ])].sort();
+  const planningDates = rhythmPlanningDates(input);
   const unscheduled = new Set<string>();
 
   for (const rhythm of [...rhythms].sort((a, b) => a.id.localeCompare(b.id))) {
     const periodDates = new Map<string, string[]>();
-    for (const date of candidateDates) {
-      const key = rhythmPeriodKey(rhythm, date);
-      const dates = periodDates.get(key) ?? [];
-      dates.push(date);
-      periodDates.set(key, dates);
+    const boundedWeeklyHorizon = isBoundedWeeklyHorizon(rhythm, planningDates);
+    if (boundedWeeklyHorizon) {
+      periodDates.set(`rolling:${planningDates[0]}`, planningDates);
+    } else {
+      for (const date of planningDates) {
+        const key = rhythmPeriodKey(rhythm, date);
+        const dates = periodDates.get(key) ?? [];
+        dates.push(date);
+        periodDates.set(key, dates);
+      }
     }
 
     for (const [periodKey, dates] of periodDates) {
-      const existing = rhythmPlacementsInPeriod(rhythm, periodKey, accepted);
+      const existing = boundedWeeklyHorizon
+        ? rhythmPlacementsInDateRange(rhythm, dates[0], dates[dates.length - 1], accepted)
+        : rhythmPlacementsInPeriod(rhythm, periodKey, accepted);
       let remaining = Math.max(0, rhythm.frequency - existing.length);
       let occurrenceIndex = existing.length;
       const allowedDates = new Set(dates);
