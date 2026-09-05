@@ -210,7 +210,7 @@ export function CalendarSourceControl({ onPlanRepaired }: CalendarSourceControlP
           Calendar changes repair only reversible private placements. External commitments remain untouched.
         </p>
         <p className="reentry-review__support">
-          Recurring RRULE events are currently read as their DTSTART occurrence only; import warnings are shown below when this matters.
+          Recurring calendar rules are not accepted yet. Life Rhythm rejects those imports rather than silently treating later recurring commitments as free time.
         </p>
 
         {warnings.length > 0 ? (
