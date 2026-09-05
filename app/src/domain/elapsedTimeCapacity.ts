@@ -34,8 +34,16 @@ export function clipSchedulingInputToNow(
 ): SchedulingDomainModel {
   if (!input.candidateIntervals) return input;
 
+  const rhythmPlanningDates = [...new Set([
+    ...(input.rhythmPlanningDates ?? []),
+    ...input.candidateIntervals.map((interval) => interval.date),
+  ])]
+    .filter((date) => date >= now.date)
+    .sort();
+
   return {
     ...input,
     candidateIntervals: clipCandidateIntervalsToNow(input.candidateIntervals, now),
+    rhythmPlanningDates,
   };
 }

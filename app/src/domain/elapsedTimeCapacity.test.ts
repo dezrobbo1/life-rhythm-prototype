@@ -62,12 +62,20 @@ describe('elapsed scheduling-capacity clipping', () => {
     const endsNow = candidate('ends-now', now.date, '10:00', '10:30');
 
     expect(clipCandidateIntervalsToNow([currentDayElapsed, endsNow], now)).toEqual([]);
+    expect(clipSchedulingInputToNow(model([currentDayElapsed, endsNow]), now)).toMatchObject({
+      candidateIntervals: [],
+      rhythmPlanningDates: [now.date],
+    });
   });
 
   it('discards candidate intervals from a prior day', () => {
     const priorDay = candidate('prior-day', '2026-09-06', '11:00', '12:00');
 
     expect(clipCandidateIntervalsToNow([priorDay], now)).toEqual([]);
+    expect(clipSchedulingInputToNow(model([priorDay]), now)).toMatchObject({
+      candidateIntervals: [],
+      rhythmPlanningDates: [],
+    });
   });
 
   it('leaves current-day intervals starting at now and future intervals unchanged', () => {

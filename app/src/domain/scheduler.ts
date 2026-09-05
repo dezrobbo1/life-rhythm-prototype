@@ -870,7 +870,10 @@ function scheduleRhythms(
   accepted: InternalPlacement[],
   input: SchedulingDomainModel,
 ): string[] {
-  const candidateDates = [...new Set((input.candidateIntervals ?? []).map((candidate) => candidate.date))].sort();
+  const candidateDates = [...new Set([
+    ...(input.rhythmPlanningDates ?? []),
+    ...(input.candidateIntervals ?? []).map((candidate) => candidate.date),
+  ])].sort();
   const unscheduled = new Set<string>();
 
   for (const rhythm of [...rhythms].sort((a, b) => a.id.localeCompare(b.id))) {

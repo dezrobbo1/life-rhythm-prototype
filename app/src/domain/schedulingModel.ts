@@ -180,6 +180,7 @@ export type SchedulingDomainModel = {
   placements: InternalPlacement[];
   dayProfiles: DayProfileContext[];
   candidateIntervals?: CandidateSchedulingInterval[];
+  rhythmPlanningDates?: LocalDate[];
   preferences?: SchedulingPreference[];
   planningPolicy?: SchedulerPlanningPolicy;
 };
