@@ -21,6 +21,7 @@ import {
 import type {
   CandidateSchedulingInterval,
   InternalIntention,
+  RhythmRequirement,
   SchedulingDomainModel,
 } from '../domain/schedulingModel';
 
@@ -64,6 +65,22 @@ function intention(id = 'task-a'): InternalIntention {
     lifecycle: {},
     eligibleForScheduling: true,
     sourceRecords: [{ kind: 'taskPoolItem', id }],
+  };
+}
+
+function rhythm(id = 'rhythm-a'): RhythmRequirement {
+  return {
+    id,
+    templateId: id,
+    title: id,
+    area: 'admin',
+    frequency: 1,
+    period: 'day',
+    preferredDays: [],
+    preferredTime: 'anytime',
+    maxPerDay: 1,
+    variants: [{ kind: 'normal', label: 'Normal', minutes: 20 }],
+    sourceRecords: [{ kind: 'rhythmTemplate', id }],
   };
 }
 
@@ -208,6 +225,192 @@ describe('persisted Gate 4 scheduler plan state', () => {
       if (loaded.status !== 'ok') throw new Error('Expected repaired plan to reload.');
       expect(loaded.plan).toEqual(repaired.plan);
       await expectOnlySchedulerPlanStateWritten(database);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('does not use the elapsed part of a current-day interval as rolling-repair capacity', async () => {
+    const database = createTestDatabase();
+
+    try {
+      const built = await buildAndPersistSchedulerPlan(
+        model([]),
+        database,
+        '2026-09-07T00:00:00.000Z',
+      );
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+
+      const repaired = await repairAndPersistSchedulerPlan(
+        {
+          reason: 'Repair after time advanced',
+          trigger: 'manualReplan',
+          now: { date: today, time: '10:30', timezone },
+          nextInput: model([candidate('partially-elapsed', '09:00', '12:00')]),
+        },
+        database,
+        '2026-09-07T02:30:00.000Z',
+      );
+
+      expect(repaired.ok).toBe(true);
+      if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+      expect(repaired.mode).toBe('repaired');
+      expect(repaired.plan.placements).toEqual([
+        expect.objectContaining({
+          intentionId: 'task-a',
+          date: today,
+          start: '10:30',
+          end: '10:50',
+        }),
+      ]);
+      expect(repaired.plan.placements.every((placement) =>
+        placement.date > today || (placement.date === today && placement.start >= '10:30')
+      )).toBe(true);
+      expect(repaired.plan.unscheduledIntentionIds).toEqual([]);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('keeps an intention unscheduled when all candidate repair capacity has elapsed', async () => {
+    const database = createTestDatabase();
+
+    try {
+      const built = await buildAndPersistSchedulerPlan(
+        model([]),
+        database,
+        '2026-09-07T00:00:00.000Z',
+      );
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+
+      const repaired = await repairAndPersistSchedulerPlan(
+        {
+          reason: 'Repair after all candidate time elapsed',
+          trigger: 'manualReplan',
+          now: { date: today, time: '10:30', timezone },
+          nextInput: model([candidate('completely-elapsed', '09:00', '10:00')]),
+        },
+        database,
+        '2026-09-07T02:30:00.000Z',
+      );
+
+      expect(repaired.ok).toBe(true);
+      if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+      expect(repaired.mode).toBe('repaired');
+      expect(repaired.plan.placements).toEqual([]);
+      expect(repaired.plan.unscheduledIntentionIds).toEqual(['task-a']);
+      expect(repaired.plan.unscheduledRhythmIds).toEqual([]);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('keeps an unmet rhythm unscheduled when its final candidate interval has elapsed', async () => {
+    const database = createTestDatabase();
+    const input: SchedulingDomainModel = {
+      ...model([candidate('too-short', '09:00', '09:10')]),
+      intentions: [],
+      rhythms: [rhythm()],
+    };
+
+    try {
+      const built = await buildAndPersistSchedulerPlan(
+        input,
+        database,
+        '2026-09-07T00:00:00.000Z',
+      );
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+      expect(built.plan.placements).toEqual([]);
+      expect(built.plan.unscheduledRhythmIds).toEqual(['rhythm-a']);
+
+      const repaired = await repairAndPersistSchedulerPlan(
+        {
+          reason: 'Repair after all rhythm capacity elapsed',
+          trigger: 'manualReplan',
+          now: { date: today, time: '10:30', timezone },
+          nextInput: input,
+        },
+        database,
+        '2026-09-07T02:30:00.000Z',
+      );
+
+      expect(repaired.ok).toBe(true);
+      if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+      expect(repaired.plan.placements).toEqual([]);
+      expect(repaired.plan.unscheduledIntentionIds).toEqual([]);
+      expect(repaired.plan.unscheduledRhythmIds).toEqual(['rhythm-a']);
+
+      const loaded = await loadSchedulerPlanState(database);
+      if (loaded.status !== 'ok') throw new Error('Expected repaired plan to reload.');
+      expect(loaded.plan.unscheduledRhythmIds).toEqual(['rhythm-a']);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('keeps future candidate repair capacity unchanged and schedulable', async () => {
+    const database = createTestDatabase();
+
+    try {
+      const built = await buildAndPersistSchedulerPlan(
+        model([]),
+        database,
+        '2026-09-07T00:00:00.000Z',
+      );
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+
+      const repaired = await repairAndPersistSchedulerPlan(
+        {
+          reason: 'Repair before future capacity',
+          trigger: 'manualReplan',
+          now: { date: today, time: '10:30', timezone },
+          nextInput: model([candidate('future', '11:00', '12:00')]),
+        },
+        database,
+        '2026-09-07T02:30:00.000Z',
+      );
+
+      expect(repaired.ok).toBe(true);
+      if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+      expect(repaired.mode).toBe('repaired');
+      expect(repaired.plan.placements).toEqual([
+        expect.objectContaining({
+          intentionId: 'task-a',
+          date: today,
+          start: '11:00',
+          end: '11:20',
+        }),
+      ]);
+      expect(repaired.plan.unscheduledIntentionIds).toEqual([]);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('clips elapsed capacity on the missing-plan fallback build path', async () => {
+    const database = createTestDatabase();
+
+    try {
+      const built = await repairAndPersistSchedulerPlan(
+        {
+          reason: 'Build after time advanced',
+          trigger: 'manualReplan',
+          now: { date: today, time: '10:30', timezone },
+          nextInput: model([candidate('partially-elapsed', '09:00', '12:00')]),
+        },
+        database,
+        '2026-09-07T02:30:00.000Z',
+      );
+
+      expect(built.ok).toBe(true);
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+      expect(built.mode).toBe('built');
+      expect(built.plan.placements[0]).toMatchObject({
+        intentionId: 'task-a',
+        date: today,
+        start: '10:30',
+        end: '10:50',
+      });
     } finally {
       await database.delete();
     }
