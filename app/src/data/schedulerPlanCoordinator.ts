@@ -1,4 +1,7 @@
-import { deriveGate2Availability } from '../domain/calendarAvailability';
+import {
+  deriveGate2Availability,
+  externalCommitmentsFromCalendarEvents,
+} from '../domain/calendarAvailability';
 import { projectCurrentStateToSchedulingDomain } from '../domain/currentStateProjection';
 import type {
   CandidateSchedulingInterval,
@@ -9,6 +12,7 @@ import type {
   SchedulingDomainModel,
   SchedulingInterval,
 } from '../domain/schedulingModel';
+import { readPersistedCalendarEvents } from './calendarSourceRepository';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   buildAndPersistSchedulerPlan,
@@ -346,14 +350,44 @@ export async function buildCurrentLiveSchedulingContext(
     softPlacements: softPlacements.data,
   });
   const startDate = options.startDate ?? now.date;
+  const endDate = addDays(startDate, days - 1);
+  const calendarRead = await readPersistedCalendarEvents(
+    {
+      targetTimezone: timezone,
+      windowStartDate: startDate,
+      windowEndDate: endDate,
+    },
+    database,
+  );
+
+  if (calendarRead.status === 'invalid' || calendarRead.status === 'error') {
+    return {
+      ok: false,
+      errors: calendarRead.errors,
+      warnings: calendarRead.warnings,
+    };
+  }
+
+  const calendarEvents = calendarRead.events;
+  const calendarCommitments = externalCommitmentsFromCalendarEvents(calendarEvents);
+  const planningBase: SchedulingDomainModel = {
+    ...base,
+    externalCommitments: [...base.externalCommitments, ...calendarCommitments],
+  };
   const candidateIntervals: CandidateSchedulingInterval[] = [];
-  const warnings: string[] = [];
+  const warnings: string[] = [...calendarRead.warnings.map((warning) => `Calendar: ${warning}`)];
+
+  if (calendarRead.status === 'ok') {
+    warnings.push(
+      `Read-only calendar ${calendarRead.record.label} supplied ${calendarEvents.length} event${calendarEvents.length === 1 ? '' : 's'} in the current planning horizon.`,
+    );
+  }
 
   for (let offset = 0; offset < days; offset += 1) {
     const date = addDays(startDate, offset);
     const availability = deriveGate2Availability({
       settings: settingsResult.settings,
-      calendarEvents: [],
+      calendarEvents,
       date,
       timezone,
     });
@@ -361,7 +395,7 @@ export async function buildCurrentLiveSchedulingContext(
     if (availability.usableDay) {
       candidateIntervals.push(...availability.candidateIntervals);
     } else {
-      const explicitCandidates = explicitAvailableCandidates(base, date, timezone);
+      const explicitCandidates = explicitAvailableCandidates(planningBase, date, timezone);
       candidateIntervals.push(...explicitCandidates);
       if (explicitCandidates.length > 0) {
         warnings.push(
@@ -374,7 +408,7 @@ export async function buildCurrentLiveSchedulingContext(
   }
 
   const input: SchedulingDomainModel = {
-    ...base,
+    ...planningBase,
     candidateIntervals,
   };
 
