@@ -1,5 +1,6 @@
 import type { Table } from 'dexie';
 import { scheduler } from '../domain/primaryScheduler';
+import { clipSchedulingInputToNow } from '../domain/schedulingClock';
 import type {
   SchedulerChange,
   SchedulerPlan,
@@ -152,10 +153,18 @@ export async function repairAndPersistSchedulerPlan(
     return { ok: false, errors: current.errors };
   }
 
+  const nextInput = change.now
+    ? clipSchedulingInputToNow(change.nextInput, change.now)
+    : change.nextInput;
+  const effectiveChange: SchedulerChange = {
+    ...change,
+    nextInput,
+  };
+
   try {
     const plan = current.status === 'missing'
-      ? scheduler.buildPlan(change.nextInput)
-      : scheduler.repairPlan(current.plan, change);
+      ? scheduler.buildPlan(nextInput)
+      : scheduler.repairPlan(current.plan, effectiveChange);
     const saved = await saveSchedulerPlanState(plan, store, updatedAt);
 
     if (!saved.ok) {
