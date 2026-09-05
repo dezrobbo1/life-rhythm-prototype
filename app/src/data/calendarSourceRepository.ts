@@ -51,6 +51,8 @@ export type CalendarSourceRemoveResult =
   | { ok: true; removed: boolean }
   | { ok: false; errors: string[] };
 
+const unsupportedRecurrenceProperties = new Set(['RRULE', 'RDATE', 'RECURRENCE-ID']);
+
 function issueMessages(issues: Array<{ message: string; path: Array<string | number> }>) {
   return issues.map((issue) => {
     const path = issue.path.length > 0 ? issue.path.join('.') : 'calendarSource';
@@ -61,6 +63,26 @@ function issueMessages(issues: Array<{ message: string; path: Array<string | num
 function looksLikeIcsCalendar(source: string) {
   const normalized = source.toUpperCase();
   return normalized.includes('BEGIN:VCALENDAR') && normalized.includes('END:VCALENDAR');
+}
+
+function unsupportedRecurrenceProperty(source: string): string | null {
+  const unfolded = source.replace(/\r?\n[ \t]/g, '');
+
+  for (const rawLine of unfolded.split(/\r?\n/)) {
+    const line = rawLine.trimStart();
+    const separator = line.search(/[;:]/);
+    if (separator < 1) continue;
+    const propertyName = line.slice(0, separator).toUpperCase();
+    if (unsupportedRecurrenceProperties.has(propertyName)) {
+      return propertyName;
+    }
+  }
+
+  return null;
+}
+
+function recurrenceError(propertyName: string) {
+  return `calendarSource: Recurring calendar data (${propertyName}) is not supported safely yet. This calendar cannot be used for automatic planning until recurrence expansion is supported.`;
 }
 
 export async function loadCalendarSource(
@@ -106,6 +128,15 @@ export async function readPersistedCalendarEvents(
     return { ...loaded, warnings: [] };
   }
 
+  const unsupportedRecurrence = unsupportedRecurrenceProperty(loaded.record.source);
+  if (unsupportedRecurrence) {
+    return {
+      status: 'error',
+      errors: [recurrenceError(unsupportedRecurrence)],
+      warnings: [],
+    };
+  }
+
   try {
     const result = icsCalendarAdapter.read(loaded.record.source, options);
     return {
@@ -139,6 +170,15 @@ export async function importIcsCalendarSource(
     return {
       ok: false,
       errors: ['calendarSource: This file does not contain an iCalendar VCALENDAR document.'],
+      warnings: [],
+    };
+  }
+
+  const unsupportedRecurrence = unsupportedRecurrenceProperty(source);
+  if (unsupportedRecurrence) {
+    return {
+      ok: false,
+      errors: [recurrenceError(unsupportedRecurrence)],
       warnings: [],
     };
   }
