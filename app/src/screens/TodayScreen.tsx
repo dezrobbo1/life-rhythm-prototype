@@ -79,16 +79,49 @@ function neutralTaskDetails(): Pick<MockTask, 'timingReality' | 'hiddenEdges' | 
   return {
     timingReality: '',
     hiddenEdges: [],
-    startBarriers: ['Too big', 'Unclear first step', 'Low energy'],
+    startBarriers: [
+      'Too big',
+      'Unclear first step',
+      'Too boring',
+      'Low energy',
+      'Not enough time',
+      'Emotionally hard',
+      'Need information',
+      'Pulled to phone',
+    ],
     boostSupports: {
-      'Too big': [{ id: 'minimum', label: 'Use the minimum version', detail: 'Start with the Minimum shown for this task.' }],
-      'Unclear first step': [{ id: 'first-step', label: 'Name the first step', detail: 'Identify the first action for this task.' }],
-      'Low energy': [{ id: 'minimum', label: 'Use the minimum version', detail: 'Start with the Minimum shown for this task.' }],
-      'Too boring': [],
-      'Not enough time': [],
-      'Emotionally hard': [],
-      'Need information': [],
-      'Pulled to phone': [],
+      'Too big': [
+        { id: 'minimum', label: 'Use the minimum version', detail: 'Start with the Minimum shown for this task.' },
+        { id: 'hide-the-rest', label: 'Hide the rest for now', detail: 'Hidden, not deleted.' },
+      ],
+      'Unclear first step': [
+        { id: 'first-step', label: 'Name the first step', detail: 'Identify the first action for this task.' },
+        { id: 'choose-object', label: 'Choose the first object', detail: 'Pick the physical object or screen you need first.' },
+      ],
+      'Too boring': [
+        { id: 'make-concrete', label: 'Make the start concrete', detail: 'Name one visible action to begin with.' },
+        { id: 'change-surface', label: 'Change the surface', detail: 'Use a different workspace or tool if it helps with this task.' },
+      ],
+      'Low energy': [
+        { id: 'minimum', label: 'Use the minimum version', detail: 'Start with the Minimum shown for this task.' },
+        { id: 'already-open', label: 'Use what is already open', detail: 'Use what is already within reach if it helps with this task.' },
+      ],
+      'Not enough time': [
+        { id: 'minimum', label: 'Use the minimum version', detail: 'Check whether the Minimum shown for this task fits the time available.' },
+        { id: 'park-the-rest', label: 'Park the rest', detail: 'Everything else can wait for the next review.' },
+      ],
+      'Emotionally hard': [
+        { id: 'gentle-truth', label: 'Use the gentlest truthful wording', detail: 'Write the first step without making it bigger.' },
+        { id: 'support-condition', label: 'Name one support condition', detail: 'Capture what would make this easier to start.' },
+      ],
+      'Need information': [
+        { id: 'missing-question', label: 'Write the missing question', detail: 'Capture the question instead of solving it now.' },
+        { id: 'where-to-look', label: 'Name where to look first', detail: 'Leave a clear place to begin later.' },
+      ],
+      'Pulled to phone': [
+        { id: 'phone-face-down', label: 'Set the phone face down', detail: 'Keep the task on one visible surface.' },
+        { id: 'one-surface', label: 'Keep only what you need open', detail: 'Return to the first action for this task.' },
+      ],
     },
   };
 }

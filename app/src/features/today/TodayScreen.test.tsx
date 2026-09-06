@@ -128,6 +128,36 @@ afterEach(() => {
 });
 
 describe('Today screen', () => {
+  it.each(['adhoc', 'library', 'view-model'] as const)('keeps all eight Start Boost barriers and selectable supports for %s tasks', async (source) => {
+    const user = userEvent.setup();
+    if (source === 'view-model') {
+      render(<AppSnapshotProvider source="read-only adapter" snapshot={{ ...normalDayWithOneTaskSnapshot, activeTasks: [oneOffTodayTask] }}><TodayScreen /></AppSnapshotProvider>);
+    } else {
+      activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([
+        persistedOneOffTask({ source, ...(source === 'library' ? { templateId: 'water-bill' } : {}) }),
+      ]);
+      render(<TodayScreen />);
+    }
+    const card = await screen.findByRole('article', { name: 'Pay water bill' });
+    await user.click(within(card).getByRole('button', { name: 'Start Boost' }));
+    const dialog = screen.getByRole('dialog', { name: 'Start Boost' });
+    const barriers = ['Too big', 'Unclear first step', 'Too boring', 'Low energy', 'Not enough time', 'Emotionally hard', 'Need information', 'Pulled to phone'];
+    const barrierSection = within(dialog).getByRole('heading', { name: 'What is blocking the start?' }).closest('section')!;
+    expect(within(barrierSection).getAllByRole('button').map((button) => button.textContent)).toEqual(barriers);
+    for (const barrier of barriers) {
+      await user.click(within(barrierSection).getByRole('button', { name: barrier }));
+      const supportSection = within(dialog).getByRole('heading', { name: 'Choose one support' }).closest('section')!;
+      const supports = within(supportSection).getAllByRole('button');
+      expect(supports.length).toBeGreaterThan(0);
+      for (const support of supports) {
+        expect(support.textContent?.trim()).toBeTruthy();
+        await user.click(support);
+        expect(support.getAttribute('aria-pressed')).toBe('true');
+        expect(within(supportSection).getByRole('heading', { name: 'Did that reduce friction?' })).toBeTruthy();
+      }
+    }
+  });
+
   it.each(['adhoc', 'library'] as const)('does not leak mock Details into a persisted %s task', async (source) => {
     const task = persistedOneOffTask({ source, ...(source === 'library' ? { templateId: 'water-bill' } : {}) });
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([task]);
