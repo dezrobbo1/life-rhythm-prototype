@@ -849,7 +849,8 @@ function timingEdge(intention: InternalIntention): number {
   return candidates.length > 0 ? Math.min(...candidates) : Number.POSITIVE_INFINITY;
 }
 
-function intentionSort(left: InternalIntention, right: InternalIntention): number {
+/** Existing scheduling precedence, excluding the stable ID tie-break. */
+export function compareIntentionSchedulingPriority(left: InternalIntention, right: InternalIntention): number {
   const timingRank = (intention: InternalIntention) => {
     switch (intention.timing.timeConstraint) {
       case 'fixedAt':
@@ -866,9 +867,12 @@ function intentionSort(left: InternalIntention, right: InternalIntention): numbe
   return (
     timingRank(left) - timingRank(right) ||
     timingEdge(left) - timingEdge(right) ||
-    (priorityRank[left.priority ?? 'normal'] ?? 3) - (priorityRank[right.priority ?? 'normal'] ?? 3) ||
-    left.id.localeCompare(right.id)
+    (priorityRank[left.priority ?? 'normal'] ?? 3) - (priorityRank[right.priority ?? 'normal'] ?? 3)
   );
+}
+
+function intentionSort(left: InternalIntention, right: InternalIntention): number {
+  return compareIntentionSchedulingPriority(left, right) || left.id.localeCompare(right.id);
 }
 
 function scheduleIntentions(
@@ -943,7 +947,7 @@ function scheduleRhythms(
   return [...unscheduled].sort();
 }
 
-function isFirstPassIntention(intention: InternalIntention): boolean {
+export function isFirstPassIntention(intention: InternalIntention): boolean {
   return intention.timing.timeConstraint === 'fixedAt' ||
     intention.timing.timeConstraint === 'dueBy' ||
     intention.timing.timeConstraint === 'expiresAfter' ||

@@ -1,4 +1,4 @@
-import { DeterministicScheduler } from './scheduler';
+import { compareIntentionSchedulingPriority, DeterministicScheduler, isFirstPassIntention } from './scheduler';
 import type {
   InternalPlacement,
   SchedulerChange,
@@ -139,6 +139,32 @@ function targetKey(placement: InternalPlacement): string {
 
 function planTargetKeys(plan: SchedulerPlan): Set<string> {
   return new Set(plan.placements.map(targetKey));
+}
+
+function retainsCoverage(before: SchedulerPlan, after: SchedulerPlan, keys = planTargetKeys(before)): boolean {
+  for (const key of keys) {
+    const count = (plan: SchedulerPlan) => plan.placements.filter((p) => targetKey(p) === key).length;
+    if (count(after) < count(before)) return false;
+    // One surviving rhythm occurrence is not proof that its requirement is met.
+    if (key.startsWith('rhythm:') && !before.unscheduledRhythmIds.includes(key.slice(7)) &&
+        after.unscheduledRhythmIds.includes(key.slice(7))) return false;
+  }
+  return true;
+}
+
+function recoveryHasPrecedence(
+  recovered: InternalPlacement, attempted: InternalPlacement, input: SchedulingDomainModel,
+): boolean {
+  const intentionFor = (p: InternalPlacement) => placementTargetKind(p) === 'intention'
+    ? input.intentions.find((i) => i.id === placementTargetId(p)) : undefined;
+  const left = intentionFor(recovered);
+  const right = intentionFor(attempted);
+  // Reuse the scheduler's existing urgent-intentions / rhythms / flexible-work
+  // passes and timing/priority comparison. ID order must not defeat inertia.
+  if (left && right) return compareIntentionSchedulingPriority(left, right) <= 0;
+  if (left) return isFirstPassIntention(left);
+  if (right) return !isFirstPassIntention(right);
+  return true;
 }
 
 function changeForPair(
@@ -341,6 +367,7 @@ export class RollingRepairScheduler extends DeterministicScheduler {
       return targetKey(left).localeCompare(targetKey(right));
     });
 
+    const acceptedRecoveries: InternalPlacement[] = [];
     for (const lostPlacement of initialLostTargets) {
       const lostKey = targetKey(lostPlacement);
       if (planTargetKeys(rebuilt).has(lostKey)) continue;
@@ -368,20 +395,39 @@ export class RollingRepairScheduler extends DeterministicScheduler {
 
       const trialReleasedIds = new Set(autoReleasedIds);
       let successfulPlan: SchedulerPlan | null = null;
+      const protectedRecoveries = new Set(acceptedRecoveries
+        .filter((p) => recoveryHasPrecedence(p, lostPlacement, change.nextInput))
+        .map(targetKey));
 
       for (const candidate of releaseCandidates) {
         trialReleasedIds.add(candidate.id);
         const trial = buildWithReleased(trialReleasedIds);
-        if (planTargetKeys(trial).has(lostKey)) {
+        if (planTargetKeys(trial).has(lostKey) && retainsCoverage(rebuilt, trial, protectedRecoveries)) {
           successfulPlan = trial;
           break;
         }
       }
 
       if (successfulPlan) {
+        // Bounded greedy backtracking: at most one rebuild per automatically
+        // released seed for each accepted recovery, with no subsets/recursion.
+        // Restore a seed only when the successful plan's coverage survives and
+        // the rebuilt plan validates. Explicit releases remain excluded by
+        // buildWithReleased. A failed probe never replaces the chosen plan.
+        for (const id of [...trialReleasedIds]) {
+          const without = new Set(trialReleasedIds);
+          without.delete(id);
+          const trial = buildWithReleased(without);
+          if (retainsCoverage(successfulPlan, trial) &&
+              super.validatePlan(trial, nextInputWithFrozenSuppressed).length === 0) {
+            trialReleasedIds.delete(id);
+            successfulPlan = trial;
+          }
+        }
         autoReleasedIds.clear();
         for (const id of trialReleasedIds) autoReleasedIds.add(id);
         rebuilt = successfulPlan;
+        acceptedRecoveries.push(lostPlacement);
       }
     }
 
