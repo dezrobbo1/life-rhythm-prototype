@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { Gate5ReducedDayScheduler } from './gate5ReducedDay';
+import { scheduler as primaryScheduler } from './primaryScheduler';
 import type {
   CandidateSchedulingInterval,
   InternalIntention,
   RhythmRequirement,
+  SchedulerPlan,
+  ReducedDayPlanningPolicy,
   SchedulingDomainModel,
 } from './schedulingModel';
 
@@ -95,6 +98,26 @@ function placementFor(
 }
 
 describe('Gate 5 Reduced Day scheduling policy', () => {
+  it('does not force an unlisted daily rhythm to Minimum in a fresh Reduced Day plan', () => {
+    const input = model({ intentions: [], rhythms: [rhythm('daily', { period: 'day', frequency: 1, maxPerDay: 1 })], planningPolicy: { dayMode: 'reduced' } });
+    const plan = primaryScheduler.buildPlan(input);
+    expect(plan.placements).toHaveLength(1);
+    expect(plan.placements[0]).toMatchObject({ start: '09:00', end: '09:20', variantKind: 'normal' });
+  });
+
+  it('preserves an unlisted future rhythm when switching to Reduced Day', () => {
+    const input = model({ intentions: [], rhythms: [rhythm('daily', { period: 'day', frequency: 1, maxPerDay: 1 })] });
+    const before = primaryScheduler.buildPlan(input);
+    expect(before.placements[0]).toMatchObject({ start: '09:00', end: '09:20', variantKind: 'normal' });
+    const after = primaryScheduler.repairPlan(before, {
+      reason: 'Reduced Day requested', trigger: 'userCorrection',
+      now: { date: '2026-09-07', time: '08:00', timezone: 'Australia/Perth' },
+      nextInput: { ...input, planningPolicy: { dayMode: 'reduced' } },
+    });
+    expect(after.placements).toEqual(before.placements);
+    expect(after.repair?.changes).toEqual([]);
+  });
+
   it('keeps normal mode on the normal task form', () => {
     const scheduler = new Gate5ReducedDayScheduler();
     const input = model();
@@ -183,7 +206,7 @@ describe('Gate 5 Reduced Day scheduling policy', () => {
     const input = model({
       intentions: [],
       rhythms: [rhythm('exercise')],
-      planningPolicy: { dayMode: 'reduced' },
+      planningPolicy: { dayMode: 'reduced', reducedDay: { minimumEligibleRhythmIds: ['exercise'] } },
     });
 
     const plan = scheduler.buildPlan(input);
@@ -271,5 +294,135 @@ describe('Gate 5 Reduced Day scheduling policy', () => {
     });
     expect(second.repair?.changes).toEqual([]);
     expect(scheduler.validatePlan(second, reducedInput)).toEqual([]);
+  });
+});
+
+describe('Reduced Day rhythm opt-in contract through the primary scheduler', () => {
+  const scheduler = primaryScheduler;
+  const now = { date: '2026-09-07', time: '08:00', timezone: 'Australia/Perth' };
+  const daily = (id: string) => rhythm(id, {
+    period: 'day', frequency: 1, maxPerDay: 1,
+    title: 'Shared title', templateId: 'shared-template', area: 'movement',
+  });
+  const inputFor = (reducedDay?: ReducedDayPlanningPolicy) => model({
+    intentions: [], rhythms: [daily('a'), daily('b')],
+    planningPolicy: { dayMode: 'reduced', reducedDay },
+  });
+  const repair = (plan: SchedulerPlan, input: SchedulingDomainModel, time = now.time) =>
+    scheduler.repairPlan(plan, { reason: 'Policy changed', trigger: 'userCorrection', now: { ...now, time }, nextInput: input });
+  const optedIn = () => inputFor({ minimumEligibleRhythmIds: ['a'] });
+
+  it.each([undefined, [], ['shared-template', 'Shared title', 'movement', 'unknown']])('keeps Normal without exact ID permission: %j', (ids) => {
+    const input = inputFor({ minimumEligibleRhythmIds: ids });
+    const plan = scheduler.buildPlan(input);
+    expect(plan.placements.map((p) => p.variantKind)).toEqual(['normal', 'normal']);
+    expect(plan.placements.map((p) => p.end)).toEqual(['09:20', '09:40']);
+    expect(scheduler.validatePlan(plan, input)).toEqual([]);
+  });
+
+  it('reduces only the exact opted-in ID, deterministically without input mutation', () => {
+    const input = optedIn();
+    const original = structuredClone(input);
+    const plan = scheduler.buildPlan(input);
+    expect(placementFor(plan, 'a')).toMatchObject({ start: '09:00', end: '09:05', variantKind: 'minimum' });
+    expect(placementFor(plan, 'b')).toMatchObject({ start: '09:05', end: '09:25', variantKind: 'normal' });
+    expect(placementFor(plan, 'a')?.provenance.join(' ')).toContain('Reduced Day');
+    expect(placementFor(plan, 'a')?.provenance.join(' ')).not.toContain('no valid normal-sized');
+    expect(scheduler.buildPlan(input)).toEqual(plan);
+    expect(scheduler.buildPlan(inputFor({ minimumEligibleRhythmIds: ['a', 'unknown', 'a'] }))).toEqual(plan);
+    expect(input).toEqual(original);
+    expect(scheduler.validatePlan(plan, input)).toEqual([]);
+  });
+
+  it.each(['normal', 'disabled'] as const)('respects the %s policy switch in build and repair', (mode) => {
+    const input = optedIn();
+    if (mode === 'normal') input.planningPolicy!.dayMode = 'normal';
+    else input.planningPolicy!.reducedDay!.preferMinimumForFlexibleWork = false;
+    const plan = scheduler.buildPlan(input);
+    expect(plan.placements.every((p) => p.variantKind === 'normal')).toBe(true);
+    expect(repair(plan, input).placements).toEqual(plan.placements);
+  });
+
+  it.each([undefined, 0, -1, NaN, Infinity])('does not fabricate or force an unusable Minimum (%s)', (minutes) => {
+    const input = optedIn();
+    input.rhythms[0].variants = [{ kind: 'normal', label: 'Normal', minutes: 20 },
+      ...(minutes === undefined ? [] : [{ kind: 'minimum' as const, label: 'Minimum', minutes }])];
+    const plan = scheduler.buildPlan(input);
+    expect(placementFor(plan, 'a')).toMatchObject({ end: '09:20', variantKind: 'normal' });
+    expect(repair(plan, input).placements).toEqual(plan.placements);
+    expect(scheduler.validatePlan(plan, input)).toEqual([]);
+  });
+
+  it('shrinks eligible future work in place with honest Changed, Undo, and no subsequent churn', () => {
+    const before = scheduler.buildPlan(inputFor());
+    const input = optedIn();
+    const original = structuredClone(input);
+    const beforeSnapshot = structuredClone(before);
+    const after = repair(before, input);
+    expect(placementFor(after, 'a')).toMatchObject({ id: placementFor(before, 'a')!.id, start: '09:00', end: '09:05', variantKind: 'minimum' });
+    expect(placementFor(after, 'b')).toEqual(placementFor(before, 'b'));
+    expect(after.repair?.changes).toEqual([expect.objectContaining({
+      kind: 'variantChanged', targetKind: 'rhythm', targetId: 'a',
+      from: { date: now.date, start: '09:00', end: '09:20', variantKind: 'normal' },
+      to: { date: now.date, start: '09:00', end: '09:05', variantKind: 'minimum' },
+      reason: expect.stringContaining('Reduced Day'),
+    })]);
+    expect(scheduler.undoRepair(after)).toEqual(before);
+    for (const nextInput of [input, inputFor()]) {
+      const next = repair(after, nextInput);
+      expect(next.placements).toEqual(after.placements);
+      expect(next.repair?.changes).toEqual([]);
+      expect(scheduler.validatePlan(next, nextInput)).toEqual([]);
+    }
+    expect(input).toEqual(original);
+    expect(before).toEqual(beforeSnapshot);
+    expect(scheduler.validatePlan(after, input)).toEqual([]);
+  });
+
+  it('leaves a rhythm with an empty Minimum label on its explicit Normal form', () => {
+    const input = optedIn();
+    input.rhythms[0].variants[0].label = '';
+    const plan = scheduler.buildPlan(input);
+    expect(placementFor(plan, 'a')).toMatchObject({ end: '09:20', variantKind: 'normal' });
+    expect(repair(plan, input).placements).toEqual(plan.placements);
+  });
+
+  it.each(['user', 'past'] as const)('preserves %s authority even with explicit permission', (authority) => {
+    const before = scheduler.buildPlan(inputFor());
+    if (authority === 'user') before.placements[0].origin = 'existingUserConfirmed';
+    const after = repair(before, optedIn(), authority === 'past' ? '09:30' : '08:00');
+    expect(after.placements).toEqual(before.placements);
+    expect(after.repair?.changes).toEqual([]);
+    expect(scheduler.validatePlan(after, optedIn())).toEqual([]);
+  });
+
+  it('retains capacity fallback and its historical explanation without claiming Reduced Day permission', () => {
+    const input = inputFor();
+    input.rhythms = [daily('a')];
+    input.candidateIntervals = [candidate('short', '09:00', '09:10')];
+    const plan = scheduler.buildPlan(input);
+    expect(plan.placements[0]).toMatchObject({ end: '09:05', variantKind: 'minimum' });
+    expect(plan.placements[0].provenance.join(' ')).toContain('no valid normal-sized rhythm placement fit');
+    expect(plan.placements[0].provenance.join(' ')).not.toContain('Reduced Day');
+    const newlyEligible = { ...input, planningPolicy: optedIn().planningPolicy };
+    expect(repair(plan, newlyEligible).placements).toEqual(plan.placements);
+    expect(scheduler.buildPlan({ ...newlyEligible, placements: plan.placements }).placements).toEqual(plan.placements);
+    expect(scheduler.validatePlan(plan, input)).toEqual([]);
+    input.candidateIntervals = [candidate('too-short', '09:00', '09:04')];
+    const unmet = scheduler.buildPlan(input);
+    expect(unmet.placements).toEqual([]);
+    expect(unmet.unscheduledRhythmIds).toEqual(['a']);
+  });
+
+  it.each([null, 'a', {}, [1], [''], ['  '], [undefined]])('rejects malformed eligibility consistently: %j', (invalid) => {
+    const plan = scheduler.buildPlan(inputFor());
+    for (const dayMode of ['normal', 'reduced'] as const) {
+      const input = inputFor({ minimumEligibleRhythmIds: invalid as unknown as string[] });
+      input.planningPolicy!.dayMode = dayMode;
+      const message = 'minimumEligibleRhythmIds must be an array of non-empty strings.';
+      expect(() => scheduler.buildPlan(input)).toThrow(message);
+      expect(() => repair(plan, input)).toThrow(message);
+      expect(() => scheduler.validatePlan(plan, input)).toThrow(message);
+    }
   });
 });

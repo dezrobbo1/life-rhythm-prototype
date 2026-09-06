@@ -132,6 +132,13 @@ export type ReducedDayPlanningPolicy = {
    * placements remain authoritative.
    */
   preferMinimumForFlexibleWork?: boolean;
+  /**
+   * Exact rhythm IDs permitted to use an explicit usable Minimum because of
+   * Reduced Day. Missing/empty means no rhythm opt-in. Caller-supplied policy,
+   * not a persisted preference; ordinary capacity-driven fallback is unchanged.
+   * Requires reduced mode and preferMinimumForFlexibleWork (default true).
+   */
+  minimumEligibleRhythmIds?: string[];
 };
 
 export type SchedulerPlanningPolicy = {
