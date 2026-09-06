@@ -15,7 +15,6 @@ import {
 import { repairCurrentPrivatePlan } from '../data/schedulerPlanCoordinator';
 import { activeTaskSchema, type ActiveTask, type ActiveTaskStatus } from '../data/schemas';
 import {
-  mockTodayTask,
   type MockTask,
   todayStateHints,
   todayStates,
@@ -76,20 +75,77 @@ function areaFromInput(value: string): ActiveTaskArea {
   return 'other';
 }
 
+function neutralTaskDetails(): Pick<MockTask, 'timingReality' | 'hiddenEdges' | 'startBarriers' | 'boostSupports'> {
+  return {
+    timingReality: '',
+    hiddenEdges: [],
+    startBarriers: [
+      'Too big',
+      'Unclear first step',
+      'Too boring',
+      'Low energy',
+      'Not enough time',
+      'Emotionally hard',
+      'Need information',
+      'Pulled to phone',
+    ],
+    boostSupports: {
+      'Too big': [
+        { id: 'minimum', label: 'Use the minimum version', detail: 'Start with the Minimum shown for this task.' },
+        { id: 'hide-the-rest', label: 'Hide the rest for now', detail: 'Hidden, not deleted.' },
+      ],
+      'Unclear first step': [
+        { id: 'first-step', label: 'Name the first step', detail: 'Identify the first action for this task.' },
+        { id: 'choose-object', label: 'Choose the first object', detail: 'Pick the physical object or screen you need first.' },
+      ],
+      'Too boring': [
+        { id: 'make-concrete', label: 'Make the start concrete', detail: 'Name one visible action to begin with.' },
+        { id: 'change-surface', label: 'Change the surface', detail: 'Use a different workspace or tool if it helps with this task.' },
+      ],
+      'Low energy': [
+        { id: 'minimum', label: 'Use the minimum version', detail: 'Start with the Minimum shown for this task.' },
+        { id: 'already-open', label: 'Use what is already open', detail: 'Use what is already within reach if it helps with this task.' },
+      ],
+      'Not enough time': [
+        { id: 'minimum', label: 'Use the minimum version', detail: 'Check whether the Minimum shown for this task fits the time available.' },
+        { id: 'park-the-rest', label: 'Park the rest', detail: 'Everything else can wait for the next review.' },
+      ],
+      'Emotionally hard': [
+        { id: 'gentle-truth', label: 'Use the gentlest truthful wording', detail: 'Write the first step without making it bigger.' },
+        { id: 'support-condition', label: 'Name one support condition', detail: 'Capture what would make this easier to start.' },
+      ],
+      'Need information': [
+        { id: 'missing-question', label: 'Write the missing question', detail: 'Capture the question instead of solving it now.' },
+        { id: 'where-to-look', label: 'Name where to look first', detail: 'Leave a clear place to begin later.' },
+      ],
+      'Pulled to phone': [
+        { id: 'phone-face-down', label: 'Set the phone face down', detail: 'Keep the task on one visible surface.' },
+        { id: 'one-surface', label: 'Keep only what you need open', detail: 'Return to the first action for this task.' },
+      ],
+    },
+  };
+}
+
+function taskSourceDescription(source: ActiveTask['source']): string {
+  return source === 'library'
+    ? 'This task was added from a Library rhythm by you.'
+    : source === 'adhoc'
+      ? 'This one-off was added for today only and is not part of Library.'
+      : 'This is a custom task.';
+}
+
 function taskFromViewModel(task: TaskViewModel | null): MockTask | null {
   if (!task) {
     return null;
   }
 
   return {
-    ...mockTodayTask,
+    ...neutralTaskDetails(),
     area: task.area,
     areaIcon: task.area.toLowerCase().includes('home') ? 'Home' : 'Task',
     chips: task.chips,
     fullVersion: task.versions.full.text,
-    hiddenEdges: task.hiddenEdges.length > 0
-      ? task.hiddenEdges.map((edge) => edge.label)
-      : mockTodayTask.hiddenEdges,
+    hiddenEdges: task.hiddenEdges.map((edge) => edge.label),
     id: task.id,
     minimumVersion: task.versions.minimum.text,
     normalVersion: task.versions.normal.text,
@@ -97,17 +153,17 @@ function taskFromViewModel(task: TaskViewModel | null): MockTask | null {
     recommendedSize: task.recommendedSize,
     timeEdge: task.deadline,
     title: task.title,
+    whyThis: taskSourceDescription(task.source),
   };
 }
 
 function taskFromActiveTask(task: ActiveTask): MockTask {
   return {
-    ...mockTodayTask,
+    ...neutralTaskDetails(),
     area: areaLabels[task.area],
     areaIcon: 'Task',
     chips: ['Minimum counts', 'Start small'],
     fullVersion: task.full.label,
-    hiddenEdges: mockTodayTask.hiddenEdges,
     id: task.id,
     minimumVersion: task.minimum.label,
     normalVersion: task.normal.label,
@@ -124,9 +180,7 @@ function taskFromActiveTask(task: ActiveTask): MockTask {
       timeConstraint: task.timeConstraint,
     },
     title: task.title,
-    whyThis: task.source === 'library'
-      ? 'This task was added from a Library rhythm by you.'
-      : 'This one-off was added for today only and is not part of Library.',
+    whyThis: taskSourceDescription(task.source),
   };
 }
 
