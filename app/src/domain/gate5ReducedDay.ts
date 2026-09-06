@@ -2,6 +2,7 @@ import { RollingRepairScheduler } from './rollingRepair';
 import type {
   InternalIntention,
   InternalPlacement,
+  RhythmRequirement,
   SchedulerChange,
   SchedulerPlan,
   SchedulerPlanChange,
@@ -81,7 +82,23 @@ function reducedDayUsesMinimum(input: SchedulingDomainModel): boolean {
     (input.planningPolicy.reducedDay?.preferMinimumForFlexibleWork ?? true);
 }
 
+function eligibleRhythmMinimum(rhythm: RhythmRequirement, input: SchedulingDomainModel): TaskVariant | undefined {
+  if (!reducedDayUsesMinimum(input) ||
+      !input.planningPolicy?.reducedDay?.minimumEligibleRhythmIds?.includes(rhythm.id)) return undefined;
+  return rhythm.variants.find((variant) => variant.kind === 'minimum' &&
+    Number.isFinite(variant.minutes) && variant.minutes > 0 && variant.label.trim().length > 0);
+}
+
+function validateRhythmEligibility(input: SchedulingDomainModel): void {
+  const ids = input.planningPolicy?.reducedDay?.minimumEligibleRhythmIds;
+  if (ids === undefined) return;
+  if (!Array.isArray(ids) || [...ids].some((id) => typeof id !== 'string' || id.trim().length === 0)) {
+    throw new Error('minimumEligibleRhythmIds must be an array of non-empty strings.');
+  }
+}
+
 function effectiveInput(input: SchedulingDomainModel): SchedulingDomainModel {
+  validateRhythmEligibility(input);
   const policy = input.planningPolicy;
   if (policy?.dayMode !== 'reduced') return input;
 
@@ -98,10 +115,10 @@ function effectiveInput(input: SchedulingDomainModel): SchedulingDomainModel {
         )
       : input.intentions,
     rhythms: preferMinimum
-      ? input.rhythms.map((rhythm) => ({
-          ...rhythm,
-          variants: minimumOnly(rhythm.variants),
-        }))
+      ? input.rhythms.map((rhythm) => {
+          const minimum = eligibleRhythmMinimum(rhythm, input);
+          return minimum ? { ...rhythm, variants: [minimum] } : rhythm;
+        })
       : input.rhythms,
     planningPolicy: {
       ...policy,
@@ -125,7 +142,7 @@ function reducedMinimumForPlacement(
 
   if (targetKind(placement) === 'rhythm') {
     const rhythm = input.rhythms.find((candidate) => candidate.id === targetId(placement));
-    return rhythm ? minimumVariant(rhythm.variants) : undefined;
+    return rhythm ? eligibleRhythmMinimum(rhythm, input) : undefined;
   }
 
   const intention = input.intentions.find((candidate) => candidate.id === placement.intentionId);
@@ -182,6 +199,12 @@ function applyReducedDay(plan: SchedulerPlan, input: SchedulingDomainModel): Sch
 
     const currentMinutes = placementMinutes(placement);
     const alreadyMinimum = placement.variantKind === 'minimum' && currentMinutes === minimum.minutes;
+    // A preserved valid Minimum may have historical capacity-fallback provenance.
+    // A new policy opt-in alone is not a new sizing decision.
+    if (targetKind(placement) === 'rhythm' && alreadyMinimum &&
+        (plan.repair?.preservedPlacementIds.includes(placement.id) ||
+         input.placements.some((existing) => existing.id === placement.id &&
+           existing.variantKind === 'minimum' && placementMinutes(existing) === minimum.minutes))) return placement;
     const canShrink = minimum.minutes > 0 && minimum.minutes <= currentMinutes;
     if (!alreadyMinimum && !canShrink) return placement;
 

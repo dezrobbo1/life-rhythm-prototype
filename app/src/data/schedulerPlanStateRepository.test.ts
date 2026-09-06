@@ -455,6 +455,54 @@ describe('persisted Gate 4 scheduler plan state', () => {
     }
   });
 
+  it('persists rhythm-specific Reduced Day sizing and Changed metadata, then restores both through Undo', async () => {
+    const database = createTestDatabase();
+    const input = model([candidate('ample', '09:00', '12:00')]);
+    input.intentions = [];
+    input.rhythms = ['eligible', 'unlisted'].map((id) => ({
+      ...rhythm(id),
+      variants: [
+        { kind: 'minimum' as const, label: 'Minimum', minutes: 5 },
+        { kind: 'normal' as const, label: 'Normal', minutes: 20 },
+      ],
+    }));
+    try {
+      const built = await buildAndPersistSchedulerPlan(input, database, '2026-09-07T00:00:00.000Z');
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+      expect(built.plan.placements.map((p) => p.variantKind)).toEqual(['normal', 'normal']);
+      const repaired = await repairAndPersistSchedulerPlan({
+        reason: 'Reduced Day explicit rhythm opt-in', trigger: 'userCorrection',
+        now: { date: today, time: '08:00', timezone },
+        nextInput: { ...input, planningPolicy: {
+          dayMode: 'reduced', reducedDay: { minimumEligibleRhythmIds: ['eligible'] },
+        } },
+      }, database, '2026-09-07T00:05:00.000Z');
+      if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+      const loaded = await loadSchedulerPlanState(database);
+      if (loaded.status !== 'ok') throw new Error('Expected repaired rhythms to reload.');
+      expect(loaded.plan).toEqual(repaired.plan);
+      expect(loaded.plan.placements[0]).toMatchObject({
+        id: built.plan.placements[0].id, rhythmId: 'eligible', start: '09:00', end: '09:05', variantKind: 'minimum',
+      });
+      expect(loaded.plan.placements[1]).toEqual(built.plan.placements[1]);
+      expect(loaded.plan.repair?.changes).toEqual([expect.objectContaining({
+        kind: 'variantChanged', targetId: 'eligible', targetKind: 'rhythm',
+        from: expect.objectContaining({ end: '09:20', variantKind: 'normal' }),
+        to: expect.objectContaining({ end: '09:05', variantKind: 'minimum' }),
+        reason: expect.stringContaining('Reduced Day'),
+      })]);
+      const undone = await undoPersistedSchedulerRepair(database, '2026-09-07T00:06:00.000Z');
+      if (!undone.ok) throw new Error(undone.errors.join('\n'));
+      expect(undone.plan).toEqual(built.plan);
+      const reloaded = await loadSchedulerPlanState(database);
+      if (reloaded.status !== 'ok') throw new Error('Expected undone rhythms to reload.');
+      expect(reloaded.plan).toEqual(built.plan);
+      await expectOnlySchedulerPlanStateWritten(database);
+    } finally {
+      await database.delete();
+    }
+  });
+
   it('fails closed on malformed saved scheduler state instead of replacing it during repair', async () => {
     const database = createTestDatabase();
 
