@@ -261,18 +261,18 @@ export function TaskCard({
               </div>
             </dl>
           </section>
-          <section>
+          {task.timingReality.trim() ? <section>
             <h3>Timing reality</h3>
             <p>{task.timingReality}</p>
-          </section>
-          <section>
+          </section> : null}
+          {task.hiddenEdges.length > 0 ? <section>
             <h3>Hidden edges</h3>
             <ul>
               {task.hiddenEdges.map((edge) => (
                 <li key={edge}>{edge}</li>
               ))}
             </ul>
-          </section>
+          </section> : null}
           <div className="task-card__quiet-actions" aria-label="Placeholder task actions">
             <button type="button">Edit later</button>
             <button type="button">Move later</button>

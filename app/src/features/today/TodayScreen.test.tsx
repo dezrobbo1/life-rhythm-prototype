@@ -37,6 +37,9 @@ vi.mock('../../data/settingsRepository', async (importOriginal) => {
 
 import App from '../../App';
 import { TodayScreen } from '../../screens/TodayScreen';
+import { AppSnapshotProvider } from '../../data/AppSnapshotProvider';
+import { normalDayWithOneTaskSnapshot, oneOffTodayTask } from '../../viewModels/fixtures';
+import { mockTodayTask } from './mockTodayData';
 
 function persistedOneOffTask(overrides: Partial<ActiveTask> = {}): ActiveTask {
   return activeTaskSchema.parse({
@@ -125,6 +128,51 @@ afterEach(() => {
 });
 
 describe('Today screen', () => {
+  it.each(['adhoc', 'library'] as const)('does not leak mock Details into a persisted %s task', async (source) => {
+    const task = persistedOneOffTask({ source, ...(source === 'library' ? { templateId: 'water-bill' } : {}) });
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([task]);
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+    const card = await screen.findByRole('article', { name: task.title });
+    await user.click(within(card).getByRole('button', { name: 'Details' }));
+    for (const copy of [mockTodayTask.timingReality, ...mockTodayTask.hiddenEdges]) {
+      expect.soft(within(card).queryByText(copy)).toBeNull();
+    }
+    for (const copy of [task.purpose!, task.minimum.label, task.normal.label, task.full.label, '5 min minimum']) {
+      expect(within(card).getByText(copy)).toBeTruthy();
+    }
+    expect(within(card).queryByRole('heading', { name: 'Timing reality' })).toBeNull();
+    expect(within(card).queryByRole('heading', { name: 'Hidden edges' })).toBeNull();
+  });
+
+  it('does not leak mock Details into a real view-model task', async () => {
+    const user = userEvent.setup();
+    render(<AppSnapshotProvider source="read-only adapter" snapshot={{ ...normalDayWithOneTaskSnapshot, activeTasks: [oneOffTodayTask] }}><TodayScreen /></AppSnapshotProvider>);
+    const card = screen.getByRole('article', { name: 'Pay water bill' });
+    await user.click(within(card).getByRole('button', { name: 'Details' }));
+    for (const copy of [mockTodayTask.timingReality, ...mockTodayTask.hiddenEdges, mockTodayTask.whyThis]) {
+      expect.soft(within(card).queryByText(copy)).toBeNull();
+    }
+  });
+
+  it('retains authored mock fixture details', () => {
+    expect(mockTodayTask.timingReality).toBe('Best before shutdown. If the day is full, two minutes still counts.');
+    expect(mockTodayTask.hiddenEdges).toEqual(['Find the note or place to capture it', 'Decide what is hidden rather than deleted']);
+  });
+
+  it.each([
+    ['dueBy', 'dueAt', 'Useful before'],
+    ['fixedAt', 'fixedAt', 'Tied to'],
+    ['expiresAfter', 'expiresAfter', 'Useful until'],
+  ] as const)('retains persisted %s time-edge presentation', async (timeConstraint, field, label) => {
+    const instant = '2030-09-11T09:00:00.000Z';
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask({ timeConstraint, [field]: instant })]);
+    render(<TodayScreen />);
+    const card = await screen.findByRole('article', { name: 'Pay water bill' });
+    const formatted = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(instant));
+    expect(within(card).getByText(`${label} ${formatted}`)).toBeTruthy();
+  });
+
   it('renders the Today surface', () => {
     render(<TodayScreen />);
 
@@ -921,7 +969,7 @@ describe('Today screen', () => {
     await user.click(screen.getByRole('button', { name: 'Unclear first step' }));
 
     expect(screen.getByText('Choose one support')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Finish one sentence/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Name the first step/ })).toBeTruthy();
     expect(screen.queryByText('Did that reduce friction?')).toBeNull();
   });
 
@@ -931,7 +979,7 @@ describe('Today screen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Start Boost' }));
     await user.click(screen.getByRole('button', { name: 'Low energy' }));
-    await user.click(screen.getByRole('button', { name: /Use the two-minute version/ }));
+    await user.click(screen.getByRole('button', { name: /Use the minimum version/ }));
 
     expect(screen.getByText('Did that reduce friction?')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Yes' })).toBeTruthy();

@@ -15,7 +15,6 @@ import {
 import { repairCurrentPrivatePlan } from '../data/schedulerPlanCoordinator';
 import { activeTaskSchema, type ActiveTask, type ActiveTaskStatus } from '../data/schemas';
 import {
-  mockTodayTask,
   type MockTask,
   todayStateHints,
   todayStates,
@@ -76,20 +75,44 @@ function areaFromInput(value: string): ActiveTaskArea {
   return 'other';
 }
 
+function neutralTaskDetails(): Pick<MockTask, 'timingReality' | 'hiddenEdges' | 'startBarriers' | 'boostSupports'> {
+  return {
+    timingReality: '',
+    hiddenEdges: [],
+    startBarriers: ['Too big', 'Unclear first step', 'Low energy'],
+    boostSupports: {
+      'Too big': [{ id: 'minimum', label: 'Use the minimum version', detail: 'Start with the Minimum shown for this task.' }],
+      'Unclear first step': [{ id: 'first-step', label: 'Name the first step', detail: 'Identify the first action for this task.' }],
+      'Low energy': [{ id: 'minimum', label: 'Use the minimum version', detail: 'Start with the Minimum shown for this task.' }],
+      'Too boring': [],
+      'Not enough time': [],
+      'Emotionally hard': [],
+      'Need information': [],
+      'Pulled to phone': [],
+    },
+  };
+}
+
+function taskSourceDescription(source: ActiveTask['source']): string {
+  return source === 'library'
+    ? 'This task was added from a Library rhythm by you.'
+    : source === 'adhoc'
+      ? 'This one-off was added for today only and is not part of Library.'
+      : 'This is a custom task.';
+}
+
 function taskFromViewModel(task: TaskViewModel | null): MockTask | null {
   if (!task) {
     return null;
   }
 
   return {
-    ...mockTodayTask,
+    ...neutralTaskDetails(),
     area: task.area,
     areaIcon: task.area.toLowerCase().includes('home') ? 'Home' : 'Task',
     chips: task.chips,
     fullVersion: task.versions.full.text,
-    hiddenEdges: task.hiddenEdges.length > 0
-      ? task.hiddenEdges.map((edge) => edge.label)
-      : mockTodayTask.hiddenEdges,
+    hiddenEdges: task.hiddenEdges.map((edge) => edge.label),
     id: task.id,
     minimumVersion: task.versions.minimum.text,
     normalVersion: task.versions.normal.text,
@@ -97,17 +120,17 @@ function taskFromViewModel(task: TaskViewModel | null): MockTask | null {
     recommendedSize: task.recommendedSize,
     timeEdge: task.deadline,
     title: task.title,
+    whyThis: taskSourceDescription(task.source),
   };
 }
 
 function taskFromActiveTask(task: ActiveTask): MockTask {
   return {
-    ...mockTodayTask,
+    ...neutralTaskDetails(),
     area: areaLabels[task.area],
     areaIcon: 'Task',
     chips: ['Minimum counts', 'Start small'],
     fullVersion: task.full.label,
-    hiddenEdges: mockTodayTask.hiddenEdges,
     id: task.id,
     minimumVersion: task.minimum.label,
     normalVersion: task.normal.label,
@@ -124,9 +147,7 @@ function taskFromActiveTask(task: ActiveTask): MockTask {
       timeConstraint: task.timeConstraint,
     },
     title: task.title,
-    whyThis: task.source === 'library'
-      ? 'This task was added from a Library rhythm by you.'
-      : 'This one-off was added for today only and is not part of Library.',
+    whyThis: taskSourceDescription(task.source),
   };
 }
 
