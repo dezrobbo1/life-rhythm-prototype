@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import 'fake-indexeddb/auto';
+import { createLifeRhythmDatabase } from '../data/db';
+import { buildAndPersistSchedulerPlan, repairAndPersistSchedulerPlan, loadSchedulerPlanState, undoPersistedSchedulerRepair } from '../data/schedulerPlanStateRepository';
 import { primarySchedulerStatus, scheduler as primaryScheduler } from './primaryScheduler';
 import { RollingRepairScheduler } from './rollingRepair';
 import type {
@@ -6,6 +9,7 @@ import type {
   InternalIntention,
   InternalPlacement,
   SchedulerPlan,
+  SchedulerChange,
   SchedulingDomainModel,
 } from './schedulingModel';
 
@@ -13,6 +17,29 @@ const timezone = 'Australia/Perth';
 const today = '2026-09-07';
 const tomorrow = '2026-09-08';
 const later = '2026-09-10';
+let acceptanceDatabaseIndex = 0;
+
+async function verifyPersistedAcceptance(input: SchedulingDomainModel, change: SchedulerChange, expected: SchedulerPlan) {
+  const database = createLifeRhythmDatabase(`repair-acceptance-${++acceptanceDatabaseIndex}`);
+  try {
+    const built = await buildAndPersistSchedulerPlan(input, database);
+    if (!built.ok) throw new Error(built.errors.join('\n'));
+    const repaired = await repairAndPersistSchedulerPlan(change, database);
+    if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+    const loaded = await loadSchedulerPlanState(database);
+    if (loaded.status !== 'ok') throw new Error('Repair did not reload.');
+    expect(loaded.plan.placements).toEqual(expected.placements);
+    expect(loaded.plan.unscheduledRhythmIds).toEqual(expected.unscheduledRhythmIds);
+    expect(loaded.plan.repair?.changes).toEqual(expected.repair?.changes);
+    const undone = await undoPersistedSchedulerRepair(database);
+    if (!undone.ok) throw new Error(undone.errors.join('\n'));
+    const restored = await loadSchedulerPlanState(database);
+    if (restored.status !== 'ok') throw new Error('Undo did not reload.');
+    expect(restored.plan).toEqual(built.plan);
+  } finally {
+    await database.delete();
+  }
+}
 
 function intention(id: string, priority: 'must' | 'normal' = 'normal'): InternalIntention {
   return {
@@ -219,6 +246,88 @@ describe('primary scheduler entry point', () => {
 
 describe('speculative auto-release through the primary scheduler', () => {
   const now = { date: today, time: '08:00', timezone };
+
+  it('later acceptance retains the protected Normal-40 recovery', async () => {
+    const tasks = ['z-surfaced', 'a-second', 'zz-block-early', 'zz-block-late'].map((id, i) => ({
+      ...intention(id), variants: [{ kind: 'normal' as const, label: 'Normal', minutes: i === 1 ? 60 : 40 },
+        ...(i === 0 ? [{ kind: 'minimum' as const, label: 'Minimum', minutes: 20 }] : [])],
+    }));
+    const input = model(tasks, [candidate('today', today, '09:00', '11:00'), candidate('tomorrow', tomorrow, '09:00', '10:20')], [
+      placement('p-first', 'z-surfaced', today, '09:00', '09:40'), placement('p-second', 'a-second', today, '10:00', '11:00'),
+      placement('p-early', 'zz-block-early', tomorrow, '09:00', '09:40'), placement('p-late', 'zz-block-late', tomorrow, '09:40', '10:20'),
+    ]);
+    const before = primaryScheduler.buildPlan(input);
+    expect(primaryScheduler.validatePlan(before, input)).toEqual([]);
+    const nextInput = { ...input, placements: [], candidateIntervals: input.candidateIntervals!.slice(1) };
+    const chosen = primaryScheduler.buildPlan({ ...nextInput, placements: [input.placements[2]] });
+    const trial = primaryScheduler.buildPlan(nextInput);
+    expect(chosen.placements.find((p) => p.intentionId === 'z-surfaced')).toMatchObject({ variantKind: 'normal', start: '09:40', end: '10:20' });
+    expect(trial.placements.find((p) => p.intentionId === 'z-surfaced')).toMatchObject({ variantKind: 'minimum', start: '10:00', end: '10:20' });
+    const repaired = primaryScheduler.repairPlan(before, { reason: 'Today removed', now, nextInput, surfacedPlacementIds: ['p-first'] });
+    expect(repaired.placements).toEqual(chosen.placements);
+    expect(primaryScheduler.validatePlan(repaired, nextInput)).toEqual([]);
+    await verifyPersistedAcceptance(input, { reason: 'Today removed', now, nextInput, surfacedPlacementIds: ['p-first'] }, repaired);
+  });
+
+  it.each(['day', 'week', 'month', 'bounded-week'] as const)('restoration respects %s requirement periods', async (mode) => {
+    const period = mode === 'bounded-week' ? 'week' : mode;
+    const seedDate = mode === 'bounded-week' ? '2026-09-11' : period === 'month' ? '2026-09-30' : '2026-09-10';
+    const newDate = mode === 'bounded-week' ? '2026-09-14' : period === 'month' ? '2026-10-01' : period === 'week' ? '2026-09-21' : '2026-09-11';
+    const urgent = { ...intention('urgent', 'must'), variants: [{ kind: 'normal' as const, label: 'Normal', minutes: 40 }], timing: { timeConstraint: 'dueBy' as const, dueAt: `${tomorrow}T09:40:00+08:00` } };
+    const blocker = { ...intention('blocker', 'must'), variants: urgent.variants };
+    const rhythm = { id: 'r', templateId: 'r', title: 'Rhythm', area: 'admin' as const, period, frequency: 1, maxPerDay: 1, preferredDays: [], preferredTime: 'anytime' as const, variants: urgent.variants, sourceRecords: [] };
+    const seed = { ...placement('p-r', 'r', seedDate, '09:00', '09:40'), targetKind: 'rhythm' as const, rhythmId: 'r' };
+    const input = model([urgent, blocker], [candidate('today', today, '09:00', '09:40'), candidate('tomorrow', tomorrow, '09:00', '09:40'), candidate('seed', seedDate, '09:00', '09:40')],
+      [placement('p-urgent', 'urgent', today, '09:00', '09:40'), placement('p-blocker', 'blocker', tomorrow, '09:00', '09:40'), seed]);
+    input.rhythms = [rhythm];
+    input.rhythmPlanningDates = mode === 'bounded-week' ? [tomorrow, seedDate, newDate] : [today, tomorrow, seedDate, newDate];
+    const stable = mode === 'bounded-week' ? [] : [{ ...seed, id: 'p-stable', date: '2026-12-01', origin: 'existingUserConfirmed' as const }];
+    if (stable.length) {
+      input.placements.push(...stable);
+      input.candidateIntervals!.push(candidate('stable', '2026-12-01', '09:00', '09:40'));
+      input.rhythmPlanningDates.push('2026-12-01');
+    }
+    const before = primaryScheduler.buildPlan(input);
+    expect(primaryScheduler.validatePlan(before, input)).toEqual([]);
+    const nextInput = { ...input, placements: [], candidateIntervals: [...input.candidateIntervals!.slice(1), candidate('new', newDate, '09:00', '09:40')] };
+    const chosen = primaryScheduler.buildPlan({ ...nextInput, placements: stable });
+    const probe = primaryScheduler.buildPlan({ ...nextInput, placements: [seed, ...stable] });
+    expect(chosen.unscheduledRhythmIds).toEqual(mode === 'bounded-week' ? [] : ['r']);
+    expect(probe.unscheduledRhythmIds).toEqual(mode === 'bounded-week' ? [] : ['r']);
+    expect(chosen.placements.filter((p) => p.targetKind === 'rhythm')).toHaveLength(1 + stable.length);
+    expect(probe.placements.filter((p) => p.targetKind === 'rhythm')).toHaveLength(1 + stable.length);
+    expect(chosen.placements.find((p) => p.rhythmId === 'r')?.date).toBe(newDate);
+    expect(probe.placements.find((p) => p.rhythmId === 'r')?.date).toBe(seedDate);
+    expect(primaryScheduler.validatePlan(chosen, nextInput)).toEqual([]);
+    expect(primaryScheduler.validatePlan(probe, nextInput)).toEqual([]);
+    const repaired = primaryScheduler.repairPlan(before, { reason: 'Today removed and future capacity supplied', now, nextInput });
+    expect(repaired.placements).toEqual((mode === 'bounded-week' ? probe : chosen).placements);
+    expect(primaryScheduler.validatePlan(repaired, nextInput)).toEqual([]);
+    await verifyPersistedAcceptance(input, { reason: 'Today removed and future capacity supplied', now, nextInput }, repaired);
+  });
+
+  it('later acceptance retains a protected daily rhythm in its recovered period', () => {
+    const rhythm = (id: string, minutes: number) => ({ id, templateId: id, title: id, area: 'admin' as const, period: 'day' as const, frequency: 1, maxPerDay: 1, preferredDays: [], preferredTime: 'anytime' as const, variants: [{ kind: 'normal' as const, label: 'Normal', minutes }], sourceRecords: [] });
+    const input = model(['early', 'late', 'other'].map((id, i) => ({ ...intention(id), variants: [{ kind: 'normal' as const, label: 'Normal', minutes: i === 0 ? 20 : 40 }] })),
+      [candidate('today', today, '09:00', '11:00'), candidate('A', tomorrow, '09:00', '09:40'), candidate('B', later, '09:00', '10:00')], [
+        { ...placement('p-high', 'z-high', today, '09:00', '09:40'), targetKind: 'rhythm', rhythmId: 'z-high' },
+        { ...placement('p-low', 'a-low', today, '10:00', '11:00'), targetKind: 'rhythm', rhythmId: 'a-low' },
+        placement('p-other', 'other', tomorrow, '09:00', '09:40'), placement('p-early', 'early', later, '09:00', '09:20'), placement('p-late', 'late', later, '09:20', '10:00'),
+      ]);
+    input.rhythms = [rhythm('z-high', 40), rhythm('a-low', 60)];
+    const before = primaryScheduler.buildPlan(input);
+    expect(primaryScheduler.validatePlan(before, input)).toEqual([]);
+    const nextInput = { ...input, placements: [], candidateIntervals: input.candidateIntervals!.slice(1) };
+    const chosen = primaryScheduler.buildPlan({ ...nextInput, placements: input.placements.slice(2, 4) });
+    const trial = primaryScheduler.buildPlan(nextInput);
+    expect(chosen.placements.find((p) => p.rhythmId === 'z-high')?.date).toBe(later);
+    expect(trial.placements.find((p) => p.rhythmId === 'z-high')?.date).toBe(tomorrow);
+    expect(chosen.unscheduledRhythmIds).toContain('z-high');
+    expect(trial.unscheduledRhythmIds).toContain('z-high');
+    const repaired = primaryScheduler.repairPlan(before, { reason: 'Today removed', now, nextInput, surfacedPlacementIds: ['p-high'] });
+    expect(repaired.placements).toEqual(chosen.placements);
+    expect(primaryScheduler.validatePlan(repaired, nextInput)).toEqual([]);
+  });
 
   function prefixFixture() {
     const urgent = intention('urgent', 'must');

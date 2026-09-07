@@ -755,6 +755,13 @@ function isBoundedWeeklyHorizon(rhythm: RhythmRequirement, dates: string[]): boo
     dates[dates.length - 1] <= addDays(dates[0], 6);
 }
 
+/** The same requirement bucket used for scheduling, including the bounded rolling week. */
+export function rhythmRequirementPeriodKey(rhythm: RhythmRequirement, date: string, input: SchedulingDomainModel): string {
+  const dates = rhythmPlanningDates(input);
+  return isBoundedWeeklyHorizon(rhythm, dates) && date >= dates[0] && date <= dates[dates.length - 1]
+    ? `rolling:${dates[0]}` : rhythmPeriodKey(rhythm, date);
+}
+
 function findPlacementForRhythm(
   rhythm: RhythmRequirement,
   accepted: InternalPlacement[],
@@ -907,10 +914,10 @@ function scheduleRhythms(
     const periodDates = new Map<string, string[]>();
     const boundedWeeklyHorizon = isBoundedWeeklyHorizon(rhythm, planningDates);
     if (boundedWeeklyHorizon) {
-      periodDates.set(`rolling:${planningDates[0]}`, planningDates);
+      periodDates.set(rhythmRequirementPeriodKey(rhythm, planningDates[0], input), planningDates);
     } else {
       for (const date of planningDates) {
-        const key = rhythmPeriodKey(rhythm, date);
+        const key = rhythmRequirementPeriodKey(rhythm, date, input);
         const dates = periodDates.get(key) ?? [];
         dates.push(date);
         periodDates.set(key, dates);

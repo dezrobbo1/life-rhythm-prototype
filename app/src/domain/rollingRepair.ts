@@ -1,4 +1,4 @@
-import { compareIntentionSchedulingPriority, DeterministicScheduler, isFirstPassIntention } from './scheduler';
+import { compareIntentionSchedulingPriority, DeterministicScheduler, isFirstPassIntention, rhythmRequirementPeriodKey } from './scheduler';
 import type {
   InternalPlacement,
   SchedulerChange,
@@ -141,10 +141,24 @@ function planTargetKeys(plan: SchedulerPlan): Set<string> {
   return new Set(plan.placements.map(targetKey));
 }
 
-function retainsCoverage(before: SchedulerPlan, after: SchedulerPlan, keys = planTargetKeys(before)): boolean {
+function coverageKey(placement: InternalPlacement, input: SchedulingDomainModel): string {
+  const rhythm = placementTargetKind(placement) === 'rhythm'
+    ? input.rhythms.find((r) => r.id === placementTargetId(placement)) : undefined;
+  return JSON.stringify([targetKey(placement), rhythm ? rhythmRequirementPeriodKey(rhythm, placement.date, input) : null]);
+}
+
+function retainsCoverage(before: SchedulerPlan, after: SchedulerPlan, input: SchedulingDomainModel, keys = planTargetKeys(before)): boolean {
   for (const key of keys) {
-    const count = (plan: SchedulerPlan) => plan.placements.filter((p) => targetKey(p) === key).length;
-    if (count(after) < count(before)) return false;
+    const counts = (plan: SchedulerPlan) => {
+      const result = new Map<string, number>();
+      for (const p of plan.placements.filter((p) => targetKey(p) === key)) {
+        const bucket = coverageKey(p, input);
+        result.set(bucket, (result.get(bucket) ?? 0) + 1);
+      }
+      return result;
+    };
+    const next = counts(after);
+    if ([...counts(before)].some(([bucket, count]) => (next.get(bucket) ?? 0) < count)) return false;
     // One surviving rhythm occurrence is not proof that its requirement is met.
     if (key.startsWith('rhythm:') && !before.unscheduledRhythmIds.includes(key.slice(7)) &&
         after.unscheduledRhythmIds.includes(key.slice(7))) return false;
@@ -152,7 +166,7 @@ function retainsCoverage(before: SchedulerPlan, after: SchedulerPlan, keys = pla
   return true;
 }
 
-function retainsExecutionForms(before: SchedulerPlan, after: SchedulerPlan): boolean {
+function retainsExecutionForms(before: SchedulerPlan, after: SchedulerPlan, input: SchedulingDomainModel, keys = planTargetKeys(before)): boolean {
   const forms = (plan: SchedulerPlan) => {
     const counts = new Map<string, number>();
     const minutes = (time: string) => {
@@ -160,7 +174,8 @@ function retainsExecutionForms(before: SchedulerPlan, after: SchedulerPlan): boo
       return hours * 60 + minute;
     };
     for (const placement of plan.placements) {
-      const key = JSON.stringify([targetKey(placement), placement.variantKind,
+      if (!keys.has(targetKey(placement))) continue;
+      const key = JSON.stringify([coverageKey(placement, input), placement.variantKind,
         minutes(placement.end) - minutes(placement.start)]);
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
@@ -424,7 +439,8 @@ export class RollingRepairScheduler extends DeterministicScheduler {
       for (const candidate of releaseCandidates) {
         trialReleasedIds.add(candidate.id);
         const trial = buildWithReleased(trialReleasedIds);
-        if (planTargetKeys(trial).has(lostKey) && retainsCoverage(rebuilt, trial, protectedRecoveries)) {
+        if (planTargetKeys(trial).has(lostKey) && retainsCoverage(rebuilt, trial, change.nextInput, protectedRecoveries) &&
+            retainsExecutionForms(rebuilt, trial, change.nextInput, protectedRecoveries)) {
           successfulPlan = trial;
           break;
         }
@@ -440,7 +456,7 @@ export class RollingRepairScheduler extends DeterministicScheduler {
           const without = new Set(trialReleasedIds);
           without.delete(id);
           const trial = buildWithReleased(without);
-          if (retainsCoverage(successfulPlan, trial) && retainsExecutionForms(successfulPlan, trial) &&
+          if (retainsCoverage(successfulPlan, trial, change.nextInput) && retainsExecutionForms(successfulPlan, trial, change.nextInput) &&
               super.validatePlan(trial, nextInputWithFrozenSuppressed).length === 0) {
             trialReleasedIds.delete(id);
             successfulPlan = trial;
