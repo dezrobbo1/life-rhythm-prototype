@@ -253,6 +253,72 @@ describe('speculative auto-release through the primary scheduler', () => {
     expect(primaryScheduler.validatePlan(repaired, nextInput)).toEqual([]);
   });
 
+  it('review P1: optional restoration cannot exchange recovered Normal for Minimum', () => {
+    const { beforeInput } = prefixFixture();
+    const large = intention('large');
+    large.variants = [{ kind: 'normal', label: 'Normal', minutes: 60 }, { kind: 'minimum', label: 'Minimum', minutes: 20 }];
+    beforeInput.intentions.push(large);
+    beforeInput.candidateIntervals = [candidate('today', today, '09:00', '11:00'), candidate('tomorrow', tomorrow), candidate('later', later, '09:00', '10:40')];
+    beforeInput.placements[2] = placement('p-distant', 'distant', later, '09:40', '10:00');
+    beforeInput.placements.push(placement('p-large', 'large', today, '10:00', '11:00'));
+    const before = primaryScheduler.buildPlan(beforeInput);
+    expect(primaryScheduler.validatePlan(before, beforeInput)).toEqual([]);
+    const nextInput: SchedulingDomainModel = { ...beforeInput, placements: [], candidateIntervals: beforeInput.candidateIntervals.slice(1) };
+    const successful = primaryScheduler.buildPlan(nextInput);
+    const probe = primaryScheduler.buildPlan({ ...nextInput, placements: [beforeInput.placements[2]] });
+    expect(successful.placements.find((p) => p.intentionId === 'large')).toMatchObject({ start: '09:40', end: '10:40', variantKind: 'normal' });
+    expect(probe.placements.find((p) => p.intentionId === 'large')).toMatchObject({ start: '09:20', end: '09:40', variantKind: 'minimum' });
+    expect(primaryScheduler.validatePlan(successful, nextInput)).toEqual([]);
+    expect(primaryScheduler.validatePlan(probe, nextInput)).toEqual([]);
+    const original = structuredClone({ before, nextInput });
+    const repaired = primaryScheduler.repairPlan(before, { reason: 'Today slots removed', now, nextInput });
+    expect(repaired.placements).toEqual(successful.placements);
+    expect(repaired.unscheduledIntentionIds).toEqual([]);
+    expect(repaired.repair?.changes.find((c) => c.targetId === 'large')?.to).toMatchObject({ variantKind: 'normal', start: '09:40', end: '10:40' });
+    const repeated = primaryScheduler.repairPlan(repaired, { reason: 'Unchanged', now, nextInput });
+    expect(repeated.placements).toEqual(repaired.placements);
+    expect(repeated.repair?.changes).toEqual([]);
+    expect({ before, nextInput }).toEqual(original);
+    expect(primaryScheduler.validatePlan(repaired, nextInput)).toEqual([]);
+    const fallbackInput: SchedulingDomainModel = { ...nextInput, intentions: [large], candidateIntervals: [candidate('short', later)] };
+    const fallback = primaryScheduler.repairPlan(before, { reason: 'Only Minimum fits', now, nextInput: fallbackInput });
+    expect(fallback.placements).toHaveLength(1);
+    expect(fallback.placements[0]).toMatchObject({ start: '09:00', end: '09:20', variantKind: 'minimum' });
+    expect(fallback.placements[0].provenance.join(' ')).toContain('no valid normal-sized placement fit');
+    expect(primaryScheduler.validatePlan(fallback, fallbackInput)).toEqual([]);
+    const reducedInput = { ...nextInput, planningPolicy: { dayMode: 'reduced' as const } };
+    const reduced = primaryScheduler.repairPlan(before, { reason: 'Reduced Day', now, nextInput: reducedInput });
+    expect(reduced.placements.find((p) => p.intentionId === 'large')?.variantKind).toBe('minimum');
+    expect(primaryScheduler.validatePlan(reduced, reducedInput)).toEqual([]);
+  });
+
+  it.each(['equal', 'due-by'] as const)('review: incidental surfaced recovery versus %s priority', (priority) => {
+    const tasks = [['b-primary', 20], ['c-incidental', 20], ['a-attempt', 60], ['zz-block-early', 40], ['zz-block-late', 40]] as const;
+    const intentions = tasks.map(([id, minutes]) => ({ ...intention(id), variants: [{ kind: 'normal' as const, label: 'Normal', minutes }] }));
+    if (priority === 'due-by') intentions[2].timing = { timeConstraint: 'dueBy', dueAt: `${tomorrow}T10:20:00+08:00` };
+    const input = model(intentions, [candidate('today', today, '09:00', '11:00'), candidate('tomorrow', tomorrow, '09:00', '10:20')], [
+      placement('p-primary', 'b-primary', today), placement('p-incidental', 'c-incidental', today, '09:20', '09:40'),
+      placement('p-attempt', 'a-attempt', today, '10:00', '11:00'), placement('p-early', 'zz-block-early', tomorrow, '09:00', '09:40'),
+      placement('p-late', 'zz-block-late', tomorrow, '09:40', '10:20'),
+    ]);
+    const before = primaryScheduler.buildPlan(input);
+    expect(primaryScheduler.validatePlan(before, input)).toEqual([]);
+    expect(before.placements).toEqual(input.placements);
+    const nextInput = { ...input, placements: [], candidateIntervals: input.candidateIntervals!.slice(1) };
+    const first = primaryScheduler.buildPlan({ ...nextInput, placements: [input.placements[3]] });
+    expect(first.placements.map((p) => p.intentionId)).toEqual(['zz-block-early', 'b-primary', 'c-incidental']);
+    const laterTrial = primaryScheduler.buildPlan(nextInput);
+    expect(laterTrial.placements.map((p) => p.intentionId)).toEqual(['a-attempt', 'b-primary']);
+    const original = structuredClone({ before, nextInput });
+    const change = { reason: 'Today slots removed', now, nextInput, surfacedPlacementIds: ['p-primary', 'p-incidental'] };
+    const repaired = primaryScheduler.repairPlan(before, change);
+    expect(repaired.placements).toEqual((priority === 'equal' ? first : laterTrial).placements);
+    expect(repaired.unscheduledIntentionIds).toEqual((priority === 'equal' ? first : laterTrial).unscheduledIntentionIds);
+    expect(primaryScheduler.validatePlan(repaired, nextInput)).toEqual([]);
+    expect(primaryScheduler.repairPlan(repaired, change).repair?.changes).toEqual([]);
+    expect({ before, nextInput }).toEqual(original);
+  });
+
   it.each(['equal-priority', 'due-by'] as const)('B: respects earlier surfaced recovery versus %s work', (priority) => {
     const second = intention('a-second');
     second.variants = [{ kind: 'normal', label: 'Normal', minutes: 40 }];

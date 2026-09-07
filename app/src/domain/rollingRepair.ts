@@ -152,6 +152,26 @@ function retainsCoverage(before: SchedulerPlan, after: SchedulerPlan, keys = pla
   return true;
 }
 
+function retainsExecutionForms(before: SchedulerPlan, after: SchedulerPlan): boolean {
+  const forms = (plan: SchedulerPlan) => {
+    const counts = new Map<string, number>();
+    const minutes = (time: string) => {
+      const [hours, minute] = time.split(':').map(Number);
+      return hours * 60 + minute;
+    };
+    for (const placement of plan.placements) {
+      const key = JSON.stringify([targetKey(placement), placement.variantKind,
+        minutes(placement.end) - minutes(placement.start)]);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  };
+  const next = forms(after);
+  // Optional restoration conservatively retains each chosen execution form,
+  // including every rhythm occurrence, without requiring its old time or ID.
+  return [...forms(before)].every(([key, count]) => (next.get(key) ?? 0) >= count);
+}
+
 function recoveryHasPrecedence(
   recovered: InternalPlacement, attempted: InternalPlacement, input: SchedulingDomainModel,
 ): boolean {
@@ -367,7 +387,6 @@ export class RollingRepairScheduler extends DeterministicScheduler {
       return targetKey(left).localeCompare(targetKey(right));
     });
 
-    const acceptedRecoveries: InternalPlacement[] = [];
     for (const lostPlacement of initialLostTargets) {
       const lostKey = targetKey(lostPlacement);
       if (planTargetKeys(rebuilt).has(lostKey)) continue;
@@ -395,8 +414,11 @@ export class RollingRepairScheduler extends DeterministicScheduler {
 
       const trialReleasedIds = new Set(autoReleasedIds);
       let successfulPlan: SchedulerPlan | null = null;
-      const protectedRecoveries = new Set(acceptedRecoveries
-        .filter((p) => recoveryHasPrecedence(p, lostPlacement, change.nextInput))
+      const chosenTargets = planTargetKeys(rebuilt);
+      const protectedRecoveries = new Set(initialLostTargets
+        .filter((p) => chosenTargets.has(targetKey(p)) &&
+          (currentRankByTarget.get(targetKey(p)) ?? 0) >= lostRank &&
+          recoveryHasPrecedence(p, lostPlacement, change.nextInput))
         .map(targetKey));
 
       for (const candidate of releaseCandidates) {
@@ -418,7 +440,7 @@ export class RollingRepairScheduler extends DeterministicScheduler {
           const without = new Set(trialReleasedIds);
           without.delete(id);
           const trial = buildWithReleased(without);
-          if (retainsCoverage(successfulPlan, trial) &&
+          if (retainsCoverage(successfulPlan, trial) && retainsExecutionForms(successfulPlan, trial) &&
               super.validatePlan(trial, nextInputWithFrozenSuppressed).length === 0) {
             trialReleasedIds.delete(id);
             successfulPlan = trial;
@@ -427,7 +449,6 @@ export class RollingRepairScheduler extends DeterministicScheduler {
         autoReleasedIds.clear();
         for (const id of trialReleasedIds) autoReleasedIds.add(id);
         rebuilt = successfulPlan;
-        acceptedRecoveries.push(lostPlacement);
       }
     }
 

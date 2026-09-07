@@ -456,14 +456,14 @@ describe('persisted Gate 4 scheduler plan state', () => {
     }
   });
 
-  it('persists only the chosen auto-release repair and restores its prior private snapshot through Undo', async () => {
+  it.each([false, true])('persists chosen auto-release forms and Undo (variant restoration case: %s)', async (variantCase) => {
     const database = createTestDatabase();
     const tomorrow = '2026-09-08';
     const later = '2026-09-10';
     const input = model([
-      candidate('today', '09:00', '09:20'),
+      candidate('today', '09:00', variantCase ? '11:00' : '09:20'),
       candidate('tomorrow', '09:00', '09:20', tomorrow),
-      candidate('later', '09:00', '11:00', later),
+      candidate('later', '09:00', variantCase ? '10:40' : '11:00', later),
     ]);
     input.planningPolicy = { dayMode: 'normal' };
     input.intentions = [
@@ -475,10 +475,17 @@ describe('persisted Gate 4 scheduler plan state', () => {
       { id: 'p-blocker', intentionId: 'blocker', date: tomorrow, start: '09:00', end: '09:20' },
       { id: 'p-distant', intentionId: 'distant', date: later, start: '10:00', end: '10:20' },
     ].map((p) => ({ ...p, timezone, origin: 'scheduler', targetKind: 'intention', variantKind: 'normal', provenance: ['Synthetic existing placement.'] }));
+    if (variantCase) {
+      input.intentions.push({ ...intention('large'), variants: [
+        { kind: 'normal', label: 'Normal', minutes: 60 }, { kind: 'minimum', label: 'Minimum', minutes: 20 },
+      ] });
+      input.placements[2] = { ...input.placements[2], start: '09:40', end: '10:00' };
+      input.placements.push({ ...input.placements[0], id: 'p-large', intentionId: 'large', start: '10:00', end: '11:00' });
+    }
     try {
       const built = await buildAndPersistSchedulerPlan(input, database, '2026-09-07T00:00:00.000Z');
       if (!built.ok) throw new Error(built.errors.join('\n'));
-      expect(built.plan.placements).toEqual(input.placements);
+      expect(built.plan.placements).toEqual([...input.placements].sort((a, b) => `${a.date}:${a.start}`.localeCompare(`${b.date}:${b.start}`)));
       expect(scheduler.validatePlan(built.plan, input)).toEqual([]);
       const nextInput = { ...input, placements: [], candidateIntervals: input.candidateIntervals!.slice(1) };
       const repaired = await repairAndPersistSchedulerPlan({
@@ -488,15 +495,24 @@ describe('persisted Gate 4 scheduler plan state', () => {
       const loaded = await loadSchedulerPlanState(database);
       if (loaded.status !== 'ok') throw new Error('Expected repaired plan to reload.');
       expect(loaded.plan).toEqual(repaired.plan);
-      expect(loaded.plan.placements.find((p) => p.id === 'p-distant')).toEqual(input.placements[2]);
+      if (variantCase) {
+        expect(loaded.plan.placements.find((p) => p.intentionId === 'large')).toMatchObject({ date: later, start: '09:40', end: '10:40', variantKind: 'normal' });
+        expect(loaded.plan.placements.find((p) => p.intentionId === 'distant')).toMatchObject({ date: later, start: '09:20', end: '09:40', variantKind: 'normal' });
+      } else {
+        expect(loaded.plan.placements.find((p) => p.id === 'p-distant')).toEqual(input.placements[2]);
+      }
       expect(loaded.plan.placements.find((p) => p.intentionId === 'urgent')).toMatchObject({ date: tomorrow, start: '09:00', end: '09:20' });
       expect(loaded.plan.placements.find((p) => p.intentionId === 'blocker')).toMatchObject({ date: later, start: '09:00', end: '09:20' });
       expect(loaded.plan.unscheduledIntentionIds).toEqual([]);
       expect(loaded.plan.unscheduledRhythmIds).toEqual([]);
-      expect(loaded.plan.repair?.preservedPlacementIds).toEqual(['p-distant']);
+      expect(loaded.plan.repair?.preservedPlacementIds).toEqual(variantCase ? [] : ['p-distant']);
       expect(loaded.plan.repair?.frozenPastPlacementIds).toEqual([]);
       expect(loaded.plan.repair?.changes).toEqual([
         expect.objectContaining({ kind: 'moved', targetId: 'blocker', from: expect.objectContaining({ date: tomorrow }), to: expect.objectContaining({ date: later }) }),
+        ...(variantCase ? [
+          expect.objectContaining({ kind: 'moved', targetId: 'distant' }),
+          expect.objectContaining({ kind: 'moved', targetId: 'large', to: expect.objectContaining({ start: '09:40', end: '10:40', variantKind: 'normal' }) }),
+        ] : []),
         expect.objectContaining({ kind: 'moved', targetId: 'urgent', from: expect.objectContaining({ date: today }), to: expect.objectContaining({ date: tomorrow }) }),
       ]);
       expect(scheduler.validatePlan(loaded.plan, nextInput)).toEqual([]);
