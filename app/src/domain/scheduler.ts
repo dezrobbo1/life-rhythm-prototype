@@ -755,6 +755,13 @@ function isBoundedWeeklyHorizon(rhythm: RhythmRequirement, dates: string[]): boo
     dates[dates.length - 1] <= addDays(dates[0], 6);
 }
 
+/** The same requirement bucket used for scheduling, including the bounded rolling week. */
+export function rhythmRequirementPeriodKey(rhythm: RhythmRequirement, date: string, input: SchedulingDomainModel): string {
+  const dates = rhythmPlanningDates(input);
+  return isBoundedWeeklyHorizon(rhythm, dates) && date >= dates[0] && date <= dates[dates.length - 1]
+    ? `rolling:${dates[0]}` : rhythmPeriodKey(rhythm, date);
+}
+
 function findPlacementForRhythm(
   rhythm: RhythmRequirement,
   accepted: InternalPlacement[],
@@ -849,7 +856,8 @@ function timingEdge(intention: InternalIntention): number {
   return candidates.length > 0 ? Math.min(...candidates) : Number.POSITIVE_INFINITY;
 }
 
-function intentionSort(left: InternalIntention, right: InternalIntention): number {
+/** Existing scheduling precedence, excluding the stable ID tie-break. */
+export function compareIntentionSchedulingPriority(left: InternalIntention, right: InternalIntention): number {
   const timingRank = (intention: InternalIntention) => {
     switch (intention.timing.timeConstraint) {
       case 'fixedAt':
@@ -866,9 +874,12 @@ function intentionSort(left: InternalIntention, right: InternalIntention): numbe
   return (
     timingRank(left) - timingRank(right) ||
     timingEdge(left) - timingEdge(right) ||
-    (priorityRank[left.priority ?? 'normal'] ?? 3) - (priorityRank[right.priority ?? 'normal'] ?? 3) ||
-    left.id.localeCompare(right.id)
+    (priorityRank[left.priority ?? 'normal'] ?? 3) - (priorityRank[right.priority ?? 'normal'] ?? 3)
   );
+}
+
+function intentionSort(left: InternalIntention, right: InternalIntention): number {
+  return compareIntentionSchedulingPriority(left, right) || left.id.localeCompare(right.id);
 }
 
 function scheduleIntentions(
@@ -903,10 +914,10 @@ function scheduleRhythms(
     const periodDates = new Map<string, string[]>();
     const boundedWeeklyHorizon = isBoundedWeeklyHorizon(rhythm, planningDates);
     if (boundedWeeklyHorizon) {
-      periodDates.set(`rolling:${planningDates[0]}`, planningDates);
+      periodDates.set(rhythmRequirementPeriodKey(rhythm, planningDates[0], input), planningDates);
     } else {
       for (const date of planningDates) {
-        const key = rhythmPeriodKey(rhythm, date);
+        const key = rhythmRequirementPeriodKey(rhythm, date, input);
         const dates = periodDates.get(key) ?? [];
         dates.push(date);
         periodDates.set(key, dates);
@@ -943,7 +954,7 @@ function scheduleRhythms(
   return [...unscheduled].sort();
 }
 
-function isFirstPassIntention(intention: InternalIntention): boolean {
+export function isFirstPassIntention(intention: InternalIntention): boolean {
   return intention.timing.timeConstraint === 'fixedAt' ||
     intention.timing.timeConstraint === 'dueBy' ||
     intention.timing.timeConstraint === 'expiresAfter' ||

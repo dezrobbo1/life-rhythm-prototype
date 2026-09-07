@@ -1,4 +1,4 @@
-import { DeterministicScheduler } from './scheduler';
+import { compareIntentionSchedulingPriority, DeterministicScheduler, isFirstPassIntention, rhythmRequirementPeriodKey } from './scheduler';
 import type {
   InternalPlacement,
   SchedulerChange,
@@ -139,6 +139,130 @@ function targetKey(placement: InternalPlacement): string {
 
 function planTargetKeys(plan: SchedulerPlan): Set<string> {
   return new Set(plan.placements.map(targetKey));
+}
+
+function coverageKey(placement: InternalPlacement, input: SchedulingDomainModel): string {
+  const rhythm = placementTargetKind(placement) === 'rhythm'
+    ? input.rhythms.find((r) => r.id === placementTargetId(placement)) : undefined;
+  return JSON.stringify([targetKey(placement), rhythm ? rhythmRequirementPeriodKey(rhythm, placement.date, input) : null]);
+}
+
+function rhythmForTargetKey(key: string, input: SchedulingDomainModel) {
+  if (!key.startsWith('rhythm:')) return undefined;
+  return input.rhythms.find((rhythm) => rhythm.id === key.slice(7));
+}
+
+function requiredRhythmOccurrenceCount(key: string, input: SchedulingDomainModel): number | null {
+  const rhythm = rhythmForTargetKey(key, input);
+  return rhythm ? Math.max(0, Math.ceil(rhythm.frequency)) : null;
+}
+
+function placementMinutes(placement: InternalPlacement): number {
+  const minutes = (time: string) => {
+    const [hours, minute] = time.split(':').map(Number);
+    return hours * 60 + minute;
+  };
+  return minutes(placement.end) - minutes(placement.start);
+}
+
+function retainsCoverage(before: SchedulerPlan, after: SchedulerPlan, input: SchedulingDomainModel, keys = planTargetKeys(before)): boolean {
+  for (const key of keys) {
+    const counts = (plan: SchedulerPlan) => {
+      const result = new Map<string, number>();
+      for (const p of plan.placements.filter((p) => targetKey(p) === key)) {
+        const bucket = coverageKey(p, input);
+        result.set(bucket, (result.get(bucket) ?? 0) + 1);
+      }
+      return result;
+    };
+    const requiredRhythmOccurrences = requiredRhythmOccurrenceCount(key, input);
+    const next = counts(after);
+    if ([...counts(before)].some(([bucket, count]) => {
+      const requiredCount = requiredRhythmOccurrences === null
+        ? count
+        : Math.min(count, requiredRhythmOccurrences);
+      return (next.get(bucket) ?? 0) < requiredCount;
+    })) return false;
+    // One surviving rhythm occurrence is not proof that its requirement is met.
+    if (key.startsWith('rhythm:') && !before.unscheduledRhythmIds.includes(key.slice(7)) &&
+        after.unscheduledRhythmIds.includes(key.slice(7))) return false;
+  }
+  return true;
+}
+
+function retainsExecutionForms(before: SchedulerPlan, after: SchedulerPlan, input: SchedulingDomainModel, keys = planTargetKeys(before)): boolean {
+  const variantRank = (placement: InternalPlacement) => {
+    switch (placement.variantKind) {
+      case 'normal':
+        return 0;
+      case 'minimum':
+        return 1;
+      case 'full':
+        return 2;
+      default:
+        return 3;
+    }
+  };
+  const formKey = (placement: InternalPlacement) => JSON.stringify([
+    coverageKey(placement, input),
+    placement.variantKind,
+    placementMinutes(placement),
+  ]);
+  const requiredPlacements: InternalPlacement[] = [];
+  const beforeGroups = new Map<string, InternalPlacement[]>();
+
+  for (const placement of before.placements) {
+    if (!keys.has(targetKey(placement))) continue;
+    const bucket = coverageKey(placement, input);
+    beforeGroups.set(bucket, [...(beforeGroups.get(bucket) ?? []), placement]);
+  }
+
+  for (const placements of beforeGroups.values()) {
+    const key = targetKey(placements[0]);
+    const requiredRhythmOccurrences = requiredRhythmOccurrenceCount(key, input);
+    const limit = requiredRhythmOccurrences === null
+      ? placements.length
+      : Math.min(placements.length, requiredRhythmOccurrences);
+    const ordered = [...placements].sort((left, right) =>
+      variantRank(left) - variantRank(right) ||
+      placementMinutes(right) - placementMinutes(left) ||
+      `${left.date}:${left.start}:${left.id}`.localeCompare(`${right.date}:${right.start}:${right.id}`),
+    );
+    requiredPlacements.push(...ordered.slice(0, limit));
+  }
+
+  const requiredForms = new Map<string, number>();
+  for (const placement of requiredPlacements) {
+    const key = formKey(placement);
+    requiredForms.set(key, (requiredForms.get(key) ?? 0) + 1);
+  }
+
+  const nextForms = new Map<string, number>();
+  for (const placement of after.placements) {
+    if (!keys.has(targetKey(placement))) continue;
+    const key = formKey(placement);
+    nextForms.set(key, (nextForms.get(key) ?? 0) + 1);
+  }
+
+  // Excess rhythm occurrences above the requirement are not extra protected
+  // coverage. Among required occurrences, preserve the scheduler-preferred
+  // chosen forms without freezing their exact placement identity or time.
+  return [...requiredForms].every(([key, count]) => (nextForms.get(key) ?? 0) >= count);
+}
+
+function recoveryHasPrecedence(
+  recovered: InternalPlacement, attempted: InternalPlacement, input: SchedulingDomainModel,
+): boolean {
+  const intentionFor = (p: InternalPlacement) => placementTargetKind(p) === 'intention'
+    ? input.intentions.find((i) => i.id === placementTargetId(p)) : undefined;
+  const left = intentionFor(recovered);
+  const right = intentionFor(attempted);
+  // Reuse the scheduler's existing urgent-intentions / rhythms / flexible-work
+  // passes and timing/priority comparison. ID order must not defeat inertia.
+  if (left && right) return compareIntentionSchedulingPriority(left, right) <= 0;
+  if (left) return isFirstPassIntention(left);
+  if (right) return !isFirstPassIntention(right);
+  return true;
 }
 
 function changeForPair(
@@ -368,17 +492,39 @@ export class RollingRepairScheduler extends DeterministicScheduler {
 
       const trialReleasedIds = new Set(autoReleasedIds);
       let successfulPlan: SchedulerPlan | null = null;
+      const chosenTargets = planTargetKeys(rebuilt);
+      const protectedRecoveries = new Set(initialLostTargets
+        .filter((p) => chosenTargets.has(targetKey(p)) &&
+          (currentRankByTarget.get(targetKey(p)) ?? 0) >= lostRank &&
+          recoveryHasPrecedence(p, lostPlacement, change.nextInput))
+        .map(targetKey));
 
       for (const candidate of releaseCandidates) {
         trialReleasedIds.add(candidate.id);
         const trial = buildWithReleased(trialReleasedIds);
-        if (planTargetKeys(trial).has(lostKey)) {
+        if (planTargetKeys(trial).has(lostKey) && retainsCoverage(rebuilt, trial, change.nextInput, protectedRecoveries) &&
+            retainsExecutionForms(rebuilt, trial, change.nextInput, protectedRecoveries)) {
           successfulPlan = trial;
           break;
         }
       }
 
       if (successfulPlan) {
+        // Bounded greedy backtracking: at most one rebuild per automatically
+        // released seed for each accepted recovery, with no subsets/recursion.
+        // Restore a seed only when the successful plan's coverage survives and
+        // the rebuilt plan validates. Explicit releases remain excluded by
+        // buildWithReleased. A failed probe never replaces the chosen plan.
+        for (const id of [...trialReleasedIds]) {
+          const without = new Set(trialReleasedIds);
+          without.delete(id);
+          const trial = buildWithReleased(without);
+          if (retainsCoverage(successfulPlan, trial, change.nextInput) && retainsExecutionForms(successfulPlan, trial, change.nextInput) &&
+              super.validatePlan(trial, nextInputWithFrozenSuppressed).length === 0) {
+            trialReleasedIds.delete(id);
+            successfulPlan = trial;
+          }
+        }
         autoReleasedIds.clear();
         for (const id of trialReleasedIds) autoReleasedIds.add(id);
         rebuilt = successfulPlan;
