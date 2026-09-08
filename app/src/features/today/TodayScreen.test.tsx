@@ -25,6 +25,14 @@ const settingsRepositoryMocks = vi.hoisted(() => ({
   loadSettingsResult: vi.fn(),
 }));
 
+const reducedDayMocks = vi.hoisted(() => ({
+  applyReduceToday: vi.fn(),
+  loadTodayDayMode: vi.fn(),
+  previewReduceToday: vi.fn(),
+  returnTodayToNormal: vi.fn(),
+  undoTodayPlanChange: vi.fn(),
+}));
+
 vi.mock('../../data/activeTaskRepository', () => activeTaskRepositoryMocks);
 vi.mock('../../data/settingsRepository', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../data/settingsRepository')>();
@@ -34,6 +42,7 @@ vi.mock('../../data/settingsRepository', async (importOriginal) => {
     loadSettingsResult: settingsRepositoryMocks.loadSettingsResult,
   };
 });
+vi.mock('../../data/reducedDayCoordinator', () => reducedDayMocks);
 
 import App from '../../App';
 import { TodayScreen } from '../../screens/TodayScreen';
@@ -119,6 +128,31 @@ beforeEach(() => {
     settings: settingsRepository.createDefaultSettings('2026-08-15T00:00:00.000Z'),
     status: 'defaulted',
   }));
+  reducedDayMocks.loadTodayDayMode.mockResolvedValue({
+    ok: true, date: '2026-09-07', dayMode: 'normal',
+  });
+  const plan = {
+    placements: [], unscheduledIntentionIds: [], unscheduledRhythmIds: [], rejectedExistingPlacements: [],
+  };
+  reducedDayMocks.previewReduceToday.mockResolvedValue({
+    ok: true, date: '2026-09-07', dayMode: 'reduced', plan, warnings: [],
+    preview: {
+      date: '2026-09-07', initialPlan: false, plan,
+      items: [{
+        category: 'getsSmaller', targetId: 'adhoc-pay-water-bill', title: 'Pay water bill',
+        detail: '10 minutes → 5 minutes', reason: 'Reduce today was applied to the current local date.',
+      }],
+    },
+  });
+  reducedDayMocks.applyReduceToday.mockImplementation(reducedDayMocks.previewReduceToday);
+  reducedDayMocks.returnTodayToNormal.mockResolvedValue({
+    ok: true, date: '2026-09-07', dayMode: 'normal', plan, warnings: [],
+    preview: { date: '2026-09-07', initialPlan: false, plan, items: [] },
+  });
+  reducedDayMocks.undoTodayPlanChange.mockResolvedValue({
+    ok: true, date: '2026-09-07', dayMode: 'normal', plan, warnings: [],
+    preview: { date: '2026-09-07', initialPlan: false, plan, items: [] },
+  });
 });
 
 afterEach(() => {
@@ -128,6 +162,93 @@ afterEach(() => {
 });
 
 describe('Today screen', () => {
+  it('previews, cancels, and applies Reduce today from the primary task area', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    render(<TodayScreen />);
+
+    const card = await screen.findByRole('article', { name: 'Pay water bill' });
+    const control = await screen.findByLabelText('Reduced Day controls');
+    expect(card.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(within(control).getByRole('button', { name: 'Reduce today' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Reduce today' });
+    expect(within(dialog).getByText('Pay water bill')).toBeTruthy();
+    expect(within(dialog).getByText('10 minutes → 5 minutes')).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(reducedDayMocks.applyReduceToday).not.toHaveBeenCalled();
+
+    await user.click(within(control).getByRole('button', { name: 'Reduce today' }));
+    await user.click(await screen.findByRole('button', { name: 'Apply reduced day' }));
+    expect(reducedDayMocks.applyReduceToday).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Reduced Day active')).toBeTruthy();
+    expect(screen.getByLabelText('Changed by Reduced Day').textContent).toContain('Pay water bill');
+  });
+
+  it('returns to Normal and Undo restores the mode reported by the persisted action', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    reducedDayMocks.loadTodayDayMode.mockResolvedValue({
+      ok: true, date: '2026-09-07', dayMode: 'reduced',
+    });
+    render(<TodayScreen />);
+    const control = await screen.findByLabelText('Reduced Day controls');
+    await screen.findByText('Reduced Day active');
+    await user.click(within(control).getByRole('button', { name: 'Undo last change' }));
+    expect(reducedDayMocks.undoTodayPlanChange).toHaveBeenCalledTimes(1);
+    expect(await within(control).findByRole('button', { name: 'Reduce today' })).toBeTruthy();
+
+    cleanup();
+    reducedDayMocks.loadTodayDayMode.mockResolvedValue({ ok: true, date: '2026-09-07', dayMode: 'reduced' });
+    render(<TodayScreen />);
+    const nextControl = await screen.findByLabelText('Reduced Day controls');
+    await user.click(await within(nextControl).findByRole('button', { name: 'Return to normal day' }));
+    expect(reducedDayMocks.returnTodayToNormal).toHaveBeenCalledTimes(1);
+    expect(await within(nextControl).findByRole('button', { name: 'Reduce today' })).toBeTruthy();
+  });
+
+  it('shows persisted Changed information when Reduced Day reloads on the same date', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    const previewResult = await reducedDayMocks.previewReduceToday();
+    reducedDayMocks.loadTodayDayMode.mockResolvedValue({
+      ok: true, date: '2026-09-07', dayMode: 'reduced', preview: previewResult.preview,
+    });
+    render(<TodayScreen />);
+    expect(await screen.findByText('Reduced Day active')).toBeTruthy();
+    const changed = screen.getByLabelText('Changed by Reduced Day');
+    expect(changed.textContent).toContain('Pay water bill');
+    expect(changed.textContent).toContain('10 minutes → 5 minutes');
+  });
+
+  it('keeps Normal visible when applying Reduced Day fails', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    reducedDayMocks.applyReduceToday.mockResolvedValue({
+      ok: false, errors: ['Saved scheduler state could not be written.'], warnings: [],
+    });
+    render(<TodayScreen />);
+    await user.click(await screen.findByRole('button', { name: 'Reduce today' }));
+    await user.click(await screen.findByRole('button', { name: 'Apply reduced day' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('could not be written');
+    expect(screen.queryByText('Reduced Day active')).toBeNull();
+  });
+
+  it('prevents duplicate Apply submissions while the first write is pending', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    const successful = await reducedDayMocks.previewReduceToday();
+    let finish!: (value: typeof successful) => void;
+    reducedDayMocks.applyReduceToday.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    render(<TodayScreen />);
+    await user.click(await screen.findByRole('button', { name: 'Reduce today' }));
+    const apply = await screen.findByRole('button', { name: 'Apply reduced day' });
+    await user.click(apply);
+    await waitFor(() => expect(reducedDayMocks.applyReduceToday).toHaveBeenCalledTimes(1));
+    fireEvent.click(apply);
+    expect(reducedDayMocks.applyReduceToday).toHaveBeenCalledTimes(1);
+    finish(successful);
+    expect(await screen.findByText('Reduced Day active')).toBeTruthy();
+  });
+
   it.each(['adhoc', 'library', 'view-model'] as const)('keeps all eight Start Boost barriers and selectable supports for %s tasks', async (source) => {
     const user = userEvent.setup();
     if (source === 'view-model') {

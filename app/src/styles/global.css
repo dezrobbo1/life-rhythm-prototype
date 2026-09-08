@@ -543,6 +543,86 @@ textarea:focus-visible {
   padding: var(--space-4);
 }
 
+.reduced-day-control {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+  margin-top: 0.75rem;
+}
+
+.reduced-day-control__open {
+  font-weight: 600;
+}
+
+.reduced-day-control__active,
+.reduced-day-changed {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #d8d2c8);
+  border-radius: 1rem;
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  width: min(100%, 46rem);
+}
+
+.reduced-day-control__active p,
+.reduced-day-control__message,
+.reduced-day-control__error,
+.reduced-day-changed p,
+.reduced-day-preview p {
+  margin: 0;
+}
+
+.reduced-day-control__actions,
+.reduced-day-preview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.reduced-day-control__error {
+  color: var(--color-danger, #8b2f2f);
+}
+
+.reduced-day-changed section,
+.reduced-day-preview section {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.reduced-day-changed h3,
+.reduced-day-preview h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.reduced-day-changed ul,
+.reduced-day-preview ul {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.reduced-day-changed li,
+.reduced-day-preview li {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.reduced-day-changed span,
+.reduced-day-changed small,
+.reduced-day-preview span,
+.reduced-day-preview small {
+  display: block;
+}
+
+.reduced-day-preview {
+  display: grid;
+  gap: 1rem;
+}
+
 .today-one-off {
   align-items: center;
   display: flex;

@@ -395,7 +395,10 @@ describe('speculative auto-release through the primary scheduler', () => {
     expect(fallback.placements[0]).toMatchObject({ start: '09:00', end: '09:20', variantKind: 'minimum' });
     expect(fallback.placements[0].provenance.join(' ')).toContain('no valid normal-sized placement fit');
     expect(primaryScheduler.validatePlan(fallback, fallbackInput)).toEqual([]);
-    const reducedInput = { ...nextInput, planningPolicy: { dayMode: 'reduced' as const } };
+    const reducedInput: SchedulingDomainModel = {
+      ...nextInput,
+      planningPolicy: { dayMode: 'reduced', dayModeDate: later },
+    };
     const reduced = primaryScheduler.repairPlan(before, { reason: 'Reduced Day', now, nextInput: reducedInput });
     expect(reduced.placements.find((p) => p.intentionId === 'large')?.variantKind).toBe('minimum');
     expect(primaryScheduler.validatePlan(reduced, reducedInput)).toEqual([]);

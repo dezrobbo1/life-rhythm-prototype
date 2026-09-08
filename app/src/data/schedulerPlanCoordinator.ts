@@ -7,6 +7,7 @@ import type {
   CandidateSchedulingInterval,
   ExternalCommitment,
   SchedulerPlan,
+  SchedulerPlanningPolicy,
   SchedulerRepairNow,
   SchedulerRepairTrigger,
   SchedulingDomainModel,
@@ -44,7 +45,7 @@ type MinuteRange = {
   end: number;
 };
 
-type LiveSchedulerContext = {
+export type LiveSchedulerContext = {
   input: SchedulingDomainModel;
   titleByTargetId: Record<string, string>;
   warnings: string[];
@@ -70,6 +71,9 @@ export type PrivatePlanCoordinatorOptions = {
   now?: Date;
   startDate?: string;
   timezone?: string;
+  planningPolicy?: SchedulerPlanningPolicy;
+  /** Prevents settings migration writes while producing an explanatory preview. */
+  readOnly?: boolean;
 };
 
 export type PrivatePlanRepairRequest = PrivatePlanCoordinatorOptions & {
@@ -274,7 +278,9 @@ export async function buildCurrentLiveSchedulingContext(
   | { ok: false; errors: string[]; warnings: string[] }
 > {
   const database = getCurrentLifeRhythmDatabase();
-  const settingsResult = await loadSettingsResult(database);
+  const settingsResult = await loadSettingsResult(database, {
+    persistMigration: options.readOnly ? false : undefined,
+  });
 
   if (
     settingsResult.status === 'invalid' ||
@@ -412,6 +418,22 @@ export async function buildCurrentLiveSchedulingContext(
     candidateIntervals,
   };
 
+  let planningPolicy = options.planningPolicy;
+  if (!planningPolicy) {
+    const savedPlan = await loadSchedulerPlanState();
+    if (savedPlan.status === 'invalid' || savedPlan.status === 'error') {
+      return { ok: false, errors: savedPlan.errors, warnings };
+    }
+    if (savedPlan.status === 'ok' && savedPlan.dayModeContext?.date === now.date) {
+      planningPolicy = {
+        dayMode: 'reduced',
+        dayModeDate: now.date,
+        reducedDay: { minimumEligibleRhythmIds: [] },
+      };
+    }
+  }
+  if (planningPolicy) input.planningPolicy = planningPolicy;
+
   return {
     ok: true,
     context: {
@@ -466,7 +488,6 @@ export async function repairCurrentPrivatePlan(
 ): Promise<PrivatePlanActionResult> {
   const live = await buildCurrentLiveSchedulingContext(request);
   if (!live.ok) return live;
-
   const repaired = await repairAndPersistSchedulerPlan({
     nextInput: live.context.input,
     reason: request.reason,

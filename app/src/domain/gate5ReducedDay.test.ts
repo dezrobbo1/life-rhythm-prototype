@@ -99,7 +99,7 @@ function placementFor(
 
 describe('Gate 5 Reduced Day scheduling policy', () => {
   it('does not force an unlisted daily rhythm to Minimum in a fresh Reduced Day plan', () => {
-    const input = model({ intentions: [], rhythms: [rhythm('daily', { period: 'day', frequency: 1, maxPerDay: 1 })], planningPolicy: { dayMode: 'reduced' } });
+    const input = model({ intentions: [], rhythms: [rhythm('daily', { period: 'day', frequency: 1, maxPerDay: 1 })], planningPolicy: { dayMode: 'reduced', dayModeDate: '2026-09-07' } });
     const plan = primaryScheduler.buildPlan(input);
     expect(plan.placements).toHaveLength(1);
     expect(plan.placements[0]).toMatchObject({ start: '09:00', end: '09:20', variantKind: 'normal' });
@@ -112,7 +112,7 @@ describe('Gate 5 Reduced Day scheduling policy', () => {
     const after = primaryScheduler.repairPlan(before, {
       reason: 'Reduced Day requested', trigger: 'userCorrection',
       now: { date: '2026-09-07', time: '08:00', timezone: 'Australia/Perth' },
-      nextInput: { ...input, planningPolicy: { dayMode: 'reduced' } },
+      nextInput: { ...input, planningPolicy: { dayMode: 'reduced', dayModeDate: '2026-09-07' } },
     });
     expect(after.placements).toEqual(before.placements);
     expect(after.repair?.changes).toEqual([]);
@@ -135,7 +135,7 @@ describe('Gate 5 Reduced Day scheduling policy', () => {
   it('uses the explicit minimum form for flexible private work on Reduced Day', () => {
     const scheduler = new Gate5ReducedDayScheduler();
     const input = model({
-      planningPolicy: { dayMode: 'reduced' },
+      planningPolicy: { dayMode: 'reduced', dayModeDate: '2026-09-07' },
     });
 
     const plan = scheduler.buildPlan(input);
@@ -165,7 +165,7 @@ describe('Gate 5 Reduced Day scheduling policy', () => {
           lifecycle: { activeTaskStatus: 'inProgress' },
         }),
       ],
-      planningPolicy: { dayMode: 'reduced' },
+      planningPolicy: { dayMode: 'reduced', dayModeDate: '2026-09-07' },
     });
 
     const plan = scheduler.buildPlan(input);
@@ -186,7 +186,7 @@ describe('Gate 5 Reduced Day scheduling policy', () => {
     const input = model({
       intentions: [intention('task-a'), intention('task-b')],
       planningPolicy: {
-        dayMode: 'reduced',
+        dayMode: 'reduced', dayModeDate: '2026-09-07',
         reducedDay: {
           maxAutomaticPlacementsPerDay: 1,
         },
@@ -206,7 +206,7 @@ describe('Gate 5 Reduced Day scheduling policy', () => {
     const input = model({
       intentions: [],
       rhythms: [rhythm('exercise')],
-      planningPolicy: { dayMode: 'reduced', reducedDay: { minimumEligibleRhythmIds: ['exercise'] } },
+      planningPolicy: { dayMode: 'reduced', dayModeDate: '2026-09-07', reducedDay: { minimumEligibleRhythmIds: ['exercise'] } },
     });
 
     const plan = scheduler.buildPlan(input);
@@ -233,7 +233,7 @@ describe('Gate 5 Reduced Day scheduling policy', () => {
 
     const reducedInput = model({
       intentions: [intention('task-a'), intention('task-b')],
-      planningPolicy: { dayMode: 'reduced' },
+      planningPolicy: { dayMode: 'reduced', dayModeDate: '2026-09-07' },
     });
     const repaired = scheduler.repairPlan(before, {
       reason: 'Reduced Day requested',
@@ -272,7 +272,7 @@ describe('Gate 5 Reduced Day scheduling policy', () => {
     const scheduler = new Gate5ReducedDayScheduler();
     const normalInput = model({ planningPolicy: { dayMode: 'normal' } });
     const before = scheduler.buildPlan(normalInput);
-    const reducedInput = model({ planningPolicy: { dayMode: 'reduced' } });
+    const reducedInput = model({ planningPolicy: { dayMode: 'reduced', dayModeDate: '2026-09-07' } });
     const first = scheduler.repairPlan(before, {
       reason: 'Reduced Day requested',
       trigger: 'userCorrection',
@@ -306,7 +306,7 @@ describe('Reduced Day rhythm opt-in contract through the primary scheduler', () 
   });
   const inputFor = (reducedDay?: ReducedDayPlanningPolicy) => model({
     intentions: [], rhythms: [daily('a'), daily('b')],
-    planningPolicy: { dayMode: 'reduced', reducedDay },
+    planningPolicy: { dayMode: 'reduced', dayModeDate: '2026-09-07', reducedDay },
   });
   const repair = (plan: SchedulerPlan, input: SchedulingDomainModel, time = now.time) =>
     scheduler.repairPlan(plan, { reason: 'Policy changed', trigger: 'userCorrection', now: { ...now, time }, nextInput: input });

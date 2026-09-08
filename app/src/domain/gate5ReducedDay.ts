@@ -1,8 +1,6 @@
 import { RollingRepairScheduler } from './rollingRepair';
 import type {
-  InternalIntention,
   InternalPlacement,
-  RhythmRequirement,
   SchedulerChange,
   SchedulerPlan,
   SchedulerPlanChange,
@@ -11,6 +9,11 @@ import type {
   SchedulingDomainModel,
   TaskVariant,
 } from './schedulingModel';
+import {
+  canUseReducedMinimum,
+  eligibleRhythmMinimum,
+  reducedDayAppliesToDate,
+} from './reducedDayPolicy';
 
 export type Gate5ReducedDayStatus = 'gate5-reduced-day-policy-v0';
 export const gate5ReducedDayStatus: Gate5ReducedDayStatus = 'gate5-reduced-day-policy-v0';
@@ -42,54 +45,23 @@ function placementMinutes(placement: InternalPlacement): number {
   return Math.max(0, minutesFromTime(placement.end) - minutesFromTime(placement.start));
 }
 
-function stricterLimit(left?: number, right?: number): number | undefined {
-  if (left === undefined) return right;
-  if (right === undefined) return left;
-  return Math.min(left, right);
-}
-
-function minimumVariant(variants: TaskVariant[]): TaskVariant | undefined {
-  return variants.find((variant) => variant.kind === 'minimum');
-}
-
-function isInFlight(intention: InternalIntention): boolean {
-  return intention.lifecycle.activeTaskStatus === 'inProgress' ||
-    intention.lifecycle.activeTaskStatus === 'paused' ||
-    intention.lifecycle.activeTaskStatus === 'minimumDone';
-}
-
-function isTimeCritical(intention: InternalIntention): boolean {
-  return intention.priority === 'must' ||
-    (intention.timing.timeConstraint !== undefined && intention.timing.timeConstraint !== 'flexible') ||
-    Boolean(intention.timing.latestUsefulStartAt) ||
-    Boolean(intention.timing.notUsefulAfter);
-}
-
-function canUseReducedMinimum(intention: InternalIntention): boolean {
-  return intention.eligibleForScheduling &&
-    !isInFlight(intention) &&
-    !isTimeCritical(intention) &&
-    Boolean(minimumVariant(intention.variants));
-}
-
-function minimumOnly(variants: TaskVariant[]): TaskVariant[] {
-  const minimum = minimumVariant(variants);
-  return minimum ? [minimum] : variants;
-}
-
-function reducedDayUsesMinimum(input: SchedulingDomainModel): boolean {
-  return input.planningPolicy?.dayMode === 'reduced' &&
-    (input.planningPolicy.reducedDay?.preferMinimumForFlexibleWork ?? true);
-}
-
-function eligibleRhythmMinimum(rhythm: RhythmRequirement, input: SchedulingDomainModel): TaskVariant | undefined {
-  if (!reducedDayUsesMinimum(input) ||
-      !input.planningPolicy?.reducedDay?.minimumEligibleRhythmIds?.includes(rhythm.id)) return undefined;
-  return rhythm.variants.find((variant) => variant.kind === 'minimum' &&
-    Number.isFinite(variant.minutes) && variant.minutes > 0 && variant.label.trim().length > 0);
-}
-
 function validateRhythmEligibility(input: SchedulingDomainModel): void {
+  const policy = input.planningPolicy;
+  if (policy?.dayMode === 'reduced' && !policy.dayModeDate) {
+    throw new Error('Reduced Day requires an explicit dayModeDate.');
+  }
+  if (policy?.dayModeDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(policy.dayModeDate)) {
+    throw new Error('dayModeDate must be a local date in YYYY-MM-DD form.');
+  }
+  const reduced = policy?.reducedDay;
+  if (reduced?.maxInternalScheduledMinutesPerDay !== undefined &&
+      (!Number.isFinite(reduced.maxInternalScheduledMinutesPerDay) || reduced.maxInternalScheduledMinutesPerDay <= 0)) {
+    throw new Error('Reduced Day maxInternalScheduledMinutesPerDay must be a finite positive number.');
+  }
+  if (reduced?.maxAutomaticPlacementsPerDay !== undefined &&
+      (!Number.isInteger(reduced.maxAutomaticPlacementsPerDay) || reduced.maxAutomaticPlacementsPerDay <= 0)) {
+    throw new Error('Reduced Day maxAutomaticPlacementsPerDay must be a positive integer.');
+  }
   const ids = input.planningPolicy?.reducedDay?.minimumEligibleRhythmIds;
   if (ids === undefined) return;
   if (!Array.isArray(ids) || [...ids].some((id) => typeof id !== 'string' || id.trim().length === 0)) {
@@ -99,55 +71,25 @@ function validateRhythmEligibility(input: SchedulingDomainModel): void {
 
 function effectiveInput(input: SchedulingDomainModel): SchedulingDomainModel {
   validateRhythmEligibility(input);
-  const policy = input.planningPolicy;
-  if (policy?.dayMode !== 'reduced') return input;
-
-  const reducedPolicy = policy.reducedDay;
-  const preferMinimum = reducedPolicy?.preferMinimumForFlexibleWork ?? true;
-
-  return {
-    ...input,
-    intentions: preferMinimum
-      ? input.intentions.map((intention) =>
-          canUseReducedMinimum(intention)
-            ? { ...intention, variants: minimumOnly(intention.variants) }
-            : intention,
-        )
-      : input.intentions,
-    rhythms: preferMinimum
-      ? input.rhythms.map((rhythm) => {
-          const minimum = eligibleRhythmMinimum(rhythm, input);
-          return minimum ? { ...rhythm, variants: [minimum] } : rhythm;
-        })
-      : input.rhythms,
-    planningPolicy: {
-      ...policy,
-      maxInternalScheduledMinutesPerDay: stricterLimit(
-        policy.maxInternalScheduledMinutesPerDay,
-        reducedPolicy?.maxInternalScheduledMinutesPerDay,
-      ),
-      maxAutomaticPlacementsPerDay: stricterLimit(
-        policy.maxAutomaticPlacementsPerDay,
-        reducedPolicy?.maxAutomaticPlacementsPerDay,
-      ),
-    },
-  };
+  return input;
 }
 
 function reducedMinimumForPlacement(
   placement: InternalPlacement,
   input: SchedulingDomainModel,
 ): TaskVariant | undefined {
-  if (placement.origin !== 'scheduler' || !reducedDayUsesMinimum(input)) return undefined;
+  if (placement.origin !== 'scheduler' ||
+      input.planningPolicy?.dayMode !== 'reduced' ||
+      !reducedDayAppliesToDate(input, placement.date)) return undefined;
 
   if (targetKind(placement) === 'rhythm') {
     const rhythm = input.rhythms.find((candidate) => candidate.id === targetId(placement));
-    return rhythm ? eligibleRhythmMinimum(rhythm, input) : undefined;
+    return rhythm ? eligibleRhythmMinimum(rhythm, input, placement.date) : undefined;
   }
 
   const intention = input.intentions.find((candidate) => candidate.id === placement.intentionId);
-  if (!intention || !canUseReducedMinimum(intention)) return undefined;
-  return minimumVariant(intention.variants);
+  if (!intention) return undefined;
+  return canUseReducedMinimum(intention, input, placement.date);
 }
 
 function reducedProvenance(placement: InternalPlacement, minimum: TaskVariant): string[] {
@@ -186,7 +128,7 @@ function placementPoint(placement: InternalPlacement): SchedulerPlacementPoint {
 }
 
 function applyReducedDay(plan: SchedulerPlan, input: SchedulingDomainModel): SchedulerPlan {
-  if (!reducedDayUsesMinimum(input)) return plan;
+  if (input.planningPolicy?.dayMode !== 'reduced') return plan;
 
   const frozenIds = new Set(plan.repair?.frozenPastPlacementIds ?? []);
   const changed = new Map<string, { before: InternalPlacement; after: InternalPlacement }>();
