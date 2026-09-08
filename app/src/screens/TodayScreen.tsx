@@ -13,6 +13,10 @@ import {
   serializeActiveTaskBackup,
 } from '../data/activeTaskBackup';
 import { repairCurrentPrivatePlan } from '../data/schedulerPlanCoordinator';
+import {
+  loadLinkedTaskPoolItemIds,
+  markTaskLifecycleNoLongerNeeded,
+} from '../data/taskLifecycleRepository';
 import { ReducedDayControl } from '../features/today/ReducedDayControl';
 import { activeTaskSchema, type ActiveTask, type ActiveTaskStatus } from '../data/schemas';
 import {
@@ -201,6 +205,7 @@ function snapshotFromActiveTask(task: ActiveTask): SnapshotActiveTask {
     full: task.full,
     id: task.id,
     minimum: task.minimum,
+    minimumAchievedAt: task.minimumAchievedAt,
     normal: task.normal,
     purpose: task.purpose,
     showToday: task.showToday,
@@ -301,7 +306,9 @@ function createOneOffActiveTask(input: MockAddTaskInput): ActiveTask {
 type ReentryReviewPreviewProps = {
   feedbackById: Record<string, string>;
   onMarkNotToday: (taskId: string) => void;
+  onNoLongerNeeded: (taskId: string) => void;
   onParkSafely: (taskId: string) => void;
+  onReviewLater: (taskId: string) => void;
   onTryMinimum: (taskId: string) => void;
   preview: TimeEdgeReentryPreviewViewModel;
 };
@@ -309,7 +316,9 @@ type ReentryReviewPreviewProps = {
 function ReentryReviewPreview({
   feedbackById,
   onMarkNotToday,
+  onNoLongerNeeded,
   onParkSafely,
+  onReviewLater,
   onTryMinimum,
   preview,
 }: ReentryReviewPreviewProps) {
@@ -325,6 +334,16 @@ function ReentryReviewPreview({
 
     if (action === 'Mark not today') {
       onMarkNotToday(taskId);
+      return;
+    }
+
+    if (action === 'No longer needed') {
+      onNoLongerNeeded(taskId);
+      return;
+    }
+
+    if (action === 'Keep for review') {
+      onReviewLater(taskId);
       return;
     }
 
@@ -346,6 +365,7 @@ function ReentryReviewPreview({
               <div>
                 <h3>{item.title}</h3>
                 <p>{item.reason}</p>
+                <p className="reentry-review__support">{item.usefulness}</p>
                 {item.supportingCopy.map((line) => (
                   <p key={line} className="reentry-review__support">{line}</p>
                 ))}
@@ -355,7 +375,11 @@ function ReentryReviewPreview({
               </div>
               <div aria-label={`Re-entry actions for ${item.title}`} className="reentry-review__options">
                 {item.actionOptions.map((option) => (
-                  <Button key={option} onClick={() => handleAction(item.id, option)}>
+                  <Button
+                    key={option}
+                    onClick={() => handleAction(item.id, option)}
+                    variant={item.recommendedAction === option ? 'primary' : 'secondary'}
+                  >
                     {option}
                   </Button>
                 ))}
@@ -389,6 +413,8 @@ export function TodayScreen() {
   const [mockMinimumAchieved, setMockMinimumAchieved] = useState(false);
   const [completionFeedback, setCompletionFeedback] = useState('');
   const [reentryFeedbackById, setReentryFeedbackById] = useState<Record<string, string>>({});
+  const [linkedTaskPoolItemIds, setLinkedTaskPoolItemIds] = useState<string[]>([]);
+  const [minimumChoiceTaskId, setMinimumChoiceTaskId] = useState<string | null>(null);
   const [backupFeedback, setBackupFeedback] = useState('');
   const [backupCheckJson, setBackupCheckJson] = useState('');
   const [backupCheckErrors, setBackupCheckErrors] = useState<string[]>([]);
@@ -401,8 +427,10 @@ export function TodayScreen() {
     () =>
       buildTimeEdgeReentryPreviewViewModel({
         activeTasks: activeTasks.map(snapshotFromActiveTask),
+      }, {
+        noLongerNeededTaskIds: linkedTaskPoolItemIds,
       }),
-    [activeTasks],
+    [activeTasks, linkedTaskPoolItemIds],
   );
   const todayLabel = useMemo(
     () =>
@@ -478,7 +506,10 @@ export function TodayScreen() {
     setNextActiveTask(result.task);
     setTaskProgress(progress);
     setCompletionFeedback(feedback);
-    if (status === 'minimumDone') setBoostOpen(false);
+    if (status === 'minimumDone') {
+      setBoostOpen(false);
+      setMinimumChoiceTaskId(null);
+    }
   }
 
   async function moveCurrentTaskOutOfToday(
@@ -527,6 +558,7 @@ export function TodayScreen() {
     const visibleTasks = updatedTasks.filter(isVisibleActiveTask);
 
     setActiveTasks(updatedTasks);
+    setMinimumChoiceTaskId((id) => id === taskId ? null : id);
     setCompletionFeedback(feedback);
     setBoostOpen(false);
     setReentryFeedbackById((feedbackById) => {
@@ -548,10 +580,14 @@ export function TodayScreen() {
   useEffect(() => {
     let active = true;
 
-    loadActiveTodayTasks().then((tasks) => {
+    loadActiveTodayTasks().then(async (tasks) => {
       if (!active || tasks.length === 0) return;
 
+      const linkedIds = await loadLinkedTaskPoolItemIds(tasks.map((task) => task.id));
+      if (!active) return;
+
       setActiveTasks(tasks);
+      setLinkedTaskPoolItemIds(linkedIds);
       showPersistedTask(tasks[0]);
       setCompletionFeedback('');
       setBoostOpen(false);
@@ -644,10 +680,55 @@ export function TodayScreen() {
   }
 
   function tryReentryMinimum(taskId: string) {
+    const task = activeTasks.find((candidate) => candidate.id === taskId);
+    if (!task || task.minimumAchievedAt || task.status === 'minimumDone') return;
+
+    showPersistedTask(task);
+    setMinimumChoiceTaskId(taskId);
     setReentryFeedbackById((feedbackById) => ({
       ...feedbackById,
-      [taskId]: 'Minimum still counts. Use the task card when you are ready.',
+      [taskId]: 'Minimum selected. It has not been completed.',
     }));
+  }
+
+  function keepReentryTaskForReview(taskId: string) {
+    setReentryFeedbackById((feedbackById) => ({
+      ...feedbackById,
+      [taskId]: 'Still safely held. Nothing changed.',
+    }));
+  }
+
+  async function markReentryTaskNoLongerNeeded(taskId: string) {
+    const result = await markTaskLifecycleNoLongerNeeded(taskId);
+
+    if (!result.ok || !result.task) {
+      setCompletionFeedback('Task state was not saved. Try again.');
+      return;
+    }
+
+    const updatedTasks = activeTasks.map((task) =>
+      task.id === result.task?.id ? result.task : task,
+    );
+    const visibleTasks = updatedTasks.filter(isVisibleActiveTask);
+
+    setActiveTasks(updatedTasks);
+    setLinkedTaskPoolItemIds((ids) => ids.filter((id) => id !== taskId));
+    setMinimumChoiceTaskId((id) => id === taskId ? null : id);
+    setCompletionFeedback('No longer needed. It is out of Today. No catch-up pile.');
+    setReentryFeedbackById((feedbackById) => {
+      const nextFeedback = { ...feedbackById };
+      delete nextFeedback[taskId];
+      return nextFeedback;
+    });
+
+    if (nextActiveTask?.id === taskId || !nextActiveTask) {
+      showPersistedTask(visibleTasks[0] ?? null);
+    }
+
+    await repairPrivatePlanAfterTodayChange(
+      'userCorrection',
+      'A user confirmed that a re-entry task is no longer needed.',
+    );
   }
 
   async function exportTodayTasksBackup() {
@@ -738,6 +819,7 @@ export function TodayScreen() {
               <p className="section-label">Next useful action</p>
             </div>
             <TaskCard
+              minimumChoiceActive={minimumChoiceTaskId === nextTask.id}
               minimumAchieved={nextActiveTask
                 ? Boolean(nextActiveTask.minimumAchievedAt || nextActiveTask.status === 'minimumDone')
                 : mockMinimumAchieved}
@@ -761,7 +843,9 @@ export function TodayScreen() {
           <ReentryReviewPreview
             feedbackById={reentryFeedbackById}
             onMarkNotToday={markReentryTaskNotToday}
+            onNoLongerNeeded={markReentryTaskNoLongerNeeded}
             onParkSafely={parkReentryTask}
+            onReviewLater={keepReentryTaskForReview}
             onTryMinimum={tryReentryMinimum}
             preview={reentryReviewPreview}
           />

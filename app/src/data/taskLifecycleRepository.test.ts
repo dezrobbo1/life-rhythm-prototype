@@ -4,6 +4,7 @@ import { createLifeRhythmDatabase } from './db';
 import { loadActiveTodayTasks, updateActiveTaskStatus } from './activeTaskRepository';
 import {
   bringTaskPoolItemToToday,
+  loadLinkedTaskPoolItemIds,
   markTaskLifecycleNoLongerNeeded,
   updateTaskLifecycleStatus,
 } from './taskLifecycleRepository';
@@ -58,6 +59,26 @@ async function addSoftPlacement(database: ReturnType<typeof createTestDatabase>)
 }
 
 describe('task lifecycle repository', () => {
+  it('finds only validated, active Pool links for the supplied Today task identities', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await saveTaskPoolItem(validTaskPoolItem(), database);
+      await saveTaskPoolItem(validTaskPoolItem({ id: 'already-removed', status: 'noLongerNeeded' }), database);
+      await database.taskPoolItems.put({ id: 'malformed-link', status: 'today' } as TaskPoolItem);
+
+      await expect(loadLinkedTaskPoolItemIds([
+        'task-pool-form',
+        'task-pool-form',
+        'already-removed',
+        'malformed-link',
+        'missing',
+      ], database)).resolves.toEqual(['task-pool-form']);
+    } finally {
+      await database.delete();
+    }
+  });
+
   it('moves a captured Pool item into Today without changing its identity', async () => {
     const database = createTestDatabase();
 
@@ -221,6 +242,8 @@ describe('task lifecycle repository', () => {
       await saveTaskPoolItem(validTaskPoolItem(), database);
       await addSoftPlacement(database);
       await bringTaskPoolItemToToday('task-pool-form', database);
+      const minimumDone = await updateActiveTaskStatus('task-pool-form', 'minimumDone', database);
+      if (!minimumDone.ok) throw new Error('Minimum transition failed');
 
       const result = await markTaskLifecycleNoLongerNeeded('task-pool-form', database);
 
@@ -228,7 +251,11 @@ describe('task lifecycle repository', () => {
         item: { status: 'noLongerNeeded' },
         ok: true,
         placements: [{ status: 'removed' }],
-        task: { showToday: false, status: 'skipped' },
+        task: {
+          minimumAchievedAt: minimumDone.task.minimumAchievedAt,
+          showToday: false,
+          status: 'skipped',
+        },
       });
       expect(await database.taskPoolItems.get('task-pool-form')).toMatchObject({
         status: 'noLongerNeeded',

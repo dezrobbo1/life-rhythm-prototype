@@ -33,6 +33,15 @@ const reducedDayMocks = vi.hoisted(() => ({
   undoTodayPlanChange: vi.fn(),
 }));
 
+const taskLifecycleRepositoryMocks = vi.hoisted(() => ({
+  loadLinkedTaskPoolItemIds: vi.fn(),
+  markTaskLifecycleNoLongerNeeded: vi.fn(),
+}));
+
+const schedulerPlanCoordinatorMocks = vi.hoisted(() => ({
+  repairCurrentPrivatePlan: vi.fn(),
+}));
+
 vi.mock('../../data/activeTaskRepository', () => activeTaskRepositoryMocks);
 vi.mock('../../data/settingsRepository', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../data/settingsRepository')>();
@@ -43,6 +52,8 @@ vi.mock('../../data/settingsRepository', async (importOriginal) => {
   };
 });
 vi.mock('../../data/reducedDayCoordinator', () => reducedDayMocks);
+vi.mock('../../data/taskLifecycleRepository', () => taskLifecycleRepositoryMocks);
+vi.mock('../../data/schedulerPlanCoordinator', () => schedulerPlanCoordinatorMocks);
 
 import App from '../../App';
 import { TodayScreen } from '../../screens/TodayScreen';
@@ -156,6 +167,9 @@ beforeEach(() => {
     ok: true, date: '2026-09-07', dayMode: 'normal', plan, warnings: [],
     preview: { date: '2026-09-07', initialPlan: false, plan, items: [] },
   });
+  taskLifecycleRepositoryMocks.loadLinkedTaskPoolItemIds.mockResolvedValue([]);
+  taskLifecycleRepositoryMocks.markTaskLifecycleNoLongerNeeded.mockResolvedValue({ ok: false });
+  schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan.mockResolvedValue({ ok: true });
 });
 
 afterEach(() => {
@@ -1459,14 +1473,15 @@ describe('Today screen', () => {
     expect(screen.getByText('Nothing moves unless you choose.')).toBeTruthy();
     expect(screen.getByText('No catch-up pile.')).toBeTruthy();
     expect(screen.getByText('Choose later when you are ready.')).toBeTruthy();
-    expect(screen.getByText('Useful-before time has passed; choose what still helps.')).toBeTruthy();
-    expect(screen.getByText('Minimum still helps.')).toBeTruthy();
-    expect(screen.getByText('The minimum version may be enough now.')).toBeTruthy();
+    expect(screen.getByText('Useful-before time has passed.')).toBeTruthy();
+    expect(screen.getByText('Minimum may still help.')).toBeTruthy();
+    expect(screen.getByText('The authored Minimum is available if you choose it.')).toBeTruthy();
 
     const actions = screen.getByLabelText('Re-entry actions for Pay water bill');
     expect(within(actions).getByRole('button', { name: 'Park safely' })).toBeTruthy();
     expect(within(actions).getByRole('button', { name: 'Try the minimum' })).toBeTruthy();
     expect(within(actions).getByRole('button', { name: 'Mark not today' })).toBeTruthy();
+    expect(within(actions).getByRole('button', { name: 'Keep for review' })).toBeTruthy();
     expect(within(actions).queryByRole('button', { name: 'Move later' })).toBeNull();
     expect(within(actions).queryByRole('button', { name: 'No longer needed' })).toBeNull();
     expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
@@ -1478,6 +1493,7 @@ describe('Today screen', () => {
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
       persistedOneOffTask({
         dueAt: '2000-06-17T09:00:00.000Z',
+        minimumStillUsefulAfterDeadline: true,
         timeConstraint: 'dueBy',
       }),
     ]);
@@ -1498,6 +1514,10 @@ describe('Today screen', () => {
     expect(screen.getByText('Parked safely. Still safely held. No catch-up pile.')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Re-entry review' })).toBeNull();
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
+    expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledWith({
+      reason: 'A re-entry choice changed which private work remains active.',
+      trigger: 'userCorrection',
+    });
   });
 
   it('marks a re-entry review task not today only after the user clicks Mark not today', async () => {
@@ -1525,9 +1545,13 @@ describe('Today screen', () => {
     expect(screen.getByText('Marked not today. Still safely held. No catch-up pile.')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Re-entry review' })).toBeNull();
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
+    expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledWith({
+      reason: 'A re-entry choice changed which private work remains active.',
+      trigger: 'userCorrection',
+    });
   });
 
-  it('keeps Try the minimum as helper copy without writing a status', async () => {
+  it('keeps a review task unchanged when the user chooses Keep for review', async () => {
     const user = userEvent.setup();
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
       persistedOneOffTask({
@@ -1538,10 +1562,154 @@ describe('Today screen', () => {
 
     render(<TodayScreen />);
 
+    await user.click(await screen.findByRole('button', { name: 'Keep for review' }));
+    expect(screen.getByText('Still safely held. Nothing changed.')).toBeTruthy();
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
+    expect(taskLifecycleRepositoryMocks.markTaskLifecycleNoLongerNeeded).not.toHaveBeenCalled();
+    expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+  });
+
+  it('offers No longer needed only for an expired linked task and writes only after confirmation', async () => {
+    const user = userEvent.setup();
+    const task = persistedOneOffTask({
+      expiresAfter: '2000-06-17T09:00:00.000Z',
+      id: 'linked-expired-task',
+      missedPolicy: 'archiveIfExpired',
+      timeConstraint: 'expiresAfter',
+      title: 'Expired linked task',
+    });
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([task]);
+    taskLifecycleRepositoryMocks.loadLinkedTaskPoolItemIds.mockResolvedValueOnce([task.id]);
+    taskLifecycleRepositoryMocks.markTaskLifecycleNoLongerNeeded.mockResolvedValueOnce({
+      item: { id: task.id, status: 'noLongerNeeded' },
+      ok: true,
+      placements: [],
+      task: { ...task, showToday: false, status: 'skipped' },
+    });
+
+    render(<TodayScreen />);
+
+    const action = await screen.findByRole('button', { name: 'No longer needed' });
+    expect(taskLifecycleRepositoryMocks.markTaskLifecycleNoLongerNeeded).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Try the minimum' })).toBeNull();
+
+    await user.click(action);
+
+    await waitFor(() => {
+      expect(taskLifecycleRepositoryMocks.markTaskLifecycleNoLongerNeeded).toHaveBeenCalledWith(task.id);
+    });
+    expect(screen.getByText('No longer needed. It is out of Today. No catch-up pile.')).toBeTruthy();
+    expect(screen.queryByRole('article', { name: task.title })).toBeNull();
+    expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledWith({
+      reason: 'A user confirmed that a re-entry task is no longer needed.',
+      trigger: 'userCorrection',
+    });
+  });
+
+  it('omits No longer needed when an expired task has no supported linked Pool path', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        expiresAfter: '2000-06-17T09:00:00.000Z',
+        missedPolicy: 'archiveIfExpired',
+        timeConstraint: 'expiresAfter',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'No longer needed' })).toBeNull();
+  });
+
+  it('keeps the prior task visible when No longer needed persistence fails', async () => {
+    const user = userEvent.setup();
+    const task = persistedOneOffTask({
+      expiresAfter: '2000-06-17T09:00:00.000Z',
+      id: 'linked-expired-task',
+      missedPolicy: 'archiveIfExpired',
+      timeConstraint: 'expiresAfter',
+      title: 'Expired linked task',
+    });
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([task]);
+    taskLifecycleRepositoryMocks.loadLinkedTaskPoolItemIds.mockResolvedValueOnce([task.id]);
+
+    render(<TodayScreen />);
+
+    await user.click(await screen.findByRole('button', { name: 'No longer needed' }));
+    expect(await screen.findByText('Task state was not saved. Try again.')).toBeTruthy();
+    expect(screen.getByRole('article', { name: task.title })).toBeTruthy();
+    expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+  });
+
+  it('selects Try the minimum without writing a status or completing the task', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        dueAt: '2000-06-17T09:00:00.000Z',
+        minimumStillUsefulAfterDeadline: true,
+        timeConstraint: 'dueBy',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
     expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Try the minimum' }));
 
-    expect(screen.getByText('Minimum still counts. Use the task card when you are ready.')).toBeTruthy();
+    expect(screen.getByText('Minimum selected. It has not been completed.')).toBeTruthy();
+    expect(screen.getByText('Choosing Minimum does not complete it.')).toBeTruthy();
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+    expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+  });
+
+  it('does not offer Try the minimum after Minimum is already achieved', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        dueAt: '2000-06-17T09:00:00.000Z',
+        minimumAchievedAt: '2000-06-17T08:00:00.000Z',
+        minimumStillUsefulAfterDeadline: true,
+        timeConstraint: 'dueBy',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Try the minimum' })).toBeNull();
+  });
+
+  it('makes Try the minimum focus the exact existing task and show its authored Minimum without completing it', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        id: 'current-task',
+        title: 'Current task',
+      }),
+      persistedOneOffTask({
+        dueAt: '2000-06-17T09:00:00.000Z',
+        id: 'minimum-review-task',
+        minimum: {
+          label: 'Open the exact form and write one line.',
+          minutes: 5,
+        },
+        minimumStillUsefulAfterDeadline: true,
+        missedPolicy: 'minimumOnly',
+        timeConstraint: 'dueBy',
+        title: 'Review exact form',
+      }),
+    ]);
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('article', { name: 'Current task' })).toBeTruthy();
+    const actions = screen.getByLabelText('Re-entry actions for Review exact form');
+    await user.click(within(actions).getByRole('button', { name: 'Try the minimum' }));
+
+    const selectedTask = screen.getByRole('article', { name: 'Review exact form' });
+    expect(within(selectedTask).getByText(/Open the exact form and write one line\./)).toBeTruthy();
+    expect(within(selectedTask).getAllByText(/5 min/).length).toBeGreaterThan(0);
+    expect(within(selectedTask).getByText('Choosing Minimum does not complete it.')).toBeTruthy();
     expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
     expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
   });
@@ -1557,7 +1725,8 @@ describe('Today screen', () => {
     render(<TodayScreen />);
 
     expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
-    expect(screen.getByText('Minimum may be the useful version now.')).toBeTruthy();
+    expect(screen.getByText('The latest useful start has passed.')).toBeTruthy();
+    expect(screen.getByText('The original start opportunity has narrowed.')).toBeTruthy();
   });
 
   it('shows calm re-entry review copy after notUsefulAfter has passed', async () => {
@@ -1570,7 +1739,7 @@ describe('Today screen', () => {
     render(<TodayScreen />);
 
     expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
-    expect(screen.getByText('Original useful window has passed; choose what still helps.')).toBeTruthy();
+    expect(screen.getByText('This is past its useful window.')).toBeTruthy();
   });
 
   it('does not render parked or not-today tasks in the re-entry review', async () => {

@@ -37,6 +37,7 @@ import type {
   ViewModelOptions,
 } from './types';
 import { futureModulePlaceholders, resetActions as defaultResetActions } from './fixtures';
+import { assessTaskReentry, type TaskReentryAction } from '../domain/taskReentry';
 
 const defaultTodayState: TodayState = 'Normal day';
 
@@ -152,25 +153,23 @@ const reentryReviewIntro = [
   'Choose later when you are ready.',
 ];
 
-const reentryActionOptions: TimeEdgeReentryReviewItemViewModel['actionOptions'] = [
-  'Park safely',
-  'Try the minimum',
-  'Mark not today',
-];
+const reentryActionLabels: Record<TaskReentryAction, TimeEdgeReentryReviewItemViewModel['actionOptions'][number]> = {
+  tryMinimum: 'Try the minimum',
+  park: 'Park safely',
+  notToday: 'Mark not today',
+  noLongerNeeded: 'No longer needed',
+  reviewLater: 'Keep for review',
+};
 
-function timestamp(value: string | undefined): number | null {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = Date.parse(value);
-
-  return Number.isNaN(parsed) ? null : parsed;
-}
-
-function optionCopyForPolicy(policy: TaskDeadlineViewModel['missedPolicy']): string | undefined {
+function optionCopyForPolicy(
+  policy: TaskDeadlineViewModel['missedPolicy'],
+  minimumStillUseful: boolean,
+  noLongerNeededAvailable: boolean,
+): string | undefined {
   if (policy === 'minimumOnly') {
-    return 'The minimum version may be enough now.';
+    return minimumStillUseful
+      ? 'The authored Minimum is available if you choose it.'
+      : 'Minimum is not offered because its usefulness is not established now.';
   }
 
   if (policy === 'park' || policy === 'hideUntilReview') {
@@ -182,64 +181,58 @@ function optionCopyForPolicy(policy: TaskDeadlineViewModel['missedPolicy']): str
   }
 
   if (policy === 'followUpPrompt') {
-    return 'A follow-up choice can wait until you are ready.';
+    return 'A follow-up choice can wait; no replacement task was created.';
   }
 
   if (policy === 'archiveIfExpired') {
-    return 'Choosing when ready is allowed.';
+    return noLongerNeededAvailable
+      ? 'No longer needed is available as an explicit choice.'
+      : 'This can stay for review, be parked safely, or be marked not today.';
   }
 
   return undefined;
 }
 
-function buildReentryReviewItem(task: SnapshotActiveTask, nowMs: number): TimeEdgeReentryReviewItemViewModel | null {
+function buildReentryReviewItem(
+  task: SnapshotActiveTask,
+  now: Date | string,
+  noLongerNeededTaskIds: Set<string>,
+): TimeEdgeReentryReviewItemViewModel | null {
   const deadline = task.deadline;
 
   if (!isVisibleTodayTask(task) || !deadline) {
     return null;
   }
 
-  const dueAt = timestamp(deadline.dueAt);
-  const fixedAt = timestamp(deadline.fixedAt);
-  const expiresAfter = timestamp(deadline.expiresAfter);
-  const latestUsefulStartAt = timestamp(deadline.latestUsefulStartAt);
-  const notUsefulAfter = timestamp(deadline.notUsefulAfter);
-  const supportingCopy: string[] = [];
-  let reason = '';
+  const assessment = assessTaskReentry({
+    ...deadline,
+    minimum: task.minimum,
+    minimumAchieved: Boolean(task.minimumAchievedAt || task.status === 'minimumDone'),
+    noLongerNeededSupported: noLongerNeededTaskIds.has(task.id),
+    status: task.status,
+  }, now);
 
-  if (notUsefulAfter !== null && notUsefulAfter < nowMs) {
-    reason = 'Original useful window has passed; choose what still helps.';
-  } else if (
-    latestUsefulStartAt !== null &&
-    latestUsefulStartAt < nowMs &&
-    (notUsefulAfter === null || notUsefulAfter >= nowMs)
-  ) {
-    reason = 'Minimum may be the useful version now.';
-  } else if (deadline.timeConstraint === 'dueBy' && dueAt !== null && dueAt < nowMs) {
-    reason = 'Useful-before time has passed; choose what still helps.';
-  } else if (deadline.timeConstraint === 'fixedAt' && fixedAt !== null && fixedAt < nowMs) {
-    reason = 'The fixed-time point has passed; choose what still helps.';
-  } else if (deadline.timeConstraint === 'expiresAfter' && expiresAfter !== null && expiresAfter < nowMs) {
-    reason = 'This was useful until an earlier time; choose what still helps.';
-  }
-
-  if (!reason) {
+  if (!assessment.needsReview || !assessment.reason || !assessment.usefulness) {
     return null;
   }
 
-  supportingCopy.push('Still safely held.');
-
-  if (deadline.minimumStillUsefulAfterDeadline) {
-    supportingCopy.push('Minimum still helps.');
-  }
+  const recommendedAction = assessment.recommendedAction
+    ? reentryActionLabels[assessment.recommendedAction]
+    : undefined;
 
   return {
-    actionOptions: [...reentryActionOptions],
+    actionOptions: assessment.validActions.map((action) => reentryActionLabels[action]),
     id: task.id,
-    reason,
-    suggestedCopy: optionCopyForPolicy(deadline.missedPolicy),
-    supportingCopy,
+    reason: assessment.reason,
+    suggestedCopy: optionCopyForPolicy(
+      deadline.missedPolicy,
+      assessment.minimumStillUseful,
+      assessment.validActions.includes('noLongerNeeded'),
+    ),
+    supportingCopy: ['Still safely held.'],
     title: task.title,
+    usefulness: assessment.usefulness,
+    ...(recommendedAction ? { recommendedAction } : {}),
   };
 }
 
@@ -247,13 +240,13 @@ export function buildTimeEdgeReentryPreviewViewModel(
   snapshot: AppDataSnapshot = {},
   options: TimeEdgeReentryPreviewOptions = {},
 ): TimeEdgeReentryPreviewViewModel {
-  const nowMs = options.now ? new Date(options.now).getTime() : Date.now();
-  const safeNowMs = Number.isNaN(nowMs) ? Date.now() : nowMs;
+  const now = options.now ?? new Date();
+  const noLongerNeededTaskIds = new Set(options.noLongerNeededTaskIds ?? []);
 
   return {
     intro: [...reentryReviewIntro],
     items: (snapshot.activeTasks ?? []).flatMap((task) => {
-      const item = buildReentryReviewItem(task, safeNowMs);
+      const item = buildReentryReviewItem(task, now, noLongerNeededTaskIds);
 
       return item ? [item] : [];
     }),
