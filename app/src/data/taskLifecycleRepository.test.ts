@@ -286,4 +286,62 @@ describe('task lifecycle repository', () => {
       await database.delete();
     }
   });
+
+  it('preserves Minimum achievement when parked, marked not today, and resurfaced', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await saveTaskPoolItem(validTaskPoolItem(), database);
+      await bringTaskPoolItemToToday('task-pool-form', database);
+      const minimumDone = await updateActiveTaskStatus('task-pool-form', 'minimumDone', database);
+      if (!minimumDone.ok) throw new Error('Minimum transition failed');
+      const achievedAt = minimumDone.task.minimumAchievedAt;
+
+      await updateActiveTaskStatus('task-pool-form', 'parked', database);
+      expect(await database.activeTasks.get('task-pool-form')).toMatchObject({
+        minimumAchievedAt: achievedAt,
+        status: 'parked',
+      });
+
+      await bringTaskPoolItemToToday('task-pool-form', database);
+      expect(await database.activeTasks.get('task-pool-form')).toMatchObject({
+        minimumAchievedAt: achievedAt,
+        status: 'active',
+      });
+
+      await updateActiveTaskStatus('task-pool-form', 'notToday', database);
+      expect(await database.activeTasks.get('task-pool-form')).toMatchObject({
+        minimumAchievedAt: achievedAt,
+        status: 'notToday',
+      });
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('does not inherit achievement when a new task instance uses the same template', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await saveTaskPoolItem(validTaskPoolItem({
+        source: 'library',
+        templateId: 'library-form',
+      }), database);
+      await bringTaskPoolItemToToday('task-pool-form', database);
+      await updateActiveTaskStatus('task-pool-form', 'minimumDone', database);
+      await updateActiveTaskStatus('task-pool-form', 'done', database);
+
+      await saveTaskPoolItem(validTaskPoolItem({
+        id: 'task-pool-form-next',
+        source: 'library',
+        templateId: 'library-form',
+      }), database);
+      const next = await bringTaskPoolItemToToday('task-pool-form-next', database);
+
+      expect(next).toMatchObject({ ok: true, task: { status: 'active' } });
+      if (next.ok) expect(next.task.minimumAchievedAt).toBeUndefined();
+    } finally {
+      await database.delete();
+    }
+  });
 });

@@ -70,6 +70,17 @@ function isVisibleTodayStatus(status: ActiveTaskStatus) {
   return visibleTodayStatuses.includes(status);
 }
 
+export function minimumAchievementForStatusTransition(
+  task: ActiveTask,
+  status: ActiveTaskStatus,
+  timestamp: string,
+) {
+  if (task.minimumAchievedAt) return task.minimumAchievedAt;
+  if (task.status === 'minimumDone' || status === 'minimumDone') return timestamp;
+
+  return undefined;
+}
+
 function poolStatusForActiveTask(status: ActiveTaskStatus): TaskPoolItemStatus {
   if (isVisibleTodayStatus(status)) return 'today';
   if (status === 'parked') return 'parked';
@@ -356,6 +367,11 @@ export async function updateTaskLifecycleStatus(
       const visibleToday = isVisibleTodayStatus(parsedStatus.data);
       const updatedTask = activeTaskSchema.parse({
         ...parsedTask.data,
+        minimumAchievedAt: minimumAchievementForStatusTransition(
+          parsedTask.data,
+          parsedStatus.data,
+          timestamp,
+        ),
         showToday: visibleToday,
         status: parsedStatus.data,
         updatedAt: timestamp,

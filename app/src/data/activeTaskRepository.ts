@@ -10,7 +10,10 @@ import {
   type TaskPoolItem,
   type TaskPoolItemStatus,
 } from './schemas';
-import { updateTaskLifecycleStatus } from './taskLifecycleRepository';
+import {
+  minimumAchievementForStatusTransition,
+  updateTaskLifecycleStatus,
+} from './taskLifecycleRepository';
 
 type ActiveTasksTable = Pick<Table<ActiveTask, string>, 'get' | 'put' | 'toArray'>;
 type TaskPoolItemsTable = Pick<Table<TaskPoolItem, string>, 'get' | 'put'>;
@@ -325,6 +328,11 @@ export async function updateActiveTaskStatus(
   const timestamp = new Date().toISOString();
   const updatedTask = activeTaskSchema.parse({
     ...parsedTask.data,
+    minimumAchievedAt: minimumAchievementForStatusTransition(
+      parsedTask.data,
+      statusResult.data,
+      timestamp,
+    ),
     showToday: visibleToday,
     status: statusResult.data,
     updatedAt: timestamp,

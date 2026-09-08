@@ -192,6 +192,7 @@ export const activeTaskBackupItemSchema = z
     notUsefulAfter: activeTaskDeadlineIsoDateTimeSchema.optional(),
     minimumStillUsefulAfterDeadline: z.boolean().optional(),
     missedPolicy: missedPolicySchema.optional(),
+    minimumAchievedAt: isoDateTime.optional(),
     title: z.string().min(1),
     updatedAt: isoDateTime,
   })
@@ -332,6 +333,7 @@ function toBackupItem(activeTaskInput: unknown): ActiveTaskBackupItem {
       ? { minimumStillUsefulAfterDeadline: task.minimumStillUsefulAfterDeadline }
       : {}),
     ...(task.missedPolicy ? { missedPolicy: task.missedPolicy } : {}),
+    ...(task.minimumAchievedAt ? { minimumAchievedAt: task.minimumAchievedAt } : {}),
   };
 
   return activeTaskBackupItemSchema.parse(backupItem);
