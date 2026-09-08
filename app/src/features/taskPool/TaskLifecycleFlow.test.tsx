@@ -65,7 +65,8 @@ describe('personal task lifecycle flow', () => {
     await user.click(screen.getByRole('button', { name: 'Today' }));
     expect(await screen.findByRole('heading', { name: 'Send school form' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Start task' }));
-    await user.click(await screen.findByRole('button', { name: 'Mark minimum done' }));
+    expect(await screen.findByText('Minimum already counts.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Mark minimum done' })).toBeNull();
     await user.click(await screen.findByRole('button', { name: 'Not today' }));
 
     expect(await screen.findByText('Not today. It is out of the current list. No catch-up pile.')).toBeTruthy();

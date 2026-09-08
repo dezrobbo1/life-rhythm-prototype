@@ -386,6 +386,7 @@ export function TodayScreen() {
   const [activeTasks, setActiveTasks] = useState<ActiveTask[]>([]);
   const [nextActiveTask, setNextActiveTask] = useState<ActiveTask | null>(null);
   const [taskProgress, setTaskProgress] = useState<TaskProgress>('idle');
+  const [mockMinimumAchieved, setMockMinimumAchieved] = useState(false);
   const [completionFeedback, setCompletionFeedback] = useState('');
   const [reentryFeedbackById, setReentryFeedbackById] = useState<Record<string, string>>({});
   const [backupFeedback, setBackupFeedback] = useState('');
@@ -456,6 +457,7 @@ export function TodayScreen() {
   ) {
     if (!nextActiveTask) {
       setTaskProgress(progress);
+      if (status === 'minimumDone') setMockMinimumAchieved(true);
       setCompletionFeedback(feedback);
       if (status === 'minimumDone') setBoostOpen(false);
       return;
@@ -736,6 +738,9 @@ export function TodayScreen() {
               <p className="section-label">Next useful action</p>
             </div>
             <TaskCard
+              minimumAchieved={nextActiveTask
+                ? Boolean(nextActiveTask.minimumAchievedAt || nextActiveTask.status === 'minimumDone')
+                : mockMinimumAchieved}
               onKeepGoing={keepGoing}
               onMarkFullDone={markFullDone}
               onMarkMinimumDone={markMinimumDone}

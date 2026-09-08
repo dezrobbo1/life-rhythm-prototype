@@ -126,6 +126,34 @@ describe('current persisted state projection', () => {
     },
   );
 
+  it('keeps achieved in-flight work schedulable without turning achievement into scheduler policy', () => {
+    const activeTask = activeTaskSchema.parse({
+      id: 'task-continuing-after-minimum',
+      source: 'adhoc',
+      title: 'Continue if useful',
+      area: 'admin',
+      status: 'inProgress',
+      minimumAchievedAt: '2026-09-03T09:30:00.000Z',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      ...versions(),
+    });
+
+    const projected = projectCurrentStateToSchedulingDomain({
+      settings: settings(),
+      activeTasks: [activeTask],
+      taskPoolItems: [],
+      rhythmTemplates: [],
+      softPlacements: [],
+    });
+
+    expect(projected.intentions[0]).toMatchObject({
+      eligibleForScheduling: true,
+      lifecycle: { activeTaskStatus: 'inProgress' },
+    });
+    expect(projected.intentions[0]).not.toHaveProperty('minimumAchievedAt');
+  });
+
   it.each(['done', 'parked', 'skipped', 'notToday'] as const)(
     'keeps inactive Today status %s out of current scheduling eligibility',
     (status) => {

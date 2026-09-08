@@ -477,4 +477,74 @@ describe('active task repository', () => {
       await database.delete();
     }
   });
+
+  it('keeps legacy rows valid and rejects malformed Minimum achievement timestamps', () => {
+    expect(activeTaskSchema.safeParse(validActiveTask()).success).toBe(true);
+    expect(activeTaskSchema.safeParse({
+      ...validActiveTask(),
+      minimumAchievedAt: 'not-a-timestamp',
+    }).success).toBe(false);
+    expect(activeTaskSchema.safeParse({
+      ...validActiveTask(),
+      minimumAchievedAt: '2026-02-31T10:00:00.000Z',
+    }).success).toBe(false);
+  });
+
+  it('persists Minimum achievement atomically through Keep going, pause, resume, and completion', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await saveActiveTodayTask(validActiveTask(), database);
+      const minimumDone = await updateActiveTaskStatus('active-kitchen-landing', 'minimumDone', database);
+
+      expect(minimumDone).toMatchObject({
+        ok: true,
+        task: {
+          minimumAchievedAt: expect.any(String),
+          status: 'minimumDone',
+        },
+      });
+      if (!minimumDone.ok) throw new Error('Minimum transition failed');
+      const achievedAt = minimumDone.task.minimumAchievedAt;
+
+      for (const status of ['inProgress', 'paused', 'inProgress', 'done'] as const) {
+        const result = await updateActiveTaskStatus('active-kitchen-landing', status, database);
+        expect(result).toMatchObject({
+          ok: true,
+          task: { minimumAchievedAt: achievedAt, status },
+        });
+      }
+
+      expect(await database.activeTasks.get('active-kitchen-landing')).toMatchObject({
+        minimumAchievedAt: achievedAt,
+        showToday: false,
+        status: 'done',
+      });
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('backfills legacy minimumDone evidence but does not guess for legacy inProgress rows', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await database.activeTasks.bulkPut([
+        validActiveTask({ id: 'legacy-minimum', status: 'minimumDone' }),
+        validActiveTask({ id: 'legacy-progress', status: 'inProgress' }),
+      ]);
+
+      const continued = await updateActiveTaskStatus('legacy-minimum', 'inProgress', database);
+      const paused = await updateActiveTaskStatus('legacy-progress', 'paused', database);
+
+      expect(continued).toMatchObject({
+        ok: true,
+        task: { minimumAchievedAt: expect.any(String), status: 'inProgress' },
+      });
+      expect(paused).toMatchObject({ ok: true, task: { status: 'paused' } });
+      if (paused.ok) expect(paused.task.minimumAchievedAt).toBeUndefined();
+    } finally {
+      await database.delete();
+    }
+  });
 });

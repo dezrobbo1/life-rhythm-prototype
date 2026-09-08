@@ -744,6 +744,7 @@ export const activeTaskSchema = z
     notUsefulAfter: activeTaskDeadlineIsoDateTimeSchema.optional(),
     minimumStillUsefulAfterDeadline: z.boolean().optional(),
     missedPolicy: missedPolicySchema.optional(),
+    minimumAchievedAt: strictIsoDateTimeSchema.optional(),
     createdAt: isoDateTime,
     updatedAt: isoDateTime,
   })

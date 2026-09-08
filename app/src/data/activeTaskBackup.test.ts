@@ -172,6 +172,37 @@ describe('active task backup scaffolding', () => {
     }
   });
 
+  it('round-trips Minimum achievement while accepting older backups without it', () => {
+    const achievedAt = '2026-06-17T00:30:00.000Z';
+    const payload = buildActiveTaskBackupPayload([
+      validActiveTask({ minimumAchievedAt: achievedAt, status: 'inProgress' }),
+    ], exportedAt);
+    const parsed = parseActiveTaskBackupJson(serializeActiveTaskBackup(payload));
+
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.payload.activeTasks[0].minimumAchievedAt).toBe(achievedAt);
+    }
+
+    const olderPayload = validPayload();
+    expect(olderPayload.activeTasks[0].minimumAchievedAt).toBeUndefined();
+    expect(validateActiveTaskBackup(olderPayload).ok).toBe(true);
+  });
+
+  it('rejects malformed Minimum achievement data in backups', () => {
+    const payload = validPayload();
+    const result = validateActiveTaskBackup({
+      ...payload,
+      activeTasks: [{
+        ...payload.activeTasks[0],
+        minimumAchievedAt: '2026-02-31T00:00:00.000Z',
+      }],
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(' ')).toContain('minimumAchievedAt');
+  });
+
   it('validates an active task backup and returns a preview', () => {
     const result = validateActiveTaskBackup(validPayload());
 

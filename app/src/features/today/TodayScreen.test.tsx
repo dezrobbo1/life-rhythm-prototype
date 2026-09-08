@@ -110,11 +110,14 @@ beforeEach(() => {
   }));
   activeTaskRepositoryMocks.updateActiveTaskStatus.mockImplementation(async (id: string, status: ActiveTask['status']) => {
     const visibleToday = status === 'active' || status === 'inProgress' || status === 'paused' || status === 'minimumDone';
+    const minimumWasAchieved = status === 'minimumDone' || activeTaskRepositoryMocks.updateActiveTaskStatus.mock.calls
+      .some((call) => call[1] === 'minimumDone');
 
     return {
       ok: true,
       task: persistedOneOffTask({
         id,
+        minimumAchievedAt: minimumWasAchieved ? '2026-06-17T00:05:00.000Z' : undefined,
         showToday: visibleToday,
         status,
       }),
@@ -1021,6 +1024,75 @@ describe('Today screen', () => {
       ]);
     });
     expect(screen.getByText('Optional. Minimum already counts. Continue only if it helps.')).toBeTruthy();
+  });
+
+  it('renders durable and legacy Minimum achievement without guessing for ordinary in-progress work', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        minimumAchievedAt: '2026-06-17T00:05:00.000Z',
+        status: 'inProgress',
+      }),
+    ]);
+    const achievedRender = render(<TodayScreen />);
+
+    expect(await screen.findByText('Minimum already counts.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Mark minimum done' })).toBeNull();
+    achievedRender.unmount();
+
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({ status: 'minimumDone' }),
+    ]);
+    const legacyMinimumRender = render(<TodayScreen />);
+    expect((await screen.findAllByText('Minimum done. That counts.')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Mark minimum done' })).toBeNull();
+    legacyMinimumRender.unmount();
+
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({ status: 'inProgress' }),
+    ]);
+    render(<TodayScreen />);
+    expect(await screen.findByText('In progress. Keep it small.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark minimum done' })).toBeTruthy();
+  });
+
+  it('does not show Minimum achieved when the persistence transition fails', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({ status: 'inProgress' }),
+    ]);
+    activeTaskRepositoryMocks.updateActiveTaskStatus.mockResolvedValueOnce({
+      errors: ['write failed'],
+      ok: false,
+    });
+    render(<TodayScreen />);
+
+    await user.click(await screen.findByRole('button', { name: 'Mark minimum done' }));
+
+    expect(await screen.findByText('Task state was not saved. Try again.')).toBeTruthy();
+    expect(screen.getByText('In progress. Keep it small.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark minimum done' })).toBeTruthy();
+    expect(screen.queryByText('Minimum already counts.')).toBeNull();
+  });
+
+  it('keeps Minimum achieved when Keep going persistence fails', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValueOnce([
+      persistedOneOffTask({
+        minimumAchievedAt: '2026-06-17T00:05:00.000Z',
+        status: 'minimumDone',
+      }),
+    ]);
+    activeTaskRepositoryMocks.updateActiveTaskStatus.mockResolvedValueOnce({
+      errors: ['write failed'],
+      ok: false,
+    });
+    render(<TodayScreen />);
+
+    await user.click(await screen.findByRole('button', { name: 'Keep going' }));
+
+    expect(await screen.findByText('Task state was not saved. Try again.')).toBeTruthy();
+    expect((screen.getAllByText('Minimum done. That counts.')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('In progress. Keep it small.')).toBeNull();
   });
 
   it('keeps optional normal and full versions hidden until Keep going', async () => {
