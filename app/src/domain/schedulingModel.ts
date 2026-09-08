@@ -145,6 +145,8 @@ export type SchedulerPlanningPolicy = {
   maxInternalScheduledMinutesPerDay?: number;
   maxAutomaticPlacementsPerDay?: number;
   dayMode?: SchedulerDayMode;
+  /** Local date to which Reduced Day-specific sizing and caps apply. */
+  dayModeDate?: LocalDate;
   reducedDay?: ReducedDayPlanningPolicy;
 };
 

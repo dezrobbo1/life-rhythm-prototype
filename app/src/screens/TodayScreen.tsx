@@ -13,6 +13,7 @@ import {
   serializeActiveTaskBackup,
 } from '../data/activeTaskBackup';
 import { repairCurrentPrivatePlan } from '../data/schedulerPlanCoordinator';
+import { ReducedDayControl } from '../features/today/ReducedDayControl';
 import { activeTaskSchema, type ActiveTask, type ActiveTaskStatus } from '../data/schemas';
 import {
   type MockTask,
@@ -750,6 +751,7 @@ export function TodayScreen() {
               task={nextTask}
               todayState={todayState}
             />
+            <ReducedDayControl />
           </section>
           <ReentryReviewPreview
             feedbackById={reentryFeedbackById}

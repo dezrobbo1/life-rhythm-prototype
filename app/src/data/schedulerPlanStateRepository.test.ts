@@ -549,7 +549,7 @@ describe('persisted Gate 4 scheduler plan state', () => {
         reason: 'Reduced Day explicit rhythm opt-in', trigger: 'userCorrection',
         now: { date: today, time: '08:00', timezone },
         nextInput: { ...input, planningPolicy: {
-          dayMode: 'reduced', reducedDay: { minimumEligibleRhythmIds: ['eligible'] },
+          dayMode: 'reduced', dayModeDate: '2026-09-07', reducedDay: { minimumEligibleRhythmIds: ['eligible'] },
         } },
       }, database, '2026-09-07T00:05:00.000Z');
       if (!repaired.ok) throw new Error(repaired.errors.join('\n'));

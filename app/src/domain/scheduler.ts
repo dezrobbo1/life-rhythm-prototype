@@ -15,6 +15,7 @@ import type {
   SchedulingPreference,
   TaskVariant,
 } from './schedulingModel';
+import { canUseReducedMinimum, eligibleRhythmMinimum } from './reducedDayPolicy';
 
 export type SchedulerStatus = 'gate3-automatic-scheduler-v0';
 export const schedulerStatus: SchedulerStatus = 'gate3-automatic-scheduler-v0';
@@ -54,6 +55,7 @@ type CandidateGap = {
 };
 
 type SlotScore = {
+  variantRank: number;
   preferMatches: number;
   avoidMatches: number;
   rhythmDayPenalty: number;
@@ -285,10 +287,23 @@ function capacityViolationsForPlacement(
 
   const violations: SchedulerViolation[] = [];
   const sameDay = accepted.filter((candidate) => candidate.date === placement.date);
+  const reducedApplies = policy.dayMode === 'reduced' &&
+    (!policy.dayModeDate || policy.dayModeDate === placement.date);
+  const reducedPolicy = reducedApplies ? policy.reducedDay : undefined;
+  const maxMinutes = reducedPolicy?.maxInternalScheduledMinutesPerDay === undefined
+    ? policy.maxInternalScheduledMinutesPerDay
+    : policy.maxInternalScheduledMinutesPerDay === undefined
+      ? reducedPolicy.maxInternalScheduledMinutesPerDay
+      : Math.min(policy.maxInternalScheduledMinutesPerDay, reducedPolicy.maxInternalScheduledMinutesPerDay);
+  const maxPlacements = reducedPolicy?.maxAutomaticPlacementsPerDay === undefined
+    ? policy.maxAutomaticPlacementsPerDay
+    : policy.maxAutomaticPlacementsPerDay === undefined
+      ? reducedPolicy.maxAutomaticPlacementsPerDay
+      : Math.min(policy.maxAutomaticPlacementsPerDay, reducedPolicy.maxAutomaticPlacementsPerDay);
 
-  if (policy.maxInternalScheduledMinutesPerDay !== undefined) {
+  if (maxMinutes !== undefined) {
     const existingMinutes = sameDay.reduce((sum, candidate) => sum + placementMinutes(candidate), 0);
-    if (existingMinutes + placementMinutes(placement) > policy.maxInternalScheduledMinutesPerDay) {
+    if (existingMinutes + placementMinutes(placement) > maxMinutes) {
       violations.push({
         code: 'capacity-limit-exceeded',
         placementId: placement.id,
@@ -297,9 +312,9 @@ function capacityViolationsForPlacement(
     }
   }
 
-  if (policy.maxAutomaticPlacementsPerDay !== undefined) {
+  if (maxPlacements !== undefined) {
     const existingAutomatic = sameDay.filter((candidate) => candidate.origin === 'scheduler').length;
-    if (existingAutomatic + 1 > policy.maxAutomaticPlacementsPerDay) {
+    if (existingAutomatic + 1 > maxPlacements) {
       violations.push({
         code: 'capacity-limit-exceeded',
         placementId: placement.id,
@@ -593,6 +608,7 @@ function candidateStarts(
 
 function compareScores(left: SlotScore, right: SlotScore): number {
   return (
+    left.variantRank - right.variantRank ||
     right.preferMatches - left.preferMatches ||
     left.avoidMatches - right.avoidMatches ||
     left.rhythmDayPenalty - right.rhythmDayPenalty ||
@@ -646,10 +662,11 @@ function findPlacementForIntention(
     preferenceAppliesToIntention(preference, intention),
   );
 
-  for (const variant of orderedVariants(intention.variants)) {
-    const placements: CandidatePlacement[] = [];
-
-    for (const gap of candidateGaps(input, accepted)) {
+  const placements: CandidatePlacement[] = [];
+  for (const gap of candidateGaps(input, accepted)) {
+    const forcedMinimum = canUseReducedMinimum(intention, input, gap.candidate.date);
+    const variants = forcedMinimum ? [forcedMinimum] : orderedVariants(intention.variants);
+    for (const [variantRank, variant] of variants.entries()) {
       const fixedStart = fixedStartForCandidate(intention, gap.candidate);
       if (Number.isNaN(fixedStart)) continue;
 
@@ -686,6 +703,7 @@ function findPlacementForIntention(
         placements.push({
           placement,
           score: {
+            variantRank,
             preferMatches: scoreParts.preferMatches,
             avoidMatches: scoreParts.avoidMatches,
             rhythmDayPenalty: 0,
@@ -696,10 +714,10 @@ function findPlacementForIntention(
         });
       }
     }
-
-    placements.sort((left, right) => compareScores(left.score, right.score));
-    if (placements[0]) return placements[0].placement;
   }
+
+  placements.sort((left, right) => compareScores(left.score, right.score));
+  if (placements[0]) return placements[0].placement;
 
   return null;
 }
@@ -773,10 +791,11 @@ function findPlacementForRhythm(
     preferenceAppliesToRhythm(preference, rhythm),
   );
 
-  for (const variant of orderedVariants(rhythm.variants)) {
-    const placements: CandidatePlacement[] = [];
-
-    for (const gap of candidateGaps(input, accepted, allowedDates)) {
+  const placements: CandidatePlacement[] = [];
+  for (const gap of candidateGaps(input, accepted, allowedDates)) {
+    const forcedMinimum = eligibleRhythmMinimum(rhythm, input, gap.candidate.date);
+    const variants = forcedMinimum ? [forcedMinimum] : orderedVariants(rhythm.variants);
+    for (const [variantRank, variant] of variants.entries()) {
       const existingOnDay = accepted.filter((placement) =>
         placement.date === gap.candidate.date &&
         targetKind(placement) === 'rhythm' &&
@@ -824,6 +843,7 @@ function findPlacementForRhythm(
         placements.push({
           placement,
           score: {
+            variantRank,
             preferMatches: scoreParts.preferMatches,
             avoidMatches: scoreParts.avoidMatches,
             rhythmDayPenalty: preferredDay ? 0 : 1,
@@ -834,10 +854,10 @@ function findPlacementForRhythm(
         });
       }
     }
-
-    placements.sort((left, right) => compareScores(left.score, right.score));
-    if (placements[0]) return placements[0].placement;
   }
+
+  placements.sort((left, right) => compareScores(left.score, right.score));
+  if (placements[0]) return placements[0].placement;
 
   return null;
 }

@@ -5,6 +5,10 @@ const localTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected 
 const variantKindSchema = z.enum(['minimum', 'normal', 'full']);
 const placementOriginSchema = z.enum(['existingUserConfirmed', 'scheduler']);
 const targetKindSchema = z.enum(['intention', 'rhythm']);
+const schedulerDayModeContextSchema = z.object({
+  dayMode: z.literal('reduced'),
+  date: softPlacementDateSchema,
+}).strict();
 
 function minutesFromTime(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
@@ -175,6 +179,8 @@ export const schedulerPlanStateRecordSchema = z
     id: z.literal('current'),
     version: z.literal(1),
     updatedAt: strictIsoDateTimeSchema,
+    dayModeContext: schedulerDayModeContextSchema.optional(),
+    undoDayModeContext: schedulerDayModeContextSchema.nullable().optional(),
     plan: persistedSchedulerPlanSchema,
   })
   .strict();

@@ -2,6 +2,7 @@ import type { Table } from 'dexie';
 import { scheduler } from '../domain/primaryScheduler';
 import { clipSchedulingInputToNow } from '../domain/elapsedTimeCapacity';
 import type {
+  LocalDate,
   SchedulerChange,
   SchedulerPlan,
   SchedulingDomainModel,
@@ -23,18 +24,28 @@ export type SchedulerPlanStateStore = {
   schedulerPlanState: SchedulerPlanStateTable;
 };
 
+export type SchedulerDayModeContext = {
+  dayMode: 'reduced';
+  date: LocalDate;
+};
+
+type SchedulerModeFields = {
+  dayModeContext?: SchedulerDayModeContext;
+  undoDayModeContext?: SchedulerDayModeContext | null;
+};
+
 export type SchedulerPlanStateLoadResult =
   | { status: 'missing' }
-  | { status: 'ok'; plan: SchedulerPlan; updatedAt: string }
+  | ({ status: 'ok'; plan: SchedulerPlan; updatedAt: string } & SchedulerModeFields)
   | { status: 'invalid'; errors: string[] }
   | { status: 'error'; errors: string[] };
 
 export type SchedulerPlanStateWriteResult =
-  | { ok: true; plan: SchedulerPlan; updatedAt: string }
+  | ({ ok: true; plan: SchedulerPlan; updatedAt: string } & SchedulerModeFields)
   | { ok: false; errors: string[] };
 
 export type SchedulerPlanPersistActionResult =
-  | { ok: true; mode: 'built' | 'repaired' | 'undone'; plan: SchedulerPlan; updatedAt: string }
+  | ({ ok: true; mode: 'built' | 'repaired' | 'undone'; plan: SchedulerPlan; updatedAt: string } & SchedulerModeFields)
   | { ok: false; errors: string[] };
 
 function issuesToMessages(issues: Array<{ message: string; path: Array<string | number> }>) {
@@ -46,6 +57,15 @@ function issuesToMessages(issues: Array<{ message: string; path: Array<string | 
 
 function clonePlan(plan: SchedulerPlan): SchedulerPlan {
   return JSON.parse(JSON.stringify(plan)) as SchedulerPlan;
+}
+
+function modeFields(record: SchedulerModeFields): SchedulerModeFields {
+  return {
+    ...(record.dayModeContext ? { dayModeContext: { ...record.dayModeContext } } : {}),
+    ...(record.undoDayModeContext !== undefined
+      ? { undoDayModeContext: record.undoDayModeContext ? { ...record.undoDayModeContext } : null }
+      : {}),
+  };
 }
 
 export async function loadSchedulerPlanState(
@@ -71,6 +91,7 @@ export async function loadSchedulerPlanState(
       status: 'ok',
       plan: clonePlan(parsed.data.plan as SchedulerPlan),
       updatedAt: parsed.data.updatedAt,
+      ...modeFields(parsed.data),
     };
   } catch {
     return {
@@ -84,11 +105,13 @@ export async function saveSchedulerPlanState(
   plan: SchedulerPlan,
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
   updatedAt = new Date().toISOString(),
+  modes: SchedulerModeFields = {},
 ): Promise<SchedulerPlanStateWriteResult> {
   const candidate = {
     id: CURRENT_SCHEDULER_PLAN_STATE_ID,
     version: 1,
     updatedAt,
+    ...modeFields(modes),
     plan: clonePlan(plan),
   };
   const parsed = schedulerPlanStateRecordSchema.safeParse(candidate);
@@ -113,6 +136,7 @@ export async function saveSchedulerPlanState(
     ok: true,
     plan: clonePlan(parsed.data.plan as SchedulerPlan),
     updatedAt: parsed.data.updatedAt,
+    ...modeFields(parsed.data),
   };
 }
 
@@ -126,10 +150,11 @@ export async function buildAndPersistSchedulerPlan(
   input: SchedulingDomainModel,
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
   updatedAt = new Date().toISOString(),
+  dayModeContext?: SchedulerDayModeContext,
 ): Promise<SchedulerPlanPersistActionResult> {
   try {
     const plan = scheduler.buildPlan(input);
-    const saved = await saveSchedulerPlanState(plan, store, updatedAt);
+    const saved = await saveSchedulerPlanState(plan, store, updatedAt, { dayModeContext });
 
     return saved.ok
       ? { ...saved, mode: 'built' }
@@ -146,6 +171,7 @@ export async function repairAndPersistSchedulerPlan(
   change: SchedulerChange,
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
   updatedAt = new Date().toISOString(),
+  nextDayModeContext?: SchedulerDayModeContext | null,
 ): Promise<SchedulerPlanPersistActionResult> {
   const current = await loadSchedulerPlanState(store);
 
@@ -160,7 +186,17 @@ export async function repairAndPersistSchedulerPlan(
     const plan = current.status === 'missing'
       ? scheduler.buildPlan(safeChange.nextInput)
       : scheduler.repairPlan(current.plan, safeChange);
-    const saved = await saveSchedulerPlanState(plan, store, updatedAt);
+    const previousContext = current.status === 'ok' ? current.dayModeContext : undefined;
+    const inheritedContext = change.now && previousContext?.date === change.now.date
+      ? previousContext
+      : undefined;
+    const dayModeContext = nextDayModeContext === undefined
+      ? inheritedContext
+      : nextDayModeContext ?? undefined;
+    const saved = await saveSchedulerPlanState(plan, store, updatedAt, {
+      dayModeContext,
+      ...(current.status === 'ok' ? { undoDayModeContext: previousContext ?? null } : {}),
+    });
 
     if (!saved.ok) {
       return saved;
@@ -203,7 +239,9 @@ export async function undoPersistedSchedulerRepair(
   }
 
   const reverted = scheduler.undoRepair(current.plan);
-  const saved = await saveSchedulerPlanState(reverted, store, updatedAt);
+  const saved = await saveSchedulerPlanState(reverted, store, updatedAt, {
+    dayModeContext: current.undoDayModeContext ?? undefined,
+  });
 
   return saved.ok
     ? { ...saved, mode: 'undone' }
