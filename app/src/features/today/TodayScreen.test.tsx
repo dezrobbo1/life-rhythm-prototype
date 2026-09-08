@@ -184,6 +184,28 @@ describe('Today screen', () => {
     expect(screen.getByLabelText('Changed by Reduced Day').textContent).toContain('Pay water bill');
   });
 
+  it('returns keyboard focus to Reduce today after the preview closes', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    const successful = await reducedDayMocks.previewReduceToday();
+    let finishPreview!: (value: typeof successful) => void;
+    reducedDayMocks.previewReduceToday.mockImplementation(() => new Promise((resolve) => {
+      finishPreview = resolve;
+    }));
+    render(<TodayScreen />);
+
+    const trigger = await screen.findByRole('button', { name: 'Reduce today' });
+    await user.click(trigger);
+    await waitFor(() => expect(trigger.hasAttribute('disabled')).toBe(true));
+    trigger.blur();
+    finishPreview(successful);
+    await screen.findByRole('dialog', { name: 'Reduce today' });
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('dialog', { name: 'Reduce today' })).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it('returns to Normal and Undo restores the mode reported by the persisted action', async () => {
     const user = userEvent.setup();
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);

@@ -26,6 +26,8 @@ export function ReducedDayControl() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const submissionInFlight = useRef(false);
+  const controlRef = useRef<HTMLElement | null>(null);
+  const restorePreviewFocus = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -42,6 +44,20 @@ export function ReducedDayControl() {
     });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (open || !restorePreviewFocus.current) return;
+    restorePreviewFocus.current = false;
+    controlRef.current
+      ?.querySelector<HTMLButtonElement>('.reduced-day-control__open')
+      ?.focus();
+  }, [open]);
+
+  function closePreview() {
+    if (busy === 'apply') return;
+    restorePreviewFocus.current = true;
+    setOpen(false);
+  }
 
   async function openPreview() {
     setBusy('preview');
@@ -111,7 +127,7 @@ export function ReducedDayControl() {
     : [];
 
   return (
-    <section aria-label="Reduced Day controls" className="reduced-day-control">
+    <section aria-label="Reduced Day controls" className="reduced-day-control" ref={controlRef}>
       {dayMode === 'reduced' ? (
         <div className="reduced-day-control__active">
           <div>
@@ -157,7 +173,7 @@ export function ReducedDayControl() {
         </div>
       ) : null}
 
-      <Modal onClose={() => busy !== 'apply' && setOpen(false)} open={open} title="Reduce today">
+      <Modal onClose={closePreview} open={open} title="Reduce today">
         <div className="reduced-day-preview">
           <p className="lede">Review what the scheduler can safely change for today.</p>
           {preview?.initialPlan ? (
@@ -177,7 +193,7 @@ export function ReducedDayControl() {
             <p>The current plan is already as reduced as the scheduler can safely make it.</p>
           )}
           <div className="reduced-day-preview__actions">
-            <Button disabled={busy === 'apply'} onClick={() => setOpen(false)}>Cancel</Button>
+            <Button disabled={busy === 'apply'} onClick={closePreview}>Cancel</Button>
             <Button disabled={busy === 'apply'} onClick={() => void apply()} variant="primary">
               {busy === 'apply' ? 'Applying reduced day' : 'Apply reduced day'}
             </Button>
