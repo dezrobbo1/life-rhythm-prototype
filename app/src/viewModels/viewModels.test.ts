@@ -283,7 +283,7 @@ describe('read-only view model selectors', () => {
     }, { now: reviewNow });
 
     expect(viewModel.items[0]).toMatchObject({
-      reason: 'Useful-before time has passed; choose what still helps.',
+      reason: 'Useful-before time has passed.',
       title: 'Review form',
     });
   });
@@ -300,7 +300,7 @@ describe('read-only view model selectors', () => {
       ],
     }, { now: reviewNow });
 
-    expect(viewModel.items[0]?.reason).toBe('The fixed-time point has passed; choose what still helps.');
+    expect(viewModel.items[0]?.reason).toBe('The original fixed-time opportunity has passed.');
   });
 
   it('flags expiresAfter tasks after their useful-until time', () => {
@@ -315,7 +315,7 @@ describe('read-only view model selectors', () => {
       ],
     }, { now: reviewNow });
 
-    expect(viewModel.items[0]?.reason).toBe('This was useful until an earlier time; choose what still helps.');
+    expect(viewModel.items[0]?.reason).toBe('The original action has expired.');
   });
 
   it('uses minimum-oriented copy after latestUsefulStartAt but before notUsefulAfter', () => {
@@ -330,7 +330,8 @@ describe('read-only view model selectors', () => {
       ],
     }, { now: reviewNow });
 
-    expect(viewModel.items[0]?.reason).toBe('Minimum may be the useful version now.');
+    expect(viewModel.items[0]?.reason).toBe('The latest useful start has passed.');
+    expect(viewModel.items[0]?.usefulness).toBe('The original start opportunity has narrowed.');
   });
 
   it('uses calm review copy after notUsefulAfter has passed', () => {
@@ -345,7 +346,7 @@ describe('read-only view model selectors', () => {
       ],
     }, { now: reviewNow });
 
-    expect(viewModel.items[0]?.reason).toBe('Original useful window has passed; choose what still helps.');
+    expect(viewModel.items[0]?.reason).toBe('This is past its useful window.');
   });
 
   it('keeps minimum-still-helps copy when the field is present', () => {
@@ -362,9 +363,69 @@ describe('read-only view model selectors', () => {
       ],
     }, { now: reviewNow });
 
-    expect(viewModel.items[0]?.supportingCopy).toContain('Minimum still helps.');
-    expect(viewModel.items[0]?.suggestedCopy).toBe('The minimum version may be enough now.');
-    expect(viewModel.items[0]?.actionOptions).toEqual(['Park safely', 'Try the minimum', 'Mark not today']);
+    expect(viewModel.items[0]?.usefulness).toBe('Minimum may still help.');
+    expect(viewModel.items[0]?.suggestedCopy).toBe('The authored Minimum is available if you choose it.');
+    expect(viewModel.items[0]?.actionOptions).toEqual([
+      'Try the minimum',
+      'Park safely',
+      'Mark not today',
+      'Keep for review',
+    ]);
+  });
+
+  it('recommends Minimum only when a passed due edge explicitly keeps Minimum useful', () => {
+    const viewModel = buildTimeEdgeReentryPreviewViewModel({
+      activeTasks: [
+        timeEdgeTask({
+          deadline: {
+            dueAt: '2026-06-18T09:00:00.000Z',
+            minimumStillUsefulAfterDeadline: true,
+            missedPolicy: 'minimumOnly',
+            timeConstraint: 'dueBy',
+          },
+        }),
+      ],
+    }, { now: reviewNow });
+
+    expect(viewModel.items[0]).toMatchObject({
+      recommendedAction: 'Try the minimum',
+      usefulness: 'Minimum may still help.',
+    });
+  });
+
+  it('offers user-confirmed no-longer-needed without Minimum after the useful window ends', () => {
+    const viewModel = buildTimeEdgeReentryPreviewViewModel({
+      activeTasks: [
+        timeEdgeTask({
+          deadline: {
+            minimumStillUsefulAfterDeadline: true,
+            missedPolicy: 'archiveIfExpired',
+            notUsefulAfter: '2026-06-18T09:00:00.000Z',
+          },
+        }),
+      ],
+    }, { now: reviewNow, noLongerNeededTaskIds: ['time-edge-task'] });
+
+    expect(viewModel.items[0]?.actionOptions).toContain('No longer needed');
+    expect(viewModel.items[0]?.actionOptions).not.toContain('Try the minimum');
+    expect(viewModel.items[0]?.recommendedAction).toBe('No longer needed');
+  });
+
+  it('does not offer Minimum after a fixed opportunity without explicit continued usefulness', () => {
+    const viewModel = buildTimeEdgeReentryPreviewViewModel({
+      activeTasks: [
+        timeEdgeTask({
+          deadline: {
+            fixedAt: '2026-06-18T09:00:00.000Z',
+            missedPolicy: 'minimumOnly',
+            timeConstraint: 'fixedAt',
+          },
+        }),
+      ],
+    }, { now: reviewNow });
+
+    expect(viewModel.items[0]?.reason).toBe('The original fixed-time opportunity has passed.');
+    expect(viewModel.items[0]?.actionOptions).not.toContain('Try the minimum');
   });
 
   it('excludes completed or removed Today task states from re-entry preview', () => {

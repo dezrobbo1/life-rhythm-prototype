@@ -19,6 +19,7 @@ type TaskCardProps = {
   onStartBoost: () => void;
   onStopHere: () => void;
   minimumAchieved: boolean;
+  minimumChoiceActive: boolean;
   progress: TaskProgress;
   task: MockTask;
   todayState: TodayState;
@@ -118,6 +119,7 @@ export function TaskCard({
   onStartTask,
   onStopHere,
   minimumAchieved,
+  minimumChoiceActive,
   progress,
   task,
   todayState,
@@ -180,6 +182,13 @@ export function TaskCard({
         <p className="task-card__status task-card__status--done" role="status">
           Minimum done. That counts.
         </p>
+      ) : null}
+      {minimumChoiceActive ? (
+        <div className="task-card__status task-card__status--choice" role="status">
+          <strong>Try the Minimum: {task.minimumVersion}</strong>
+          <span>{task.recommendedSize}</span>
+          <span>Choosing Minimum does not complete it.</span>
+        </div>
       ) : null}
       <div className="chip-row task-card__chips" aria-label="Task cues">
         {visibleChips.map((chip) => (

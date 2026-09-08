@@ -62,8 +62,17 @@ export type TimeEdgeReentryReviewItemViewModel = {
   reason: string;
   supportingCopy: string[];
   suggestedCopy?: string;
-  actionOptions: Array<'Park safely' | 'Try the minimum' | 'Mark not today'>;
+  usefulness: string;
+  recommendedAction?: ReentryActionLabel;
+  actionOptions: ReentryActionLabel[];
 };
+
+export type ReentryActionLabel =
+  | 'Try the minimum'
+  | 'Park safely'
+  | 'Mark not today'
+  | 'No longer needed'
+  | 'Keep for review';
 
 export type TimeEdgeReentryPreviewViewModel = {
   title: 'Re-entry review';
@@ -346,6 +355,7 @@ export type SnapshotActiveTask = {
   templateId?: string;
   showToday?: boolean;
   status?: 'active' | 'inProgress' | 'paused' | 'minimumDone' | 'done' | 'parked' | 'skipped' | 'notToday';
+  minimumAchievedAt?: string;
   minimum?: SnapshotTaskVersion;
   normal?: SnapshotTaskVersion;
   full?: SnapshotTaskVersion;
@@ -406,4 +416,5 @@ export type ViewModelOptions = {
 
 export type TimeEdgeReentryPreviewOptions = {
   now?: Date | string;
+  noLongerNeededTaskIds?: string[];
 };

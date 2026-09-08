@@ -49,6 +49,24 @@ export type MarkTaskNoLongerNeededResult =
       ok: false;
     };
 
+export async function loadLinkedTaskPoolItemIds(
+  taskIds: string[],
+  database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
+): Promise<string[]> {
+  const uniqueIds = [...new Set(taskIds)];
+
+  try {
+    const rows = await Promise.all(uniqueIds.map((id) => database.taskPoolItems.get(id)));
+
+    return rows.flatMap((row, index) => {
+      const parsed = taskPoolItemSchema.safeParse(row);
+      return parsed.success && parsed.data.status !== 'noLongerNeeded' ? [uniqueIds[index]] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
 const visibleTodayStatuses: readonly ActiveTaskStatus[] = [
   'active',
   'inProgress',

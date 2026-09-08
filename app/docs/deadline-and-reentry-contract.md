@@ -1,12 +1,30 @@
 # Deadline And Re-Entry Contract
 
-Status: Current boundary contract; the currently supported time-edge and re-entry subset is documented in `app/docs/life-rhythm-current-design-spec.md`.
+Status: Current boundary contract; Gate 5 re-entry v0 approves the user-confirmed write boundary recorded below.
 
 Implementation boundary: this document governs future deadline-aware and scheduler-owned behavior. It does not describe the full current schema or UI implementation, and it does not authorize automatic scheduling, calendar writes, AI writes, or cloud sync.
 
 This contract defines future handling for missed tasks, deadline-aware tasks, usefulness windows, latest useful start, and no-catch-up re-entry.
 
-It does not approve or implement scheduler behavior, calendar integration, AI integration, import/restore execution, migration execution, or any new persistence write.
+It does not approve automatic missed-state writes, calendar integration, AI integration, import/restore execution, migration execution, or catch-up scheduling.
+
+## Gate 5 re-entry v0 write boundary
+
+Re-entry is derived from validated task lifecycle and usefulness-window data at an explicit clock. It is not a persisted failure state. The v0 review may perform these actions only after the user chooses them:
+
+- Park or mark not today through the existing linked task lifecycle transaction.
+- Mark no longer needed through the existing supported Pool-linked lifecycle transaction.
+- Select an authored Minimum as the current Today focus. Selection is presentation state, not completion, and does not set Minimum achievement.
+- Run ordinary private-plan repair after an explicit lifecycle change.
+
+Rendering or opening the review writes nothing. `missedPolicy` recommends or offers an action; it never executes one. A task without a safe Pool-linked no-longer-needed transaction does not receive that action in v0.
+
+Still not approved:
+
+- persisted `missed`, overdue, re-entry-required, or debt state;
+- automatic movement to tomorrow or replacement-task creation;
+- automatic archive or follow-up creation;
+- AI or calendar writes.
 
 Life Rhythm should treat deadlines as context for useful choices, not as a pressure system.
 

@@ -687,7 +687,7 @@ textarea:focus-visible {
   gap: var(--space-2);
 }
 
-.reentry-review__options .button {
+.reentry-review__options .button--secondary {
   background: var(--color-chip);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
@@ -877,6 +877,11 @@ textarea:focus-visible {
 
 .task-card__status--done {
   background: var(--color-chip);
+}
+
+.task-card__status--choice {
+  display: grid;
+  gap: var(--space-1);
 }
 
 .task-card__chips {
