@@ -4,7 +4,9 @@ import { createLifeRhythmDatabase } from './db';
 import {
   createActiveTaskId,
   loadActiveTodayTasks,
+  loadActiveTodayTasksResult,
   loadPersistedActiveTasks,
+  loadPersistedActiveTasksResult,
   saveActiveTodayTask,
   updateActiveTaskStatus,
 } from './activeTaskRepository';
@@ -62,6 +64,46 @@ async function expectOnlyActiveTasksWritten(
 }
 
 describe('active task repository', () => {
+  it('distinguishes empty, partial, and failed Today collection reads without changing stored rows', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await expect(loadActiveTodayTasksResult(database)).resolves.toEqual({
+        invalidRecordCount: 0,
+        items: [],
+        status: 'ok',
+      });
+
+      await database.activeTasks.put(validActiveTask());
+      await database.activeTasks.put({
+        id: 'broken-active-task-result',
+        showToday: true,
+        source: 'adhoc',
+      } as ActiveTask);
+
+      const mixed = await loadActiveTodayTasksResult(database);
+      expect(mixed).toMatchObject({
+        invalidRecordCount: 1,
+        status: 'partial',
+      });
+      expect(mixed.status === 'readFailed' ? [] : mixed.items.map((task) => task.id)).toEqual([
+        'active-kitchen-landing',
+      ]);
+      expect(await database.activeTasks.count()).toBe(2);
+
+      await expect(loadActiveTodayTasksResult({
+        activeTasks: {
+          toArray: vi.fn().mockRejectedValue(new Error('synthetic read failure')),
+        },
+      } as never)).resolves.toEqual({
+        errors: ['activeTasks: Saved Today tasks could not be read.'],
+        status: 'readFailed',
+      });
+    } finally {
+      await database.delete();
+    }
+  });
+
   it('saves and reloads one Add one-off active Today task', async () => {
     const database = createTestDatabase();
 
@@ -166,6 +208,7 @@ describe('active task repository', () => {
       ]);
 
       const loaded = await loadPersistedActiveTasks(database);
+      const result = await loadPersistedActiveTasksResult(database);
 
       expect(loaded.map((task) => task.id).sort()).toEqual([
         'active-done',
@@ -179,6 +222,10 @@ describe('active task repository', () => {
         'notToday',
         'parked',
       ].sort());
+      expect(result).toMatchObject({ invalidRecordCount: 2, status: 'partial' });
+      expect(result.status === 'readFailed' ? [] : result.items.map((task) => task.id).sort()).toEqual(
+        loaded.map((task) => task.id).sort(),
+      );
       await expectOnlyActiveTasksWritten(database, 6);
     } finally {
       await database.delete();

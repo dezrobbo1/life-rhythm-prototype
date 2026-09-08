@@ -5,6 +5,7 @@ import {
   createTaskPoolItemId,
   getTaskPoolItem,
   loadTaskPoolItems,
+  loadTaskPoolItemsResult,
   loadTaskPoolItemsByStatus,
   markTaskPoolItemNoLongerNeeded,
   saveTaskPoolItem,
@@ -63,6 +64,39 @@ async function expectOnlyTaskPoolItemsWritten(
 }
 
 describe('task pool repository', () => {
+  it('distinguishes empty, partial, and failed Pool collection reads without changing stored rows', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await expect(loadTaskPoolItemsResult(database)).resolves.toEqual({
+        invalidRecordCount: 0,
+        items: [],
+        status: 'ok',
+      });
+
+      await database.taskPoolItems.put(validTaskPoolItem());
+      await database.taskPoolItems.put({ id: 'broken-pool-result', source: 'adhoc' } as TaskPoolItem);
+
+      const mixed = await loadTaskPoolItemsResult(database);
+      expect(mixed).toMatchObject({ invalidRecordCount: 1, status: 'partial' });
+      expect(mixed.status === 'readFailed' ? [] : mixed.items.map((item) => item.id)).toEqual([
+        'task-pool-pay-water-bill',
+      ]);
+      expect(await database.taskPoolItems.count()).toBe(2);
+
+      await expect(loadTaskPoolItemsResult({
+        taskPoolItems: {
+          toArray: vi.fn().mockRejectedValue(new Error('synthetic read failure')),
+        },
+      } as never)).resolves.toEqual({
+        errors: ['taskPoolItems: Saved Pool tasks could not be read.'],
+        status: 'readFailed',
+      });
+    } finally {
+      await database.delete();
+    }
+  });
+
   it('schema accepts a valid captured task pool item', () => {
     const result = taskPoolItemSchema.safeParse(validTaskPoolItem());
 

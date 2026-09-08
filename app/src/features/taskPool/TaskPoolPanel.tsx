@@ -5,12 +5,13 @@ import {
   markTaskLifecycleNoLongerNeeded,
 } from '../../data/taskLifecycleRepository';
 import { deferTaskPoolItem } from '../../data/taskPoolDeferralRepository';
-import { loadAllSoftPlacements } from '../../data/softPlacementRepository';
+import { loadAllSoftPlacementsResult } from '../../data/softPlacementRepository';
 import {
   createTaskPoolItemId,
-  loadTaskPoolItems,
+  loadTaskPoolItemsResult,
   saveTaskPoolItem,
 } from '../../data/taskPoolRepository';
+import type { CollectionReadResult } from '../../data/collectionReadResult';
 import type { SoftPlacement, TaskPoolItem, TaskPoolItemStatus } from '../../data/schemas';
 import { TaskPoolCaptureModal, type TaskPoolCaptureInput } from './TaskPoolCaptureModal';
 import { TaskPoolDeferModal } from './TaskPoolDeferModal';
@@ -28,6 +29,10 @@ type TaskPoolFeedback = {
 type TaskPoolPanelProps = {
   onOpenPlan?: (taskId: string, placementDate?: string) => void;
 };
+
+type SurfaceCollectionState<T> =
+  | { status: 'loading' }
+  | CollectionReadResult<T>;
 
 const navigableSoftPlacementStatuses = new Set<SoftPlacement['status']>([
   'planned',
@@ -126,46 +131,74 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
   const [deferringTaskPoolItemId, setDeferringTaskPoolItemId] = useState<string | null>(null);
   const [deferItem, setDeferItem] = useState<TaskPoolItem | null>(null);
   const [clockMs, setClockMs] = useState(() => Date.now());
+  const [taskPoolReadState, setTaskPoolReadState] = useState<SurfaceCollectionState<TaskPoolItem>>({ status: 'loading' });
+  const [placementReadState, setPlacementReadState] = useState<SurfaceCollectionState<SoftPlacement>>({ status: 'loading' });
   const visibleGroups = useMemo(
     () => buildTaskPoolResurfacingGroups(taskPoolItems, clockMs),
     [clockMs, taskPoolItems],
   );
 
-  const refreshTaskPoolItems = useCallback(async () => {
-    const [items, placements] = await Promise.all([
-      loadTaskPoolItems(),
-      loadAllSoftPlacements(),
-    ]);
-    setTaskPoolItems(items);
-    setSoftPlacementDates(placementDatesByTaskId(placements));
+  const readTaskPoolData = useCallback(() => Promise.all([
+    loadTaskPoolItemsResult(),
+    loadAllSoftPlacementsResult(),
+  ]), []);
+
+  const applyTaskPoolData = useCallback(([
+    itemsResult,
+    placementsResult,
+  ]: Awaited<ReturnType<typeof readTaskPoolData>>) => {
+    setTaskPoolReadState(itemsResult);
+    setPlacementReadState(placementsResult);
+
+    if (itemsResult.status !== 'readFailed') {
+      setTaskPoolItems(itemsResult.items);
+    }
+    if (placementsResult.status !== 'readFailed') {
+      setSoftPlacementDates(placementDatesByTaskId(placementsResult.items));
+    }
     setClockMs(Date.now());
   }, []);
+
+  const refreshTaskPoolItems = useCallback(async () => {
+    const result = await readTaskPoolData();
+    applyTaskPoolData(result);
+  }, [applyTaskPoolData, readTaskPoolData]);
+
+  const retryTaskPoolItems = useCallback(async () => {
+    try {
+      applyTaskPoolData(await readTaskPoolData());
+    } catch {
+      setTaskPoolReadState({
+        errors: ['taskPoolItems: Saved Pool tasks could not be read.'],
+        status: 'readFailed',
+      });
+    }
+  }, [applyTaskPoolData, readTaskPoolData]);
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([
-      loadTaskPoolItems(),
-      loadAllSoftPlacements(),
-    ])
-      .then(([items, placements]) => {
-        if (active) {
-          setTaskPoolItems(items);
-          setSoftPlacementDates(placementDatesByTaskId(placements));
-          setClockMs(Date.now());
-        }
+    readTaskPoolData()
+      .then((result) => {
+        if (active) applyTaskPoolData(result);
       })
       .catch(() => {
         if (active) {
-          setTaskPoolItems([]);
-          setSoftPlacementDates({});
+          setTaskPoolReadState({
+            errors: ['taskPoolItems: Saved Pool tasks could not be read.'],
+            status: 'readFailed',
+          });
+          setPlacementReadState({
+            errors: ['softPlacements: Saved manual placements could not be read.'],
+            status: 'readFailed',
+          });
         }
       });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [applyTaskPoolData, readTaskPoolData]);
 
   useEffect(() => {
     const nextResurfacingAt = nextTaskPoolResurfacingAt(taskPoolItems, clockMs);
@@ -352,10 +385,49 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
         <div>
           <h2 id="task-pool-title">Captured tasks</h2>
         </div>
-        <Button onClick={() => setTaskPoolCaptureOpen(true)} variant="primary">Capture task</Button>
+        <Button
+          disabled={taskPoolReadState.status === 'loading' || taskPoolReadState.status === 'readFailed'}
+          onClick={() => setTaskPoolCaptureOpen(true)}
+          variant="primary"
+        >
+          Capture task
+        </Button>
       </div>
 
-      {visibleGroups.length > 0 ? (
+      {taskPoolReadState.status === 'partial' ? (
+        <div
+          aria-label="Saved Pool task warning"
+          className="surface-read-state surface-read-state--warning"
+          role="status"
+        >
+          <h3>Some saved Pool task data could not be read.</h3>
+          <p>{taskPoolReadState.invalidRecordCount} saved Pool {taskPoolReadState.invalidRecordCount === 1 ? 'record was' : 'records were'} left unchanged.</p>
+          <p>Nothing stored on this device was changed.</p>
+        </div>
+      ) : null}
+
+      {placementReadState.status === 'partial' || placementReadState.status === 'readFailed' ? (
+        <div
+          aria-label="Saved Pool placement warning"
+          className="surface-read-state surface-read-state--warning"
+          role="status"
+        >
+          <h3>Some saved placement information is unavailable.</h3>
+          <p>Pool tasks remain visible. Nothing stored on this device was changed.</p>
+        </div>
+      ) : null}
+
+      {taskPoolReadState.status === 'loading' ? (
+        <div aria-busy="true" className="surface-read-state" role="status">
+          <h3>Loading your saved Pool tasks...</h3>
+        </div>
+      ) : taskPoolReadState.status === 'readFailed' ? (
+        <div aria-labelledby="pool-read-failed-title" className="surface-read-state surface-read-state--error" role="alert">
+          <h3 id="pool-read-failed-title">Your saved Pool tasks could not be loaded.</h3>
+          <p>Nothing stored on this device was changed.</p>
+          <Button onClick={() => void retryTaskPoolItems()}>Retry</Button>
+        </div>
+      ) : visibleGroups.length > 0 ? (
         <div className="task-pool__groups">
           {visibleGroups.map((group) => (
             <section className="task-pool__group" key={group.id} aria-labelledby={`task-pool-${group.id}`}>
@@ -431,7 +503,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
             </section>
           ))}
         </div>
-      ) : (
+      ) : taskPoolReadState.status === 'partial' ? null : (
         <div className="task-pool__empty">
           <h3>No captured tasks yet.</h3>
           <p>Capture something here without adding it to Today.</p>

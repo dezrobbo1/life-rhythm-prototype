@@ -14,6 +14,8 @@ import { createDefaultSettings } from '../../data/settingsRepository';
 const activeTaskRepositoryMocks = vi.hoisted(() => ({
   createActiveTaskId: vi.fn((prefix = 'active-task') => `${prefix}-test-id`),
   loadActiveTodayTasks: vi.fn(),
+  loadActiveTodayTasksResult: vi.fn(),
+  loadPersistedActiveTasksResult: vi.fn(),
   saveActiveTodayTask: vi.fn(),
   updateActiveTaskStatus: vi.fn(),
 }));
@@ -107,6 +109,16 @@ function mockDownloadApi() {
 
 beforeEach(() => {
   activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([]);
+  activeTaskRepositoryMocks.loadActiveTodayTasksResult.mockImplementation(async () => ({
+    invalidRecordCount: 0,
+    items: await activeTaskRepositoryMocks.loadActiveTodayTasks(),
+    status: 'ok',
+  }));
+  activeTaskRepositoryMocks.loadPersistedActiveTasksResult.mockResolvedValue({
+    invalidRecordCount: 0,
+    items: [],
+    status: 'ok',
+  });
   activeTaskRepositoryMocks.saveActiveTodayTask.mockImplementation(async (task: ActiveTask) => ({
     alreadyExists: false,
     ok: true,

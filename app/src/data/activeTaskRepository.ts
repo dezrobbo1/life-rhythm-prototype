@@ -14,6 +14,10 @@ import {
   minimumAchievementForStatusTransition,
   updateTaskLifecycleStatus,
 } from './taskLifecycleRepository';
+import {
+  successfulCollectionRead,
+  type CollectionReadResult,
+} from './collectionReadResult';
 
 type ActiveTasksTable = Pick<Table<ActiveTask, string>, 'get' | 'put' | 'toArray'>;
 type TaskPoolItemsTable = Pick<Table<TaskPoolItem, string>, 'get' | 'put'>;
@@ -164,26 +168,6 @@ async function syncLinkedTaskPoolItem(
   await store.taskPoolItems.put(updatedPoolItem);
 }
 
-function parseStoredActiveTask(input: unknown): ActiveTask | null {
-  const parsed = activeTaskSchema.safeParse(input);
-
-  if (!parsed.success || !isApprovedLoadedTask(parsed.data)) {
-    return null;
-  }
-
-  return parsed.data;
-}
-
-function parseStoredPersistedTask(input: unknown): ActiveTask | null {
-  const parsed = activeTaskSchema.safeParse(input);
-
-  if (!parsed.success || !isApprovedPersistedTask(parsed.data)) {
-    return null;
-  }
-
-  return parsed.data;
-}
-
 function findExistingLibraryTask(tasks: ActiveTask[], candidate: ActiveTask) {
   if (candidate.source !== 'library' || !candidate.templateId) {
     return undefined;
@@ -209,32 +193,70 @@ export function createActiveTaskId(prefix = 'active-task') {
 export async function loadActiveTodayTasks(
   store: ActiveTaskStore = getCurrentLifeRhythmDatabase(),
 ): Promise<ActiveTask[]> {
+  const result = await loadActiveTodayTasksResult(store);
+
+  return result.status === 'readFailed' ? [] : result.items;
+}
+
+export async function loadActiveTodayTasksResult(
+  store: ActiveTaskStore = getCurrentLifeRhythmDatabase(),
+): Promise<CollectionReadResult<ActiveTask>> {
   try {
     const stored = await store.activeTasks.toArray();
+    let invalidRecordCount = 0;
 
-    return stored.flatMap((task) => {
-      const parsed = parseStoredActiveTask(task);
+    const items = stored.flatMap((task) => {
+      const parsed = activeTaskSchema.safeParse(task);
 
-      return parsed ? [parsed] : [];
+      if (!parsed.success || !isApprovedPersistedTask(parsed.data)) {
+        invalidRecordCount += 1;
+        return [];
+      }
+
+      return isApprovedLoadedTask(parsed.data) ? [parsed.data] : [];
     });
+
+    return successfulCollectionRead(items, invalidRecordCount);
   } catch {
-    return [];
+    return {
+      errors: ['activeTasks: Saved Today tasks could not be read.'],
+      status: 'readFailed',
+    };
   }
 }
 
 export async function loadPersistedActiveTasks(
   store: ActiveTaskStore = getCurrentLifeRhythmDatabase(),
 ): Promise<ActiveTask[]> {
+  const result = await loadPersistedActiveTasksResult(store);
+
+  return result.status === 'readFailed' ? [] : result.items;
+}
+
+export async function loadPersistedActiveTasksResult(
+  store: ActiveTaskStore = getCurrentLifeRhythmDatabase(),
+): Promise<CollectionReadResult<ActiveTask>> {
   try {
     const stored = await store.activeTasks.toArray();
+    let invalidRecordCount = 0;
 
-    return stored.flatMap((task) => {
-      const parsed = parseStoredPersistedTask(task);
+    const items = stored.flatMap((task) => {
+      const parsed = activeTaskSchema.safeParse(task);
 
-      return parsed ? [parsed] : [];
+      if (!parsed.success || !isApprovedPersistedTask(parsed.data)) {
+        invalidRecordCount += 1;
+        return [];
+      }
+
+      return [parsed.data];
     });
+
+    return successfulCollectionRead(items, invalidRecordCount);
   } catch {
-    return [];
+    return {
+      errors: ['activeTasks: Saved task records could not be read.'],
+      status: 'readFailed',
+    };
   }
 }
 

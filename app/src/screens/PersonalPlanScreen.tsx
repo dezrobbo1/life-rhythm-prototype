@@ -7,8 +7,9 @@ import {
   undoCurrentPrivatePlan,
   type PrivatePlanActionResult,
 } from '../data/schedulerPlanCoordinator';
-import { loadSoftPlacementsForDate } from '../data/softPlacementRepository';
-import { loadTaskPoolItems } from '../data/taskPoolRepository';
+import { loadSoftPlacementsForDateResult } from '../data/softPlacementRepository';
+import { loadTaskPoolItemsResult } from '../data/taskPoolRepository';
+import type { CollectionReadResult } from '../data/collectionReadResult';
 import {
   confirmTaskPoolSoftPlacement,
   removeTaskPoolSoftPlacement,
@@ -60,6 +61,10 @@ type PrivatePlanViewState =
       titleByTargetId: Record<string, string>;
       warnings: string[];
     };
+
+type SurfaceCollectionState<T> =
+  | { status: 'loading' }
+  | CollectionReadResult<T>;
 
 type PersonalPlanScreenProps = {
   preferredPlacementDate?: string | null;
@@ -117,6 +122,8 @@ export function PersonalPlanScreen({
   const [privatePlanState, setPrivatePlanState] = useState<PrivatePlanViewState>({ status: 'loading' });
   const [privatePlanBusy, setPrivatePlanBusy] = useState<'refresh' | 'undo' | null>(null);
   const [privatePlanFeedback, setPrivatePlanFeedback] = useState<string | null>(null);
+  const [poolReadState, setPoolReadState] = useState<SurfaceCollectionState<TaskPoolItem>>({ status: 'loading' });
+  const [placementReadState, setPlacementReadState] = useState<SurfaceCollectionState<SoftPlacement>>({ status: 'loading' });
 
   const dayShapePreview = useMemo(
     () => buildDayShapePreviewViewModel(snapshot, selectedDay),
@@ -184,15 +191,44 @@ export function PersonalPlanScreen({
     return true;
   }, []);
 
-  const refreshPlanData = useCallback(async () => {
-    const [placements, items] = await Promise.all([
-      loadSoftPlacementsForDate(selectedPlacementDate),
-      loadTaskPoolItems(),
-    ]);
+  const readManualPlanData = useCallback(() => Promise.all([
+    loadSoftPlacementsForDateResult(selectedPlacementDate),
+    loadTaskPoolItemsResult(),
+  ]), [selectedPlacementDate]);
 
-    setSavedSoftPlacements(placements);
-    setTaskPoolItems(items);
-  }, [selectedPlacementDate]);
+  const applyManualPlanData = useCallback(([
+    placementsResult,
+    itemsResult,
+  ]: Awaited<ReturnType<typeof readManualPlanData>>) => {
+    setPlacementReadState(placementsResult);
+    setPoolReadState(itemsResult);
+
+    if (placementsResult.status !== 'readFailed') {
+      setSavedSoftPlacements(placementsResult.items);
+    }
+    if (itemsResult.status !== 'readFailed') {
+      setTaskPoolItems(itemsResult.items);
+    }
+  }, []);
+
+  const refreshPlanData = useCallback(async () => {
+    applyManualPlanData(await readManualPlanData());
+  }, [applyManualPlanData, readManualPlanData]);
+
+  const retryManualPlanData = useCallback(async () => {
+    try {
+      applyManualPlanData(await readManualPlanData());
+    } catch {
+      setPlacementReadState({
+        errors: ['softPlacements: Saved manual placements could not be read.'],
+        status: 'readFailed',
+      });
+      setPoolReadState({
+        errors: ['taskPoolItems: Saved Pool tasks could not be read.'],
+        status: 'readFailed',
+      });
+    }
+  }, [applyManualPlanData, readManualPlanData]);
 
   const repairAfterUserPlacementChange = useCallback(async () => {
     const result = await repairCurrentPrivatePlan({
@@ -233,28 +269,30 @@ export function PersonalPlanScreen({
     setSavedSoftPlacements([]);
     setTaskPoolItems([]);
     setPlacementFeedback(null);
+    setPlacementReadState({ status: 'loading' });
+    setPoolReadState({ status: 'loading' });
 
-    Promise.all([
-      loadSoftPlacementsForDate(selectedPlacementDate),
-      loadTaskPoolItems(),
-    ])
-      .then(([placements, items]) => {
-        if (active) {
-          setSavedSoftPlacements(placements);
-          setTaskPoolItems(items);
-        }
+    readManualPlanData()
+      .then((result) => {
+        if (active) applyManualPlanData(result);
       })
       .catch(() => {
         if (active) {
-          setSavedSoftPlacements([]);
-          setTaskPoolItems([]);
+          setPlacementReadState({
+            errors: ['softPlacements: Saved manual placements could not be read.'],
+            status: 'readFailed',
+          });
+          setPoolReadState({
+            errors: ['taskPoolItems: Saved Pool tasks could not be read.'],
+            status: 'readFailed',
+          });
         }
       });
 
     return () => {
       active = false;
     };
-  }, [selectedPlacementDate]);
+  }, [applyManualPlanData, readManualPlanData]);
 
   useEffect(() => {
     setSelectedDay(dayNameForLocalDate(preferredPlacementDate) ?? 'Monday');
@@ -394,6 +432,9 @@ export function PersonalPlanScreen({
     : poolSoftSuggestions.eligibleTaskCount === 0
       ? 'Capture or return a task to Pool when you want a manual placement option.'
       : 'The minimum version or useful window does not fit. Nothing was manually placed.';
+  const manualDataLoading = poolReadState.status === 'loading' || placementReadState.status === 'loading';
+  const manualDataFailed = poolReadState.status === 'readFailed' || placementReadState.status === 'readFailed';
+  const manualDataPartial = poolReadState.status === 'partial' || placementReadState.status === 'partial';
 
   return (
     <div className="screen-stack plan-screen personal-plan-screen">
@@ -593,6 +634,31 @@ export function PersonalPlanScreen({
           )}
       </section>
 
+      {manualDataFailed ? (
+        <section
+          aria-label="Manual Plan data unavailable"
+          className="surface-read-state surface-read-state--error"
+          role="alert"
+        >
+          <h2>Some saved manual Plan data could not be loaded.</h2>
+          {placementReadState.status === 'readFailed' ? <p>Saved manual placements could not be loaded.</p> : null}
+          {poolReadState.status === 'readFailed' ? <p>Saved Pool tasks could not be loaded for manual suggestions.</p> : null}
+          <p>The automatic private plan and other available Plan information remain unchanged.</p>
+          <p>Nothing stored on this device was changed.</p>
+          <Button onClick={() => void retryManualPlanData()}>Retry manual Plan data</Button>
+        </section>
+      ) : manualDataPartial ? (
+        <section
+          aria-label="Saved manual Plan data warning"
+          className="surface-read-state surface-read-state--warning"
+          role="status"
+        >
+          <h2>Some saved manual Plan data could not be read.</h2>
+          <p>Readable Pool tasks and placements remain available. Nothing stored on this device was changed.</p>
+          <Button onClick={() => void retryManualPlanData()}>Retry manual Plan data</Button>
+        </section>
+      ) : null}
+
       <section
         className="soft-suggestions plan-section plan-section--suggestions"
         aria-labelledby="personal-soft-suggestions-title"
@@ -612,7 +678,11 @@ export function PersonalPlanScreen({
             </div>
           </div>
 
-          {poolSoftSuggestions.suggestions.length > 0 ? (
+          {manualDataLoading ? (
+            <div className="soft-suggestions__empty" aria-busy="true" role="status">
+              <h3>Loading saved manual Plan data...</h3>
+            </div>
+          ) : manualDataFailed ? null : poolSoftSuggestions.suggestions.length > 0 ? (
             <ul className="soft-suggestions__list">
               {poolSoftSuggestions.suggestions.map((suggestion) => (
                 <li key={suggestion.id}>
@@ -635,7 +705,7 @@ export function PersonalPlanScreen({
                 </li>
               ))}
             </ul>
-          ) : (
+          ) : poolReadState.status === 'partial' || placementReadState.status === 'partial' ? null : (
             <div className="soft-suggestions__empty">
               <h3>{suggestionEmptyTitle}</h3>
               <p>{suggestionEmptyMessage}</p>
@@ -672,7 +742,11 @@ export function PersonalPlanScreen({
             </div>
           </div>
 
-          {visibleSoftPlacements.length > 0 ? (
+          {placementReadState.status === 'loading' ? (
+            <div className="soft-placements__empty" aria-busy="true" role="status">
+              <h3>Loading saved manual placements...</h3>
+            </div>
+          ) : placementReadState.status === 'readFailed' ? null : visibleSoftPlacements.length > 0 ? (
             <ul className="soft-placements__list">
               {visibleSoftPlacements.map((placement) => (
                 <li key={placement.id}>
@@ -693,7 +767,7 @@ export function PersonalPlanScreen({
                 </li>
               ))}
             </ul>
-          ) : (
+          ) : placementReadState.status === 'partial' ? null : (
             <div className="soft-placements__empty">
               <h3>No user-confirmed placements for {dayShapePreview.selectedDay}.</h3>
             </div>

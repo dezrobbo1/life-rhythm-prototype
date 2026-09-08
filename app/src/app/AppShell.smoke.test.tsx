@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import 'fake-indexeddb/auto';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -58,7 +59,7 @@ describe('primary app shell navigation', () => {
 
     expect(todayNavButton.getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Choose rhythms to turn on' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Choose rhythms to turn on' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Add one-off' })).toBeTruthy();
     expect(screen.queryByText("Set tomorrow's first step")).toBeNull();
 
@@ -118,7 +119,7 @@ describe('primary app shell navigation', () => {
     await user.click(screen.getByRole('button', { name: 'Return to personal trial' }));
 
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Choose rhythms to turn on' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Choose rhythms to turn on' })).toBeTruthy();
     expect(screen.queryByText("Set tomorrow's first step")).toBeNull();
   });
 

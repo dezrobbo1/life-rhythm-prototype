@@ -82,14 +82,51 @@ afterEach(() => {
 });
 
 describe('Pool screen', () => {
-  it('renders the holding-tray task pool surface without Inbox language', () => {
+  it('distinguishes a failed Pool read from a genuinely empty Pool and retries without writes', async () => {
+    const user = userEvent.setup();
+    const database = getCurrentLifeRhythmDatabase();
+    await saveTaskPoolItem(validTaskPoolItem(), database);
+    const putSpy = vi.spyOn(database.taskPoolItems, 'put');
+    const readSpy = vi.spyOn(database.taskPoolItems, 'toArray')
+      .mockRejectedValueOnce(new Error('synthetic read failure'));
+
+    render(<PoolScreen />);
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Your saved Pool tasks could not be loaded.');
+    expect(screen.queryByText('No captured tasks yet.')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(await screen.findByText('Captured form task')).toBeTruthy();
+    expect(readSpy).toHaveBeenCalledTimes(2);
+    expect(putSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps valid Pool items visible and preserves malformed rows while reporting partial data', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    await saveTaskPoolItem(validTaskPoolItem(), database);
+    await database.taskPoolItems.put({
+      id: 'broken-pool-row',
+      source: 'adhoc',
+    } as TaskPoolItem);
+
+    render(<PoolScreen />);
+
+    expect(await screen.findByText('Captured form task')).toBeTruthy();
+    expect((await screen.findByRole('status', { name: 'Saved Pool task warning' })).textContent).toContain(
+      'Some saved Pool task data could not be read.',
+    );
+    expect(await database.taskPoolItems.get('broken-pool-row')).toBeTruthy();
+  });
+
+  it('renders the holding-tray task pool surface without Inbox language', async () => {
     render(<PoolScreen />);
 
     expect(screen.getByRole('heading', { name: 'Pool' })).toBeTruthy();
     expect(screen.queryByText('Holding Tray')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Captured tasks' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Capture task' })).toBeTruthy();
-    expect(screen.getByText('No captured tasks yet.')).toBeTruthy();
+    expect(await screen.findByText('No captured tasks yet.')).toBeTruthy();
     expect(screen.getByText('Capture something here without adding it to Today.')).toBeTruthy();
 
     const text = document.body.textContent?.toLowerCase() ?? '';
@@ -102,6 +139,7 @@ describe('Pool screen', () => {
 
     render(<PoolScreen />);
 
+    await screen.findByText('No captured tasks yet.');
     await user.click(screen.getByRole('button', { name: 'Capture task' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Capture task' });
@@ -126,6 +164,7 @@ describe('Pool screen', () => {
       });
       render(<PoolScreen />);
 
+      await screen.findByText('No captured tasks yet.');
       await user.click(screen.getByRole('button', { name: 'Capture task' }));
       await user.type(screen.getByLabelText('Task title'), 'Order school shirts');
       await user.selectOptions(screen.getByLabelText('Area'), 'admin');

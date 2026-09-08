@@ -16,7 +16,9 @@ import * as softPlacementRepository from '../../data/softPlacementRepository';
 const activeTaskRepositoryMocks = vi.hoisted(() => ({
   createActiveTaskId: vi.fn((prefix = 'active-task') => `${prefix}-test-id`),
   loadActiveTodayTasks: vi.fn(),
+  loadActiveTodayTasksResult: vi.fn(),
   loadPersistedActiveTasks: vi.fn(),
+  loadPersistedActiveTasksResult: vi.fn(),
   saveActiveTodayTask: vi.fn(),
   updateActiveTaskStatus: vi.fn(),
 }));
@@ -58,7 +60,7 @@ vi.mock('../../data/schedulerPlanCoordinator', () => schedulerPlanCoordinatorMoc
 import App from '../../App';
 import { TodayScreen } from '../../screens/TodayScreen';
 import { AppSnapshotProvider } from '../../data/AppSnapshotProvider';
-import { normalDayWithOneTaskSnapshot, oneOffTodayTask } from '../../viewModels/fixtures';
+import { emptyAppSnapshot, normalDayWithOneTaskSnapshot, oneOffTodayTask } from '../../viewModels/fixtures';
 import { mockTodayTask } from './mockTodayData';
 
 function persistedOneOffTask(overrides: Partial<ActiveTask> = {}): ActiveTask {
@@ -111,9 +113,27 @@ function savedOneOffTask(): ActiveTask {
   return calls[calls.length - 1][0] as ActiveTask;
 }
 
+function renderEmptyPersonalToday() {
+  return render(
+    <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+      <TodayScreen />
+    </AppSnapshotProvider>,
+  );
+}
+
 beforeEach(() => {
   activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([]);
+  activeTaskRepositoryMocks.loadActiveTodayTasksResult.mockImplementation(async () => ({
+    invalidRecordCount: 0,
+    items: await activeTaskRepositoryMocks.loadActiveTodayTasks(),
+    status: 'ok',
+  }));
   activeTaskRepositoryMocks.loadPersistedActiveTasks.mockResolvedValue([]);
+  activeTaskRepositoryMocks.loadPersistedActiveTasksResult.mockImplementation(async () => ({
+    invalidRecordCount: 0,
+    items: await activeTaskRepositoryMocks.loadPersistedActiveTasks(),
+    status: 'ok',
+  }));
   activeTaskRepositoryMocks.saveActiveTodayTask.mockImplementation(async (task: ActiveTask) => ({
     alreadyExists: false,
     ok: true,
@@ -179,6 +199,62 @@ afterEach(() => {
 });
 
 describe('Today screen', () => {
+  it('shows the ordinary empty state only after a successful empty personal read', async () => {
+    renderEmptyPersonalToday();
+
+    expect(await screen.findByRole('heading', { name: 'Choose rhythms to turn on' })).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('shows a quiet loading state before saved Today tasks resolve', () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasksResult.mockReturnValue(new Promise(() => undefined));
+
+    renderEmptyPersonalToday();
+
+    expect(screen.getByRole('status').textContent).toContain('Loading your saved Today tasks');
+    expect(screen.queryByRole('heading', { name: 'Choose rhythms to turn on' })).toBeNull();
+  });
+
+  it('does not present a failed Today read as a genuine empty state and can retry', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasksResult
+      .mockResolvedValueOnce({
+        errors: ['activeTasks: Saved Today tasks could not be read.'],
+        status: 'readFailed',
+      })
+      .mockResolvedValueOnce({
+        invalidRecordCount: 0,
+        items: [persistedOneOffTask()],
+        status: 'ok',
+      });
+
+    renderEmptyPersonalToday();
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Your saved Today tasks could not be loaded.');
+    expect(screen.queryByRole('heading', { name: 'Choose rhythms to turn on' })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(await screen.findByRole('heading', { name: 'Pay water bill' })).toBeTruthy();
+    expect(activeTaskRepositoryMocks.loadActiveTodayTasksResult).toHaveBeenCalledTimes(2);
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
+  });
+
+  it('keeps valid Today tasks visible while warning about unreadable saved rows', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasksResult.mockResolvedValue({
+      invalidRecordCount: 1,
+      items: [persistedOneOffTask()],
+      status: 'partial',
+    });
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('heading', { name: 'Pay water bill' })).toBeTruthy();
+    const warning = await screen.findByRole('status', { name: 'Saved Today task warning' });
+    expect(warning.textContent).toContain('Some saved Today task data could not be read.');
+    expect(warning.textContent).toContain('Nothing stored on this device was changed.');
+  });
   it('previews, cancels, and applies Reduce today from the primary task area', async () => {
     const user = userEvent.setup();
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
@@ -498,6 +574,35 @@ describe('Today screen', () => {
     expect(createObjectURL).not.toHaveBeenCalled();
     expect(revokeObjectURL).not.toHaveBeenCalled();
     expect(clickSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      expected: 'Saved Today tasks could not be loaded for backup.',
+      result: { errors: ['activeTasks: synthetic read failure'], status: 'readFailed' as const },
+    },
+    {
+      expected: 'Today tasks backup was not created because some saved task data could not be read.',
+      result: {
+        invalidRecordCount: 1,
+        items: [persistedOneOffTask()],
+        status: 'partial' as const,
+      },
+    },
+  ])('does not create a misleading or partial backup when saved-task reads are uncertain', async ({ expected, result }) => {
+    const user = userEvent.setup();
+    const createObjectURL = vi.fn(() => 'blob:today-tasks');
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: createObjectURL,
+    });
+    activeTaskRepositoryMocks.loadPersistedActiveTasksResult.mockResolvedValueOnce(result);
+
+    render(<TodayScreen />);
+    await user.click(screen.getByRole('button', { name: 'Export Today tasks backup' }));
+
+    expect(screen.getByRole('status').textContent).toContain(expected);
+    expect(createObjectURL).not.toHaveBeenCalled();
   });
 
   it('exports valid active task backup JSON for saved Today tasks', async () => {
