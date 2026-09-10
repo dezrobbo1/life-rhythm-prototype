@@ -414,6 +414,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
         >
           <h3>Some saved placement information is unavailable.</h3>
           <p>Pool tasks remain visible. Nothing stored on this device was changed.</p>
+          <Button onClick={() => void retryTaskPoolItems()}>Retry Pool placement data</Button>
         </div>
       ) : null}
 

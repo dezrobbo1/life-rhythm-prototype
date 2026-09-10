@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import 'fake-indexeddb/auto';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
@@ -117,6 +117,28 @@ describe('Pool screen', () => {
       'Some saved Pool task data could not be read.',
     );
     expect(await database.taskPoolItems.get('broken-pool-row')).toBeTruthy();
+  });
+
+  it('retries unavailable placement metadata without changing Pool tasks', async () => {
+    const user = userEvent.setup();
+    const database = getCurrentLifeRhythmDatabase();
+    await saveTaskPoolItem(validTaskPoolItem(), database);
+    const taskPutSpy = vi.spyOn(database.taskPoolItems, 'put');
+    const placementReadSpy = vi.spyOn(database.softPlacements, 'toArray')
+      .mockRejectedValueOnce(new Error('synthetic placement read failure'));
+
+    render(<PoolScreen />);
+
+    expect(await screen.findByText('Captured form task')).toBeTruthy();
+    expect(await screen.findByRole('status', { name: 'Saved Pool placement warning' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Retry Pool placement data' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('status', { name: 'Saved Pool placement warning' })).toBeNull();
+    });
+    expect(placementReadSpy).toHaveBeenCalledTimes(2);
+    expect(taskPutSpy).not.toHaveBeenCalled();
+    expect(screen.getByText('Captured form task')).toBeTruthy();
   });
 
   it('renders the holding-tray task pool surface without Inbox language', async () => {

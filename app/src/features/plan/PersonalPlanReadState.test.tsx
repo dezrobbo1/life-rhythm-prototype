@@ -143,4 +143,90 @@ describe('Personal Plan read states', () => {
     expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(1);
     expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
   });
+
+  it('discards a retry result when the selected Plan day changes before it resolves', async () => {
+    const user = userEvent.setup();
+    let resolveMondayRetry!: (result: {
+      invalidRecordCount: number;
+      items: Array<{
+        blockId: string;
+        blockLabelSnapshot: string;
+        createdAt: string;
+        date: string;
+        end: string;
+        id: string;
+        placementSource: 'userConfirmed';
+        start: string;
+        status: 'planned';
+        taskId: string;
+        taskTitleSnapshot: string;
+        updatedAt: string;
+      }>;
+      status: 'ok';
+    }) => void;
+    let placementReadCount = 0;
+    placementMocks.loadSoftPlacementsForDateResult.mockImplementation(async (date: string) => {
+      placementReadCount += 1;
+
+      if (placementReadCount === 1) {
+        return { errors: ['softPlacements: read failed'], status: 'readFailed' as const };
+      }
+      if (placementReadCount === 2) {
+        return new Promise((resolve) => {
+          resolveMondayRetry = resolve;
+        });
+      }
+
+      return {
+        invalidRecordCount: 0,
+        items: [{
+          blockId: 'block-tuesday',
+          blockLabelSnapshot: 'Tuesday block',
+          createdAt: '2026-09-07T08:00:00.000Z',
+          date,
+          end: '09:20',
+          id: 'placement-tuesday',
+          placementSource: 'userConfirmed' as const,
+          start: '09:00',
+          status: 'planned' as const,
+          taskId: 'task-tuesday',
+          taskTitleSnapshot: 'Tuesday task',
+          updatedAt: '2026-09-07T08:00:00.000Z',
+        }],
+        status: 'ok' as const,
+      };
+    });
+
+    renderPlan();
+
+    expect(await screen.findByRole('alert', { name: 'Manual Plan data unavailable' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Retry manual Plan data' }));
+    await user.selectOptions(screen.getByLabelText('Selected day'), 'Tuesday');
+    expect(await screen.findByText('Tuesday task')).toBeTruthy();
+
+    resolveMondayRetry({
+      invalidRecordCount: 0,
+      items: [{
+        blockId: 'block-monday',
+        blockLabelSnapshot: 'Monday block',
+        createdAt: '2026-09-07T08:00:00.000Z',
+        date: '2026-09-14',
+        end: '09:20',
+        id: 'placement-monday',
+        placementSource: 'userConfirmed',
+        start: '09:00',
+        status: 'planned',
+        taskId: 'task-monday',
+        taskTitleSnapshot: 'Monday task',
+        updatedAt: '2026-09-07T08:00:00.000Z',
+      }],
+      status: 'ok',
+    });
+
+    await waitFor(() => {
+      expect(placementMocks.loadSoftPlacementsForDateResult).toHaveBeenCalledTimes(3);
+    });
+    expect(screen.getByText('Tuesday task')).toBeTruthy();
+    expect(screen.queryByText('Monday task')).toBeNull();
+  });
 });

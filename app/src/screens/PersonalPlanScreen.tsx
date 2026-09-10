@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, ScreenHero } from '../components';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import {
@@ -124,6 +124,7 @@ export function PersonalPlanScreen({
   const [privatePlanFeedback, setPrivatePlanFeedback] = useState<string | null>(null);
   const [poolReadState, setPoolReadState] = useState<SurfaceCollectionState<TaskPoolItem>>({ status: 'loading' });
   const [placementReadState, setPlacementReadState] = useState<SurfaceCollectionState<SoftPlacement>>({ status: 'loading' });
+  const manualPlanReadRequestRef = useRef(0);
 
   const dayShapePreview = useMemo(
     () => buildDayShapePreviewViewModel(snapshot, selectedDay),
@@ -212,13 +213,28 @@ export function PersonalPlanScreen({
   }, []);
 
   const refreshPlanData = useCallback(async () => {
-    applyManualPlanData(await readManualPlanData());
+    const requestId = manualPlanReadRequestRef.current + 1;
+    manualPlanReadRequestRef.current = requestId;
+    const result = await readManualPlanData();
+
+    if (manualPlanReadRequestRef.current === requestId) {
+      applyManualPlanData(result);
+    }
   }, [applyManualPlanData, readManualPlanData]);
 
   const retryManualPlanData = useCallback(async () => {
+    const requestId = manualPlanReadRequestRef.current + 1;
+    manualPlanReadRequestRef.current = requestId;
+
     try {
-      applyManualPlanData(await readManualPlanData());
+      const result = await readManualPlanData();
+
+      if (manualPlanReadRequestRef.current === requestId) {
+        applyManualPlanData(result);
+      }
     } catch {
+      if (manualPlanReadRequestRef.current !== requestId) return;
+
       setPlacementReadState({
         errors: ['softPlacements: Saved manual placements could not be read.'],
         status: 'readFailed',
@@ -265,6 +281,8 @@ export function PersonalPlanScreen({
 
   useEffect(() => {
     let active = true;
+    const requestId = manualPlanReadRequestRef.current + 1;
+    manualPlanReadRequestRef.current = requestId;
 
     setSavedSoftPlacements([]);
     setTaskPoolItems([]);
@@ -274,10 +292,10 @@ export function PersonalPlanScreen({
 
     readManualPlanData()
       .then((result) => {
-        if (active) applyManualPlanData(result);
+        if (active && manualPlanReadRequestRef.current === requestId) applyManualPlanData(result);
       })
       .catch(() => {
-        if (active) {
+        if (active && manualPlanReadRequestRef.current === requestId) {
           setPlacementReadState({
             errors: ['softPlacements: Saved manual placements could not be read.'],
             status: 'readFailed',

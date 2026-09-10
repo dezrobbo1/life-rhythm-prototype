@@ -255,6 +255,79 @@ describe('Today screen', () => {
     expect(warning.textContent).toContain('Some saved Today task data could not be read.');
     expect(warning.textContent).toContain('Nothing stored on this device was changed.');
   });
+
+  it('keeps Add one-off available when every saved Today row is unreadable', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasksResult.mockResolvedValue({
+      invalidRecordCount: 2,
+      items: [],
+      status: 'partial',
+    });
+
+    renderEmptyPersonalToday();
+
+    expect(await screen.findByRole('status', { name: 'Saved Today task warning' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add one-off' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Choose rhythms to turn on' })).toBeNull();
+  });
+
+  it('keeps loading until the first persisted task is ready to present', async () => {
+    let resolveLinks!: (ids: string[]) => void;
+    activeTaskRepositoryMocks.loadActiveTodayTasksResult.mockResolvedValue({
+      invalidRecordCount: 0,
+      items: [persistedOneOffTask()],
+      status: 'ok',
+    });
+    taskLifecycleRepositoryMocks.loadLinkedTaskPoolItemIds.mockImplementation(() => new Promise((resolve) => {
+      resolveLinks = resolve;
+    }));
+
+    renderEmptyPersonalToday();
+
+    expect(await screen.findByText('Loading your saved Today tasks...')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Choose rhythms to turn on' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Pay water bill' })).toBeNull();
+
+    resolveLinks([]);
+
+    expect(await screen.findByRole('heading', { name: 'Pay water bill' })).toBeTruthy();
+  });
+
+  it('does not let a retry restore a stale task state after a successful write', async () => {
+    const user = userEvent.setup();
+    let resolveRetry!: (result: {
+      invalidRecordCount: number;
+      items: ActiveTask[];
+      status: 'partial';
+    }) => void;
+    activeTaskRepositoryMocks.loadActiveTodayTasksResult
+      .mockResolvedValueOnce({
+        invalidRecordCount: 1,
+        items: [persistedOneOffTask()],
+        status: 'partial',
+      })
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveRetry = resolve;
+      }));
+
+    renderEmptyPersonalToday();
+
+    expect(await screen.findByRole('button', { name: 'Start task' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    expect(await screen.findByRole('button', { name: 'Pause' })).toBeTruthy();
+
+    resolveRetry({
+      invalidRecordCount: 1,
+      items: [persistedOneOffTask({ status: 'active' })],
+      status: 'partial',
+    });
+
+    await waitFor(() => {
+      expect(activeTaskRepositoryMocks.loadActiveTodayTasksResult).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Start task' })).toBeNull();
+  });
   it('previews, cancels, and applies Reduce today from the primary task area', async () => {
     const user = userEvent.setup();
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
