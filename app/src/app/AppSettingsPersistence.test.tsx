@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import 'fake-indexeddb/auto';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -401,11 +402,12 @@ describe('App settings persistence wiring', () => {
 
     expect(await screen.findByRole('button', { name: 'Today' })).toBeTruthy();
     expect(document.querySelector('.app-shell')?.getAttribute('data-theme')).toBe('clear');
-    expect(screen.getByRole('status').textContent).toContain(
+    const migrationWarning = screen.getByText(/Your settings were loaded for this session/);
+    expect(migrationWarning.textContent).toContain(
       'Your settings were loaded for this session, but the updated settings foundation could not be saved.',
     );
-    expect(screen.getByRole('status').textContent).toContain('Nothing already stored on this device was changed.');
-    expect(screen.getByRole('status').textContent).toContain('The migration will need to be retried.');
+    expect(migrationWarning.textContent).toContain('Nothing already stored on this device was changed.');
+    expect(migrationWarning.textContent).toContain('The migration will need to be retried.');
     expect(settingsMocks.loadSettingsResult).toHaveBeenCalledTimes(1);
     expect(settingsMocks.saveSettings).not.toHaveBeenCalled();
     expect(settingsMocks.resetSettingsToDefaults).not.toHaveBeenCalled();

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import 'fake-indexeddb/auto';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
@@ -82,14 +82,148 @@ afterEach(() => {
 });
 
 describe('Pool screen', () => {
-  it('renders the holding-tray task pool surface without Inbox language', () => {
+  it('distinguishes a failed Pool read from a genuinely empty Pool and retries without writes', async () => {
+    const user = userEvent.setup();
+    const database = getCurrentLifeRhythmDatabase();
+    await saveTaskPoolItem(validTaskPoolItem(), database);
+    const putSpy = vi.spyOn(database.taskPoolItems, 'put');
+    const readSpy = vi.spyOn(database.taskPoolItems, 'toArray')
+      .mockRejectedValueOnce(new Error('synthetic read failure'));
+
+    render(<PoolScreen />);
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Your saved Pool tasks could not be loaded.');
+    expect(screen.queryByText('No captured tasks yet.')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(await screen.findByText('Captured form task')).toBeTruthy();
+    expect(readSpy).toHaveBeenCalledTimes(2);
+    expect(putSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps valid Pool items visible and preserves malformed rows while reporting partial data', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    await saveTaskPoolItem(validTaskPoolItem(), database);
+    await database.taskPoolItems.put({
+      id: 'broken-pool-row',
+      source: 'adhoc',
+    } as TaskPoolItem);
+
+    render(<PoolScreen />);
+
+    expect(await screen.findByText('Captured form task')).toBeTruthy();
+    expect((await screen.findByRole('status', { name: 'Saved Pool task warning' })).textContent).toContain(
+      'Some saved Pool task data could not be read.',
+    );
+    expect(await database.taskPoolItems.get('broken-pool-row')).toBeTruthy();
+  });
+
+  it('retries unavailable placement metadata without changing Pool tasks', async () => {
+    const user = userEvent.setup();
+    const database = getCurrentLifeRhythmDatabase();
+    await saveTaskPoolItem(validTaskPoolItem(), database);
+    const taskPutSpy = vi.spyOn(database.taskPoolItems, 'put');
+    const placementReadSpy = vi.spyOn(database.softPlacements, 'toArray')
+      .mockRejectedValueOnce(new Error('synthetic placement read failure'));
+
+    render(<PoolScreen />);
+
+    expect(await screen.findByText('Captured form task')).toBeTruthy();
+    expect(await screen.findByRole('status', { name: 'Saved Pool placement warning' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Retry Pool placement data' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('status', { name: 'Saved Pool placement warning' })).toBeNull();
+    });
+    expect(placementReadSpy).toHaveBeenCalledTimes(2);
+    expect(taskPutSpy).not.toHaveBeenCalled();
+    expect(screen.getByText('Captured form task')).toBeTruthy();
+  });
+
+  it('ignores a stale Pool retry snapshot after a task is moved to Today', async () => {
+    const user = userEvent.setup();
+    const database = getCurrentLifeRhythmDatabase();
+    await saveTaskPoolItem(validTaskPoolItem(), database);
+    let resolvePlacementRetry!: (placements: []) => void;
+    const taskReadSpy = vi.spyOn(database.taskPoolItems, 'toArray');
+    vi.spyOn(database.softPlacements, 'toArray')
+      .mockRejectedValueOnce(new Error('synthetic placement read failure'))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolvePlacementRetry = resolve;
+      }) as ReturnType<typeof database.softPlacements.toArray>);
+
+    render(<PoolScreen />);
+
+    expect(await screen.findByRole('status', { name: 'Saved Pool placement warning' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Retry Pool placement data' }));
+    await waitFor(() => expect(taskReadSpy).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole('button', { name: 'Add to Today' }));
+    expect(await screen.findByText('Added to Today.')).toBeTruthy();
+    expect(screen.queryByText('Captured form task')).toBeNull();
+
+    await act(async () => {
+      resolvePlacementRetry([]);
+    });
+
+    expect(screen.getByRole('status', { name: 'Saved Pool placement warning' })).toBeTruthy();
+    expect(screen.queryByText('Captured form task')).toBeNull();
+    expect((await getTaskPoolItem('task-pool-captured-form', database))?.status).toBe('today');
+  });
+
+  it('ignores an older Pool retry after a newer retry has completed', async () => {
+    const user = userEvent.setup();
+    const database = getCurrentLifeRhythmDatabase();
+    await saveTaskPoolItem(validTaskPoolItem(), database);
+    let resolveOlderPlacementRetry!: (placements: []) => void;
+    const readStoredTasks = database.taskPoolItems.toArray.bind(database.taskPoolItems);
+    vi.spyOn(database.taskPoolItems, 'toArray')
+      .mockImplementationOnce(readStoredTasks)
+      .mockResolvedValueOnce([validTaskPoolItem()])
+      .mockResolvedValueOnce([]);
+    vi.spyOn(database.softPlacements, 'toArray')
+      .mockRejectedValueOnce(new Error('synthetic placement read failure'))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveOlderPlacementRetry = resolve;
+      }) as ReturnType<typeof database.softPlacements.toArray>)
+      .mockResolvedValueOnce([]);
+
+    render(<PoolScreen />);
+
+    const retry = await screen.findByRole('button', { name: 'Retry Pool placement data' });
+    await user.click(retry);
+    await user.click(retry);
+    expect(await screen.findByText('No captured tasks yet.')).toBeTruthy();
+
+    await act(async () => {
+      resolveOlderPlacementRetry([]);
+    });
+
+    expect(screen.getByText('No captured tasks yet.')).toBeTruthy();
+    expect(screen.queryByText('Captured form task')).toBeNull();
+  });
+
+  it('does not claim Pool tasks remain visible when no saved task can be read', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    await database.taskPoolItems.put({ id: 'broken-pool-row' } as TaskPoolItem);
+    vi.spyOn(database.softPlacements, 'toArray')
+      .mockRejectedValueOnce(new Error('synthetic placement read failure'));
+
+    render(<PoolScreen />);
+
+    const warning = await screen.findByRole('status', { name: 'Saved Pool placement warning' });
+    expect(warning.textContent).toContain('No readable Pool tasks are currently visible.');
+    expect(warning.textContent).not.toContain('Pool tasks remain visible.');
+  });
+
+  it('renders the holding-tray task pool surface without Inbox language', async () => {
     render(<PoolScreen />);
 
     expect(screen.getByRole('heading', { name: 'Pool' })).toBeTruthy();
     expect(screen.queryByText('Holding Tray')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Captured tasks' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Capture task' })).toBeTruthy();
-    expect(screen.getByText('No captured tasks yet.')).toBeTruthy();
+    expect(await screen.findByText('No captured tasks yet.')).toBeTruthy();
     expect(screen.getByText('Capture something here without adding it to Today.')).toBeTruthy();
 
     const text = document.body.textContent?.toLowerCase() ?? '';
@@ -102,6 +236,7 @@ describe('Pool screen', () => {
 
     render(<PoolScreen />);
 
+    await screen.findByText('No captured tasks yet.');
     await user.click(screen.getByRole('button', { name: 'Capture task' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Capture task' });
@@ -126,6 +261,7 @@ describe('Pool screen', () => {
       });
       render(<PoolScreen />);
 
+      await screen.findByText('No captured tasks yet.');
       await user.click(screen.getByRole('button', { name: 'Capture task' }));
       await user.type(screen.getByLabelText('Task title'), 'Order school shirts');
       await user.selectOptions(screen.getByLabelText('Area'), 'admin');

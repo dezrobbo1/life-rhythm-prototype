@@ -6,6 +6,10 @@ import {
   type TaskPoolItem,
   type TaskPoolItemStatus,
 } from './schemas';
+import {
+  successfulCollectionRead,
+  type CollectionReadResult,
+} from './collectionReadResult';
 
 type TaskPoolItemsTable = Pick<Table<TaskPoolItem, string>, 'get' | 'put' | 'toArray' | 'where'>;
 
@@ -94,16 +98,35 @@ export async function saveTaskPoolItem(
 export async function loadTaskPoolItems(
   store: TaskPoolStore = getCurrentLifeRhythmDatabase(),
 ): Promise<TaskPoolItem[]> {
+  const result = await loadTaskPoolItemsResult(store);
+
+  return result.status === 'readFailed' ? [] : result.items;
+}
+
+export async function loadTaskPoolItemsResult(
+  store: TaskPoolStore = getCurrentLifeRhythmDatabase(),
+): Promise<CollectionReadResult<TaskPoolItem>> {
   try {
     const stored = await store.taskPoolItems.toArray();
+    let invalidRecordCount = 0;
 
-    return stored.flatMap((item) => {
-      const parsed = parseStoredTaskPoolItem(item);
+    const items = stored.flatMap((item) => {
+      const parsed = taskPoolItemSchema.safeParse(item);
 
-      return parsed ? [parsed] : [];
+      if (!parsed.success) {
+        invalidRecordCount += 1;
+        return [];
+      }
+
+      return [parsed.data];
     });
+
+    return successfulCollectionRead(items, invalidRecordCount);
   } catch {
-    return [];
+    return {
+      errors: ['taskPoolItems: Saved Pool tasks could not be read.'],
+      status: 'readFailed',
+    };
   }
 }
 

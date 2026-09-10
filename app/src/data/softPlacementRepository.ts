@@ -1,6 +1,10 @@
 import type { Table } from 'dexie';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
+  successfulCollectionRead,
+  type CollectionReadResult,
+} from './collectionReadResult';
+import {
   softPlacementDateSchema,
   softPlacementSchema,
   softPlacementStatusSchema,
@@ -46,12 +50,6 @@ function issuesToMessages(issues: Array<{ message: string; path: Array<string | 
   });
 }
 
-function parseStoredSoftPlacement(input: unknown): SoftPlacement | null {
-  const parsed = softPlacementSchema.safeParse(input);
-
-  return parsed.success ? parsed.data : null;
-}
-
 export function validateSoftPlacementWrite(input: unknown): SoftPlacementWriteResult {
   const parsed = softPlacementSchema.safeParse(input);
 
@@ -95,16 +93,35 @@ export async function saveSoftPlacement(
 export async function loadAllSoftPlacements(
   store: SoftPlacementStore = getCurrentLifeRhythmDatabase(),
 ): Promise<SoftPlacement[]> {
+  const result = await loadAllSoftPlacementsResult(store);
+
+  return result.status === 'readFailed' ? [] : result.items;
+}
+
+export async function loadAllSoftPlacementsResult(
+  store: SoftPlacementStore = getCurrentLifeRhythmDatabase(),
+): Promise<CollectionReadResult<SoftPlacement>> {
   try {
     const stored = await store.softPlacements.toArray();
+    let invalidRecordCount = 0;
 
-    return stored.flatMap((placement) => {
-      const parsed = parseStoredSoftPlacement(placement);
+    const items = stored.flatMap((placement) => {
+      const parsed = softPlacementSchema.safeParse(placement);
 
-      return parsed ? [parsed] : [];
+      if (!parsed.success) {
+        invalidRecordCount += 1;
+        return [];
+      }
+
+      return [parsed.data];
     });
+
+    return successfulCollectionRead(items, invalidRecordCount);
   } catch {
-    return [];
+    return {
+      errors: ['softPlacements: Saved manual placements could not be read.'],
+      status: 'readFailed',
+    };
   }
 }
 
@@ -112,22 +129,45 @@ export async function loadSoftPlacementsForDate(
   date: string,
   store: SoftPlacementStore = getCurrentLifeRhythmDatabase(),
 ): Promise<SoftPlacement[]> {
+  const result = await loadSoftPlacementsForDateResult(date, store);
+
+  return result.status === 'readFailed' ? [] : result.items;
+}
+
+export async function loadSoftPlacementsForDateResult(
+  date: string,
+  store: SoftPlacementStore = getCurrentLifeRhythmDatabase(),
+): Promise<CollectionReadResult<SoftPlacement>> {
   const parsedDate = softPlacementDateSchema.safeParse(date);
 
   if (!parsedDate.success) {
-    return [];
+    return {
+      errors: ['date: Manual placement date is invalid.'],
+      status: 'readFailed',
+    };
   }
 
   try {
-    const stored = await store.softPlacements.where('date').equals(parsedDate.data).toArray();
+    const stored = await store.softPlacements.toArray();
+    let invalidRecordCount = 0;
 
-    return stored.flatMap((placement) => {
-      const parsed = parseStoredSoftPlacement(placement);
+    const items = stored.flatMap((placement) => {
+      const parsed = softPlacementSchema.safeParse(placement);
 
-      return parsed ? [parsed] : [];
+      if (!parsed.success) {
+        invalidRecordCount += 1;
+        return [];
+      }
+
+      return parsed.data.date === parsedDate.data ? [parsed.data] : [];
     });
+
+    return successfulCollectionRead(items, invalidRecordCount);
   } catch {
-    return [];
+    return {
+      errors: ['softPlacements: Saved manual placements could not be read.'],
+      status: 'readFailed',
+    };
   }
 }
 

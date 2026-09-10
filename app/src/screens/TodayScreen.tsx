@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Button, Card, EmptyState, Modal, ScreenHero } from '../components';
 import {
   createActiveTaskId,
-  loadActiveTodayTasks,
-  loadPersistedActiveTasks,
+  loadActiveTodayTasksResult,
+  loadPersistedActiveTasksResult,
   saveActiveTodayTask,
   updateActiveTaskStatus,
 } from '../data/activeTaskRepository';
@@ -46,6 +46,12 @@ type ActiveTaskBackupCheckPreview = {
     title: string;
   }>;
 };
+
+type TodayTasksReadState =
+  | { status: 'loading' }
+  | { status: 'ok' }
+  | { invalidRecordCount: number; status: 'partial' }
+  | { status: 'readFailed' };
 
 const areaLabels: Record<ActiveTaskArea, string> = {
   admin: 'Admin',
@@ -400,6 +406,7 @@ function ReentryReviewPreview({
 export function TodayScreen() {
   const { snapshot } = useAppSnapshot();
   const initialTodayViewModel = useMemo(() => buildTodayViewModel(snapshot), [snapshot]);
+  const hasInitialTodayTask = Boolean(initialTodayViewModel.nextUsefulAction);
   const [todayState, setTodayState] = useState<TodayState>('Normal day');
   const [boostOpen, setBoostOpen] = useState(false);
   const [stateChooserOpen, setStateChooserOpen] = useState(false);
@@ -419,6 +426,9 @@ export function TodayScreen() {
   const [backupCheckJson, setBackupCheckJson] = useState('');
   const [backupCheckErrors, setBackupCheckErrors] = useState<string[]>([]);
   const [backupCheckPreview, setBackupCheckPreview] = useState<ActiveTaskBackupCheckPreview | null>(null);
+  const [todayTasksReadState, setTodayTasksReadState] = useState<TodayTasksReadState>({ status: 'loading' });
+  const [todayTasksReadAttempt, setTodayTasksReadAttempt] = useState(0);
+  const taskWriteGenerationRef = useRef(0);
   const todayViewModel = useMemo(
     () => buildTodayViewModel(snapshot, { todayState }),
     [snapshot, todayState],
@@ -491,6 +501,7 @@ export function TodayScreen() {
       return;
     }
 
+    taskWriteGenerationRef.current += 1;
     const result = await updateActiveTaskStatus(nextActiveTask.id, status);
 
     if (!result.ok) {
@@ -524,6 +535,7 @@ export function TodayScreen() {
       return;
     }
 
+    taskWriteGenerationRef.current += 1;
     const result = await updateActiveTaskStatus(nextActiveTask.id, status);
 
     if (!result.ok) {
@@ -545,6 +557,7 @@ export function TodayScreen() {
     status: Extract<ActiveTaskStatus, 'parked' | 'notToday'>,
     feedback: string,
   ) {
+    taskWriteGenerationRef.current += 1;
     const result = await updateActiveTaskStatus(taskId, status);
 
     if (!result.ok) {
@@ -579,24 +592,52 @@ export function TodayScreen() {
 
   useEffect(() => {
     let active = true;
+    const writeGenerationAtReadStart = taskWriteGenerationRef.current;
 
-    loadActiveTodayTasks().then(async (tasks) => {
-      if (!active || tasks.length === 0) return;
+    setTodayTasksReadState({ status: 'loading' });
+
+    loadActiveTodayTasksResult().then(async (result) => {
+      if (!active) return;
+
+      if (result.status === 'readFailed') {
+        setTodayTasksReadState({ status: 'readFailed' });
+        return;
+      }
+
+      const tasks = result.items;
+      const completedReadState: TodayTasksReadState = result.status === 'partial'
+        ? { invalidRecordCount: result.invalidRecordCount, status: 'partial' }
+        : { status: 'ok' };
+
+      if (tasks.length === 0) {
+        if (taskWriteGenerationRef.current === writeGenerationAtReadStart) {
+          setActiveTasks([]);
+          setLinkedTaskPoolItemIds([]);
+          if (!hasInitialTodayTask) showPersistedTask(null);
+        }
+        setTodayTasksReadState(completedReadState);
+        return;
+      }
 
       const linkedIds = await loadLinkedTaskPoolItemIds(tasks.map((task) => task.id));
       if (!active) return;
 
-      setActiveTasks(tasks);
-      setLinkedTaskPoolItemIds(linkedIds);
-      showPersistedTask(tasks[0]);
-      setCompletionFeedback('');
-      setBoostOpen(false);
+      if (taskWriteGenerationRef.current === writeGenerationAtReadStart) {
+        setActiveTasks(tasks);
+        setLinkedTaskPoolItemIds(linkedIds);
+        showPersistedTask(tasks[0]);
+        setCompletionFeedback('');
+        setBoostOpen(false);
+      }
+      setTodayTasksReadState(completedReadState);
+    }).catch(() => {
+      if (active) setTodayTasksReadState({ status: 'readFailed' });
     });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [hasInitialTodayTask, todayTasksReadAttempt]);
 
   async function saveOneOffTask(input: MockAddTaskInput): Promise<boolean> {
     let candidate: ActiveTask;
@@ -608,6 +649,7 @@ export function TodayScreen() {
       return false;
     }
 
+    taskWriteGenerationRef.current += 1;
     const result = await saveActiveTodayTask(candidate);
 
     if (!result.ok) {
@@ -699,6 +741,7 @@ export function TodayScreen() {
   }
 
   async function markReentryTaskNoLongerNeeded(taskId: string) {
+    taskWriteGenerationRef.current += 1;
     const result = await markTaskLifecycleNoLongerNeeded(taskId);
 
     if (!result.ok || !result.task) {
@@ -732,7 +775,19 @@ export function TodayScreen() {
   }
 
   async function exportTodayTasksBackup() {
-    const tasks = await loadPersistedActiveTasks();
+    const result = await loadPersistedActiveTasksResult();
+
+    if (result.status === 'readFailed') {
+      setBackupFeedback('Saved Today tasks could not be loaded for backup. Nothing stored on this device was changed.');
+      return;
+    }
+
+    if (result.status === 'partial') {
+      setBackupFeedback('Today tasks backup was not created because some saved task data could not be read. Nothing stored on this device was changed.');
+      return;
+    }
+
+    const tasks = result.items;
 
     if (tasks.length === 0) {
       setBackupFeedback('No saved Today tasks to export yet.');
@@ -812,7 +867,56 @@ export function TodayScreen() {
 
       {completionFeedback ? <p className="today-feedback" role="status">{completionFeedback}</p> : null}
 
-      {nextTask ? (
+      {todayTasksReadState.status === 'partial' ? (
+        <Card>
+          <section
+            aria-label="Saved Today task warning"
+            className="surface-read-state surface-read-state--warning"
+            role="status"
+          >
+            <h2>Some saved Today task data could not be read.</h2>
+            <p>{todayTasksReadState.invalidRecordCount} saved task {todayTasksReadState.invalidRecordCount === 1 ? 'record was' : 'records were'} left unchanged.</p>
+            <p>Nothing stored on this device was changed.</p>
+            <Button onClick={() => setTodayTasksReadAttempt((attempt) => attempt + 1)}>Retry</Button>
+          </section>
+        </Card>
+      ) : null}
+
+      {todayTasksReadState.status === 'readFailed' && nextTask ? (
+        <Card>
+          <section
+            aria-labelledby="today-local-read-warning-title"
+            className="surface-read-state surface-read-state--warning"
+            role="alert"
+          >
+            <h2 id="today-local-read-warning-title">Your saved Today tasks could not be loaded.</h2>
+            <p>The independently loaded task remains available. Nothing stored on this device was changed.</p>
+            <Button onClick={() => setTodayTasksReadAttempt((attempt) => attempt + 1)}>Retry</Button>
+          </section>
+        </Card>
+      ) : null}
+
+      {todayTasksReadState.status === 'loading' && nextTask ? (
+        <p aria-busy="true" className="surface-read-state__inline" role="status">
+          Loading your saved Today tasks...
+        </p>
+      ) : null}
+
+      {todayTasksReadState.status === 'loading' && !nextTask ? (
+        <Card>
+          <section aria-busy="true" className="surface-read-state" role="status">
+            <h2>Loading your saved Today tasks...</h2>
+          </section>
+        </Card>
+      ) : todayTasksReadState.status === 'readFailed' && !nextTask ? (
+        <Card>
+          <section aria-labelledby="today-read-failed-title" className="surface-read-state surface-read-state--error" role="alert">
+            <h2 id="today-read-failed-title">Your saved Today tasks could not be loaded.</h2>
+            <p>Nothing stored on this device was changed.</p>
+            <Button onClick={() => setTodayTasksReadAttempt((attempt) => attempt + 1)}>Retry</Button>
+          </section>
+        </Card>
+      ) : nextTask ? (
         <>
           <section aria-label="Next useful action">
             <div className="today-action-heading">
@@ -871,6 +975,16 @@ export function TodayScreen() {
           </Card>
           <StartBoost open={boostOpen} task={nextTask} onClose={() => setBoostOpen(false)} />
         </>
+      ) : todayTasksReadState.status === 'partial' ? (
+        <Card>
+          <section aria-labelledby="today-partial-capture-title" className="today-one-off">
+            <div>
+              <h2 id="today-partial-capture-title">Add a readable task for today</h2>
+              <p>Unreadable saved rows remain unchanged while you add a separate today-only task.</p>
+            </div>
+            <Button onClick={() => setAddTaskOpen(true)} variant="primary">Add one-off</Button>
+          </section>
+        </Card>
       ) : (
         <EmptyState
           action={<Button onClick={() => setAddTaskOpen(true)} variant="primary">{todayViewModel.emptyState.primaryActionLabel}</Button>}

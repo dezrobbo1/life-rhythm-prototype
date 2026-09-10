@@ -8,7 +8,9 @@ import {
 } from './localDataNamespace';
 import {
   loadAllSoftPlacements,
+  loadAllSoftPlacementsResult,
   loadSoftPlacementsForDate,
+  loadSoftPlacementsForDateResult,
   markSoftPlacementRemoved,
   saveSoftPlacement,
   updateSoftPlacementStatus,
@@ -65,6 +67,56 @@ afterEach(() => {
 });
 
 describe('soft placement repository', () => {
+  it('surfaces partial and failed date reads instead of presenting them as no placements', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await expect(loadAllSoftPlacementsResult(database)).resolves.toEqual({
+        invalidRecordCount: 0,
+        items: [],
+        status: 'ok',
+      });
+
+      await database.softPlacements.put(validSoftPlacement());
+      await database.softPlacements.put({
+        date: '2026-06-18',
+        id: 'broken-soft-placement-result',
+      } as SoftPlacement);
+      await database.softPlacements.put({
+        id: 'broken-soft-placement-without-date',
+      } as SoftPlacement);
+
+      const mixed = await loadSoftPlacementsForDateResult('2026-06-18', database);
+      expect(mixed).toMatchObject({ invalidRecordCount: 2, status: 'partial' });
+      expect(mixed.status === 'readFailed' ? [] : mixed.items.map((placement) => placement.id)).toEqual([
+        'placement-kitchen-landing',
+      ]);
+      expect(await database.softPlacements.count()).toBe(3);
+
+      const all = await loadAllSoftPlacementsResult(database);
+      expect(all).toMatchObject({ invalidRecordCount: 2, status: 'partial' });
+      expect(all.status === 'readFailed' ? [] : all.items.map((placement) => placement.id)).toEqual([
+        'placement-kitchen-landing',
+      ]);
+
+      await expect(loadSoftPlacementsForDateResult('2026-06-18', {
+        softPlacements: {
+          toArray: vi.fn().mockRejectedValue(new Error('synthetic read failure')),
+          where: vi.fn(() => ({
+            equals: vi.fn(() => ({
+              toArray: vi.fn().mockRejectedValue(new Error('synthetic read failure')),
+            })),
+          })),
+        },
+      } as never)).resolves.toEqual({
+        errors: ['softPlacements: Saved manual placements could not be read.'],
+        status: 'readFailed',
+      });
+    } finally {
+      await database.delete();
+    }
+  });
+
   it('saves and loads a valid soft placement', async () => {
     const database = createTestDatabase();
 
