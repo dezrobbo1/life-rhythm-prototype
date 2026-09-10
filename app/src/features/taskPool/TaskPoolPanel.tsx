@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../../components';
 import {
   bringTaskPoolItemToToday,
@@ -133,6 +133,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
   const [clockMs, setClockMs] = useState(() => Date.now());
   const [taskPoolReadState, setTaskPoolReadState] = useState<SurfaceCollectionState<TaskPoolItem>>({ status: 'loading' });
   const [placementReadState, setPlacementReadState] = useState<SurfaceCollectionState<SoftPlacement>>({ status: 'loading' });
+  const taskPoolWriteGenerationRef = useRef(0);
   const visibleGroups = useMemo(
     () => buildTaskPoolResurfacingGroups(taskPoolItems, clockMs),
     [clockMs, taskPoolItems],
@@ -160,14 +161,26 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
   }, []);
 
   const refreshTaskPoolItems = useCallback(async () => {
+    const writeGenerationAtReadStart = taskPoolWriteGenerationRef.current;
     const result = await readTaskPoolData();
-    applyTaskPoolData(result);
+
+    if (taskPoolWriteGenerationRef.current === writeGenerationAtReadStart) {
+      applyTaskPoolData(result);
+    }
   }, [applyTaskPoolData, readTaskPoolData]);
 
   const retryTaskPoolItems = useCallback(async () => {
+    const writeGenerationAtReadStart = taskPoolWriteGenerationRef.current;
+
     try {
-      applyTaskPoolData(await readTaskPoolData());
+      const result = await readTaskPoolData();
+
+      if (taskPoolWriteGenerationRef.current === writeGenerationAtReadStart) {
+        applyTaskPoolData(result);
+      }
     } catch {
+      if (taskPoolWriteGenerationRef.current !== writeGenerationAtReadStart) return;
+
       setTaskPoolReadState({
         errors: ['taskPoolItems: Saved Pool tasks could not be read.'],
         status: 'readFailed',
@@ -177,13 +190,16 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
 
   useEffect(() => {
     let active = true;
+    const writeGenerationAtReadStart = taskPoolWriteGenerationRef.current;
 
     readTaskPoolData()
       .then((result) => {
-        if (active) applyTaskPoolData(result);
+        if (active && taskPoolWriteGenerationRef.current === writeGenerationAtReadStart) {
+          applyTaskPoolData(result);
+        }
       })
       .catch(() => {
-        if (active) {
+        if (active && taskPoolWriteGenerationRef.current === writeGenerationAtReadStart) {
           setTaskPoolReadState({
             errors: ['taskPoolItems: Saved Pool tasks could not be read.'],
             status: 'readFailed',
@@ -216,6 +232,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
 
   const saveCapturedTask = useCallback(async (input: TaskPoolCaptureInput): Promise<boolean> => {
     setTaskPoolFeedback(null);
+    taskPoolWriteGenerationRef.current += 1;
 
     const timestamp = new Date().toISOString();
     const minimum = input.minimumVersion;
@@ -268,6 +285,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
   const moveTaskToToday = useCallback(async (item: TaskPoolItem) => {
     setMovingTaskPoolItemId(item.id);
     setTaskPoolFeedback(null);
+    taskPoolWriteGenerationRef.current += 1;
 
     try {
       const result = await bringTaskPoolItemToToday(item.id);
@@ -307,6 +325,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
 
     setDeferringTaskPoolItemId(deferItem.id);
     setTaskPoolFeedback(null);
+    taskPoolWriteGenerationRef.current += 1;
 
     try {
       const result = await deferTaskPoolItem(deferItem.id, bringBackAfter);
@@ -348,6 +367,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
   const markCapturedTaskNoLongerNeeded = useCallback(async (item: TaskPoolItem) => {
     setMarkingTaskPoolItemId(item.id);
     setTaskPoolFeedback(null);
+    taskPoolWriteGenerationRef.current += 1;
 
     try {
       const result = await markTaskLifecycleNoLongerNeeded(item.id);
@@ -406,14 +426,20 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
         </div>
       ) : null}
 
-      {placementReadState.status === 'partial' || placementReadState.status === 'readFailed' ? (
+      {taskPoolReadState.status !== 'readFailed' &&
+      (placementReadState.status === 'partial' || placementReadState.status === 'readFailed') ? (
         <div
           aria-label="Saved Pool placement warning"
           className="surface-read-state surface-read-state--warning"
           role="status"
         >
           <h3>Some saved placement information is unavailable.</h3>
-          <p>Pool tasks remain visible. Nothing stored on this device was changed.</p>
+          <p>
+            {taskPoolItems.length > 0
+              ? 'Pool tasks remain visible.'
+              : 'No readable Pool tasks are currently visible.'}
+            {' Nothing stored on this device was changed.'}
+          </p>
           <Button onClick={() => void retryTaskPoolItems()}>Retry Pool placement data</Button>
         </div>
       ) : null}

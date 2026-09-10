@@ -82,22 +82,26 @@ describe('soft placement repository', () => {
         date: '2026-06-18',
         id: 'broken-soft-placement-result',
       } as SoftPlacement);
+      await database.softPlacements.put({
+        id: 'broken-soft-placement-without-date',
+      } as SoftPlacement);
 
       const mixed = await loadSoftPlacementsForDateResult('2026-06-18', database);
-      expect(mixed).toMatchObject({ invalidRecordCount: 1, status: 'partial' });
+      expect(mixed).toMatchObject({ invalidRecordCount: 2, status: 'partial' });
       expect(mixed.status === 'readFailed' ? [] : mixed.items.map((placement) => placement.id)).toEqual([
         'placement-kitchen-landing',
       ]);
-      expect(await database.softPlacements.count()).toBe(2);
+      expect(await database.softPlacements.count()).toBe(3);
 
       const all = await loadAllSoftPlacementsResult(database);
-      expect(all).toMatchObject({ invalidRecordCount: 1, status: 'partial' });
+      expect(all).toMatchObject({ invalidRecordCount: 2, status: 'partial' });
       expect(all.status === 'readFailed' ? [] : all.items.map((placement) => placement.id)).toEqual([
         'placement-kitchen-landing',
       ]);
 
       await expect(loadSoftPlacementsForDateResult('2026-06-18', {
         softPlacements: {
+          toArray: vi.fn().mockRejectedValue(new Error('synthetic read failure')),
           where: vi.fn(() => ({
             equals: vi.fn(() => ({
               toArray: vi.fn().mockRejectedValue(new Error('synthetic read failure')),

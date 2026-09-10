@@ -882,6 +882,20 @@ export function TodayScreen() {
         </Card>
       ) : null}
 
+      {todayTasksReadState.status === 'readFailed' && nextTask ? (
+        <Card>
+          <section
+            aria-labelledby="today-local-read-warning-title"
+            className="surface-read-state surface-read-state--warning"
+            role="alert"
+          >
+            <h2 id="today-local-read-warning-title">Your saved Today tasks could not be loaded.</h2>
+            <p>The independently loaded task remains available. Nothing stored on this device was changed.</p>
+            <Button onClick={() => setTodayTasksReadAttempt((attempt) => attempt + 1)}>Retry</Button>
+          </section>
+        </Card>
+      ) : null}
+
       {todayTasksReadState.status === 'loading' && nextTask ? (
         <p aria-busy="true" className="surface-read-state__inline" role="status">
           Loading your saved Today tasks...
@@ -894,7 +908,7 @@ export function TodayScreen() {
             <h2>Loading your saved Today tasks...</h2>
           </section>
         </Card>
-      ) : todayTasksReadState.status === 'readFailed' ? (
+      ) : todayTasksReadState.status === 'readFailed' && !nextTask ? (
         <Card>
           <section aria-labelledby="today-read-failed-title" className="surface-read-state surface-read-state--error" role="alert">
             <h2 id="today-read-failed-title">Your saved Today tasks could not be loaded.</h2>

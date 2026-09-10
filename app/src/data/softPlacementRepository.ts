@@ -148,7 +148,7 @@ export async function loadSoftPlacementsForDateResult(
   }
 
   try {
-    const stored = await store.softPlacements.where('date').equals(parsedDate.data).toArray();
+    const stored = await store.softPlacements.toArray();
     let invalidRecordCount = 0;
 
     const items = stored.flatMap((placement) => {
@@ -159,7 +159,7 @@ export async function loadSoftPlacementsForDateResult(
         return [];
       }
 
-      return [parsed.data];
+      return parsed.data.date === parsedDate.data ? [parsed.data] : [];
     });
 
     return successfulCollectionRead(items, invalidRecordCount);

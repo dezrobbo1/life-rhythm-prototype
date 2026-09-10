@@ -241,6 +241,26 @@ describe('Today screen', () => {
     expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
   });
 
+  it('keeps an adapter-provided task visible when the unrelated local Today read fails', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasksResult.mockResolvedValue({
+      errors: ['activeTasks: synthetic local read failure'],
+      status: 'readFailed',
+    });
+
+    render(
+      <AppSnapshotProvider
+        source="read-only adapter"
+        snapshot={{ ...normalDayWithOneTaskSnapshot, activeTasks: [oneOffTodayTask] }}
+      >
+        <TodayScreen />
+      </AppSnapshotProvider>,
+    );
+
+    expect((await screen.findByRole('alert')).textContent).toContain('saved Today tasks could not be loaded');
+    expect(screen.getByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Choose rhythms to turn on' })).toBeNull();
+  });
+
   it('keeps valid Today tasks visible while warning about unreadable saved rows', async () => {
     activeTaskRepositoryMocks.loadActiveTodayTasksResult.mockResolvedValue({
       invalidRecordCount: 1,
