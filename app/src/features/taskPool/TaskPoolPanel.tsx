@@ -133,6 +133,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
   const [clockMs, setClockMs] = useState(() => Date.now());
   const [taskPoolReadState, setTaskPoolReadState] = useState<SurfaceCollectionState<TaskPoolItem>>({ status: 'loading' });
   const [placementReadState, setPlacementReadState] = useState<SurfaceCollectionState<SoftPlacement>>({ status: 'loading' });
+  const taskPoolReadRequestRef = useRef(0);
   const taskPoolWriteGenerationRef = useRef(0);
   const visibleGroups = useMemo(
     () => buildTaskPoolResurfacingGroups(taskPoolItems, clockMs),
@@ -161,25 +162,38 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
   }, []);
 
   const refreshTaskPoolItems = useCallback(async () => {
+    const readRequest = taskPoolReadRequestRef.current + 1;
+    taskPoolReadRequestRef.current = readRequest;
     const writeGenerationAtReadStart = taskPoolWriteGenerationRef.current;
     const result = await readTaskPoolData();
 
-    if (taskPoolWriteGenerationRef.current === writeGenerationAtReadStart) {
+    if (
+      taskPoolReadRequestRef.current === readRequest &&
+      taskPoolWriteGenerationRef.current === writeGenerationAtReadStart
+    ) {
       applyTaskPoolData(result);
     }
   }, [applyTaskPoolData, readTaskPoolData]);
 
   const retryTaskPoolItems = useCallback(async () => {
+    const readRequest = taskPoolReadRequestRef.current + 1;
+    taskPoolReadRequestRef.current = readRequest;
     const writeGenerationAtReadStart = taskPoolWriteGenerationRef.current;
 
     try {
       const result = await readTaskPoolData();
 
-      if (taskPoolWriteGenerationRef.current === writeGenerationAtReadStart) {
+      if (
+        taskPoolReadRequestRef.current === readRequest &&
+        taskPoolWriteGenerationRef.current === writeGenerationAtReadStart
+      ) {
         applyTaskPoolData(result);
       }
     } catch {
-      if (taskPoolWriteGenerationRef.current !== writeGenerationAtReadStart) return;
+      if (
+        taskPoolReadRequestRef.current !== readRequest ||
+        taskPoolWriteGenerationRef.current !== writeGenerationAtReadStart
+      ) return;
 
       setTaskPoolReadState({
         errors: ['taskPoolItems: Saved Pool tasks could not be read.'],
@@ -190,16 +204,26 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
 
   useEffect(() => {
     let active = true;
+    const readRequest = taskPoolReadRequestRef.current + 1;
+    taskPoolReadRequestRef.current = readRequest;
     const writeGenerationAtReadStart = taskPoolWriteGenerationRef.current;
 
     readTaskPoolData()
       .then((result) => {
-        if (active && taskPoolWriteGenerationRef.current === writeGenerationAtReadStart) {
+        if (
+          active &&
+          taskPoolReadRequestRef.current === readRequest &&
+          taskPoolWriteGenerationRef.current === writeGenerationAtReadStart
+        ) {
           applyTaskPoolData(result);
         }
       })
       .catch(() => {
-        if (active && taskPoolWriteGenerationRef.current === writeGenerationAtReadStart) {
+        if (
+          active &&
+          taskPoolReadRequestRef.current === readRequest &&
+          taskPoolWriteGenerationRef.current === writeGenerationAtReadStart
+        ) {
           setTaskPoolReadState({
             errors: ['taskPoolItems: Saved Pool tasks could not be read.'],
             status: 'readFailed',

@@ -171,6 +171,38 @@ describe('Pool screen', () => {
     expect((await getTaskPoolItem('task-pool-captured-form', database))?.status).toBe('today');
   });
 
+  it('ignores an older Pool retry after a newer retry has completed', async () => {
+    const user = userEvent.setup();
+    const database = getCurrentLifeRhythmDatabase();
+    await saveTaskPoolItem(validTaskPoolItem(), database);
+    let resolveOlderPlacementRetry!: (placements: []) => void;
+    const readStoredTasks = database.taskPoolItems.toArray.bind(database.taskPoolItems);
+    vi.spyOn(database.taskPoolItems, 'toArray')
+      .mockImplementationOnce(readStoredTasks)
+      .mockResolvedValueOnce([validTaskPoolItem()])
+      .mockResolvedValueOnce([]);
+    vi.spyOn(database.softPlacements, 'toArray')
+      .mockRejectedValueOnce(new Error('synthetic placement read failure'))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveOlderPlacementRetry = resolve;
+      }) as ReturnType<typeof database.softPlacements.toArray>)
+      .mockResolvedValueOnce([]);
+
+    render(<PoolScreen />);
+
+    const retry = await screen.findByRole('button', { name: 'Retry Pool placement data' });
+    await user.click(retry);
+    await user.click(retry);
+    expect(await screen.findByText('No captured tasks yet.')).toBeTruthy();
+
+    await act(async () => {
+      resolveOlderPlacementRetry([]);
+    });
+
+    expect(screen.getByText('No captured tasks yet.')).toBeTruthy();
+    expect(screen.queryByText('Captured form task')).toBeNull();
+  });
+
   it('does not claim Pool tasks remain visible when no saved task can be read', async () => {
     const database = getCurrentLifeRhythmDatabase();
     await database.taskPoolItems.put({ id: 'broken-pool-row' } as TaskPoolItem);
