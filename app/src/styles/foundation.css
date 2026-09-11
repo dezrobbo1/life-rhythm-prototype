@@ -31,8 +31,14 @@ body {
   overflow-wrap: anywhere;
 }
 
-:where(button, input, select, textarea, summary, a[href], [tabindex]):focus-visible {
-  outline: var(--focus-ring-width) solid color-mix(in srgb, var(--stroke-focus, var(--color-accent)) 48%, transparent);
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+a[href]:focus-visible,
+[tabindex]:focus-visible {
+  outline: var(--focus-ring-width) solid var(--stroke-focus, var(--color-accent));
   outline-offset: var(--focus-ring-offset);
 }
 
@@ -53,6 +59,7 @@ body {
 
 .plan-screen,
 .personal-plan-screen,
+.plan-calendar-surface,
 .pool-screen,
 .library-screen,
 .setup-screen {
@@ -136,6 +143,27 @@ body {
   font-weight: 760;
   min-height: var(--control-min-height);
   padding: 0.58rem 0.9rem;
+}
+
+/*
+ * Several existing controls pre-date the shared Button primitive and carry
+ * more-specific compact heights in global.css. Keep those controls visually
+ * compact, but never below the shared 44px interaction target.
+ */
+.task-card__actions .button:not(.button--primary),
+.task-card__quiet-actions button,
+.feedback-row button,
+.boost-option,
+.support-option,
+.library-category-row button,
+.reset-secondary .button,
+.setup-action-row .button,
+.setup-dev-card .button,
+.library-file-picker,
+.library-file-picker input,
+.setup-file-picker,
+.setup-file-picker input {
+  min-height: var(--control-min-height);
 }
 
 .button--primary {
