@@ -1,8 +1,10 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
+export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger';
+
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
-  variant?: 'primary' | 'secondary';
+  variant?: ButtonVariant;
 };
 
 export function Button({ children, className = '', variant = 'secondary', ...props }: ButtonProps) {
@@ -12,4 +14,3 @@ export function Button({ children, className = '', variant = 'secondary', ...pro
     </button>
   );
 }
-

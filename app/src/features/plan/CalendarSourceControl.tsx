@@ -161,7 +161,7 @@ export function CalendarSourceControl({ onPlanRepaired }: CalendarSourceControlP
   }
 
   return (
-    <Card>
+    <Card className="plan-calendar-surface">
       <section aria-labelledby="calendar-source-title" className="library-backup-checker">
         <div className="library-subheading">
           <h2 id="calendar-source-title">Read-only calendar</h2>
