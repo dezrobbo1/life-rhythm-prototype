@@ -143,7 +143,7 @@ describe('Gate 6C Plan Day Line', () => {
       ['15:00', 'Open afternoon', 'possible'],
       ['17:00', 'Family buffer', 'askFirst'],
     ]);
-    expect(result.items.find((item) => item.title === 'School run')?.detail).toContain('read-only calendar');
+    expect(result.items.find((item) => item.title === 'School run')?.detail).toBe('Read-only calendar commitment');
     expect(result.items.find((item) => item.title === 'Workday')?.detail).toContain('work rhythms only');
     expect(result.items.find((item) => item.title === 'Open afternoon')?.detail).toContain('explicitly marked available');
   });
