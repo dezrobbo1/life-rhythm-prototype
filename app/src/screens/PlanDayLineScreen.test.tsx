@@ -149,7 +149,7 @@ describe('Gate 6C Plan Day Line screen', () => {
     render(<PlanDayLineScreen />);
 
     await screen.findByText('School run');
-    await user.selectOptions(screen.getByLabelText('Selected day'), 'Tuesday');
+    await user.selectOptions(screen.getByLabelText('Day Line day'), 'Tuesday');
 
     await waitFor(() => {
       expect(screen.getByTestId('personal-plan-proxy').textContent).toContain(localDateForNextSelectedDay('Tuesday'));
