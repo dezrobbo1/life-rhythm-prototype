@@ -107,7 +107,7 @@ export function PlanDayLineScreen({
         className="plan-hero"
         tagline="See what is fixed, protected and flexibly planned without opening the scheduling machinery."
         title="Plan"
-        titleId="plan-title"
+        titleId="gate6-plan-title"
       />
 
       <section className="plan-day-line" aria-labelledby="plan-day-line-title">
@@ -121,9 +121,10 @@ export function PlanDayLineScreen({
             </p>
           </div>
 
-          <label className="plan-day-line__select">
+          <div className="plan-day-line__select">
             <span>Selected day</span>
             <select
+              aria-label="Day Line day"
               onChange={(event) => {
                 setSelectedDay(event.target.value as DayName);
                 setSelectedPlacementDateOverride(null);
@@ -134,7 +135,7 @@ export function PlanDayLineScreen({
                 <option key={day} value={day}>{day}</option>
               ))}
             </select>
-          </label>
+          </div>
         </div>
 
         {dayLineState.status === 'loading' ? (
