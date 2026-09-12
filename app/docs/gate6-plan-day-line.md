@@ -33,7 +33,7 @@ If the Day Line read fails, the failure is visible and the existing detailed Pla
 
 Gate 6C adds one visible Day Line selector. It supplies the same selected local date to the existing detailed `PersonalPlanScreen`, so Day Line and detailed Plan remain aligned.
 
-The old detailed Day Shape selector remains in the underlying component for compatibility but is hidden when that component is hosted by the Gate 6C surface. Direct component tests and standalone uses remain unchanged.
+`PersonalPlanScreen` keeps its existing standalone behaviour by default. When explicitly hosted by the Gate 6C surface, it omits its own duplicate screen heading and Day Shape selector; the Day Line wrapper owns those two presentation controls. Detailed Plan state and actions remain unchanged.
 
 ## Detailed Plan capabilities preserved
 
