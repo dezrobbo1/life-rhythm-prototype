@@ -88,6 +88,10 @@
   background: color-mix(in srgb, var(--bg-surface, var(--color-surface)) 76%, transparent);
 }
 
+.plan-day-line__row--work {
+  border-left: 3px solid var(--stroke-strong, var(--color-line));
+}
+
 .plan-day-line__row--protected {
   background: color-mix(in srgb, var(--bg-band-protected, var(--color-surface-strong)) 72%, transparent);
 }
