@@ -147,12 +147,6 @@
   width: 100%;
 }
 
-/* The Gate 6C wrapper owns the Plan title and selected-day control. */
-.gate6-plan-surface__details .personal-plan-screen > .screen-heading,
-.gate6-plan-surface__details .personal-plan-screen .day-shape-preview__select {
-  display: none;
-}
-
 @media (max-width: 46rem) {
   .plan-day-line {
     padding-block: var(--space-4);
