@@ -41,8 +41,14 @@ vi.mock('./PersonalPlanScreen', () => ({
   ),
 }));
 
-import { localDateForNextSelectedDay } from '../features/plan/softPlacementDate';
+import {
+  currentLocalDate,
+  dayNameForLocalDate,
+  localDateForNextSelectedDay,
+} from '../features/plan/softPlacementDate';
 import { PlanDayLineScreen } from './PlanDayLineScreen';
+
+const mondayDate = '2026-09-14';
 
 const liveInput = {
   intentions: [],
@@ -88,7 +94,7 @@ const savedPlan = {
     {
       id: 'auto-admin',
       intentionId: 'admin-task',
-      date: localDateForNextSelectedDay('Monday'),
+      date: mondayDate,
       start: '09:00',
       end: '09:20',
       origin: 'scheduler' as const,
@@ -111,7 +117,7 @@ beforeEach(() => {
       warnings: [],
     },
     now: {
-      date: '2026-09-14',
+      date: mondayDate,
       time: '08:00',
       timezone: 'Australia/Perth',
     },
@@ -129,35 +135,53 @@ afterEach(() => {
 });
 
 describe('Gate 6C Plan Day Line screen', () => {
-  it('shows one truthful day ledger and keeps the detailed Plan on the same selected date', async () => {
+  it('opens on the browser current local date when no Pool-to-Plan date was supplied', async () => {
+    const today = currentLocalDate();
+    const todayName = dayNameForLocalDate(today);
+
     render(<PlanDayLineScreen />);
+
+    await waitFor(() => {
+      expect(coordinatorMocks.buildCurrentLiveSchedulingContext).toHaveBeenCalledWith({
+        horizonDays: 1,
+        readOnly: true,
+        startDate: today,
+      });
+    });
+    expect((screen.getByLabelText('Selected day') as HTMLSelectElement).value).toBe(todayName);
+    expect(screen.getByTestId('personal-plan-proxy').textContent).toContain(today);
+  });
+
+  it('shows one truthful day ledger and keeps the detailed Plan on the same selected date', async () => {
+    render(<PlanDayLineScreen preferredPlacementDate={mondayDate} />);
 
     expect(await screen.findByText('School run')).toBeTruthy();
     expect(screen.getByText('Protected morning')).toBeTruthy();
     expect(screen.getByText('Clear admin note')).toBeTruthy();
     expect(screen.getByText(/Blank gaps stay unclassified/)).toBeTruthy();
-    expect(screen.getByTestId('personal-plan-proxy').textContent).toContain(localDateForNextSelectedDay('Monday'));
+    expect(screen.getByTestId('personal-plan-proxy').textContent).toContain(mondayDate);
     expect(coordinatorMocks.buildCurrentLiveSchedulingContext).toHaveBeenCalledWith({
       horizonDays: 1,
       readOnly: true,
-      startDate: localDateForNextSelectedDay('Monday'),
+      startDate: mondayDate,
     });
   });
 
   it('uses the Day Line day selector as the date authority for the detailed Plan', async () => {
     const user = userEvent.setup();
-    render(<PlanDayLineScreen />);
+    render(<PlanDayLineScreen preferredPlacementDate={mondayDate} />);
 
     await screen.findByText('School run');
     await user.selectOptions(screen.getByLabelText('Selected day'), 'Tuesday');
+    const expectedTuesday = localDateForNextSelectedDay('Tuesday');
 
     await waitFor(() => {
-      expect(screen.getByTestId('personal-plan-proxy').textContent).toContain(localDateForNextSelectedDay('Tuesday'));
+      expect(screen.getByTestId('personal-plan-proxy').textContent).toContain(expectedTuesday);
     });
     expect(coordinatorMocks.buildCurrentLiveSchedulingContext).toHaveBeenLastCalledWith({
       horizonDays: 1,
       readOnly: true,
-      startDate: localDateForNextSelectedDay('Tuesday'),
+      startDate: expectedTuesday,
     });
   });
 
@@ -177,13 +201,13 @@ describe('Gate 6C Plan Day Line screen', () => {
           warnings: [],
         },
         now: {
-          date: '2026-09-14',
+          date: mondayDate,
           time: '08:00',
           timezone: 'Australia/Perth',
         },
       });
 
-    render(<PlanDayLineScreen />);
+    render(<PlanDayLineScreen preferredPlacementDate={mondayDate} />);
 
     expect((await screen.findByRole('alert')).textContent).toContain('Day Line could not be loaded.');
     expect(screen.getByTestId('personal-plan-proxy')).toBeTruthy();
