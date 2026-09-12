@@ -32,6 +32,10 @@ function localDateString(date: Date) {
   ].join('-');
 }
 
+export function currentLocalDate(now = new Date()) {
+  return localDateString(now);
+}
+
 function stablePlacementPart(value: string) {
   const normalized = value
     .trim()
