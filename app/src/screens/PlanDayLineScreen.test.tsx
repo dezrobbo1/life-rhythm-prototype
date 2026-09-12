@@ -185,7 +185,7 @@ describe('Gate 6C Plan Day Line screen', () => {
 
     render(<PlanDayLineScreen />);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Day Line could not be loaded.');
+    expect((await screen.findByRole('alert')).textContent).toContain('Day Line could not be loaded.');
     expect(screen.getByTestId('personal-plan-proxy')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Retry Day Line' }));
 
