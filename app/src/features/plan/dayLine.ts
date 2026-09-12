@@ -8,6 +8,7 @@ import { dayNameForLocalDate } from './softPlacementDate';
 
 export type DayLineItemKind =
   | 'fixed'
+  | 'work'
   | 'protected'
   | 'askFirst'
   | 'automatic'
@@ -30,11 +31,12 @@ export type DayLineViewModel = {
 
 const kindOrder: Record<DayLineItemKind, number> = {
   fixed: 0,
-  protected: 1,
-  askFirst: 2,
-  userConfirmed: 3,
-  automatic: 4,
-  possible: 5,
+  work: 1,
+  protected: 2,
+  askFirst: 3,
+  userConfirmed: 4,
+  automatic: 5,
+  possible: 6,
 };
 
 function intervalForDate(
@@ -78,6 +80,21 @@ function placementDetail(placement: InternalPlacement) {
     : `Flexible private plan${variant}`;
 }
 
+function workPlanningDetail(workPlanningUse: string) {
+  switch (workPlanningUse) {
+    case 'unavailable':
+      return 'Work period · unavailable for private planning';
+    case 'askFirst':
+      return 'Work period · ask first before private planning';
+    case 'workRhythmsOnly':
+      return 'Work period · work rhythms only';
+    case 'allowSuitableTasks':
+      return 'Work period · suitable private tasks may be considered';
+    default:
+      return 'Work period';
+  }
+}
+
 export function buildPlanDayLine({
   date,
   input,
@@ -103,12 +120,25 @@ export function buildPlanDayLine({
       start: range.start,
       end: range.end,
       detail: commitment.source === 'calendar'
-        ? 'Fixed commitment · read-only calendar'
-        : 'Fixed commitment',
+        ? 'Read-only calendar commitment'
+        : 'Saved fixed commitment',
     });
   }
 
   if (dayName) {
+    for (const profile of input.dayProfiles) {
+      if (!profile.assignedWeekdays.includes(dayName) || !profile.workPeriod) continue;
+
+      items.push({
+        id: `work:${profile.id}`,
+        kind: 'work',
+        title: profile.name,
+        start: profile.workPeriod.start,
+        end: profile.workPeriod.end,
+        detail: workPlanningDetail(profile.workPlanningUse),
+      });
+    }
+
     for (const window of input.capacityWindows) {
       if (!window.interval.days.includes(dayName) || !window.interval.start || !window.interval.end) {
         continue;
@@ -136,12 +166,31 @@ export function buildPlanDayLine({
     }
   }
 
-  for (const placement of plan?.placements ?? []) {
-    if (placement.date !== date) continue;
+  // User-confirmed placement truth comes from the current canonical projection,
+  // not from the scheduler snapshot. A lifecycle write may succeed even when a
+  // best-effort repair fails, so a stale scheduler plan must not hide or revive
+  // a real saved user placement on the Day Line.
+  for (const placement of input.placements) {
+    if (placement.origin !== 'existingUserConfirmed' || placement.date !== date) continue;
 
     items.push({
       id: `placement:${placement.id}`,
-      kind: placement.origin === 'existingUserConfirmed' ? 'userConfirmed' : 'automatic',
+      kind: 'userConfirmed',
+      title: placementTitle(placement, titleByTargetId),
+      start: placement.start,
+      end: placement.end,
+      detail: placementDetail(placement),
+    });
+  }
+
+  // Scheduler-owned rows remain tied to the persisted accepted plan. Ignore
+  // any user-confirmed copies in that snapshot so current canonical state wins.
+  for (const placement of plan?.placements ?? []) {
+    if (placement.origin !== 'scheduler' || placement.date !== date) continue;
+
+    items.push({
+      id: `placement:${placement.id}`,
+      kind: 'automatic',
       title: placementTitle(placement, titleByTargetId),
       start: placement.start,
       end: placement.end,
