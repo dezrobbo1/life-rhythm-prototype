@@ -121,10 +121,9 @@ export function PlanDayLineScreen({
             </p>
           </div>
 
-          <div className="plan-day-line__select">
+          <label className="plan-day-line__select">
             <span>Selected day</span>
             <select
-              aria-label="Day Line day"
               onChange={(event) => {
                 setSelectedDay(event.target.value as DayName);
                 setSelectedPlacementDateOverride(null);
@@ -135,7 +134,7 @@ export function PlanDayLineScreen({
                 <option key={day} value={day}>{day}</option>
               ))}
             </select>
-          </div>
+          </label>
         </div>
 
         {dayLineState.status === 'loading' ? (
@@ -177,6 +176,7 @@ export function PlanDayLineScreen({
 
       <div className="gate6-plan-surface__details" aria-label="Detailed Plan controls">
         <PersonalPlanScreen
+          embeddedInDayLine
           preferredPlacementDate={selectedDate}
           preferredTaskId={preferredTaskId}
         />
