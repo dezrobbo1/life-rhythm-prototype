@@ -27,7 +27,7 @@ function plan(overrides: Partial<SchedulerPlan> = {}): SchedulerPlan {
 }
 
 describe('Gate 6C Plan Day Line', () => {
-  it('puts real fixed, protected, user-confirmed and automatic items on one chronological line', () => {
+  it('puts real fixed, work, protected, user-confirmed and automatic items on one chronological line', () => {
     const result = buildPlanDayLine({
       date,
       input: domain({
@@ -47,6 +47,16 @@ describe('Gate 6C Plan Day Line', () => {
             hard: true,
             travelBeforeMinutes: 0,
             transitionAfterMinutes: 0,
+          },
+        ],
+        dayProfiles: [
+          {
+            id: 'profile-workday',
+            name: 'Workday',
+            kind: 'workday',
+            assignedWeekdays: ['Monday'],
+            workPeriod: { start: '08:00', end: '16:00' },
+            workPlanningUse: 'workRhythmsOnly',
           },
         ],
         capacityWindows: [
@@ -90,6 +100,18 @@ describe('Gate 6C Plan Day Line', () => {
             sourceId: 'explicit-open',
           },
         ],
+        placements: [
+          {
+            id: 'manual-call',
+            intentionId: 'call-task',
+            date,
+            start: '14:00',
+            end: '14:20',
+            origin: 'existingUserConfirmed',
+            sourcePlacementId: 'soft-call',
+            provenance: ['user'],
+          },
+        ],
       }),
       plan: plan({
         placements: [
@@ -104,18 +126,6 @@ describe('Gate 6C Plan Day Line', () => {
             variantKind: 'normal',
             provenance: ['scheduler'],
           },
-          {
-            id: 'manual-call',
-            intentionId: 'call-task',
-            date,
-            start: '14:00',
-            end: '14:20',
-            origin: 'existingUserConfirmed',
-            sourcePlacementId: 'soft-call',
-            targetKind: 'intention',
-            variantKind: 'minimum',
-            provenance: ['user'],
-          },
         ],
       }),
       titleByTargetId: {
@@ -125,6 +135,7 @@ describe('Gate 6C Plan Day Line', () => {
     });
 
     expect(result.items.map((item) => [item.start, item.title, item.kind])).toEqual([
+      ['08:00', 'Workday', 'work'],
       ['08:15', 'School run', 'fixed'],
       ['09:30', 'Clear admin note', 'automatic'],
       ['12:30', 'Lunch reset', 'protected'],
@@ -133,7 +144,61 @@ describe('Gate 6C Plan Day Line', () => {
       ['17:00', 'Family buffer', 'askFirst'],
     ]);
     expect(result.items.find((item) => item.title === 'School run')?.detail).toContain('read-only calendar');
+    expect(result.items.find((item) => item.title === 'Workday')?.detail).toContain('work rhythms only');
     expect(result.items.find((item) => item.title === 'Open afternoon')?.detail).toContain('explicitly marked available');
+  });
+
+  it('uses canonical current placement state when the accepted scheduler snapshot is stale', () => {
+    const result = buildPlanDayLine({
+      date,
+      input: domain({
+        placements: [
+          {
+            id: 'current-user-placement',
+            intentionId: 'current-task',
+            date,
+            start: '10:00',
+            end: '10:20',
+            origin: 'existingUserConfirmed',
+            sourcePlacementId: 'current-user-placement',
+            provenance: ['current'],
+          },
+        ],
+      }),
+      plan: plan({
+        placements: [
+          {
+            id: 'stale-user-placement',
+            intentionId: 'stale-task',
+            date,
+            start: '09:00',
+            end: '09:20',
+            origin: 'existingUserConfirmed',
+            sourcePlacementId: 'stale-user-placement',
+            provenance: ['stale'],
+          },
+          {
+            id: 'scheduler-placement',
+            intentionId: 'scheduler-task',
+            date,
+            start: '11:00',
+            end: '11:20',
+            origin: 'scheduler',
+            provenance: ['accepted'],
+          },
+        ],
+      }),
+      titleByTargetId: {
+        'current-task': 'Current user placement',
+        'stale-task': 'Removed user placement',
+        'scheduler-task': 'Accepted automatic placement',
+      },
+    });
+
+    expect(result.items.map((item) => item.title)).toEqual([
+      'Current user placement',
+      'Accepted automatic placement',
+    ]);
   });
 
   it('shows only facts that apply to the selected date', () => {
@@ -155,6 +220,16 @@ describe('Gate 6C Plan Day Line', () => {
             hard: true,
             travelBeforeMinutes: 0,
             transitionAfterMinutes: 0,
+          },
+        ],
+        dayProfiles: [
+          {
+            id: 'tuesday-profile',
+            name: 'Tuesday workday',
+            kind: 'workday',
+            assignedWeekdays: ['Tuesday'],
+            workPeriod: { start: '08:00', end: '16:00' },
+            workPlanningUse: 'unavailable',
           },
         ],
         capacityWindows: [
