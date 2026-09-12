@@ -5,6 +5,7 @@ import { buildCurrentLiveSchedulingContext } from '../data/schedulerPlanCoordina
 import { loadSchedulerPlanState } from '../data/schedulerPlanStateRepository';
 import { buildPlanDayLine, type DayLineViewModel } from '../features/plan/dayLine';
 import {
+  currentLocalDate,
   dayNameForLocalDate,
   localDateForNextSelectedDay,
 } from '../features/plan/softPlacementDate';
@@ -23,6 +24,7 @@ type DayLineState =
 
 const dayLineKindLabels = {
   fixed: 'Fixed commitment',
+  work: 'Work context',
   protected: 'Protected time',
   askFirst: 'Ask first',
   automatic: 'Flexible plan',
@@ -30,15 +32,20 @@ const dayLineKindLabels = {
   possible: 'Possible space',
 } as const;
 
+function initialSelectedDate(preferredPlacementDate: string | null) {
+  return preferredPlacementDate ?? currentLocalDate();
+}
+
 export function PlanDayLineScreen({
   preferredPlacementDate = null,
   preferredTaskId = null,
 }: PlanDayLineScreenProps = {}) {
-  const [selectedDay, setSelectedDay] = useState<DayName>(
-    () => dayNameForLocalDate(preferredPlacementDate) ?? 'Monday',
-  );
+  const [selectedDay, setSelectedDay] = useState<DayName>(() => {
+    const date = initialSelectedDate(preferredPlacementDate);
+    return dayNameForLocalDate(date) ?? 'Monday';
+  });
   const [selectedPlacementDateOverride, setSelectedPlacementDateOverride] = useState<string | null>(
-    preferredPlacementDate,
+    () => initialSelectedDate(preferredPlacementDate),
   );
   const [dayLineState, setDayLineState] = useState<DayLineState>({ status: 'loading' });
   const [retryVersion, setRetryVersion] = useState(0);
@@ -49,8 +56,9 @@ export function PlanDayLineScreen({
   );
 
   useEffect(() => {
-    setSelectedDay(dayNameForLocalDate(preferredPlacementDate) ?? 'Monday');
-    setSelectedPlacementDateOverride(preferredPlacementDate);
+    const date = initialSelectedDate(preferredPlacementDate);
+    setSelectedDay(dayNameForLocalDate(date) ?? 'Monday');
+    setSelectedPlacementDateOverride(date);
   }, [preferredPlacementDate]);
 
   useEffect(() => {
@@ -116,7 +124,7 @@ export function PlanDayLineScreen({
             <p className="section-label">Day Line</p>
             <h2 id="plan-day-line-title">{selectedDay}</h2>
             <p>
-              Recorded commitments, protected time and private placements for this day.
+              Recorded commitments, work context, protected time and private placements for this day.
               Blank gaps stay unclassified.
             </p>
           </div>
