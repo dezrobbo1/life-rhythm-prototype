@@ -11,6 +11,7 @@ Plan now opens with a read-only **Day Line** assembled from current canonical pl
 The Day Line may show:
 
 - fixed external commitments, including read-only calendar commitments;
+- the assigned day profile's explicit work period and its exact planning-use rule;
 - protected or unavailable Life Shape time;
 - ask-first time;
 - explicit available blocks as possible space;
@@ -25,13 +26,19 @@ Blank calendar time is never rendered as usable capacity.
 
 Only an explicit `available` Life Shape block is allowed to appear as possible planning space. A missing Day Line row means only that no relevant recorded fact exists for that interval; it does not mean Life Rhythm owns the gap.
 
+Work periods are shown as context with the actual `workPlanningUse` meaning. A work-period row does not itself claim that the whole period is available capacity.
+
+Current user-confirmed placements come from the canonical live scheduling projection, not from the accepted scheduler snapshot. This matters when a lifecycle/placement write succeeds but a best-effort automatic repair cannot update the scheduler plan: the Day Line must still show the real saved user placement, and must not revive a removed one from stale scheduler state. Scheduler-owned automatic rows remain sourced from the accepted persisted scheduler plan.
+
 The Day Line reads the live scheduling context with `readOnly: true` and reads persisted scheduler-plan state. It does not repair, build, move, or write merely to render.
 
 If the Day Line read fails, the failure is visible and the existing detailed Plan remains available. Retry is read-only.
 
 ## Day selection
 
-Gate 6C adds one visible Day Line selector. It supplies the same selected local date to the existing detailed `PersonalPlanScreen`, so Day Line and detailed Plan remain aligned.
+Without a Pool-to-Plan date hint, Gate 6C opens on the browser's current local date rather than a hard-coded weekday.
+
+A Pool-to-Plan date remains authoritative when supplied. The visible Day Line selector then supplies the selected local date to the existing detailed `PersonalPlanScreen`, so Day Line and detailed Plan remain aligned.
 
 `PersonalPlanScreen` keeps its existing standalone behaviour by default. When explicitly hosted by the Gate 6C surface, it omits its own duplicate screen heading and Day Shape selector; the Day Line wrapper owns those two presentation controls. Detailed Plan state and actions remain unchanged.
 
@@ -65,6 +72,10 @@ Gate 6C does not:
 - redesign Today into Now / Later / Changed;
 - merge Pool and Library;
 - add behavioural learning or AI.
+
+## Review boundary
+
+The bounded pre-merge review checked Day Line truth against current canonical state, selected-date behaviour, work-period visibility, the no-write read boundary, and embedded Plan accessibility. Concrete findings are corrected in the same PR; no second broad review cycle is required.
 
 ## Next Gate 6 slice
 
