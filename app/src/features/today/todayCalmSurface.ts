@@ -27,6 +27,7 @@ export type TodayChangedItem = {
 
 export type TodayCalmSurface = {
   currentCommitments: TodayLaterItem[];
+  currentPrivatePlacements: TodayLaterItem[];
   nextBoundaryTime: string | null;
   later: {
     items: TodayLaterItem[];
@@ -186,6 +187,11 @@ export function buildTodayCalmSurface({
   const currentCommitments = factualItems.filter((item) =>
     item.kind === 'fixed' && isCurrent(item, nowTime),
   );
+  const currentPrivatePlacements = factualItems.filter((item) =>
+    item.kind !== 'fixed' &&
+    isCurrent(item, nowTime) &&
+    (!currentTaskTargetId || item.targetId !== currentTaskTargetId),
+  );
   const laterFacts = factualItems.filter((item) =>
     item.end > nowTime &&
     !isCurrent(item, nowTime) &&
@@ -201,6 +207,7 @@ export function buildTodayCalmSurface({
 
   return {
     currentCommitments: currentCommitments.map(asLaterItem),
+    currentPrivatePlacements: currentPrivatePlacements.map(asLaterItem),
     nextBoundaryTime,
     later: {
       items: laterFacts.slice(0, safeLimit).map(asLaterItem),

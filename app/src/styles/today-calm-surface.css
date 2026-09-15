@@ -55,6 +55,25 @@
   padding-inline: var(--space-3);
 }
 
+.today-now__scheduled {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.today-now__scheduled > p {
+  margin: 0;
+}
+
+.today-now__scheduled-list {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.today-now__commitment--automatic,
+.today-now__commitment--userConfirmed {
+  border-left-color: var(--accent-safe, var(--color-accent));
+}
+
 .today-now__secondary {
   color: var(--fg-secondary, var(--color-muted));
 }

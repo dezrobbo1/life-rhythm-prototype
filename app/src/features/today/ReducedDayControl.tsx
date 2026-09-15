@@ -29,7 +29,7 @@ export function ReducedDayControl({
   refreshVersion = 0,
   showUndo = true,
 }: ReducedDayControlProps = {}) {
-  const [dayMode, setDayMode] = useState<'loading' | 'normal' | 'reduced'>('loading');
+  const [dayMode, setDayMode] = useState<'loading' | 'error' | 'normal' | 'reduced'>('loading');
   const [preview, setPreview] = useState<ReducedDayPreview | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<'preview' | 'apply' | 'normal' | 'undo' | null>(null);
@@ -41,16 +41,23 @@ export function ReducedDayControl({
 
   useEffect(() => {
     let active = true;
-    loadTodayDayMode().then((result) => {
+    setDayMode('loading');
+    setError('');
+    setMessage('');
+    loadTodayDayMode({ readOnly: true }).then((result) => {
       if (!active) return;
       if (result.ok) {
         setDayMode(result.dayMode);
         setPreview(result.preview ?? null);
       }
       else {
-        setDayMode('normal');
+        setDayMode('error');
         setError(result.errors[0] ?? 'Today’s scheduling state could not be read.');
       }
+    }).catch(() => {
+      if (!active) return;
+      setDayMode('error');
+      setError('Today’s scheduling state could not be read.');
     });
     return () => { active = false; };
   }, [refreshVersion]);
@@ -158,15 +165,19 @@ export function ReducedDayControl({
             ) : null}
           </div>
         </div>
-      ) : (
+      ) : dayMode === 'normal' ? (
         <Button
           className="reduced-day-control__open"
-          disabled={busy !== null || dayMode === 'loading'}
+          disabled={busy !== null}
           onClick={() => void openPreview()}
         >
           {busy === 'preview' ? 'Preparing preview' : 'Reduce today'}
         </Button>
-      )}
+      ) : dayMode === 'loading' ? (
+        <p aria-busy="true" className="surface-read-state__inline" role="status">
+          Reading today’s day mode...
+        </p>
+      ) : null}
 
       {message ? <p className="reduced-day-control__message" role="status">{message}</p> : null}
       {error ? <p className="reduced-day-control__error" role="alert">{error}</p> : null}

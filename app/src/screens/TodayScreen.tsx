@@ -737,6 +737,9 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       setTodayDisplayClock(new Date());
       planReadGenerationRef.current += 1;
       setTodayPlanReadAttempt((attempt) => attempt + 1);
+      if (nextRefreshAt === nextMidnight.getTime()) {
+        setReducedDayRefreshVersion((version) => version + 1);
+      }
     }, Math.max(1, nextRefreshAt - now.getTime()));
 
     return () => window.clearTimeout(timeout);
@@ -1002,6 +1005,25 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
             </span>
           </div>
         ))}
+
+        {todayPlanSurface?.currentPrivatePlacements.length ? (
+          <section aria-label="Scheduled for this time" className="today-now__scheduled">
+            <p className="section-label">Scheduled for this time</p>
+            <div className="surface-ledger today-now__scheduled-list">
+              {todayPlanSurface.currentPrivatePlacements.map((item) => (
+                <div className={`surface-ledger-row today-now__commitment today-now__commitment--${item.kind}`} key={item.id}>
+                  <div className="surface-ledger-row__main">
+                    <strong>{item.title}</strong>
+                    <span>{item.detail}</span>
+                  </div>
+                  <span className="surface-ledger-row__meta surface-time">
+                    {item.start}–{item.end}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {todayTasksReadState.status === 'partial' ? (
           <section

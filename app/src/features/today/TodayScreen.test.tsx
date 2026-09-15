@@ -530,6 +530,20 @@ describe('Today screen', () => {
     expect(screen.queryByText('Reduced Day active')).toBeNull();
   });
 
+  it('does not present a failed day-mode read as proof that today is Normal', async () => {
+    reducedDayMocks.loadTodayDayMode.mockResolvedValue({
+      ok: false,
+      errors: ['Today’s persisted day mode could not be read.'],
+    });
+
+    render(<TodayScreen />);
+
+    const control = await screen.findByLabelText('Reduced Day controls');
+    expect((await within(control).findByRole('alert')).textContent).toContain('could not be read');
+    expect(within(control).queryByRole('button', { name: 'Reduce today' })).toBeNull();
+    expect(within(control).queryByText('Reduced Day active')).toBeNull();
+  });
+
   it('prevents duplicate Apply submissions while the first write is pending', async () => {
     const user = userEvent.setup();
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
@@ -809,6 +823,75 @@ describe('Today screen', () => {
     expect(screen.queryByText('School meeting')).toBeNull();
   });
 
+  it('moves a private placement from Later to scheduled Now context at its start without remounting', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 15, 11, 59, 0));
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    reducedDayMocks.loadTodayDayMode.mockResolvedValue({
+      ok: true, date: '2026-09-15', dayMode: 'reduced',
+    });
+    const liveContext = {
+      ok: true as const,
+      context: {
+        input: {
+          intentions: [], rhythms: [], capacityWindows: [], placements: [], dayProfiles: [],
+          externalCommitments: [],
+        },
+        titleByTargetId: {
+          'adhoc-pay-water-bill': 'Pay water bill',
+          'scheduled-task-b': 'Scheduled task B',
+        },
+        warnings: [],
+      },
+    };
+    schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext
+      .mockResolvedValueOnce({
+        ...liveContext,
+        now: { date: '2026-09-15', time: '11:59', timezone: 'Australia/Perth' },
+      })
+      .mockResolvedValueOnce({
+        ...liveContext,
+        now: { date: '2026-09-15', time: '11:59', timezone: 'Australia/Perth' },
+      })
+      .mockResolvedValue({
+        ...liveContext,
+        now: { date: '2026-09-15', time: '12:00', timezone: 'Australia/Perth' },
+      });
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok',
+      updatedAt: '2026-09-15T03:59:00.000Z',
+      plan: {
+        placements: [{
+          id: 'scheduled-b', intentionId: 'scheduled-task-b', date: '2026-09-15',
+          start: '12:00', end: '12:30', origin: 'scheduler', targetKind: 'intention',
+          variantKind: 'normal', provenance: ['scheduler'],
+        }],
+        rejectedExistingPlacements: [], unscheduledIntentionIds: [], unscheduledRhythmIds: [],
+      },
+    });
+
+    render(<TodayScreen />);
+    await act(async () => { await Promise.resolve(); });
+    const now = screen.getByRole('region', { name: 'Now' });
+    const later = screen.getByRole('region', { name: 'Later' });
+    expect(within(later).getByText('Scheduled task B')).toBeTruthy();
+    expect(within(now).queryByText('Scheduled task B')).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60 * 1000);
+    });
+
+    expect(within(now).getByText('Scheduled for this time')).toBeTruthy();
+    expect(within(now).getByText('Scheduled task B')).toBeTruthy();
+    expect(within(now).getByText('Flexible private plan · normal')).toBeTruthy();
+    expect(within(later).queryByText('Scheduled task B')).toBeNull();
+    expect(screen.getByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+    expect(screen.getByText('Reduced Day active')).toBeTruthy();
+    expect(reducedDayMocks.loadTodayDayMode).toHaveBeenCalledTimes(1);
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
+    expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+  });
+
   it('refreshes the Today date and facts at local midnight', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 8, 15, 23, 59, 30));
@@ -831,10 +914,14 @@ describe('Today screen', () => {
         ...emptyContext,
         now: { date: '2026-09-16', time: '00:00', timezone: 'Australia/Perth' },
       });
+    reducedDayMocks.loadTodayDayMode
+      .mockResolvedValueOnce({ ok: true, date: '2026-09-15', dayMode: 'reduced' })
+      .mockResolvedValue({ ok: true, date: '2026-09-16', dayMode: 'normal' });
 
     render(<TodayScreen />);
     await act(async () => { await Promise.resolve(); });
     expect(screen.getByText('Tuesday, September 15')).toBeTruthy();
+    expect(screen.getByText('Reduced Day active')).toBeTruthy();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(30 * 1000);
@@ -842,6 +929,12 @@ describe('Today screen', () => {
 
     expect(schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext).toHaveBeenCalledTimes(2);
     expect(screen.getByText('Wednesday, September 16')).toBeTruthy();
+    expect(screen.queryByText('Reduced Day active')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Reduce today' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Return to normal day' })).toBeNull();
+    expect(reducedDayMocks.loadTodayDayMode).toHaveBeenCalledTimes(2);
+    expect(reducedDayMocks.loadTodayDayMode).toHaveBeenNthCalledWith(1, { readOnly: true });
+    expect(reducedDayMocks.loadTodayDayMode).toHaveBeenNthCalledWith(2, { readOnly: true });
   });
 
   it('keeps Now usable and does not call an invalid private plan empty', async () => {

@@ -45,7 +45,127 @@ function fixed(id: string, title: string, start: string, end: string) {
   };
 }
 
+function privatePlacement(
+  id: string,
+  intentionId: string,
+  start: string,
+  end: string,
+  origin: 'scheduler' | 'existingUserConfirmed',
+) {
+  return {
+    id,
+    intentionId,
+    date,
+    start,
+    end,
+    origin,
+    targetKind: 'intention' as const,
+    variantKind: 'normal' as const,
+    provenance: [origin === 'scheduler' ? 'scheduler' : 'user'],
+    ...(origin === 'existingUserConfirmed'
+      ? { sourcePlacementId: `soft:${id}` }
+      : {}),
+  };
+}
+
 describe('Gate 6D calm Today truth', () => {
+  it.each([
+    ['automatic', 'scheduler'],
+    ['userConfirmed', 'existingUserConfirmed'],
+  ] as const)(
+    'keeps a current %s placement visible while a different task remains selected as Now',
+    (expectedKind, origin) => {
+      const placement = privatePlacement('task-b-placement', 'task-b', '12:00', '12:30', origin);
+      const input = domain({
+        placements: origin === 'existingUserConfirmed' ? [placement] : [],
+      });
+      const savedPlan = plan({
+        placements: origin === 'scheduler' ? [placement] : [],
+      });
+      const at = (nowTime: string) => buildTodayCalmSurface({
+        date,
+        nowTime,
+        input,
+        planStatus: 'available',
+        plan: savedPlan,
+        titleByTargetId: { 'task-a': 'Selected task A', 'task-b': 'Scheduled task B' },
+        currentTaskTargetId: 'task-a',
+      });
+
+      expect(at('11:59').later.items).toEqual([
+        expect.objectContaining({ kind: expectedKind, title: 'Scheduled task B' }),
+      ]);
+      expect(at('11:59').currentPrivatePlacements).toEqual([]);
+
+      for (const nowTime of ['12:00', '12:15']) {
+        const result = at(nowTime);
+        expect(result.currentPrivatePlacements).toEqual([
+          expect.objectContaining({
+            detail: origin === 'scheduler'
+              ? 'Flexible private plan · normal'
+              : 'User-confirmed placement · normal',
+            kind: expectedKind,
+            title: 'Scheduled task B',
+          }),
+        ]);
+        expect(result.later.items).toEqual([]);
+      }
+
+      expect(at('12:30').currentPrivatePlacements).toEqual([]);
+      expect(at('12:30').later.items).toEqual([]);
+    },
+  );
+
+  it('does not duplicate the selected Now task but keeps other current private and fixed facts', () => {
+    const selected = privatePlacement('selected-placement', 'task-a', '12:00', '12:30', 'scheduler');
+    const other = privatePlacement('other-placement', 'task-b', '12:00', '12:30', 'scheduler');
+    const result = buildTodayCalmSurface({
+      date,
+      nowTime: '12:15',
+      input: domain({
+        externalCommitments: [
+          fixed('one', 'Current meeting', '12:00', '12:20'),
+          fixed('two', 'Overlapping appointment', '12:10', '12:40'),
+        ],
+      }),
+      planStatus: 'available',
+      plan: plan({ placements: [selected, other] }),
+      titleByTargetId: { 'task-a': 'Selected task A', 'task-b': 'Scheduled task B' },
+      currentTaskTargetId: 'task-a',
+    });
+
+    expect(result.currentCommitments.map((item) => [item.title, item.kind])).toEqual([
+      ['Current meeting', 'fixed'],
+      ['Overlapping appointment', 'fixed'],
+    ]);
+    expect(result.currentPrivatePlacements.map((item) => [item.title, item.kind])).toEqual([
+      ['Scheduled task B', 'automatic'],
+    ]);
+    expect(result.currentPrivatePlacements.map((item) => item.title)).not.toContain('Selected task A');
+    expect(result.later.items).toEqual([]);
+  });
+
+  it('shows current private placement context when no Now task is selected without mutating inputs', () => {
+    const placement = privatePlacement('current-placement', 'task-b', '12:00', '12:30', 'scheduler');
+    const input = domain();
+    const savedPlan = plan({ placements: [placement] });
+    const before = JSON.stringify({ input, savedPlan });
+
+    const result = buildTodayCalmSurface({
+      date,
+      nowTime: '12:15',
+      input,
+      planStatus: 'available',
+      plan: savedPlan,
+      titleByTargetId: { 'task-b': 'Scheduled task B' },
+    });
+
+    expect(result.currentPrivatePlacements).toEqual([
+      expect.objectContaining({ kind: 'automatic', title: 'Scheduled task B' }),
+    ]);
+    expect(JSON.stringify({ input, savedPlan })).toBe(before);
+  });
+
   it('finds current fixed context and orders only factual, unelapsed Later rows', () => {
     const result = buildTodayCalmSurface({
       date,
