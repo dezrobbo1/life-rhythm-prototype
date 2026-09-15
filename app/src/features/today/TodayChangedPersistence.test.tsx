@@ -37,7 +37,7 @@ describe('Today Changed persistence boundary', () => {
     resetCurrentLocalDataNamespace();
   });
 
-  it('reads the latest persisted repair and uses the existing one-step Undo authority', async () => {
+  it('uses the existing one-step Undo authority for an atomic Reduced Day plan-and-mode change', async () => {
     const namespace = createAuthLocalDataNamespace(`today-changed-${databaseIndex += 1}`);
     setCurrentLocalDataNamespace(namespace);
     const database = getCurrentLifeRhythmDatabase();
@@ -62,13 +62,13 @@ describe('Today Changed persistence boundary', () => {
         changes: [{
           from: { date: '2026-09-15', start: '11:00', end: '11:10', variantKind: 'normal' },
           kind: 'removed',
-          reason: 'A user correction removed this private placement.',
+          reason: 'Reduce today was applied to the current local date.',
           targetId: task.id,
           targetKind: 'intention',
         }],
         frozenPastPlacementIds: [],
         preservedPlacementIds: [],
-        reason: 'A private-plan choice changed the plan.',
+        reason: 'Reduce today was applied to the current local date.',
         trigger: 'userCorrection',
         undo: before,
       },
@@ -79,6 +79,10 @@ describe('Today Changed persistence boundary', () => {
       repaired,
       database,
       '2026-09-15T01:00:00.000Z',
+      {
+        dayModeContext: { dayMode: 'reduced', date: '2026-09-15' },
+        undoDayModeContext: null,
+      },
     )).ok).toBe(true);
 
     const user = userEvent.setup();
@@ -87,7 +91,7 @@ describe('Today Changed persistence boundary', () => {
     expect(await screen.findByRole('heading', { name: 'Changed' })).toBeTruthy();
     const changed = screen.getByRole('region', { name: 'Changed' });
     expect(within(changed).getByText('Pay water bill')).toBeTruthy();
-    expect(within(changed).getByText('A private-plan choice changed the plan.')).toBeTruthy();
+    expect(within(changed).getByText('Reduced Day changed the private plan.')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Undo last change' }));
 
@@ -98,6 +102,7 @@ describe('Today Changed persistence boundary', () => {
     expect(reloaded.status).toBe('ok');
     if (reloaded.status === 'ok') {
       expect(reloaded.plan).toEqual(before);
+      expect(reloaded.dayModeContext).toBeUndefined();
     }
   });
 });

@@ -369,7 +369,7 @@ function ReentryReviewPreview({
     <section aria-labelledby="reentry-review-title" className="reentry-review today-calm-section">
       <div className="library-subheading">
         <p className="section-label">Review</p>
-        <h2 aria-label={preview.title} id="reentry-review-title">Needs a choice</h2>
+        <h2 id="reentry-review-title">Needs a choice</h2>
         <p>{preview.title}</p>
         {preview.intro.map((line) => (
           <p key={line}>{line}</p>
@@ -444,6 +444,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   const [planUndoBusy, setPlanUndoBusy] = useState(false);
   const [planUndoError, setPlanUndoError] = useState('');
   const [reducedDayRefreshVersion, setReducedDayRefreshVersion] = useState(0);
+  const [todayDisplayClock, setTodayDisplayClock] = useState(() => new Date());
   const taskWriteGenerationRef = useRef(0);
   const planReadGenerationRef = useRef(0);
   const reentryReviewPreview = useMemo(
@@ -461,8 +462,8 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         weekday: 'long',
         month: 'long',
         day: 'numeric',
-      }).format(new Date()),
-    [],
+      }).format(todayDisplayClock),
+    [todayDisplayClock],
   );
 
   function refreshTodayPlanFacts() {
@@ -714,6 +715,33 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
     };
   }, [nextActiveTask?.id, nextTask?.id, planRevision, todayPlanReadAttempt]);
 
+  useEffect(() => {
+    if (todayPlanReadState.status !== 'ready') return undefined;
+
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    let nextRefreshAt = nextMidnight.getTime();
+    const nextBoundaryTime = todayPlanReadState.surface.nextBoundaryTime;
+
+    if (nextBoundaryTime) {
+      const [hours, minutes] = nextBoundaryTime.split(':').map(Number);
+      const boundary = new Date(now);
+      boundary.setHours(hours, minutes, 0, 0);
+      if (boundary.getTime() > now.getTime()) {
+        nextRefreshAt = Math.min(nextRefreshAt, boundary.getTime());
+      }
+    }
+
+    const timeout = window.setTimeout(() => {
+      setTodayDisplayClock(new Date());
+      planReadGenerationRef.current += 1;
+      setTodayPlanReadAttempt((attempt) => attempt + 1);
+    }, Math.max(1, nextRefreshAt - now.getTime()));
+
+    return () => window.clearTimeout(timeout);
+  }, [todayPlanReadState]);
+
   async function saveOneOffTask(input: MockAddTaskInput): Promise<boolean> {
     let candidate: ActiveTask;
 
@@ -963,17 +991,17 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
           <h2 id="today-now-title">Now</h2>
         </div>
 
-        {todayPlanSurface?.currentCommitment ? (
-          <div aria-label="Current fixed commitment" className="today-now__commitment surface-ledger-row">
+        {todayPlanSurface?.currentCommitments.map((commitment) => (
+          <div aria-label="Current fixed commitment" className="today-now__commitment surface-ledger-row" key={commitment.id}>
             <div className="surface-ledger-row__main">
-              <strong>{todayPlanSurface.currentCommitment.title}</strong>
-              <span>{todayPlanSurface.currentCommitment.detail}</span>
+              <strong>{commitment.title}</strong>
+              <span>{commitment.detail}</span>
             </div>
             <span className="surface-ledger-row__meta surface-time">
-              {todayPlanSurface.currentCommitment.start}–{todayPlanSurface.currentCommitment.end}
+              {commitment.start}–{commitment.end}
             </span>
           </div>
-        ) : null}
+        ))}
 
         {todayTasksReadState.status === 'partial' ? (
           <section
@@ -1113,6 +1141,12 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
             {todayPlanSurface?.later.planStatus === 'missing' ? (
               <p className="surface-copy">No saved private plan is available. Fixed and user-confirmed facts can still appear.</p>
             ) : null}
+            {todayPlanReadState.warnings.length > 0 ? (
+              <div className="surface-read-state surface-read-state--warning" role="status">
+                <h3>Some calendar or planning facts could not be shown.</h3>
+                <p>Review Plan before relying on this list. Nothing stored on this device was changed.</p>
+              </div>
+            ) : null}
             {todayPlanSurface && todayPlanSurface.later.items.length > 0 ? (
               <ul aria-label="Later today" className="surface-ledger today-calm-ledger">
                 {todayPlanSurface.later.items.map((item) => (
@@ -1125,7 +1159,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
                   </li>
                 ))}
               </ul>
-            ) : todayPlanSurface?.later.planStatus === 'available' ? (
+            ) : todayPlanSurface?.later.planStatus === 'available' && todayPlanReadState.warnings.length === 0 ? (
               <p className="surface-copy">Nothing else is recorded for later today.</p>
             ) : null}
             {todayPlanSurface && todayPlanSurface.later.remainingCount > 0 ? (
@@ -1154,11 +1188,13 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
               </li>
             ))}
           </ul>
-          <div className="surface-actions">
-            <Button disabled={planUndoBusy} onClick={() => void undoLatestPrivatePlanChange()}>
-              {planUndoBusy ? 'Restoring' : 'Undo last change'}
-            </Button>
-          </div>
+          {todayPlanSurface.changed.canUndo ? (
+            <div className="surface-actions">
+              <Button disabled={planUndoBusy} onClick={() => void undoLatestPrivatePlanChange()}>
+                {planUndoBusy ? 'Restoring' : 'Undo last change'}
+              </Button>
+            </div>
+          ) : null}
           {planUndoError ? <p className="reduced-day-control__error" role="alert">{planUndoError}</p> : null}
         </section>
       ) : null}

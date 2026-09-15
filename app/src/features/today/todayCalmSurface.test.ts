@@ -54,6 +54,7 @@ describe('Gate 6D calm Today truth', () => {
         externalCommitments: [
           fixed('elapsed', 'Morning call', '08:00', '08:30'),
           fixed('current', 'School meeting', '10:00', '10:30'),
+          fixed('overlap', 'Overlapping appointment', '10:10', '10:45'),
           fixed('later', 'Dentist', '14:00', '15:00'),
         ],
         placements: [{
@@ -80,7 +81,11 @@ describe('Gate 6D calm Today truth', () => {
       currentTaskTargetId: 'now-task',
     });
 
-    expect(result.currentCommitment?.title).toBe('School meeting');
+    expect(result.currentCommitments.map((item) => item.title)).toEqual([
+      'School meeting',
+      'Overlapping appointment',
+    ]);
+    expect(result.nextBoundaryTime).toBe('10:30');
     expect(result.later.items.map((item) => [item.title, item.kind])).toEqual([
       ['Write outline', 'automatic'],
       ['Call the plumber', 'userConfirmed'],
@@ -88,6 +93,7 @@ describe('Gate 6D calm Today truth', () => {
     ]);
     expect(result.later.items.map((item) => item.title)).not.toContain('Morning call');
     expect(result.later.items.map((item) => item.title)).not.toContain('School meeting');
+    expect(result.later.items.map((item) => item.title)).not.toContain('Overlapping appointment');
     expect(result.later.items.map((item) => item.title)).not.toContain('Current task');
   });
 

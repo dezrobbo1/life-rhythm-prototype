@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -242,6 +242,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.clearAllMocks();
   vi.restoreAllMocks();
 });
@@ -739,6 +740,110 @@ describe('Today screen', () => {
     expect(within(later).getByText(/No saved private plan is available/)).toBeTruthy();
   });
 
+  it('surfaces skipped calendar facts instead of presenting Later as genuinely empty', async () => {
+    schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext.mockResolvedValue({
+      ok: true,
+      context: {
+        input: {
+          intentions: [], rhythms: [], capacityWindows: [], placements: [], dayProfiles: [],
+          externalCommitments: [],
+        },
+        titleByTargetId: {},
+        warnings: ['calendar[0]: A saved commitment could not be read.'],
+      },
+      now: { date: '2026-09-15', time: '09:00', timezone: 'Australia/Perth' },
+    });
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok',
+      updatedAt: '2026-09-15T01:00:00.000Z',
+      plan: {
+        placements: [], rejectedExistingPlacements: [],
+        unscheduledIntentionIds: [], unscheduledRhythmIds: [],
+      },
+    });
+
+    render(<TodayScreen />);
+
+    const later = screen.getByRole('region', { name: 'Later' });
+    expect(await within(later).findByText('Some calendar or planning facts could not be shown.')).toBeTruthy();
+    expect(within(later).queryByText('Nothing else is recorded for later today.')).toBeNull();
+  });
+
+  it('refreshes Today facts when the current commitment reaches its end boundary', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 15, 10, 15, 0));
+    const currentCommitment = {
+      id: 'current-meeting', title: 'School meeting', source: 'calendar' as const, sourceId: 'calendar:meeting',
+      interval: { kind: 'datedLocal' as const, date: '2026-09-15', start: '10:00', end: '10:30', timezone: 'Australia/Perth' },
+      hard: true, travelBeforeMinutes: 0, transitionAfterMinutes: 0,
+    };
+    const liveContext = {
+      ok: true as const,
+      context: {
+        input: {
+          intentions: [], rhythms: [], capacityWindows: [], placements: [], dayProfiles: [],
+          externalCommitments: [currentCommitment],
+        },
+        titleByTargetId: {}, warnings: [],
+      },
+    };
+    schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext
+      .mockResolvedValueOnce({
+        ...liveContext,
+        now: { date: '2026-09-15', time: '10:15', timezone: 'Australia/Perth' },
+      })
+      .mockResolvedValue({
+        ...liveContext,
+        now: { date: '2026-09-15', time: '10:30', timezone: 'Australia/Perth' },
+      });
+
+    render(<TodayScreen />);
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByText('School meeting')).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15 * 60 * 1000);
+    });
+
+    expect(schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('School meeting')).toBeNull();
+  });
+
+  it('refreshes the Today date and facts at local midnight', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 15, 23, 59, 30));
+    const emptyContext = {
+      ok: true as const,
+      context: {
+        input: {
+          intentions: [], rhythms: [], capacityWindows: [], placements: [], dayProfiles: [],
+          externalCommitments: [],
+        },
+        titleByTargetId: {}, warnings: [],
+      },
+    };
+    schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext
+      .mockResolvedValueOnce({
+        ...emptyContext,
+        now: { date: '2026-09-15', time: '23:59', timezone: 'Australia/Perth' },
+      })
+      .mockResolvedValue({
+        ...emptyContext,
+        now: { date: '2026-09-16', time: '00:00', timezone: 'Australia/Perth' },
+      });
+
+    render(<TodayScreen />);
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByText('Tuesday, September 15')).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30 * 1000);
+    });
+
+    expect(schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('Wednesday, September 16')).toBeTruthy();
+  });
+
   it('keeps Now usable and does not call an invalid private plan empty', async () => {
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
     schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
@@ -853,6 +958,33 @@ describe('Today screen', () => {
     expect(reducedDayMocks.undoTodayPlanChange).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Changed' })).toBeNull());
     expect(reducedDayMocks.loadTodayDayMode.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it.each([
+    ['calendarChanged', 'A read-only calendar commitment changed.'],
+    ['completionChanged', 'A Today task was completed.'],
+  ] as const)('does not offer plan-only Undo for a %s repair whose source fact remains changed', async (trigger, reason) => {
+    const repairedPlan = persistedReducedDayRepairPlan();
+    repairedPlan.repair = {
+      ...repairedPlan.repair!,
+      trigger,
+      reason,
+      changes: [{
+        kind: 'moved', targetKind: 'intention', targetId: 'adhoc-pay-water-bill',
+        from: { date: '2026-09-15', start: '10:00', end: '10:10', variantKind: 'normal' },
+        to: { date: '2026-09-15', start: '11:00', end: '11:10', variantKind: 'normal' },
+        reason,
+      }],
+    };
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok', plan: repairedPlan, updatedAt: '2026-09-15T01:00:00.000Z',
+    });
+
+    render(<TodayScreen />);
+
+    const changed = await screen.findByRole('region', { name: 'Changed' });
+    expect(within(changed).queryByRole('button', { name: 'Undo last change' })).toBeNull();
+    expect(reducedDayMocks.undoTodayPlanChange).not.toHaveBeenCalled();
   });
 
   it('refreshes Later and Changed after a successful Today lifecycle repair', async () => {
@@ -1977,7 +2109,7 @@ describe('Today screen', () => {
     render(<TodayScreen />);
 
     expect(await screen.findByRole('article', { name: 'Pay water bill' })).toBeTruthy();
-    expect(screen.queryByRole('heading', { name: 'Re-entry review' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Needs a choice' })).toBeNull();
   });
 
   it('shows re-entry review buttons for a dueBy task whose useful window changed', async () => {
@@ -1992,7 +2124,7 @@ describe('Today screen', () => {
 
     render(<TodayScreen />);
 
-    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Needs a choice' })).toBeTruthy();
     expect(screen.getByText('Some tasks may need a calm review because their useful window changed.')).toBeTruthy();
     expect(screen.getByText('Nothing moves unless you choose.')).toBeTruthy();
     expect(screen.getByText('No catch-up pile.')).toBeTruthy();
@@ -2024,7 +2156,7 @@ describe('Today screen', () => {
 
     render(<TodayScreen />);
 
-    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Needs a choice' })).toBeTruthy();
     expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: 'Park safely' }));
@@ -2036,7 +2168,7 @@ describe('Today screen', () => {
       );
     });
     expect(screen.getByText('Parked safely. Still safely held. No catch-up pile.')).toBeTruthy();
-    expect(screen.queryByRole('heading', { name: 'Re-entry review' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Needs a choice' })).toBeNull();
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
     expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledWith({
       reason: 'A re-entry choice changed which private work remains active.',
@@ -2055,7 +2187,7 @@ describe('Today screen', () => {
 
     render(<TodayScreen />);
 
-    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Needs a choice' })).toBeTruthy();
     expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: 'Mark not today' }));
@@ -2067,7 +2199,7 @@ describe('Today screen', () => {
       );
     });
     expect(screen.getByText('Marked not today. Still safely held. No catch-up pile.')).toBeTruthy();
-    expect(screen.queryByRole('heading', { name: 'Re-entry review' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Needs a choice' })).toBeNull();
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
     expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledWith({
       reason: 'A re-entry choice changed which private work remains active.',
@@ -2141,7 +2273,7 @@ describe('Today screen', () => {
 
     render(<TodayScreen />);
 
-    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Needs a choice' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'No longer needed' })).toBeNull();
   });
 
@@ -2177,7 +2309,7 @@ describe('Today screen', () => {
 
     render(<TodayScreen />);
 
-    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Needs a choice' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Try the minimum' }));
 
     expect(screen.getByText('Minimum selected. It has not been completed.')).toBeTruthy();
@@ -2199,7 +2331,7 @@ describe('Today screen', () => {
 
     render(<TodayScreen />);
 
-    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Needs a choice' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Try the minimum' })).toBeNull();
   });
 
@@ -2248,7 +2380,7 @@ describe('Today screen', () => {
 
     render(<TodayScreen />);
 
-    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Needs a choice' })).toBeTruthy();
     expect(screen.getByText('The latest useful start has passed.')).toBeTruthy();
     expect(screen.getByText('The original start opportunity has narrowed.')).toBeTruthy();
   });
@@ -2262,7 +2394,7 @@ describe('Today screen', () => {
 
     render(<TodayScreen />);
 
-    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Needs a choice' })).toBeTruthy();
     expect(screen.getByText('This is past its useful window.')).toBeTruthy();
   });
 
@@ -2287,7 +2419,7 @@ describe('Today screen', () => {
     render(<TodayScreen />);
 
     await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: 'Re-entry review' })).toBeNull();
+      expect(screen.queryByRole('heading', { name: 'Needs a choice' })).toBeNull();
     });
   });
 
@@ -2301,7 +2433,7 @@ describe('Today screen', () => {
 
     render(<TodayScreen />);
 
-    const review = await screen.findByRole('heading', { name: 'Re-entry review' });
+    const review = await screen.findByRole('heading', { name: 'Needs a choice' });
     const sectionText = review.closest('section')?.textContent?.toLowerCase() ?? '';
 
     expect(sectionText).not.toMatch(/\b(overdue|late|failed|urgent|behind|missed|score|streak)\b|catch up/);
@@ -2320,7 +2452,7 @@ describe('Today screen', () => {
 
     render(<TodayScreen />);
 
-    expect(await screen.findByRole('heading', { name: 'Re-entry review' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Needs a choice' })).toBeTruthy();
     expect(getItemSpy).not.toHaveBeenCalled();
     expect(setItemSpy).not.toHaveBeenCalled();
   });

@@ -26,7 +26,8 @@ export type TodayChangedItem = {
 };
 
 export type TodayCalmSurface = {
-  currentCommitment: TodayLaterItem | null;
+  currentCommitments: TodayLaterItem[];
+  nextBoundaryTime: string | null;
   later: {
     items: TodayLaterItem[];
     remainingCount: number;
@@ -40,6 +41,10 @@ export type TodayCalmSurface = {
 };
 
 const DEFAULT_LATER_LIMIT = 4;
+const undoableTodayRepairReasons = new Set([
+  'Reduce today was applied to the current local date.',
+  'Today returned to Normal using current live scheduling information.',
+]);
 const factualLaterKinds = new Set<DayLineItem['kind']>([
   'fixed',
   'automatic',
@@ -128,6 +133,14 @@ function repairAttribution(repair: SchedulerRepairMetadata) {
   }
 }
 
+function canUndoFromToday(repair: SchedulerRepairMetadata) {
+  return Boolean(
+    repair.undo &&
+    repair.trigger === 'userCorrection' &&
+    undoableTodayRepairReasons.has(repair.reason),
+  );
+}
+
 function changedSurface(
   plan: SchedulerPlan | null,
   titleByTargetId: Record<string, string>,
@@ -138,7 +151,7 @@ function changedSurface(
 
   return {
     attribution: repairAttribution(repair),
-    canUndo: Boolean(repair.undo),
+    canUndo: canUndoFromToday(repair),
     items: repair.changes.map((change) => ({
       kind: change.kind,
       title: titleByTargetId[change.targetId] ?? (change.targetKind === 'rhythm' ? 'Private rhythm' : 'Private task'),
@@ -169,19 +182,26 @@ export function buildTodayCalmSurface({
 }): TodayCalmSurface {
   const effectivePlan = planStatus === 'available' ? plan : null;
   const line = buildPlanDayLine({ date, input, plan: effectivePlan, titleByTargetId });
-  const currentCommitment = line.items.find((item) => item.kind === 'fixed' && isCurrent(item, nowTime));
-  const laterFacts = line.items.filter((item) =>
-    factualLaterKinds.has(item.kind) &&
+  const factualItems = line.items.filter((item) => factualLaterKinds.has(item.kind));
+  const currentCommitments = factualItems.filter((item) =>
+    item.kind === 'fixed' && isCurrent(item, nowTime),
+  );
+  const laterFacts = factualItems.filter((item) =>
     item.end > nowTime &&
-    item.id !== currentCommitment?.id &&
+    !isCurrent(item, nowTime) &&
     (!currentTaskTargetId || item.targetId !== currentTaskTargetId),
   );
+  const nextBoundaryTime = factualItems
+    .flatMap((item) => [item.start, item.end])
+    .filter((time) => time > nowTime)
+    .sort()[0] ?? null;
   const safeLimit = Number.isInteger(laterLimit) && laterLimit > 0
     ? laterLimit
     : DEFAULT_LATER_LIMIT;
 
   return {
-    currentCommitment: currentCommitment ? asLaterItem(currentCommitment) : null,
+    currentCommitments: currentCommitments.map(asLaterItem),
+    nextBoundaryTime,
     later: {
       items: laterFacts.slice(0, safeLimit).map(asLaterItem),
       remainingCount: Math.max(0, laterFacts.length - safeLimit),
