@@ -7,6 +7,7 @@ import './styles/themes.css';
 import './styles/global.css';
 import './styles/foundation.css';
 import './styles/personal-trial.css';
+import './styles/plan-day-line.css';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

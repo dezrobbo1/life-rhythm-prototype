@@ -67,6 +67,7 @@ type SurfaceCollectionState<T> =
   | CollectionReadResult<T>;
 
 type PersonalPlanScreenProps = {
+  embeddedInDayLine?: boolean;
   preferredPlacementDate?: string | null;
   preferredTaskId?: string | null;
 };
@@ -104,6 +105,7 @@ function formatChangedLine(
 }
 
 export function PersonalPlanScreen({
+  embeddedInDayLine = false,
   preferredPlacementDate = null,
   preferredTaskId = null,
 }: PersonalPlanScreenProps = {}) {
@@ -456,12 +458,14 @@ export function PersonalPlanScreen({
 
   return (
     <div className="screen-stack plan-screen personal-plan-screen">
-      <ScreenHero
-        className="plan-hero"
-        tagline="Life Rhythm maintains flexible private work around the boundaries you set."
-        title="Plan"
-        titleId="plan-title"
-      />
+      {!embeddedInDayLine ? (
+        <ScreenHero
+          className="plan-hero"
+          tagline="Life Rhythm maintains flexible private work around the boundaries you set."
+          title="Plan"
+          titleId="plan-title"
+        />
+      ) : null}
 
       <section
         className="private-plan plan-section plan-section--private"
@@ -589,22 +593,24 @@ export function PersonalPlanScreen({
               <h2 id="personal-day-shape-title">Day Shape</h2>
               <p>{dayShapePreview.intro} {dayShapePreview.boundaryCopy}</p>
             </div>
-            <label className="day-shape-preview__select">
-              <span>Selected day</span>
-              <select
-                onChange={(event) => {
-                  setSelectedDay(event.target.value as DayName);
-                  setSelectedPlacementDateOverride(null);
-                }}
-                value={dayShapePreview.selectedDay}
-              >
-                {dayShapePreviewDays.map((day) => (
-                  <option key={day} value={day}>
-                    {day}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {!embeddedInDayLine ? (
+              <label className="day-shape-preview__select">
+                <span>Selected day</span>
+                <select
+                  onChange={(event) => {
+                    setSelectedDay(event.target.value as DayName);
+                    setSelectedPlacementDateOverride(null);
+                  }}
+                  value={dayShapePreview.selectedDay}
+                >
+                  {dayShapePreviewDays.map((day) => (
+                    <option key={day} value={day}>
+                      {day}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
           </div>
 
           {hasDayShapeBlocks ? (

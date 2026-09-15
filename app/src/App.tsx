@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 import { AppShell, type ScreenId } from './components/AppShell/AppShell';
 import { BrandMark, Button } from './components';
 import { TodayScreen } from './screens/TodayScreen';
-import { PersonalPlanScreen } from './screens/PersonalPlanScreen';
+import { PlanDayLineScreen } from './screens/PlanDayLineScreen';
 import { PoolScreen } from './screens/PoolScreen';
 import { LibraryScreen } from './screens/LibraryScreen';
 import { ResetScreen } from './screens/ResetScreen';
@@ -342,8 +342,8 @@ export default function App() {
     today: <TodayScreen />,
     plan: (
       <>
-        <PersonalPlanScreen
-          key={`personal-plan-${planRevision}`}
+        <PlanDayLineScreen
+          key={`plan-surface-${planRevision}`}
           preferredPlacementDate={preferredPlanPlacementDate}
           preferredTaskId={preferredPlanTaskId}
         />

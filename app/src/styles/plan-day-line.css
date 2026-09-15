@@ -1,0 +1,178 @@
+/* Gate 6C Plan + Day Line v0. Presentation only; no scheduling semantics. */
+
+.gate6-plan-surface {
+  display: grid;
+  gap: 0;
+  margin-inline: auto;
+  width: min(100%, var(--layout-content));
+}
+
+.gate6-plan-surface > .screen-heading {
+  margin-bottom: 0;
+}
+
+.plan-day-line {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5) 0;
+}
+
+.plan-day-line__header {
+  align-items: end;
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.plan-day-line__header h2,
+.plan-day-line__header p {
+  margin: 0;
+}
+
+.plan-day-line__header h2 {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+}
+
+.plan-day-line__header > div {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.plan-day-line__header > div > p:last-child,
+.plan-day-line__boundary,
+.plan-day-line__empty p {
+  color: var(--fg-secondary, var(--color-muted));
+  line-height: var(--leading-relaxed);
+  max-width: var(--measure-copy);
+}
+
+.plan-day-line__select {
+  color: var(--fg-muted, var(--color-muted));
+  display: grid;
+  font-size: var(--text-sm);
+  font-weight: 750;
+  gap: var(--space-1);
+  min-width: 10rem;
+}
+
+.plan-day-line__select select {
+  background: var(--bg-input, var(--color-surface-strong));
+  border: var(--border-soft);
+  border-radius: var(--radius-control);
+  color: var(--fg-primary, var(--color-text));
+  min-height: var(--control-min-height);
+  padding: 0.5rem 0.75rem;
+}
+
+.plan-day-line__ledger {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.plan-day-line__row {
+  align-items: start;
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(6.75rem, auto) minmax(0, 1fr);
+  padding-inline: var(--space-3);
+}
+
+.plan-day-line__row + .plan-day-line__row {
+  border-top: 1px solid var(--stroke-soft, var(--color-line));
+}
+
+.plan-day-line__row--fixed {
+  background: color-mix(in srgb, var(--bg-surface, var(--color-surface)) 76%, transparent);
+}
+
+.plan-day-line__row--work {
+  border-left: 3px solid var(--stroke-strong, var(--color-line));
+}
+
+.plan-day-line__row--protected {
+  background: color-mix(in srgb, var(--bg-band-protected, var(--color-surface-strong)) 72%, transparent);
+}
+
+.plan-day-line__row--askFirst {
+  background: color-mix(in srgb, var(--bg-band-ask-first, var(--color-chip)) 62%, transparent);
+}
+
+.plan-day-line__row--automatic,
+.plan-day-line__row--userConfirmed {
+  border-left: 3px solid var(--accent-safe, var(--color-accent));
+}
+
+.plan-day-line__row--possible {
+  background: color-mix(in srgb, var(--bg-band-open, var(--color-surface-strong)) 54%, transparent);
+}
+
+.plan-day-line__time {
+  color: var(--fg-secondary, var(--color-muted));
+  font-size: var(--text-sm);
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.plan-day-line__row .surface-ledger-row__main > strong {
+  color: var(--fg-primary, var(--color-text));
+}
+
+.plan-day-line__row .surface-ledger-row__main > span {
+  color: var(--fg-muted, var(--color-muted));
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+
+.plan-day-line__empty {
+  border-block: 1px solid var(--stroke-soft, var(--color-line));
+  display: grid;
+  gap: var(--space-1);
+  padding-block: var(--space-4);
+}
+
+.plan-day-line__empty p,
+.plan-day-line__boundary {
+  margin: 0;
+}
+
+.plan-day-line__boundary {
+  font-size: var(--text-sm);
+}
+
+.gate6-plan-surface__details {
+  border-top: 1px solid var(--stroke-soft, var(--color-line));
+}
+
+.gate6-plan-surface__details .personal-plan-screen {
+  margin-inline: 0;
+  width: 100%;
+}
+
+@media (max-width: 46rem) {
+  .plan-day-line {
+    padding-block: var(--space-4);
+  }
+
+  .plan-day-line__header {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .plan-day-line__select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .plan-day-line__row {
+    gap: var(--space-1);
+    grid-template-columns: 1fr;
+    padding-inline: var(--space-2);
+  }
+
+  .plan-day-line__time {
+    white-space: normal;
+  }
+}
