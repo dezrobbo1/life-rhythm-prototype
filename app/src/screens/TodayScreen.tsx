@@ -1070,7 +1070,11 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         <ReducedDayControl
           onPlanChanged={handleReducedDayPlanChanged}
           refreshVersion={reducedDayRefreshVersion}
-          showUndo={!todayPlanSurface?.changed}
+          showUndo={Boolean(
+            todayPlanReadState.status === 'ready' &&
+            todayPlanSurface?.later.planStatus === 'available' &&
+            !todayPlanSurface.changed
+          )}
         />
       </section>
 

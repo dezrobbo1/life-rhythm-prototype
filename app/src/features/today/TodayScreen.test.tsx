@@ -453,10 +453,15 @@ describe('Today screen', () => {
     reducedDayMocks.loadTodayDayMode.mockResolvedValue({
       ok: true, date: '2026-09-07', dayMode: 'reduced',
     });
+    const unchangedRepairPlan = persistedReducedDayRepairPlan();
+    unchangedRepairPlan.repair = { ...unchangedRepairPlan.repair!, changes: [] };
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok', plan: unchangedRepairPlan, updatedAt: '2026-09-15T01:00:00.000Z',
+    });
     render(<TodayScreen />);
     const control = await screen.findByLabelText('Reduced Day controls');
     await screen.findByText('Reduced Day active');
-    await user.click(within(control).getByRole('button', { name: 'Undo last change' }));
+    await user.click(await within(control).findByRole('button', { name: 'Undo last change' }));
     expect(reducedDayMocks.undoTodayPlanChange).toHaveBeenCalledTimes(1);
     expect(await within(control).findByRole('button', { name: 'Reduce today' })).toBeTruthy();
 
@@ -467,6 +472,30 @@ describe('Today screen', () => {
     await user.click(await within(nextControl).findByRole('button', { name: 'Return to normal day' }));
     expect(reducedDayMocks.returnTodayToNormal).toHaveBeenCalledTimes(1);
     expect(await within(nextControl).findByRole('button', { name: 'Reduce today' })).toBeTruthy();
+  });
+
+  it('waits for the saved-plan read before exposing one stable Reduced Day Undo control', async () => {
+    let finishPlanRead!: (value: unknown) => void;
+    reducedDayMocks.loadTodayDayMode.mockResolvedValue({
+      ok: true, date: '2026-09-07', dayMode: 'reduced',
+    });
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockImplementation(
+      () => new Promise((resolve) => { finishPlanRead = resolve; }),
+    );
+    render(<TodayScreen />);
+
+    const control = await screen.findByLabelText('Reduced Day controls');
+    await screen.findByText('Reduced Day active');
+    expect(within(control).queryByRole('button', { name: 'Undo last change' })).toBeNull();
+
+    const unchangedRepairPlan = persistedReducedDayRepairPlan();
+    unchangedRepairPlan.repair = { ...unchangedRepairPlan.repair!, changes: [] };
+    finishPlanRead({
+      status: 'ok', plan: unchangedRepairPlan, updatedAt: '2026-09-15T01:00:00.000Z',
+    });
+
+    expect(await within(control).findByRole('button', { name: 'Undo last change' })).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Undo last change' })).toHaveLength(1);
   });
 
   it('shows persisted Changed information when Reduced Day reloads on the same date', async () => {
