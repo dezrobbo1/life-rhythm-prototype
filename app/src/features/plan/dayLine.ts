@@ -22,6 +22,8 @@ export type DayLineItem = {
   start: string;
   end: string;
   detail: string;
+  /** Canonical task or rhythm identity for placement rows only. */
+  targetId?: string;
 };
 
 export type DayLineViewModel = {
@@ -180,6 +182,7 @@ export function buildPlanDayLine({
       start: placement.start,
       end: placement.end,
       detail: placementDetail(placement),
+      targetId: placementTargetId(placement),
     });
   }
 
@@ -195,6 +198,7 @@ export function buildPlanDayLine({
       start: placement.start,
       end: placement.end,
       detail: placementDetail(placement),
+      targetId: placementTargetId(placement),
     });
   }
 

@@ -370,7 +370,7 @@ textarea:focus-visible {
 }
 
 .card h2,
-.empty-state h2 {
+.empty-state :where(h2, h3) {
   font-size: 1.25rem;
   line-height: 1.15;
   margin: 0 0 var(--space-2);
@@ -846,7 +846,7 @@ textarea:focus-visible {
   min-width: 0;
 }
 
-.task-card__header h2 {
+.task-card__header h3 {
   font-size: 1.65rem;
   letter-spacing: 0;
   line-height: 1.08;
@@ -945,8 +945,8 @@ textarea:focus-visible {
   padding: var(--space-4);
 }
 
-.task-card__continuation h3,
-.task-card__continuation h4 {
+.task-card__continuation h4,
+.task-card__continuation h5 {
   font-size: 0.95rem;
   line-height: 1.15;
   margin: 0 0 var(--space-2);
@@ -986,7 +986,7 @@ textarea:focus-visible {
   padding-top: var(--space-4);
 }
 
-.task-card__details h3,
+.task-card__details h4,
 .start-boost h3 {
   font-size: 0.9rem;
   margin: 0 0 var(--space-2);

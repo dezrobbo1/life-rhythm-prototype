@@ -18,7 +18,17 @@ const categoryLabels: Record<ReducedDayPreviewCategory, string> = {
   noLongerFits: 'No longer fits',
 };
 
-export function ReducedDayControl() {
+type ReducedDayControlProps = {
+  onPlanChanged?: () => void;
+  refreshVersion?: number;
+  showUndo?: boolean;
+};
+
+export function ReducedDayControl({
+  onPlanChanged,
+  refreshVersion = 0,
+  showUndo = true,
+}: ReducedDayControlProps = {}) {
   const [dayMode, setDayMode] = useState<'loading' | 'normal' | 'reduced'>('loading');
   const [preview, setPreview] = useState<ReducedDayPreview | null>(null);
   const [open, setOpen] = useState(false);
@@ -35,7 +45,7 @@ export function ReducedDayControl() {
       if (!active) return;
       if (result.ok) {
         setDayMode(result.dayMode);
-        if (result.preview) setPreview(result.preview);
+        setPreview(result.preview ?? null);
       }
       else {
         setDayMode('normal');
@@ -43,7 +53,7 @@ export function ReducedDayControl() {
       }
     });
     return () => { active = false; };
-  }, []);
+  }, [refreshVersion]);
 
   useEffect(() => {
     if (open || !restorePreviewFocus.current) return;
@@ -88,6 +98,7 @@ export function ReducedDayControl() {
     setDayMode('reduced');
     setOpen(false);
     setMessage('Today is reduced. The applied result was recomputed from current information.');
+    onPlanChanged?.();
   }
 
   async function returnToNormal() {
@@ -103,6 +114,7 @@ export function ReducedDayControl() {
     setPreview(result.preview);
     setDayMode('normal');
     setMessage('Today returned to Normal using current information.');
+    onPlanChanged?.();
   }
 
   async function undo() {
@@ -118,6 +130,7 @@ export function ReducedDayControl() {
     setPreview(result.preview);
     setDayMode(result.dayMode);
     setMessage('The latest private-plan change and its day mode were restored together.');
+    onPlanChanged?.();
   }
 
   const categories = preview
@@ -138,9 +151,11 @@ export function ReducedDayControl() {
             <Button disabled={busy !== null} onClick={() => void returnToNormal()}>
               {busy === 'normal' ? 'Returning to Normal' : 'Return to normal day'}
             </Button>
-            <Button disabled={busy !== null} onClick={() => void undo()}>
-              {busy === 'undo' ? 'Restoring' : 'Undo last change'}
-            </Button>
+            {showUndo ? (
+              <Button disabled={busy !== null} onClick={() => void undo()}>
+                {busy === 'undo' ? 'Restoring' : 'Undo last change'}
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : (
@@ -155,23 +170,6 @@ export function ReducedDayControl() {
 
       {message ? <p className="reduced-day-control__message" role="status">{message}</p> : null}
       {error ? <p className="reduced-day-control__error" role="alert">{error}</p> : null}
-
-      {dayMode === 'reduced' && preview ? (
-        <div aria-label="Changed by Reduced Day" className="reduced-day-changed">
-          <p className="section-label">Changed</p>
-          {categories.length > 0 ? categories.map(({ category, items }) => (
-            <section key={category}>
-              <h3>{categoryLabels[category]}</h3>
-              <ul>{items.map((item) => (
-                <li key={`${category}:${item.targetId}`}>
-                  <strong>{item.title}</strong><span>{item.detail}</span>
-                  {item.reason ? <small>{item.reason}</small> : null}
-                </li>
-              ))}</ul>
-            </section>
-          )) : <p>No private-plan changes were needed.</p>}
-        </div>
-      ) : null}
 
       <Modal onClose={closePreview} open={open} title="Reduce today">
         <div className="reduced-day-preview">

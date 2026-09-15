@@ -22,7 +22,7 @@ body {
   background: color-mix(in srgb, var(--accent-focus, var(--color-accent)) 24%, transparent);
 }
 
-:where(h1, h2, h3, h4) {
+:where(h1, h2, h3, h4, h5) {
   color: var(--fg-primary, var(--color-text));
   text-wrap: balance;
 }
@@ -128,7 +128,7 @@ a[href]:focus-visible,
 }
 
 .card h2,
-.empty-state h2 {
+.empty-state :where(h2, h3) {
   font-size: var(--text-xl);
   line-height: var(--leading-tight);
 }

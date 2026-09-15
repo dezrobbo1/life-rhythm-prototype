@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { Button, Card, EmptyState, Modal, ScreenHero } from '../components';
+import { Button, Card, EmptyState, ScreenHero } from '../components';
 import {
   createActiveTaskId,
   loadActiveTodayTasksResult,
@@ -12,22 +12,26 @@ import {
   parseActiveTaskBackupJson,
   serializeActiveTaskBackup,
 } from '../data/activeTaskBackup';
-import { repairCurrentPrivatePlan } from '../data/schedulerPlanCoordinator';
+import {
+  buildCurrentLiveSchedulingContext,
+  repairCurrentPrivatePlan,
+} from '../data/schedulerPlanCoordinator';
+import { loadSchedulerPlanState } from '../data/schedulerPlanStateRepository';
+import { undoTodayPlanChange } from '../data/reducedDayCoordinator';
 import {
   loadLinkedTaskPoolItemIds,
   markTaskLifecycleNoLongerNeeded,
 } from '../data/taskLifecycleRepository';
 import { ReducedDayControl } from '../features/today/ReducedDayControl';
 import { activeTaskSchema, type ActiveTask, type ActiveTaskStatus } from '../data/schemas';
-import {
-  type MockTask,
-  todayStateHints,
-  todayStates,
-  type TodayState,
-} from '../features/today/mockTodayData';
+import { type MockTask } from '../features/today/mockTodayData';
 import { AddTaskModal, type MockAddTaskInput } from '../features/today/AddTaskModal';
 import { StartBoost } from '../features/today/StartBoost';
 import { TaskCard, type TaskProgress } from '../features/today/TaskCard';
+import {
+  buildTodayCalmSurface,
+  type TodayCalmSurface,
+} from '../features/today/todayCalmSurface';
 import {
   buildTimeEdgeReentryPreviewViewModel,
   buildTodayViewModel,
@@ -52,6 +56,11 @@ type TodayTasksReadState =
   | { status: 'ok' }
   | { invalidRecordCount: number; status: 'partial' }
   | { status: 'readFailed' };
+
+type TodayPlanReadState =
+  | { status: 'loading' }
+  | { status: 'ready'; surface: TodayCalmSurface; warnings: string[] }
+  | { status: 'contextError'; errors: string[] };
 
 const areaLabels: Record<ActiveTaskArea, string> = {
   admin: 'Admin',
@@ -357,59 +366,61 @@ function ReentryReviewPreview({
   }
 
   return (
-    <Card>
-      <section aria-labelledby="reentry-review-title" className="reentry-review">
-        <div className="library-subheading">
-          <h2 id="reentry-review-title">{preview.title}</h2>
-          {preview.intro.map((line) => (
-            <p key={line}>{line}</p>
-          ))}
-        </div>
-        <ul className="reentry-review__items">
-          {preview.items.map((item) => (
-            <li key={item.id} className="reentry-review__item">
-              <div>
-                <h3>{item.title}</h3>
-                <p>{item.reason}</p>
-                <p className="reentry-review__support">{item.usefulness}</p>
-                {item.supportingCopy.map((line) => (
-                  <p key={line} className="reentry-review__support">{line}</p>
-                ))}
-                {item.suggestedCopy ? (
-                  <p className="reentry-review__support">{item.suggestedCopy}</p>
-                ) : null}
-              </div>
-              <div aria-label={`Re-entry actions for ${item.title}`} className="reentry-review__options">
-                {item.actionOptions.map((option) => (
-                  <Button
-                    key={option}
-                    onClick={() => handleAction(item.id, option)}
-                    variant={item.recommendedAction === option ? 'primary' : 'secondary'}
-                  >
-                    {option}
-                  </Button>
-                ))}
-              </div>
-              {feedbackById[item.id] ? (
-                <p className="reentry-review__support" role="status">
-                  {feedbackById[item.id]}
-                </p>
+    <section aria-labelledby="reentry-review-title" className="reentry-review today-calm-section">
+      <div className="library-subheading">
+        <p className="section-label">Review</p>
+        <h2 aria-label={preview.title} id="reentry-review-title">Needs a choice</h2>
+        <p>{preview.title}</p>
+        {preview.intro.map((line) => (
+          <p key={line}>{line}</p>
+        ))}
+      </div>
+      <ul className="reentry-review__items">
+        {preview.items.map((item) => (
+          <li key={item.id} className="reentry-review__item">
+            <div>
+              <h3>{item.title}</h3>
+              <p>{item.reason}</p>
+              <p className="reentry-review__support">{item.usefulness}</p>
+              {item.supportingCopy.map((line) => (
+                <p key={line} className="reentry-review__support">{line}</p>
+              ))}
+              {item.suggestedCopy ? (
+                <p className="reentry-review__support">{item.suggestedCopy}</p>
               ) : null}
-            </li>
-          ))}
-        </ul>
-      </section>
-    </Card>
+            </div>
+            <div aria-label={`Re-entry actions for ${item.title}`} className="reentry-review__options">
+              {item.actionOptions.map((option) => (
+                <Button
+                  key={option}
+                  onClick={() => handleAction(item.id, option)}
+                  variant={item.recommendedAction === option ? 'primary' : 'secondary'}
+                >
+                  {option}
+                </Button>
+              ))}
+            </div>
+            {feedbackById[item.id] ? (
+              <p className="reentry-review__support" role="status">
+                {feedbackById[item.id]}
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
-export function TodayScreen() {
+type TodayScreenProps = {
+  planRevision?: number;
+};
+
+export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   const { snapshot } = useAppSnapshot();
   const initialTodayViewModel = useMemo(() => buildTodayViewModel(snapshot), [snapshot]);
   const hasInitialTodayTask = Boolean(initialTodayViewModel.nextUsefulAction);
-  const [todayState, setTodayState] = useState<TodayState>('Normal day');
   const [boostOpen, setBoostOpen] = useState(false);
-  const [stateChooserOpen, setStateChooserOpen] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [nextTask, setNextTask] = useState<MockTask | null>(() =>
     taskFromViewModel(initialTodayViewModel.nextUsefulAction),
@@ -428,11 +439,13 @@ export function TodayScreen() {
   const [backupCheckPreview, setBackupCheckPreview] = useState<ActiveTaskBackupCheckPreview | null>(null);
   const [todayTasksReadState, setTodayTasksReadState] = useState<TodayTasksReadState>({ status: 'loading' });
   const [todayTasksReadAttempt, setTodayTasksReadAttempt] = useState(0);
+  const [todayPlanReadState, setTodayPlanReadState] = useState<TodayPlanReadState>({ status: 'loading' });
+  const [todayPlanReadAttempt, setTodayPlanReadAttempt] = useState(0);
+  const [planUndoBusy, setPlanUndoBusy] = useState(false);
+  const [planUndoError, setPlanUndoError] = useState('');
+  const [reducedDayRefreshVersion, setReducedDayRefreshVersion] = useState(0);
   const taskWriteGenerationRef = useRef(0);
-  const todayViewModel = useMemo(
-    () => buildTodayViewModel(snapshot, { todayState }),
-    [snapshot, todayState],
-  );
+  const planReadGenerationRef = useRef(0);
   const reentryReviewPreview = useMemo(
     () =>
       buildTimeEdgeReentryPreviewViewModel({
@@ -452,9 +465,17 @@ export function TodayScreen() {
     [],
   );
 
-  function chooseTodayState(state: TodayState) {
-    setTodayState(state);
-    setStateChooserOpen(false);
+  function refreshTodayPlanFacts() {
+    planReadGenerationRef.current += 1;
+    setTodayPlanReadAttempt((attempt) => attempt + 1);
+  }
+
+  async function repairAndRefreshPrivatePlanAfterTodayChange(
+    trigger: 'completionChanged' | 'userCorrection',
+    reason: string,
+  ) {
+    await repairPrivatePlanAfterTodayChange(trigger, reason);
+    refreshTodayPlanFacts();
   }
 
   function showPersistedTask(task: ActiveTask | null) {
@@ -544,7 +565,7 @@ export function TodayScreen() {
     }
 
     refreshPersistedTasks(result.task, feedback);
-    await repairPrivatePlanAfterTodayChange(
+    await repairAndRefreshPrivatePlanAfterTodayChange(
       status === 'done' ? 'completionChanged' : 'userCorrection',
       status === 'done'
         ? 'A Today task was completed.'
@@ -584,7 +605,7 @@ export function TodayScreen() {
       showPersistedTask(visibleTasks[0] ?? null);
     }
 
-    await repairPrivatePlanAfterTodayChange(
+    await repairAndRefreshPrivatePlanAfterTodayChange(
       'userCorrection',
       'A re-entry choice changed which private work remains active.',
     );
@@ -639,6 +660,60 @@ export function TodayScreen() {
     };
   }, [hasInitialTodayTask, todayTasksReadAttempt]);
 
+  useEffect(() => {
+    const generation = planReadGenerationRef.current + 1;
+    planReadGenerationRef.current = generation;
+    let active = true;
+
+    setTodayPlanReadState({ status: 'loading' });
+
+    Promise.all([
+      buildCurrentLiveSchedulingContext({
+        horizonDays: 1,
+        planningPolicy: { dayMode: 'normal' },
+        readOnly: true,
+      }),
+      loadSchedulerPlanState(),
+    ]).then(([live, saved]) => {
+      if (!active || planReadGenerationRef.current !== generation) return;
+
+      if (!live.ok) {
+        setTodayPlanReadState({ status: 'contextError', errors: live.errors });
+        return;
+      }
+
+      const planStatus = saved.status === 'ok'
+        ? 'available' as const
+        : saved.status;
+      const surface = buildTodayCalmSurface({
+        date: live.now.date,
+        nowTime: live.now.time,
+        input: live.context.input,
+        planStatus,
+        plan: saved.status === 'ok' ? saved.plan : null,
+        titleByTargetId: live.context.titleByTargetId,
+        currentTaskTargetId: nextActiveTask?.id ?? nextTask?.id,
+      });
+
+      setTodayPlanReadState({
+        status: 'ready',
+        surface,
+        warnings: live.context.warnings,
+      });
+    }).catch(() => {
+      if (active && planReadGenerationRef.current === generation) {
+        setTodayPlanReadState({
+          status: 'contextError',
+          errors: ['Today’s plan context could not be read.'],
+        });
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [nextActiveTask?.id, nextTask?.id, planRevision, todayPlanReadAttempt]);
+
   async function saveOneOffTask(input: MockAddTaskInput): Promise<boolean> {
     let candidate: ActiveTask;
 
@@ -665,7 +740,7 @@ export function TodayScreen() {
     setAddTaskOpen(false);
     setBoostOpen(false);
 
-    await repairPrivatePlanAfterTodayChange(
+    await repairAndRefreshPrivatePlanAfterTodayChange(
       'userCorrection',
       'A private one-off task was added from Today.',
     );
@@ -768,7 +843,7 @@ export function TodayScreen() {
       showPersistedTask(visibleTasks[0] ?? null);
     }
 
-    await repairPrivatePlanAfterTodayChange(
+    await repairAndRefreshPrivatePlanAfterTodayChange(
       'userCorrection',
       'A user confirmed that a re-entry task is no longer needed.',
     );
@@ -844,6 +919,32 @@ export function TodayScreen() {
     }
   }
 
+  function handleReducedDayPlanChanged() {
+    refreshTodayPlanFacts();
+  }
+
+  async function undoLatestPrivatePlanChange() {
+    if (planUndoBusy) return;
+
+    setPlanUndoBusy(true);
+    setPlanUndoError('');
+    const result = await undoTodayPlanChange();
+    setPlanUndoBusy(false);
+
+    if (!result.ok) {
+      setPlanUndoError(result.errors[0] ?? 'The latest private-plan change could not be undone.');
+      return;
+    }
+
+    setCompletionFeedback('The latest private-plan change was undone.');
+    setReducedDayRefreshVersion((version) => version + 1);
+    refreshTodayPlanFacts();
+  }
+
+  const todayPlanSurface = todayPlanReadState.status === 'ready'
+    ? todayPlanReadState.surface
+    : null;
+
   return (
     <div className="screen-stack today-screen">
       <ScreenHero
@@ -854,74 +955,73 @@ export function TodayScreen() {
         titleId="today-title"
       />
 
-      <Card>
-        <section aria-labelledby="today-state-summary" className="today-state-summary">
-          <div>
-            <h2 id="today-state-summary">Today feels: {todayViewModel.currentState}</h2>
-            <p>{todayStateHints[todayState]}</p>
-          </div>
-          <Button onClick={() => setStateChooserOpen(true)}>Change</Button>
-        </section>
-        <p className="plan-adjusted">{todayViewModel.planAdjustedLine}</p>
-      </Card>
-
       {completionFeedback ? <p className="today-feedback" role="status">{completionFeedback}</p> : null}
 
-      {todayTasksReadState.status === 'partial' ? (
-        <Card>
+      <section aria-labelledby="today-now-title" className="today-calm-section today-now">
+        <div className="today-calm-section__heading">
+          <p className="section-label">Current focus</p>
+          <h2 id="today-now-title">Now</h2>
+        </div>
+
+        {todayPlanSurface?.currentCommitment ? (
+          <div aria-label="Current fixed commitment" className="today-now__commitment surface-ledger-row">
+            <div className="surface-ledger-row__main">
+              <strong>{todayPlanSurface.currentCommitment.title}</strong>
+              <span>{todayPlanSurface.currentCommitment.detail}</span>
+            </div>
+            <span className="surface-ledger-row__meta surface-time">
+              {todayPlanSurface.currentCommitment.start}–{todayPlanSurface.currentCommitment.end}
+            </span>
+          </div>
+        ) : null}
+
+        {todayTasksReadState.status === 'partial' ? (
           <section
             aria-label="Saved Today task warning"
             className="surface-read-state surface-read-state--warning"
             role="status"
           >
-            <h2>Some saved Today task data could not be read.</h2>
+            <h3>Some saved Today task data could not be read.</h3>
             <p>{todayTasksReadState.invalidRecordCount} saved task {todayTasksReadState.invalidRecordCount === 1 ? 'record was' : 'records were'} left unchanged.</p>
             <p>Nothing stored on this device was changed.</p>
             <Button onClick={() => setTodayTasksReadAttempt((attempt) => attempt + 1)}>Retry</Button>
           </section>
-        </Card>
-      ) : null}
+        ) : null}
 
-      {todayTasksReadState.status === 'readFailed' && nextTask ? (
-        <Card>
+        {todayTasksReadState.status === 'readFailed' && nextTask ? (
           <section
             aria-labelledby="today-local-read-warning-title"
             className="surface-read-state surface-read-state--warning"
             role="alert"
           >
-            <h2 id="today-local-read-warning-title">Your saved Today tasks could not be loaded.</h2>
+            <h3 id="today-local-read-warning-title">Your saved Today tasks could not be loaded.</h3>
             <p>The independently loaded task remains available. Nothing stored on this device was changed.</p>
             <Button onClick={() => setTodayTasksReadAttempt((attempt) => attempt + 1)}>Retry</Button>
           </section>
-        </Card>
-      ) : null}
+        ) : null}
 
-      {todayTasksReadState.status === 'loading' && nextTask ? (
-        <p aria-busy="true" className="surface-read-state__inline" role="status">
-          Loading your saved Today tasks...
-        </p>
-      ) : null}
+        {todayTasksReadState.status === 'loading' && nextTask ? (
+          <p aria-busy="true" className="surface-read-state__inline" role="status">
+            Loading your saved Today tasks...
+          </p>
+        ) : null}
 
-      {todayTasksReadState.status === 'loading' && !nextTask ? (
-        <Card>
+        {todayTasksReadState.status === 'loading' && !nextTask ? (
+          <Card variant="primary">
           <section aria-busy="true" className="surface-read-state" role="status">
-            <h2>Loading your saved Today tasks...</h2>
+            <h3>Loading your saved Today tasks...</h3>
           </section>
-        </Card>
-      ) : todayTasksReadState.status === 'readFailed' && !nextTask ? (
-        <Card>
+          </Card>
+        ) : todayTasksReadState.status === 'readFailed' && !nextTask ? (
+          <Card variant="primary">
           <section aria-labelledby="today-read-failed-title" className="surface-read-state surface-read-state--error" role="alert">
-            <h2 id="today-read-failed-title">Your saved Today tasks could not be loaded.</h2>
+            <h3 id="today-read-failed-title">Your saved Today tasks could not be loaded.</h3>
             <p>Nothing stored on this device was changed.</p>
             <Button onClick={() => setTodayTasksReadAttempt((attempt) => attempt + 1)}>Retry</Button>
           </section>
-        </Card>
-      ) : nextTask ? (
-        <>
-          <section aria-label="Next useful action">
-            <div className="today-action-heading">
-              <p className="section-label">Next useful action</p>
-            </div>
+          </Card>
+        ) : nextTask ? (
+          <>
             <TaskCard
               minimumChoiceActive={minimumChoiceTaskId === nextTask.id}
               minimumAchieved={nextActiveTask
@@ -940,156 +1040,198 @@ export function TodayScreen() {
               onStopHere={stopHere}
               progress={taskProgress}
               task={nextTask}
-              todayState={todayState}
             />
-            <ReducedDayControl />
-          </section>
-          <ReentryReviewPreview
-            feedbackById={reentryFeedbackById}
-            onMarkNotToday={markReentryTaskNotToday}
-            onNoLongerNeeded={markReentryTaskNoLongerNeeded}
-            onParkSafely={parkReentryTask}
-            onReviewLater={keepReentryTaskForReview}
-            onTryMinimum={tryReentryMinimum}
-            preview={reentryReviewPreview}
-          />
-          <Card>
-            <section aria-labelledby="today-one-off-title" className="today-one-off">
-              <div>
-                <h2 id="today-one-off-title">Need something else today?</h2>
-                <p>Add one today-only task. It will not go into Library.</p>
-              </div>
-              <Button onClick={() => setAddTaskOpen(true)}>Add one-off</Button>
-            </section>
-          </Card>
-          <Card>
-            <div className="rhythm-preview__header">
-              <h2>Today rhythm preview</h2>
-              <span>Compact view</span>
+            <div className="today-now__secondary surface-actions">
+              <Button onClick={() => setAddTaskOpen(true)} variant="quiet">Add one-off</Button>
+              <span>Add one today-only task. It will not go into Library.</span>
             </div>
-            <ul className="rhythm-preview">
-              {todayViewModel.rhythmPreview.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </Card>
-          <StartBoost open={boostOpen} task={nextTask} onClose={() => setBoostOpen(false)} />
-        </>
-      ) : todayTasksReadState.status === 'partial' ? (
-        <Card>
+          </>
+        ) : todayTasksReadState.status === 'partial' ? (
+          <Card variant="primary">
           <section aria-labelledby="today-partial-capture-title" className="today-one-off">
             <div>
-              <h2 id="today-partial-capture-title">Add a readable task for today</h2>
+              <h3 id="today-partial-capture-title">Add a readable task for today</h3>
               <p>Unreadable saved rows remain unchanged while you add a separate today-only task.</p>
             </div>
             <Button onClick={() => setAddTaskOpen(true)} variant="primary">Add one-off</Button>
           </section>
-        </Card>
-      ) : (
-        <EmptyState
-          action={<Button onClick={() => setAddTaskOpen(true)} variant="primary">{todayViewModel.emptyState.primaryActionLabel}</Button>}
-          message={todayViewModel.emptyState.message}
-          title={todayViewModel.emptyState.title}
-        />
-      )}
-
-      <Card>
-        <section aria-labelledby="today-backup-title" className="today-one-off">
-          <div>
-            <h2 id="today-backup-title">Today task backup</h2>
-            <p>Creates a local backup file for Today tasks only.</p>
-            <p>It does not include Library rhythms, settings, or soft placements.</p>
-          </div>
-          <Button onClick={exportTodayTasksBackup}>Export Today tasks backup</Button>
-        </section>
-        <section aria-labelledby="today-backup-check-title" className="library-backup-checker">
-          <div className="library-subheading">
-            <h2 id="today-backup-check-title">Check Today tasks backup</h2>
-            <p>Check only. Paste or select a Today tasks backup.</p>
-            <p>Restore is not connected yet.</p>
-          </div>
-          <label className="library-backup-field">
-            <span>Paste backup text</span>
-            <textarea
-              aria-label="Today task backup text"
-              onChange={(event) => {
-                setBackupCheckJson(event.target.value);
-                setBackupCheckErrors([]);
-                setBackupCheckPreview(null);
-              }}
-              placeholder="Paste a Today tasks backup file here."
-              rows={6}
-              value={backupCheckJson}
+          </Card>
+        ) : (
+          <Card variant="primary">
+            <EmptyState
+              action={<Button onClick={() => setAddTaskOpen(true)} variant="primary">{initialTodayViewModel.emptyState.primaryActionLabel}</Button>}
+              headingLevel={3}
+              message={initialTodayViewModel.emptyState.message}
+              title={initialTodayViewModel.emptyState.title}
             />
-            <small>Checking does not restore tasks or change this device.</small>
-          </label>
-          <div className="library-backup-actions">
-            <label className="library-file-picker">
-              <span>Select Today tasks backup file</span>
-              <input
-                accept="application/json,.json"
-                aria-label="Select Today tasks backup file"
-                onChange={readTodayTasksBackupFile}
-                type="file"
-              />
-            </label>
-            <Button onClick={checkTodayTasksBackup}>Check Today tasks backup</Button>
+          </Card>
+        )}
+
+        <ReducedDayControl
+          onPlanChanged={handleReducedDayPlanChanged}
+          refreshVersion={reducedDayRefreshVersion}
+          showUndo={!todayPlanSurface?.changed}
+        />
+      </section>
+
+      <ReentryReviewPreview
+        feedbackById={reentryFeedbackById}
+        onMarkNotToday={markReentryTaskNotToday}
+        onNoLongerNeeded={markReentryTaskNoLongerNeeded}
+        onParkSafely={parkReentryTask}
+        onReviewLater={keepReentryTaskForReview}
+        onTryMinimum={tryReentryMinimum}
+        preview={reentryReviewPreview}
+      />
+
+      <section aria-labelledby="today-later-title" className="today-calm-section today-later">
+        <div className="today-calm-section__heading">
+          <p className="section-label">Recorded next</p>
+          <h2 id="today-later-title">Later</h2>
+        </div>
+        {todayPlanReadState.status === 'loading' ? (
+          <p aria-busy="true" className="surface-read-state__inline" role="status">Reading today’s recorded plan...</p>
+        ) : todayPlanReadState.status === 'contextError' ? (
+          <div className="surface-read-state surface-read-state--error" role="alert">
+            <h3>Later and Changed could not be read.</h3>
+            <p>Now remains available. Nothing stored on this device was changed.</p>
+            <Button onClick={refreshTodayPlanFacts}>Retry</Button>
           </div>
-          {backupCheckPreview ? (
-            <dl aria-label="Today task backup preview" className="library-backup-preview">
-              <div>
-                <dt>Tasks</dt>
-                <dd>{backupCheckPreview.items.length}</dd>
+        ) : (
+          <>
+            {todayPlanSurface?.later.planStatus === 'invalid' || todayPlanSurface?.later.planStatus === 'error' ? (
+              <div className="surface-read-state surface-read-state--error" role="alert">
+                <h3>The saved private plan could not be read.</h3>
+                <p>Fixed and user-confirmed facts can still appear. Flexible Later items and Changed are unavailable.</p>
+                <Button onClick={refreshTodayPlanFacts}>Retry</Button>
               </div>
-              <div>
-                <dt>Created</dt>
-                <dd>{backupCheckPreview.exportedAt}</dd>
-              </div>
-              <div>
-                <dt>Titles and statuses</dt>
-                <dd>
-                  {backupCheckPreview.items.length > 0
-                    ? backupCheckPreview.items.map((task) => `${task.title} (${task.status})`).join(', ')
-                    : 'No task titles in backup.'}
-                </dd>
-              </div>
-            </dl>
-          ) : null}
-          {backupCheckErrors.length > 0 ? (
-            <div className="library-validation-summary">
-              <strong>Backup check notes</strong>
-              <p>Nothing changed on this device. The first items to review are below.</p>
-              <ul aria-label="Today task backup errors" className="library-validation-list">
-                {backupCheckErrors.slice(0, 3).map((error) => (
-                  <li key={error}>{error}</li>
+            ) : null}
+            {todayPlanSurface?.later.planStatus === 'missing' ? (
+              <p className="surface-copy">No saved private plan is available. Fixed and user-confirmed facts can still appear.</p>
+            ) : null}
+            {todayPlanSurface && todayPlanSurface.later.items.length > 0 ? (
+              <ul aria-label="Later today" className="surface-ledger today-calm-ledger">
+                {todayPlanSurface.later.items.map((item) => (
+                  <li className={`surface-ledger-row today-calm-ledger__row today-calm-ledger__row--${item.kind}`} key={item.id}>
+                    <div className="surface-ledger-row__main">
+                      <strong>{item.title}</strong>
+                      <span>{item.detail}</span>
+                    </div>
+                    <span className="surface-ledger-row__meta surface-time">{item.start}–{item.end}</span>
+                  </li>
                 ))}
               </ul>
-            </div>
-          ) : null}
-        </section>
-        {backupFeedback ? <p className="today-feedback" role="status">{backupFeedback}</p> : null}
-      </Card>
+            ) : todayPlanSurface?.later.planStatus === 'available' ? (
+              <p className="surface-copy">Nothing else is recorded for later today.</p>
+            ) : null}
+            {todayPlanSurface && todayPlanSurface.later.remainingCount > 0 ? (
+              <p className="today-later__more">+{todayPlanSurface.later.remainingCount} more in Plan</p>
+            ) : null}
+            <p className="today-later__boundary">Only recorded commitments and accepted private placements appear here. Blank gaps are not availability.</p>
+          </>
+        )}
+      </section>
 
-      <Modal onClose={() => setStateChooserOpen(false)} open={stateChooserOpen} title="How today feels">
-        <div className="today-state-panel">
-          <p className="lede">Choose the closest state. This only changes the preview tone.</p>
-          <div aria-label="How today feels" className="today-state-grid" role="radiogroup">
-            {todayStates.map((state) => (
-              <button
-                aria-checked={todayState === state}
-                className="state-choice"
-                key={state}
-                onClick={() => chooseTodayState(state)}
-                role="radio"
-                type="button"
-              >
-                <strong>{state}</strong>
-                <span>{todayStateHints[state]}</span>
-              </button>
-            ))}
+      {todayPlanSurface?.changed ? (
+        <section aria-labelledby="today-changed-title" className="today-calm-section today-changed">
+          <div className="today-calm-section__heading">
+            <p className="section-label">Latest saved repair</p>
+            <h2 id="today-changed-title">Changed</h2>
+            <p>{todayPlanSurface.changed.attribution}</p>
           </div>
+          <ul aria-label="Latest private-plan changes" className="surface-ledger today-calm-ledger">
+            {todayPlanSurface.changed.items.map((item, index) => (
+              <li className="surface-ledger-row today-calm-ledger__row" key={`${item.kind}:${item.title}:${index}`}>
+                <div className="surface-ledger-row__main">
+                  <strong>{item.title}</strong>
+                  <span>{item.summary}</span>
+                  <small>{item.reason}</small>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="surface-actions">
+            <Button disabled={planUndoBusy} onClick={() => void undoLatestPrivatePlanChange()}>
+              {planUndoBusy ? 'Restoring' : 'Undo last change'}
+            </Button>
+          </div>
+          {planUndoError ? <p className="reduced-day-control__error" role="alert">{planUndoError}</p> : null}
+        </section>
+      ) : null}
+
+      <details className="today-recovery">
+        <summary>More / Recovery</summary>
+        <div className="today-recovery__content">
+          <section aria-labelledby="today-backup-title" className="today-one-off">
+            <div>
+              <h2 id="today-backup-title">Today task backup</h2>
+              <p>Creates a local backup file for Today tasks only.</p>
+              <p>It does not include Library rhythms, settings, or soft placements.</p>
+            </div>
+            <Button onClick={exportTodayTasksBackup}>Export Today tasks backup</Button>
+          </section>
+          <section aria-labelledby="today-backup-check-title" className="library-backup-checker">
+            <div className="library-subheading">
+              <h2 id="today-backup-check-title">Check Today tasks backup</h2>
+              <p>Check only. Paste or select a Today tasks backup.</p>
+              <p>Restore is not connected yet.</p>
+            </div>
+            <label className="library-backup-field">
+              <span>Paste backup text</span>
+              <textarea
+                aria-label="Today task backup text"
+                onChange={(event) => {
+                  setBackupCheckJson(event.target.value);
+                  setBackupCheckErrors([]);
+                  setBackupCheckPreview(null);
+                }}
+                placeholder="Paste a Today tasks backup file here."
+                rows={6}
+                value={backupCheckJson}
+              />
+              <small>Checking does not restore tasks or change this device.</small>
+            </label>
+            <div className="library-backup-actions">
+              <label className="library-file-picker">
+                <span>Select Today tasks backup file</span>
+                <input
+                  accept="application/json,.json"
+                  aria-label="Select Today tasks backup file"
+                  onChange={readTodayTasksBackupFile}
+                  type="file"
+                />
+              </label>
+              <Button onClick={checkTodayTasksBackup}>Check Today tasks backup</Button>
+            </div>
+            {backupCheckPreview ? (
+              <dl aria-label="Today task backup preview" className="library-backup-preview">
+                <div><dt>Tasks</dt><dd>{backupCheckPreview.items.length}</dd></div>
+                <div><dt>Created</dt><dd>{backupCheckPreview.exportedAt}</dd></div>
+                <div>
+                  <dt>Titles and statuses</dt>
+                  <dd>
+                    {backupCheckPreview.items.length > 0
+                      ? backupCheckPreview.items.map((task) => `${task.title} (${task.status})`).join(', ')
+                      : 'No task titles in backup.'}
+                  </dd>
+                </div>
+              </dl>
+            ) : null}
+            {backupCheckErrors.length > 0 ? (
+              <div className="library-validation-summary">
+                <strong>Backup check notes</strong>
+                <p>Nothing changed on this device. The first items to review are below.</p>
+                <ul aria-label="Today task backup errors" className="library-validation-list">
+                  {backupCheckErrors.slice(0, 3).map((error) => <li key={error}>{error}</li>)}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+          {backupFeedback ? <p className="today-feedback" role="status">{backupFeedback}</p> : null}
         </div>
-      </Modal>
+      </details>
+
+      {nextTask ? <StartBoost open={boostOpen} task={nextTask} onClose={() => setBoostOpen(false)} /> : null}
       <AddTaskModal onClose={() => setAddTaskOpen(false)} onSave={saveOneOffTask} open={addTaskOpen} />
     </div>
   );

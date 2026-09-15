@@ -12,6 +12,7 @@ import * as libraryRhythmRepository from '../../data/libraryRhythmRepository';
 import { activeTaskSchema, type ActiveTask } from '../../data/schemas';
 import * as settingsRepository from '../../data/settingsRepository';
 import * as softPlacementRepository from '../../data/softPlacementRepository';
+import type { SchedulerPlan } from '../../domain/schedulingModel';
 
 const activeTaskRepositoryMocks = vi.hoisted(() => ({
   createActiveTaskId: vi.fn((prefix = 'active-task') => `${prefix}-test-id`),
@@ -41,7 +42,12 @@ const taskLifecycleRepositoryMocks = vi.hoisted(() => ({
 }));
 
 const schedulerPlanCoordinatorMocks = vi.hoisted(() => ({
+  buildCurrentLiveSchedulingContext: vi.fn(),
   repairCurrentPrivatePlan: vi.fn(),
+}));
+
+const schedulerPlanStateRepositoryMocks = vi.hoisted(() => ({
+  loadSchedulerPlanState: vi.fn(),
 }));
 
 vi.mock('../../data/activeTaskRepository', () => activeTaskRepositoryMocks);
@@ -56,6 +62,7 @@ vi.mock('../../data/settingsRepository', async (importOriginal) => {
 vi.mock('../../data/reducedDayCoordinator', () => reducedDayMocks);
 vi.mock('../../data/taskLifecycleRepository', () => taskLifecycleRepositoryMocks);
 vi.mock('../../data/schedulerPlanCoordinator', () => schedulerPlanCoordinatorMocks);
+vi.mock('../../data/schedulerPlanStateRepository', () => schedulerPlanStateRepositoryMocks);
 
 import App from '../../App';
 import { TodayScreen } from '../../screens/TodayScreen';
@@ -97,6 +104,35 @@ function validActiveTaskBackupJson(overrides: Partial<ActiveTask> = {}) {
       ...overrides,
     }),
   ], '2026-06-17T00:00:00.000Z'));
+}
+
+function persistedReducedDayRepairPlan(): SchedulerPlan {
+  const undo = {
+    placements: [],
+    rejectedExistingPlacements: [],
+    unscheduledIntentionIds: [],
+    unscheduledRhythmIds: [],
+  };
+
+  return {
+    ...undo,
+    repair: {
+      trigger: 'userCorrection',
+      reason: 'Reduce today was applied to the current local date.',
+      now: { date: '2026-09-15', time: '09:00', timezone: 'Australia/Perth' },
+      frozenPastPlacementIds: [],
+      preservedPlacementIds: [],
+      undo,
+      changes: [{
+        kind: 'variantChanged',
+        targetKind: 'intention',
+        targetId: 'adhoc-pay-water-bill',
+        from: { date: '2026-09-15', start: '10:00', end: '10:10', variantKind: 'normal' },
+        to: { date: '2026-09-15', start: '10:00', end: '10:05', variantKind: 'minimum' },
+        reason: 'Reduce today was applied to the current local date.',
+      }],
+    },
+  };
 }
 
 async function openFilledOneOffModal(user: ReturnType<typeof userEvent.setup>) {
@@ -189,7 +225,19 @@ beforeEach(() => {
   });
   taskLifecycleRepositoryMocks.loadLinkedTaskPoolItemIds.mockResolvedValue([]);
   taskLifecycleRepositoryMocks.markTaskLifecycleNoLongerNeeded.mockResolvedValue({ ok: false });
+  schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext.mockResolvedValue({
+    ok: true,
+    context: {
+      input: {
+        intentions: [], rhythms: [], externalCommitments: [], capacityWindows: [], placements: [], dayProfiles: [],
+      },
+      titleByTargetId: { 'adhoc-pay-water-bill': 'Pay water bill' },
+      warnings: [],
+    },
+    now: { date: '2026-09-15', time: '09:00', timezone: 'Australia/Perth' },
+  });
   schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan.mockResolvedValue({ ok: true });
+  schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({ status: 'missing' });
 });
 
 afterEach(() => {
@@ -211,7 +259,7 @@ describe('Today screen', () => {
 
     renderEmptyPersonalToday();
 
-    expect(screen.getByRole('status').textContent).toContain('Loading your saved Today tasks');
+    expect(screen.getByText('Loading your saved Today tasks...')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Choose rhythms to turn on' })).toBeNull();
   });
 
@@ -363,11 +411,18 @@ describe('Today screen', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(reducedDayMocks.applyReduceToday).not.toHaveBeenCalled();
 
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok',
+      plan: persistedReducedDayRepairPlan(),
+      updatedAt: '2026-09-15T01:00:00.000Z',
+    });
     await user.click(within(control).getByRole('button', { name: 'Reduce today' }));
     await user.click(await screen.findByRole('button', { name: 'Apply reduced day' }));
     expect(reducedDayMocks.applyReduceToday).toHaveBeenCalledTimes(1);
     expect(await screen.findByText('Reduced Day active')).toBeTruthy();
-    expect(screen.getByLabelText('Changed by Reduced Day').textContent).toContain('Pay water bill');
+    const changed = await screen.findByRole('region', { name: 'Changed' });
+    expect(changed.textContent).toContain('Pay water bill');
+    expect(changed.textContent).toContain('Changed from Normal, 10 min to Minimum, 5 min.');
   });
 
   it('returns keyboard focus to Reduce today after the preview closes', async () => {
@@ -420,11 +475,16 @@ describe('Today screen', () => {
     reducedDayMocks.loadTodayDayMode.mockResolvedValue({
       ok: true, date: '2026-09-07', dayMode: 'reduced', preview: previewResult.preview,
     });
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok',
+      plan: persistedReducedDayRepairPlan(),
+      updatedAt: '2026-09-15T01:00:00.000Z',
+    });
     render(<TodayScreen />);
     expect(await screen.findByText('Reduced Day active')).toBeTruthy();
-    const changed = screen.getByLabelText('Changed by Reduced Day');
+    const changed = await screen.findByRole('region', { name: 'Changed' });
     expect(changed.textContent).toContain('Pay water bill');
-    expect(changed.textContent).toContain('10 minutes → 5 minutes');
+    expect(changed.textContent).toContain('Changed from Normal, 10 min to Minimum, 5 min.');
   });
 
   it('keeps Normal visible when applying Reduced Day fails', async () => {
@@ -536,36 +596,287 @@ describe('Today screen', () => {
     render(<TodayScreen />);
 
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Today feels: Normal day' })).toBeTruthy();
-    expect(screen.getByText('Next useful action')).toBeTruthy();
-    expect(screen.getByText('Gentle wind-down')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Now' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Later' })).toBeTruthy();
+    expect(screen.getByRole('article', { name: "Set tomorrow's first step" })).toBeTruthy();
   });
 
-  it('keeps the full Today state selector collapsed by default', () => {
+  it('uses one calm personal hierarchy without presentation-only Today-state authority', () => {
     render(<TodayScreen />);
 
-    expect(screen.queryByRole('radiogroup', { name: 'How today feels' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Change' })).toBeTruthy();
-    expect(screen.getByText('Next useful action')).toBeTruthy();
+    expect(screen.getAllByRole('heading', { name: 'Today' })).toHaveLength(1);
+    expect(screen.getByRole('region', { name: 'Now' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Later' })).toBeTruthy();
+    expect(screen.queryByText(/Today feels:/)).toBeNull();
+    expect(screen.queryByText('Next useful action')).toBeNull();
+    expect(screen.queryByText(/Plan adjusted:/)).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Today rhythm preview' })).toBeNull();
   });
 
-  it('renders all seven Today state choices in the chooser', async () => {
+  it('renders current commitment context and factual Later rows from the read-only Day Line truth', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext.mockResolvedValue({
+      ok: true,
+      context: {
+        input: {
+          intentions: [], rhythms: [], capacityWindows: [], dayProfiles: [],
+          externalCommitments: [
+            {
+              id: 'current-meeting', title: 'School meeting', source: 'calendar', sourceId: 'calendar:meeting',
+              interval: { kind: 'datedLocal', date: '2026-09-15', start: '10:00', end: '10:30', timezone: 'Australia/Perth' },
+              hard: true, travelBeforeMinutes: 0, transitionAfterMinutes: 0,
+            },
+            {
+              id: 'later-dentist', title: 'Dentist', source: 'calendar', sourceId: 'calendar:dentist',
+              interval: { kind: 'datedLocal', date: '2026-09-15', start: '14:00', end: '15:00', timezone: 'Australia/Perth' },
+              hard: true, travelBeforeMinutes: 0, transitionAfterMinutes: 0,
+            },
+          ],
+          placements: [{
+            id: 'manual-call', intentionId: 'manual-task', date: '2026-09-15', start: '13:00', end: '13:20',
+            origin: 'existingUserConfirmed', sourcePlacementId: 'soft:manual-call', provenance: ['user'],
+          }],
+        },
+        titleByTargetId: {
+          'adhoc-pay-water-bill': 'Pay water bill',
+          'automatic-task': 'Write outline',
+          'manual-task': 'Call the plumber',
+        },
+        warnings: [],
+      },
+      now: { date: '2026-09-15', time: '10:15', timezone: 'Australia/Perth' },
+    });
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok',
+      updatedAt: '2026-09-15T02:15:00.000Z',
+      plan: {
+        placements: [
+          {
+            id: 'current-task-plan', intentionId: 'adhoc-pay-water-bill', date: '2026-09-15', start: '11:00', end: '11:10',
+            origin: 'scheduler', targetKind: 'intention', variantKind: 'normal', provenance: ['scheduler'],
+          },
+          {
+            id: 'automatic-outline', intentionId: 'automatic-task', date: '2026-09-15', start: '12:00', end: '12:30',
+            origin: 'scheduler', targetKind: 'intention', variantKind: 'normal', provenance: ['scheduler'],
+          },
+        ],
+        rejectedExistingPlacements: [], unscheduledIntentionIds: [], unscheduledRhythmIds: [],
+      },
+    });
+
+    render(<TodayScreen />);
+
+    const now = screen.getByRole('region', { name: 'Now' });
+    expect(await within(now).findByText('School meeting')).toBeTruthy();
+    const later = screen.getByRole('region', { name: 'Later' });
+    await waitFor(() => {
+      expect(within(later).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+        expect.stringContaining('Write outline'),
+        expect.stringContaining('Call the plumber'),
+        expect.stringContaining('Dentist'),
+      ]);
+    });
+    expect(within(later).queryByText('Pay water bill')).toBeNull();
+    expect(within(later).queryByText('School meeting')).toBeNull();
+    expect(schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext).toHaveBeenCalledWith({
+      horizonDays: 1,
+      planningPolicy: { dayMode: 'normal' },
+      readOnly: true,
+    });
+    expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+  });
+
+  it('identifies a missing saved private plan even when fixed Later facts remain readable', async () => {
+    schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext.mockResolvedValue({
+      ok: true,
+      context: {
+        input: {
+          intentions: [], rhythms: [], capacityWindows: [], placements: [], dayProfiles: [],
+          externalCommitments: [{
+            id: 'later-appointment', title: 'Real appointment', source: 'calendar', sourceId: 'calendar:later',
+            interval: { kind: 'datedLocal', date: '2026-09-15', start: '14:00', end: '15:00' },
+            hard: true, travelBeforeMinutes: 0, transitionAfterMinutes: 0,
+          }],
+        },
+        titleByTargetId: {}, warnings: [],
+      },
+      now: { date: '2026-09-15', time: '09:00', timezone: 'Australia/Perth' },
+    });
+
+    render(<TodayScreen />);
+
+    const later = screen.getByRole('region', { name: 'Later' });
+    expect(await within(later).findByText('Real appointment')).toBeTruthy();
+    expect(within(later).getByText(/No saved private plan is available/)).toBeTruthy();
+  });
+
+  it('keeps Now usable and does not call an invalid private plan empty', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'invalid', errors: ['schedulerPlanState.plan: invalid'],
+    });
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+    const later = screen.getByRole('region', { name: 'Later' });
+    expect((await within(later).findByRole('alert')).textContent).toContain('saved private plan could not be read');
+    expect(within(later).queryByText('Nothing else is recorded for later today.')).toBeNull();
+  });
+
+  it('isolates an optional live-context failure from the readable Now task', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext.mockResolvedValue({
+      ok: false,
+      errors: ['calendar: synthetic read failure'],
+      warnings: [],
+    });
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+    const later = screen.getByRole('region', { name: 'Later' });
+    expect((await within(later).findByRole('alert')).textContent).toContain('Later and Changed could not be read');
+    expect(within(later).queryByText('Nothing else is recorded for later today.')).toBeNull();
+  });
+
+  it('does not let an older plan-context read replace newer Later facts', async () => {
+    let resolveOld!: (value: unknown) => void;
+    const oldRead = new Promise((resolve) => { resolveOld = resolve; });
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext
+      .mockImplementationOnce(() => oldRead)
+      .mockResolvedValue({
+        ok: true,
+        context: {
+          input: {
+            intentions: [], rhythms: [], capacityWindows: [], placements: [], dayProfiles: [],
+            externalCommitments: [{
+              id: 'new', title: 'Newer appointment', source: 'calendar', sourceId: 'calendar:new',
+              interval: { kind: 'datedLocal', date: '2026-09-15', start: '14:00', end: '15:00' },
+              hard: true, travelBeforeMinutes: 0, transitionAfterMinutes: 0,
+            }],
+          },
+          titleByTargetId: {}, warnings: [],
+        },
+        now: { date: '2026-09-15', time: '09:00', timezone: 'Australia/Perth' },
+      });
+
+    render(<TodayScreen />);
+    expect(await screen.findByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+    expect(await screen.findByText('Newer appointment')).toBeTruthy();
+
+    resolveOld({
+      ok: true,
+      context: {
+        input: {
+          intentions: [], rhythms: [], capacityWindows: [], placements: [], dayProfiles: [],
+          externalCommitments: [{
+            id: 'old', title: 'Stale appointment', source: 'calendar', sourceId: 'calendar:old',
+            interval: { kind: 'datedLocal', date: '2026-09-15', start: '13:00', end: '14:00' },
+            hard: true, travelBeforeMinutes: 0, transitionAfterMinutes: 0,
+          }],
+        },
+        titleByTargetId: {}, warnings: [],
+      },
+      now: { date: '2026-09-15', time: '09:00', timezone: 'Australia/Perth' },
+    });
+
+    await waitFor(() => expect(screen.queryByText('Stale appointment')).toBeNull());
+    expect(screen.getByText('Newer appointment')).toBeTruthy();
+  });
+
+  it('refreshes Later when the app reports a background scheduler revision', async () => {
+    const firstContext = await schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext();
+    const rendered = render(<TodayScreen planRevision={0} />);
+    await screen.findByRole('region', { name: 'Later' });
+    schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext.mockResolvedValue({
+      ...firstContext,
+      context: {
+        ...firstContext.context,
+        input: {
+          ...firstContext.context.input,
+          externalCommitments: [{
+            id: 'new-background-fact', title: 'Updated appointment', source: 'calendar', sourceId: 'calendar:updated',
+            interval: { kind: 'datedLocal', date: '2026-09-15', start: '14:00', end: '15:00' },
+            hard: true, travelBeforeMinutes: 0, transitionAfterMinutes: 0,
+          }],
+        },
+      },
+    });
+
+    rendered.rerender(<TodayScreen planRevision={1} />);
+
+    expect(await screen.findByText('Updated appointment')).toBeTruthy();
+  });
+
+  it('uses the mode-aware authoritative Undo and refreshes Changed without a reload', async () => {
+    const user = userEvent.setup();
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok', plan: persistedReducedDayRepairPlan(), updatedAt: '2026-09-15T01:00:00.000Z',
+    });
+    render(<TodayScreen />);
+    const changed = await screen.findByRole('region', { name: 'Changed' });
+
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({ status: 'missing' });
+    await user.click(within(changed).getByRole('button', { name: 'Undo last change' }));
+
+    expect(reducedDayMocks.undoTodayPlanChange).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Changed' })).toBeNull());
+    expect(reducedDayMocks.loadTodayDayMode.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it('refreshes Later and Changed after a successful Today lifecycle repair', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([
+      persistedOneOffTask({
+        minimumAchievedAt: '2026-09-15T00:30:00.000Z',
+        status: 'minimumDone',
+      }),
+    ]);
+    render(<TodayScreen />);
+    const park = await screen.findByRole('button', { name: 'Park' });
+    const repairedPlan = persistedReducedDayRepairPlan();
+    repairedPlan.repair = {
+      ...repairedPlan.repair!,
+      trigger: 'userCorrection',
+      reason: 'A Today choice changed which private work remains active.',
+      changes: repairedPlan.repair!.changes.map((change) => ({
+        ...change,
+        reason: 'A Today choice changed which private work remains active.',
+      })),
+    };
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok', plan: repairedPlan, updatedAt: '2026-09-15T01:00:00.000Z',
+    });
+
+    await user.click(park);
+
+    expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledWith({
+      reason: 'A Today choice changed which private work remains active.',
+      trigger: 'userCorrection',
+    });
+    const changed = await screen.findByRole('region', { name: 'Changed' });
+    expect(changed.textContent).toContain('A private-plan choice changed the plan.');
+    expect(changed.textContent).not.toContain('Reduced Day changed');
+  });
+
+  it('keeps Today backup tools reachable inside the secondary Recovery disclosure', async () => {
     const user = userEvent.setup();
     render(<TodayScreen />);
 
-    await user.click(screen.getByRole('button', { name: 'Change' }));
+    const recovery = screen.getByText('More / Recovery');
+    await user.click(recovery);
+    expect(screen.getByRole('button', { name: 'Export Today tasks backup' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Check Today tasks backup' })).toBeTruthy();
+  });
 
-    const stateGroup = screen.getByRole('radiogroup', { name: 'How today feels' });
-    const stateChoices = within(stateGroup).getAllByRole('radio');
+  it('keeps presentation-only Today state controls out of the personal surface', () => {
+    render(<TodayScreen />);
 
-    expect(stateChoices).toHaveLength(7);
-    expect(within(stateGroup).getByRole('radio', { name: /Normal day/ })).toBeTruthy();
-    expect(within(stateGroup).getByRole('radio', { name: /Behind\/missed things/ })).toBeTruthy();
-    expect(within(stateGroup).getByRole('radio', { name: /Low energy/ })).toBeTruthy();
-    expect(within(stateGroup).getByRole('radio', { name: /Overstimulated/ })).toBeTruthy();
-    expect(within(stateGroup).getByRole('radio', { name: /Avoiding something/ })).toBeTruthy();
-    expect(within(stateGroup).getByRole('radio', { name: /Need restart/ })).toBeTruthy();
-    expect(within(stateGroup).getByRole('radio', { name: /Bored \/ low stimulation/ })).toBeTruthy();
+    expect(screen.queryByRole('radiogroup', { name: 'How today feels' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Change' })).toBeNull();
+    expect(screen.queryByText(/Plan adjusted:/)).toBeNull();
   });
 
   it('keeps the bottom navigation available in the app shell', async () => {
@@ -584,18 +895,6 @@ describe('Today screen', () => {
     expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();
   });
 
-  it('updates the plan-adjusted line when the Today state changes', async () => {
-    const user = userEvent.setup();
-    render(<TodayScreen />);
-
-    await user.click(screen.getByRole('button', { name: 'Change' }));
-    await user.click(screen.getByRole('radio', { name: /Low energy/ }));
-
-    expect(screen.getByText('Plan adjusted: minimum counts and the smallest version comes first.')).toBeTruthy();
-    expect(screen.getByText('Use the smallest possible version and stop cleanly.')).toBeTruthy();
-    expect(screen.queryByRole('dialog', { name: 'How today feels' })).toBeNull();
-  });
-
   it('renders the main task card with no more than two chips', () => {
     render(<TodayScreen />);
 
@@ -606,13 +905,11 @@ describe('Today screen', () => {
     expect(chips).toHaveLength(2);
   });
 
-  it('renders the next useful action before the full state selector is opened', () => {
+  it('renders the authoritative task inside Now', () => {
     render(<TodayScreen />);
 
-    const nextAction = screen.getByText('Next useful action');
-
-    expect(nextAction).toBeTruthy();
-    expect(screen.queryByRole('radio', { name: /Low energy/ })).toBeNull();
+    const now = screen.getByRole('region', { name: 'Now' });
+    expect(within(now).getByRole('article', { name: "Set tomorrow's first step" })).toBeTruthy();
   });
 
   it('shows Add one-off as a secondary today-only action', () => {
@@ -923,13 +1220,13 @@ describe('Today screen', () => {
     expect(clearSpy).not.toHaveBeenCalled();
   });
 
-  it('keeps Add one-off out of the Next useful action heading', () => {
+  it('keeps Add one-off as a quiet secondary action inside Now', () => {
     render(<TodayScreen />);
 
-    const nextAction = screen.getByRole('region', { name: 'Next useful action' });
+    const now = screen.getByRole('region', { name: 'Now' });
 
-    expect(within(nextAction).getByText('Next useful action')).toBeTruthy();
-    expect(within(nextAction).queryByRole('button', { name: 'Add one-off' })).toBeNull();
+    expect(within(now).getByRole('article', { name: "Set tomorrow's first step" })).toBeTruthy();
+    expect(within(now).getByRole('button', { name: 'Add one-off' })).toBeTruthy();
   });
 
   it('opens task details', async () => {
