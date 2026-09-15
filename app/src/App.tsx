@@ -339,7 +339,7 @@ export default function App() {
   }
 
   const screens: Record<ScreenId, ReactElement> = {
-    today: <TodayScreen />,
+    today: <TodayScreen planRevision={planRevision} />,
     plan: (
       <>
         <PlanDayLineScreen

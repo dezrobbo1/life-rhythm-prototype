@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppIcon, Button, Chip } from '../../components';
 import type { AppIconName } from '../../components/AppIcon/AppIcon';
-import type { MockTask, TodayState } from './mockTodayData';
-import { stateActionTone } from './mockTodayData';
+import type { MockTask } from './mockTodayData';
 
 export type TaskProgress = 'idle' | 'inProgress' | 'paused' | 'minimumDone';
 
@@ -22,7 +21,6 @@ type TaskCardProps = {
   minimumChoiceActive: boolean;
   progress: TaskProgress;
   task: MockTask;
-  todayState: TodayState;
 };
 
 const missedPolicyLabels: Record<NonNullable<NonNullable<MockTask['timeEdge']>['missedPolicy']>, string> = {
@@ -122,7 +120,6 @@ export function TaskCard({
   minimumChoiceActive,
   progress,
   task,
-  todayState,
 }: TaskCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [keepGoingOpen, setKeepGoingOpen] = useState(false);
@@ -155,12 +152,11 @@ export function TaskCard({
       </div>
       <div className="task-card__header">
         <div>
-          <h2 id={`${task.id}-title`}>{task.title}</h2>
+          <h3 id={`${task.id}-title`}>{task.title}</h3>
           <p>{task.purpose}</p>
         </div>
         <span className="task-card__size">{task.recommendedSize}</span>
       </div>
-      <p className="task-card__tone">{stateActionTone[todayState]}</p>
       {visibleTimeEdgeLines.length > 0 ? (
         <div className="task-card__time-edge" aria-label="Time edge">
           {visibleTimeEdgeLines.map((line) => (
@@ -237,7 +233,7 @@ export function TaskCard({
       {keepGoingOpen ? (
         <section className="task-card__continuation" aria-labelledby={`${task.id}-continuation-title`}>
           <div>
-            <h3 id={`${task.id}-continuation-title`}>Optional next versions</h3>
+            <h4 id={`${task.id}-continuation-title`}>Optional next versions</h4>
             <p>
               {minimumCounts
                 ? 'Optional. Minimum already counts. Continue only if it helps.'
@@ -246,12 +242,12 @@ export function TaskCard({
           </div>
           <div className="task-card__version-options">
             <article>
-              <h4>Normal version</h4>
+              <h5>Normal version</h5>
               <p>{task.normalVersion}</p>
               <Button onClick={onMarkNormalDone}>Mark normal done</Button>
             </article>
             <article>
-              <h4>Full version</h4>
+              <h5>Full version</h5>
               <p>{task.fullVersion}</p>
               <Button onClick={onMarkFullDone}>Mark full done</Button>
             </article>
@@ -262,11 +258,11 @@ export function TaskCard({
       {detailsOpen ? (
         <div className="task-card__details" id={`${task.id}-details`}>
           <section>
-            <h3>Why this?</h3>
+            <h4>Why this?</h4>
             <p>{task.whyThis}</p>
           </section>
           <section>
-            <h3>Versions</h3>
+            <h4>Versions</h4>
             <dl>
               <div>
                 <dt>Minimum</dt>
@@ -283,11 +279,11 @@ export function TaskCard({
             </dl>
           </section>
           {task.timingReality.trim() ? <section>
-            <h3>Timing reality</h3>
+            <h4>Timing reality</h4>
             <p>{task.timingReality}</p>
           </section> : null}
           {task.hiddenEdges.length > 0 ? <section>
-            <h3>Hidden edges</h3>
+            <h4>Hidden edges</h4>
             <ul>
               {task.hiddenEdges.map((edge) => (
                 <li key={edge}>{edge}</li>

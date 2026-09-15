@@ -408,7 +408,11 @@ describe('App settings persistence wiring', () => {
     );
     expect(migrationWarning.textContent).toContain('Nothing already stored on this device was changed.');
     expect(migrationWarning.textContent).toContain('The migration will need to be retried.');
-    expect(settingsMocks.loadSettingsResult).toHaveBeenCalledTimes(1);
+    expect(settingsMocks.loadSettingsResult.mock.calls.filter((call) => call.length === 0)).toHaveLength(1);
+    expect(settingsMocks.loadSettingsResult).toHaveBeenCalledWith(
+      expect.anything(),
+      { persistMigration: false },
+    );
     expect(settingsMocks.saveSettings).not.toHaveBeenCalled();
     expect(settingsMocks.resetSettingsToDefaults).not.toHaveBeenCalled();
   });

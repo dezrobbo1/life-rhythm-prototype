@@ -24,8 +24,6 @@
  * the user-facing app while their underlying code remains available for
  * focused component tests and later consolidation into Settings.
  */
-.app-shell[data-trial-mode='personal'] .today-screen section[aria-labelledby='today-backup-title'],
-.app-shell[data-trial-mode='personal'] .today-screen section[aria-labelledby='today-backup-check-title'],
 .app-shell[data-trial-mode='personal'] .library-screen section[aria-labelledby='library-backup-check-title'],
 .app-shell[data-trial-mode='personal'] .quick-packs,
 .app-shell[data-trial-mode='personal'] .plan-blocks,
