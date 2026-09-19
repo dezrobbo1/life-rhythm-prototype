@@ -35,9 +35,11 @@ export function ReducedDayControl({
   const [busy, setBusy] = useState<'preview' | 'apply' | 'normal' | 'undo' | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [modeReadAttempt, setModeReadAttempt] = useState(0);
   const submissionInFlight = useRef(false);
   const controlRef = useRef<HTMLElement | null>(null);
   const restorePreviewFocus = useRef(false);
+  const restoreModeFocus = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -60,7 +62,17 @@ export function ReducedDayControl({
       setError('Today’s scheduling state could not be read.');
     });
     return () => { active = false; };
-  }, [refreshVersion]);
+  }, [refreshVersion, modeReadAttempt]);
+
+  useEffect(() => {
+    if (dayMode === 'loading' || !restoreModeFocus.current) return;
+    restoreModeFocus.current = false;
+    controlRef.current
+      ?.querySelector<HTMLButtonElement>(
+        '.reduced-day-control__open, .reduced-day-control__active button, .reduced-day-control__retry',
+      )
+      ?.focus();
+  }, [dayMode]);
 
   useEffect(() => {
     if (open || !restorePreviewFocus.current) return;
@@ -177,7 +189,17 @@ export function ReducedDayControl({
         <p aria-busy="true" className="surface-read-state__inline" role="status">
           Reading today’s day mode...
         </p>
-      ) : null}
+      ) : (
+        <Button
+          className="reduced-day-control__retry"
+          onClick={() => {
+            restoreModeFocus.current = true;
+            setModeReadAttempt((attempt) => attempt + 1);
+          }}
+        >
+          Retry day mode
+        </Button>
+      )}
 
       {message ? <p className="reduced-day-control__message" role="status">{message}</p> : null}
       {error ? <p className="reduced-day-control__error" role="alert">{error}</p> : null}
