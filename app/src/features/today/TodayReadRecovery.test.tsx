@@ -188,7 +188,10 @@ describe('PR #139 review read recovery', () => {
     expect(screen.getByText('Wednesday, September 16')).toBeTruthy();
     expect(screen.queryByText('Reduced Day active')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Return to normal day' })).toBeNull();
-    expect(await within(screen.getByRole('region', { name: 'Later' })).findByText('09:00–09:20')).toBeTruthy();
+    // Let real IndexedDB callbacks settle without a Testing Library timer wait
+    // while the local-date boundary clock itself remains frozen.
+    await settleUntil(() => Boolean(within(screen.getByRole('region', { name: 'Later' })).queryByText('09:00–09:20')));
+    expect(within(screen.getByRole('region', { name: 'Later' })).getByText('09:00–09:20')).toBeTruthy();
     expect(liveRead.mock.calls.filter(([options]) => options?.horizonDays === 1)).toHaveLength(2);
     expect(modeRead).toHaveBeenCalledTimes(2);
     expect(await loadSchedulerPlanState(database)).toEqual(before);
