@@ -23,6 +23,7 @@ import {
   markTaskLifecycleNoLongerNeeded,
 } from '../data/taskLifecycleRepository';
 import { ReducedDayControl } from '../features/today/ReducedDayControl';
+import { currentLocalDate } from '../features/plan/softPlacementDate';
 import { activeTaskSchema, type ActiveTask, type ActiveTaskStatus } from '../data/schemas';
 import { type MockTask } from '../features/today/mockTodayData';
 import { AddTaskModal, type MockAddTaskInput } from '../features/today/AddTaskModal';
@@ -59,7 +60,7 @@ type TodayTasksReadState =
 
 type TodayPlanReadState =
   | { status: 'loading' }
-  | { status: 'ready'; surface: TodayCalmSurface; warnings: string[] }
+  | { status: 'ready'; readDate: string; surface: TodayCalmSurface; warnings: string[] }
   | { status: 'contextError'; errors: string[] };
 
 const areaLabels: Record<ActiveTaskArea, string> = {
@@ -664,6 +665,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   useEffect(() => {
     const generation = planReadGenerationRef.current + 1;
     planReadGenerationRef.current = generation;
+    const readDate = currentLocalDate();
     let active = true;
 
     setTodayPlanReadState({ status: 'loading' });
@@ -677,6 +679,16 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       loadSchedulerPlanState(),
     ]).then(([live, saved]) => {
       if (!active || planReadGenerationRef.current !== generation) return;
+
+      // A suspended read may finish on another local date. Do not install
+      // yesterday's snapshot and then wait until tomorrow to refresh it.
+      const completedAt = new Date();
+      if (currentLocalDate(completedAt) !== readDate) {
+        setTodayDisplayClock(completedAt);
+        setReducedDayRefreshVersion((version) => version + 1);
+        refreshTodayPlanFacts();
+        return;
+      }
 
       if (!live.ok) {
         setTodayPlanReadState({ status: 'contextError', errors: live.errors });
@@ -698,6 +710,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
 
       setTodayPlanReadState({
         status: 'ready',
+        readDate,
         surface,
         warnings: live.context.warnings,
       });
@@ -719,6 +732,13 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
     if (todayPlanReadState.status !== 'ready') return undefined;
 
     const now = new Date();
+    // Also cover a date change between read completion and effect setup.
+    if (todayPlanReadState.readDate !== currentLocalDate(now)) {
+      setTodayDisplayClock(now);
+      setReducedDayRefreshVersion((version) => version + 1);
+      refreshTodayPlanFacts();
+      return undefined;
+    }
     const nextMidnight = new Date(now);
     nextMidnight.setHours(24, 0, 0, 0);
     let nextRefreshAt = nextMidnight.getTime();
@@ -737,6 +757,9 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       setTodayDisplayClock(new Date());
       planReadGenerationRef.current += 1;
       setTodayPlanReadAttempt((attempt) => attempt + 1);
+      if (nextRefreshAt === nextMidnight.getTime()) {
+        setReducedDayRefreshVersion((version) => version + 1);
+      }
     }, Math.max(1, nextRefreshAt - now.getTime()));
 
     return () => window.clearTimeout(timeout);
@@ -1002,6 +1025,25 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
             </span>
           </div>
         ))}
+
+        {todayPlanSurface?.currentPrivatePlacements.length ? (
+          <section aria-label="Scheduled for this time" className="today-now__scheduled">
+            <p className="section-label">Scheduled for this time</p>
+            <div className="surface-ledger today-now__scheduled-list">
+              {todayPlanSurface.currentPrivatePlacements.map((item) => (
+                <div className={`surface-ledger-row today-now__commitment today-now__commitment--${item.kind}`} key={item.id}>
+                  <div className="surface-ledger-row__main">
+                    <strong>{item.title}</strong>
+                    <span>{item.detail}</span>
+                  </div>
+                  <span className="surface-ledger-row__meta surface-time">
+                    {item.start}–{item.end}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {todayTasksReadState.status === 'partial' ? (
           <section
