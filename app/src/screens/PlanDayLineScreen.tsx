@@ -54,12 +54,22 @@ export function PlanDayLineScreen({
   );
   const [dayLineState, setDayLineState] = useState<DayLineState>({ status: 'loading' });
   const [calendarReadIssue, setCalendarReadIssue] = useState<string | null>(null);
+  const [calendarRepairIssue, setCalendarRepairIssue] = useState<string | null>(null);
   const [retryVersion, setRetryVersion] = useState(0);
 
   const selectedDate = useMemo(
     () => selectedPlacementDateOverride ?? localDateForNextSelectedDay(selectedDay),
     [selectedDay, selectedPlacementDateOverride],
   );
+
+  useEffect(() => {
+    setCalendarRepairIssue(null);
+  }, [planRevision]);
+
+  function handlePlanRepaired() {
+    setCalendarRepairIssue(null);
+    onPlanRepaired?.();
+  }
 
   useEffect(() => {
     const date = initialSelectedDate(preferredPlacementDate);
@@ -188,7 +198,13 @@ export function PlanDayLineScreen({
         </p>
       </section>
 
-      {calendarReadIssue ? (
+      {calendarRepairIssue ? (
+        <section className="surface-status surface-status--error plan-default-attention" role="alert">
+          <strong>Calendar change needs attention.</strong>
+          <p>{calendarRepairIssue}</p>
+          <p>Open Plan details to retry flexible-plan repair. The saved calendar change remains on this device.</p>
+        </section>
+      ) : calendarReadIssue ? (
         <section className="surface-status surface-status--error plan-default-attention" role="alert">
           <strong>Calendar source needs attention.</strong>
           <p>{calendarReadIssue}</p>
@@ -200,11 +216,13 @@ export function PlanDayLineScreen({
         <PersonalPlanScreen
           detailsFooter={(
             <CalendarSourceControl
-              onPlanRepaired={onPlanRepaired}
+              onPlanRepaired={handlePlanRepaired}
               onReadIssueChange={setCalendarReadIssue}
+              onRepairIssueChange={setCalendarRepairIssue}
             />
           )}
           embeddedInDayLine
+          onPlanRepaired={handlePlanRepaired}
           planRevision={planRevision}
           preferredPlacementDate={selectedDate}
           preferredTaskId={preferredTaskId}
