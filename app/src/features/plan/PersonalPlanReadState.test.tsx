@@ -176,10 +176,10 @@ describe('Personal Plan read states', () => {
 
   it('reports a successful manual flexible-plan refresh as recovery', async () => {
     const user = userEvent.setup();
-    const onPlanRepaired = vi.fn();
+    const onPlanRecovered = vi.fn();
     render(
       <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
-        <PersonalPlanScreen embeddedInDayLine onPlanRepaired={onPlanRepaired} />
+        <PersonalPlanScreen embeddedInDayLine onPlanRecovered={onPlanRecovered} />
       </AppSnapshotProvider>,
     );
 
@@ -191,8 +191,9 @@ describe('Personal Plan read states', () => {
 
     await waitFor(() => {
       expect(coordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledTimes(1);
-      expect(onPlanRepaired).toHaveBeenCalledTimes(1);
+      expect(onPlanRecovered).toHaveBeenCalledTimes(1);
     });
+    expect(screen.getByText('Flexible private work was refreshed. External calendar events were not changed.')).toBeTruthy();
   });
 
   it('does not show an empty Changed section on the default Plan surface', async () => {
