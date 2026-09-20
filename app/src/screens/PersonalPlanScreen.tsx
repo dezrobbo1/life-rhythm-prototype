@@ -69,6 +69,7 @@ type SurfaceCollectionState<T> =
 type PersonalPlanScreenProps = {
   detailsFooter?: ReactNode;
   embeddedInDayLine?: boolean;
+  onPlanRepaired?: () => void;
   planRevision?: number;
   preferredPlacementDate?: string | null;
   preferredTaskId?: string | null;
@@ -109,6 +110,7 @@ function formatChangedLine(
 export function PersonalPlanScreen({
   detailsFooter = null,
   embeddedInDayLine = false,
+  onPlanRepaired,
   planRevision = 0,
   preferredPlacementDate = null,
   preferredTaskId = null,
@@ -260,7 +262,7 @@ export function PersonalPlanScreen({
     });
 
     return applyPrivatePlanResult(result);
-  }, [applyPrivatePlanResult]);
+  }, [applyPrivatePlanResult, onPlanRepaired]);
 
   useEffect(() => {
     let active = true;
@@ -334,6 +336,9 @@ export function PersonalPlanScreen({
         trigger: 'manualReplan',
       });
       const applied = applyPrivatePlanResult(result);
+      if (applied) {
+        onPlanRepaired?.();
+      }
       setPrivatePlanFeedback(
         applied
           ? 'Flexible private work was refreshed. External calendar events were not changed.'
