@@ -65,7 +65,7 @@ This ledger records capabilities reachable in the React/Vite personal trial at t
 | Quick-pack preview/enable | Library | Preview pack / Enable selected rhythms | Session-only enablement over fixture catalogue | MAY RETIRE | Library recommendations | Demo/sample convenience, not durable personal configuration |
 | Library rhythm backup export | Library | Export Library rhythms backup | Exports saved custom rhythms only | SECONDARY | Settings / Recovery | Excludes Today, settings, enablement and packs |
 | Library rhythm backup check | Library | Paste/select and Check | Read-only parse/preview; restore not connected | SECONDARY | Settings / Recovery | Writes nothing |
-| Saved Library read health | Library | Automatic load of custom rhythms | Existing loader still collapses read/invalid failure to absence | YES | Follow-up foundation slice | Deliberately excluded from Gate 6A because it needs its own surface migration |
+| Saved Library read health | Library | Automatic load or read-only Retry of custom rhythms | Typed collection result distinguishes loading, empty, valid, partial-invalid and read failure; valid rows remain visible and invalid rows remain stored | YES | Library surface status | Built-in catalogue remains independent; create waits while personal saved state is unknown or failed, and export requires a complete valid read |
 | Create pack later | Library | Disabled button | No implementation | MAY RETIRE | Library | Explicit scaffold only |
 
 ## Settings / Setup
@@ -109,4 +109,4 @@ This ledger records capabilities reachable in the React/Vite personal trial at t
 | Plan private scheduler state | Hard for the automatic-plan section | Existing typed coordinator result retained; no new scheduler read/write behavior |
 | Plan Pool items and soft placements | Optional/manual-section dependencies | Failure suppresses only false empty claims for manual sections; automatic plan stays visible; Retry rereads without rebuilding |
 | Plan read-only calendar | Independent scheduling dependency | Existing typed invalid/read-failure handling retained |
-| Library custom rhythms | Separate follow-up | Same risk exists, but its loader/surface were not migrated in this bounded PR |
+| Library custom rhythms | Hard dependency for personal custom-rhythm create/export only | Loading, truthful empty, valid rows, partial-invalid warning and read failure with read-only Retry; built-in catalogue remains available independently |

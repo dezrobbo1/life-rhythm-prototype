@@ -27,7 +27,17 @@ export async function exportLibraryRhythmBackup(
   store?: LibraryRhythmStore,
   exportedAt = nowIso(),
 ): Promise<LibraryRhythmBackupExport | null> {
-  const rhythms = await loadCustomLibraryRhythms(store);
+  const result = await loadCustomLibraryRhythms(store);
+
+  if (result.status === 'readFailed') {
+    throw new Error(result.errors[0] ?? 'Saved custom Library rhythms could not be read.');
+  }
+
+  if (result.status === 'partial') {
+    throw new Error('Some saved custom Library rhythms could not be read.');
+  }
+
+  const rhythms = result.items;
 
   if (rhythms.length === 0) {
     return null;
