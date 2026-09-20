@@ -104,7 +104,6 @@ export function CalendarSourceControl({
       });
 
       if (!repaired.ok) {
-        setStatus(calendarRepairFailureMessage);
         onRepairIssueChange?.(calendarRepairFailureMessage);
         return false;
       }
@@ -113,7 +112,6 @@ export function CalendarSourceControl({
       onPlanRepaired?.();
       return true;
     } catch {
-      setStatus(calendarRepairFailureMessage);
       onRepairIssueChange?.(calendarRepairFailureMessage);
       return false;
     }
