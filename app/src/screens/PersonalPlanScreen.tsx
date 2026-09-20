@@ -262,7 +262,7 @@ export function PersonalPlanScreen({
     });
 
     return applyPrivatePlanResult(result);
-  }, [applyPrivatePlanResult, onPlanRepaired]);
+  }, [applyPrivatePlanResult]);
 
   useEffect(() => {
     let active = true;
@@ -349,7 +349,7 @@ export function PersonalPlanScreen({
     } finally {
       setPrivatePlanBusy(null);
     }
-  }, [applyPrivatePlanResult]);
+  }, [applyPrivatePlanResult, onPlanRepaired]);
 
   const undoPrivatePlan = useCallback(async () => {
     setPrivatePlanBusy('undo');
