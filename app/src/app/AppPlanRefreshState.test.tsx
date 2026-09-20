@@ -24,9 +24,13 @@ vi.mock('../screens/PlanDayLineScreen', async () => {
 
   return {
     PlanDayLineScreen: ({
+      calendarRepairIssue = null,
+      onCalendarRepairIssueChange,
       onPlanRepaired,
       planRevision = 0,
     }: {
+      calendarRepairIssue?: string | null;
+      onCalendarRepairIssueChange?: (message: string | null) => void;
       onPlanRepaired?: () => void;
       planRevision?: number;
     }) => {
@@ -36,6 +40,13 @@ vi.mock('../screens/PlanDayLineScreen', async () => {
         <section>
           <h1>Plan</h1>
           <p data-testid="plan-revision">Revision {planRevision}</p>
+          {calendarRepairIssue ? <p role="alert">{calendarRepairIssue}</p> : null}
+          <button
+            onClick={() => onCalendarRepairIssueChange?.('Calendar change was saved, but the flexible private plan could not be repaired.')}
+            type="button"
+          >
+            Report repair failure
+          </button>
           <details>
             <summary>Plan details</summary>
             <button
@@ -90,5 +101,25 @@ describe('Plan refresh presentation state', () => {
     expect((await screen.findByRole('status')).textContent).toContain('Calendar saved on this device.');
     expect(screen.getByTestId('plan-revision').textContent).toContain('Revision 1');
     expect(screen.getByText('Plan details').closest('details')?.open).toBe(true);
+  });
+  it('retains calendar repair attention across route changes and clears it after a successful plan repair', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const nav = await screen.findByRole('navigation', { name: 'Primary' });
+    await user.click(within(nav).getByRole('button', { name: 'Plan' }));
+    await user.click(screen.getByRole('button', { name: 'Report repair failure' }));
+
+    expect(screen.getByRole('alert').textContent).toContain('Calendar change was saved');
+
+    await user.click(within(nav).getByRole('button', { name: 'Held' }));
+    await user.click(within(nav).getByRole('button', { name: 'Plan' }));
+    expect(screen.getByRole('alert').textContent).toContain('Calendar change was saved');
+
+    await user.click(screen.getByText('Plan details'));
+    await user.click(screen.getByRole('button', { name: 'Replace calendar' }));
+
+    await screen.findByRole('status');
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
