@@ -14,8 +14,20 @@ const coordinatorMocks = vi.hoisted(() => ({
   repairCurrentPrivatePlan: vi.fn(),
 }));
 
+const planStateMocks = vi.hoisted(() => ({
+  markCalendarRepairPending: vi.fn(),
+}));
+
 vi.mock('../../data/calendarSourceRepository', () => calendarMocks);
 vi.mock('../../data/schedulerPlanCoordinator', () => coordinatorMocks);
+vi.mock('../../data/schedulerPlanStateRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../data/schedulerPlanStateRepository')>();
+
+  return {
+    ...actual,
+    markCalendarRepairPending: planStateMocks.markCalendarRepairPending,
+  };
+});
 
 import { CalendarSourceControl } from './CalendarSourceControl';
 
@@ -49,6 +61,7 @@ beforeEach(() => {
     titleByTargetId: {},
     warnings: [],
   });
+  planStateMocks.markCalendarRepairPending.mockResolvedValue({ ok: true, persisted: false });
 });
 
 afterEach(() => {
@@ -57,6 +70,28 @@ afterEach(() => {
 });
 
 describe('CalendarSourceControl Plan health reporting', () => {
+  it('stops before repair when durable calendar-repair attention cannot be saved', async () => {
+    const user = userEvent.setup();
+    const onRepairIssueChange = vi.fn();
+    planStateMocks.markCalendarRepairPending.mockResolvedValue({
+      errors: ['schedulerPlanState: Calendar repair attention could not be saved.'],
+      ok: false,
+    });
+    render(<CalendarSourceControl onRepairIssueChange={onRepairIssueChange} />);
+
+    const file = new File(['BEGIN:VCALENDAR\nEND:VCALENDAR'], 'replacement.ics', {
+      type: 'text/calendar',
+    });
+    Object.defineProperty(file, 'text', {
+      value: vi.fn().mockResolvedValue('BEGIN:VCALENDAR\nEND:VCALENDAR'),
+    });
+    await user.upload(screen.getByLabelText('Select read-only calendar file'), file);
+
+    const expected = 'Calendar change was saved, but the flexible private plan could not be repaired.';
+    await waitFor(() => expect(onRepairIssueChange).toHaveBeenCalledWith(expected));
+    expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+  });
+
   it('clears a saved-source read warning after a valid replacement is imported', async () => {
     const user = userEvent.setup();
     const onReadIssueChange = vi.fn();

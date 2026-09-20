@@ -951,6 +951,51 @@ describe('Today screen', () => {
     expect(within(later).queryByText('Nothing else is recorded for later today.')).toBeNull();
   });
 
+  it('keeps Now and fixed facts usable without presenting a pending calendar-repair plan as current', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext.mockResolvedValue({
+      ok: true,
+      context: {
+        input: {
+          intentions: [], rhythms: [], capacityWindows: [], placements: [], dayProfiles: [],
+          externalCommitments: [{
+            id: 'current-calendar', title: 'Current calendar commitment', source: 'calendar', sourceId: 'calendar:current',
+            interval: { kind: 'datedLocal', date: '2026-09-15', start: '10:30', end: '11:00' },
+            hard: true, travelBeforeMinutes: 0, transitionAfterMinutes: 0,
+          }],
+        },
+        titleByTargetId: { 'stale-task': 'Stale flexible placement' },
+        warnings: [],
+      },
+      now: { date: '2026-09-15', time: '09:00', timezone: 'Australia/Perth' },
+    });
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      calendarRepairPendingAt: '2026-09-15T01:00:00.000Z',
+      status: 'ok',
+      updatedAt: '2026-09-15T00:00:00.000Z',
+      plan: {
+        placements: [{
+          id: 'stale-placement', intentionId: 'stale-task', date: '2026-09-15', start: '10:00', end: '10:20',
+          origin: 'scheduler', targetKind: 'intention', variantKind: 'normal', provenance: ['scheduler'],
+        }],
+        rejectedExistingPlacements: [],
+        unscheduledIntentionIds: [],
+        unscheduledRhythmIds: [],
+      },
+    });
+
+    render(<TodayScreen />);
+
+    expect(await screen.findByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+    const later = screen.getByRole('region', { name: 'Later' });
+    expect((await within(later).findByRole('alert')).textContent).toContain(
+      'The flexible private plan needs repair after a calendar change.',
+    );
+    expect(within(later).getByText('Current calendar commitment')).toBeTruthy();
+    expect(within(later).queryByText('Stale flexible placement')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Changed' })).toBeNull();
+  });
+
   it('isolates an optional live-context failure from the readable Now task', async () => {
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
     schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext.mockResolvedValue({

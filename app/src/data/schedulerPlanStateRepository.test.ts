@@ -259,6 +259,38 @@ describe('persisted Gate 4 scheduler plan state', () => {
     }
   });
 
+  it('marks a successful calendar repair pending again when its private-plan result is undone', async () => {
+    const database = createTestDatabase();
+
+    try {
+      const built = await buildAndPersistSchedulerPlan(model(), database, '2026-09-07T00:00:00.000Z');
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+      const repaired = await repairAndPersistSchedulerPlan(
+        {
+          reason: 'A read-only calendar commitment changed.',
+          trigger: 'calendarChanged',
+          now: { date: today, time: '08:00', timezone },
+          nextInput: model([candidate('later', '10:00', '11:00')]),
+        },
+        database,
+        '2026-09-07T00:02:00.000Z',
+      );
+      if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+      expect(repaired.calendarRepairPendingAt).toBeUndefined();
+
+      const undone = await undoPersistedSchedulerRepair(database, '2026-09-07T00:04:00.000Z');
+      expect(undone.ok).toBe(true);
+
+      const loaded = await loadSchedulerPlanState(database);
+      expect(loaded).toMatchObject({
+        calendarRepairPendingAt: '2026-09-07T00:04:00.000Z',
+        status: 'ok',
+      });
+    } finally {
+      await database.delete();
+    }
+  });
+
   it('persists rolling-repair Changed metadata and its one-step undo snapshot', async () => {
     const database = createTestDatabase();
 

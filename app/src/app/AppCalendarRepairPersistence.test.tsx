@@ -95,6 +95,10 @@ describe('persisted calendar repair attention', () => {
 
     render(<App />);
     const secondNav = await screen.findByRole('navigation', { name: 'Primary' });
+    const todayLater = screen.getByRole('region', { name: 'Later' });
+    expect((await within(todayLater).findByRole('alert')).textContent).toContain(
+      'The flexible private plan needs repair after a calendar change.',
+    );
     await userEvent.setup().click(within(secondNav).getByRole('button', { name: 'Plan' }));
 
     await waitFor(() => {

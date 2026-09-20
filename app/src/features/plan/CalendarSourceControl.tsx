@@ -100,7 +100,12 @@ export function CalendarSourceControl({
 
   async function repairAfterCalendarChange(reason: string) {
     try {
-      await markCalendarRepairPending();
+      const marked = await markCalendarRepairPending();
+      if (!marked.ok) {
+        onRepairIssueChange?.(CALENDAR_REPAIR_PENDING_MESSAGE);
+        return false;
+      }
+
       const repaired = await repairCurrentPrivatePlan({
         trigger: 'calendarChanged',
         reason,

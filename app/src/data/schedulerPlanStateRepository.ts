@@ -282,8 +282,10 @@ export async function undoPersistedSchedulerRepair(
   }
 
   const reverted = scheduler.undoRepair(current.plan);
+  const calendarRepairPendingAt = current.calendarRepairPendingAt ??
+    (current.plan.repair?.trigger === 'calendarChanged' ? updatedAt : undefined);
   const saved = await saveSchedulerPlanState(reverted, store, updatedAt, {
-    calendarRepairPendingAt: current.calendarRepairPendingAt,
+    calendarRepairPendingAt,
     dayModeContext: current.undoDayModeContext ?? undefined,
   });
 
