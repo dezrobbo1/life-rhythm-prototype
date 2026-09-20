@@ -66,9 +66,13 @@ export function PlanDayLineScreen({
     setCalendarRepairIssue(null);
   }, [planRevision]);
 
-  function handlePlanRepaired() {
+  function handleCalendarPlanRepaired() {
     setCalendarRepairIssue(null);
     onPlanRepaired?.();
+  }
+
+  function handlePlanRecovered() {
+    setCalendarRepairIssue(null);
   }
 
   useEffect(() => {
@@ -216,13 +220,13 @@ export function PlanDayLineScreen({
         <PersonalPlanScreen
           detailsFooter={(
             <CalendarSourceControl
-              onPlanRepaired={handlePlanRepaired}
+              onPlanRepaired={handleCalendarPlanRepaired}
               onReadIssueChange={setCalendarReadIssue}
               onRepairIssueChange={setCalendarRepairIssue}
             />
           )}
           embeddedInDayLine
-          onPlanRepaired={handlePlanRepaired}
+          onPlanRecovered={handlePlanRecovered}
           planRevision={planRevision}
           preferredPlacementDate={selectedDate}
           preferredTaskId={preferredTaskId}
