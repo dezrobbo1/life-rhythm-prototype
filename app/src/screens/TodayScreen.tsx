@@ -60,8 +60,27 @@ type TodayTasksReadState =
 
 type TodayPlanReadState =
   | { status: 'loading' }
-  | { status: 'ready'; readDate: string; surface: TodayCalmSurface; warnings: string[] }
+  | { status: 'ready'; readDate: string; refreshAt: number; surface: TodayCalmSurface; warnings: string[] }
   | { status: 'contextError'; errors: string[] };
+
+// Anchor the deadline to the read's clock, not to the later effect setup.
+// Otherwise a boundary crossed while awaiting storage would be skipped.
+function nextTodayRefreshAt(readStartedAt: Date, nextBoundaryTime: string | null) {
+  const midnight = new Date(readStartedAt);
+  midnight.setHours(24, 0, 0, 0);
+  let refreshAt = midnight.getTime();
+
+  if (nextBoundaryTime) {
+    const [hours, minutes] = nextBoundaryTime.split(':').map(Number);
+    const boundary = new Date(readStartedAt);
+    boundary.setHours(hours, minutes, 0, 0);
+    if (boundary.getTime() > readStartedAt.getTime()) {
+      refreshAt = Math.min(refreshAt, boundary.getTime());
+    }
+  }
+
+  return refreshAt;
+}
 
 const areaLabels: Record<ActiveTaskArea, string> = {
   admin: 'Admin',
@@ -665,7 +684,8 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   useEffect(() => {
     const generation = planReadGenerationRef.current + 1;
     planReadGenerationRef.current = generation;
-    const readDate = currentLocalDate();
+    const readStartedAt = new Date();
+    const readDate = currentLocalDate(readStartedAt);
     let active = true;
 
     setTodayPlanReadState({ status: 'loading' });
@@ -708,9 +728,17 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         currentTaskTargetId: nextActiveTask?.id ?? nextTask?.id,
       });
 
+      const refreshAt = nextTodayRefreshAt(readStartedAt, surface.nextBoundaryTime);
+      if (refreshAt <= completedAt.getTime()) {
+        setTodayDisplayClock(completedAt);
+        refreshTodayPlanFacts();
+        return;
+      }
+
       setTodayPlanReadState({
         status: 'ready',
         readDate,
+        refreshAt,
         surface,
         warnings: live.context.warnings,
       });
@@ -731,36 +759,30 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   useEffect(() => {
     if (todayPlanReadState.status !== 'ready') return undefined;
 
+    const { readDate, refreshAt } = todayPlanReadState;
     const now = new Date();
-    // Also cover a date change between read completion and effect setup.
-    if (todayPlanReadState.readDate !== currentLocalDate(now)) {
-      setTodayDisplayClock(now);
-      setReducedDayRefreshVersion((version) => version + 1);
-      refreshTodayPlanFacts();
-      return undefined;
-    }
-    const nextMidnight = new Date(now);
-    nextMidnight.setHours(24, 0, 0, 0);
-    let nextRefreshAt = nextMidnight.getTime();
-    const nextBoundaryTime = todayPlanReadState.surface.nextBoundaryTime;
-
-    if (nextBoundaryTime) {
-      const [hours, minutes] = nextBoundaryTime.split(':').map(Number);
-      const boundary = new Date(now);
-      boundary.setHours(hours, minutes, 0, 0);
-      if (boundary.getTime() > now.getTime()) {
-        nextRefreshAt = Math.min(nextRefreshAt, boundary.getTime());
-      }
-    }
-
-    const timeout = window.setTimeout(() => {
-      setTodayDisplayClock(new Date());
-      planReadGenerationRef.current += 1;
-      setTodayPlanReadAttempt((attempt) => attempt + 1);
-      if (nextRefreshAt === nextMidnight.getTime()) {
+    const refreshAtCurrentTime = () => {
+      const firedAt = new Date();
+      setTodayDisplayClock(firedAt);
+      // Timers can be delivered long after their scheduled deadline when a
+      // tab resumes. Only the actual callback date determines the active mode.
+      if (currentLocalDate(firedAt) !== readDate) {
         setReducedDayRefreshVersion((version) => version + 1);
       }
-    }, Math.max(1, nextRefreshAt - now.getTime()));
+      refreshTodayPlanFacts();
+    };
+
+    // The date or a same-day boundary can pass between completion and setup.
+    // Preserve that expired deadline and refresh now instead of skipping it.
+    if (readDate !== currentLocalDate(now) || refreshAt <= now.getTime()) {
+      refreshAtCurrentTime();
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(
+      refreshAtCurrentTime,
+      Math.max(1, refreshAt - now.getTime()),
+    );
 
     return () => window.clearTimeout(timeout);
   }, [todayPlanReadState]);
