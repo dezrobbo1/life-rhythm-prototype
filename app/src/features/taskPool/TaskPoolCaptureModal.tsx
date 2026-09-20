@@ -1,26 +1,13 @@
 import { useRef, useState } from 'react';
 import { Button, Modal } from '../../components';
 import type { TaskPoolItem } from '../../data/schemas';
+import type { TaskPoolCaptureInput, TaskPoolCaptureResult } from './taskPoolCapture';
 
 type TaskPoolArea = TaskPoolItem['area'];
 
-export type TaskPoolCaptureInput = {
-  area: TaskPoolArea;
-  dueAt?: string;
-  fullVersion: string;
-  minimumStillUsefulAfterDeadline?: boolean;
-  minimumVersion: string;
-  normalVersion: string;
-  notes?: string;
-  notUsefulAfter?: string;
-  purpose?: string;
-  timeConstraint?: 'dueBy';
-  title: string;
-};
-
 type TaskPoolCaptureModalProps = {
   onClose: () => void;
-  onSave: (task: TaskPoolCaptureInput) => Promise<boolean> | boolean;
+  onSave: (task: TaskPoolCaptureInput) => Promise<TaskPoolCaptureResult> | TaskPoolCaptureResult;
   open: boolean;
 };
 
@@ -103,7 +90,7 @@ export function TaskPoolCaptureModal({ onClose, onSave, open }: TaskPoolCaptureM
         return;
       }
 
-      const saved = await onSave({
+      const result = await onSave({
         area,
         ...(dueAtIso ? { dueAt: dueAtIso, timeConstraint: 'dueBy' as const } : {}),
         fullVersion: fullVersion.trim(),
@@ -116,12 +103,12 @@ export function TaskPoolCaptureModal({ onClose, onSave, open }: TaskPoolCaptureM
         title: title.trim(),
       });
 
-      if (saved) {
+      if (result.ok) {
         resetForm();
         return;
       }
 
-      setSaveError('Task was not captured. Check the required fields.');
+      setSaveError(result.errors.join(' '));
     } catch {
       setSaveError('Task was not captured. Check the required fields.');
     } finally {

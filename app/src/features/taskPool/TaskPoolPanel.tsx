@@ -7,13 +7,16 @@ import {
 import { deferTaskPoolItem } from '../../data/taskPoolDeferralRepository';
 import { loadAllSoftPlacementsResult } from '../../data/softPlacementRepository';
 import {
-  createTaskPoolItemId,
   loadTaskPoolItemsResult,
-  saveTaskPoolItem,
 } from '../../data/taskPoolRepository';
 import type { CollectionReadResult } from '../../data/collectionReadResult';
 import type { SoftPlacement, TaskPoolItem, TaskPoolItemStatus } from '../../data/schemas';
-import { TaskPoolCaptureModal, type TaskPoolCaptureInput } from './TaskPoolCaptureModal';
+import { TaskPoolCaptureModal } from './TaskPoolCaptureModal';
+import {
+  captureTaskPoolItem,
+  type TaskPoolCaptureInput,
+  type TaskPoolCaptureResult,
+} from './taskPoolCapture';
 import { TaskPoolDeferModal } from './TaskPoolDeferModal';
 import {
   buildTaskPoolResurfacingGroups,
@@ -27,6 +30,7 @@ type TaskPoolFeedback = {
 };
 
 type TaskPoolPanelProps = {
+  captureRevision?: number;
   onOpenPlan?: (taskId: string, placementDate?: string) => void;
 };
 
@@ -121,7 +125,7 @@ function statusLabel(item: TaskPoolItem, nowMs: number) {
     : taskPoolStatusLabels[item.status];
 }
 
-export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
+export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanelProps = {}) {
   const [taskPoolCaptureOpen, setTaskPoolCaptureOpen] = useState(false);
   const [taskPoolFeedback, setTaskPoolFeedback] = useState<TaskPoolFeedback | null>(null);
   const [taskPoolItems, setTaskPoolItems] = useState<TaskPoolItem[]>([]);
@@ -135,6 +139,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
   const [placementReadState, setPlacementReadState] = useState<SurfaceCollectionState<SoftPlacement>>({ status: 'loading' });
   const taskPoolReadRequestRef = useRef(0);
   const taskPoolWriteGenerationRef = useRef(0);
+  const seenCaptureRevisionRef = useRef(captureRevision);
   const visibleGroups = useMemo(
     () => buildTaskPoolResurfacingGroups(taskPoolItems, clockMs),
     [clockMs, taskPoolItems],
@@ -241,6 +246,13 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
   }, [applyTaskPoolData, readTaskPoolData]);
 
   useEffect(() => {
+    if (seenCaptureRevisionRef.current === captureRevision) return;
+
+    seenCaptureRevisionRef.current = captureRevision;
+    void refreshTaskPoolItems();
+  }, [captureRevision, refreshTaskPoolItems]);
+
+  useEffect(() => {
     const nextResurfacingAt = nextTaskPoolResurfacingAt(taskPoolItems, clockMs);
 
     if (nextResurfacingAt === null) return undefined;
@@ -254,47 +266,18 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
     return () => clearTimeout(timer);
   }, [clockMs, taskPoolItems]);
 
-  const saveCapturedTask = useCallback(async (input: TaskPoolCaptureInput): Promise<boolean> => {
+  const saveCapturedTask = useCallback(async (input: TaskPoolCaptureInput): Promise<TaskPoolCaptureResult> => {
     setTaskPoolFeedback(null);
     taskPoolWriteGenerationRef.current += 1;
 
-    const timestamp = new Date().toISOString();
-    const minimum = input.minimumVersion;
-    const normal = input.normalVersion || minimum;
-    const full = input.fullVersion || normal;
-    const result = await saveTaskPoolItem({
-      area: input.area,
-      createdAt: timestamp,
-      full: {
-        label: full,
-        minutes: 20,
-      },
-      id: createTaskPoolItemId('captured'),
-      minimum: {
-        label: minimum,
-        minutes: 5,
-      },
-      normal: {
-        label: normal,
-        minutes: 10,
-      },
-      ...(input.dueAt ? { dueAt: input.dueAt, timeConstraint: 'dueBy' } : {}),
-      ...(input.minimumStillUsefulAfterDeadline ? { minimumStillUsefulAfterDeadline: true } : {}),
-      ...(input.notes ? { notes: input.notes } : {}),
-      ...(input.notUsefulAfter ? { notUsefulAfter: input.notUsefulAfter } : {}),
-      ...(input.purpose ? { purpose: input.purpose } : {}),
-      source: 'adhoc',
-      status: 'captured',
-      title: input.title,
-      updatedAt: timestamp,
-    });
+    const result = await captureTaskPoolItem(input);
 
     if (!result.ok) {
       setTaskPoolFeedback({
         kind: 'error',
-        lines: ['Task was not captured. Check the required fields.'],
+        lines: result.errors,
       });
-      return false;
+      return result;
     }
 
     await refreshTaskPoolItems();
@@ -303,7 +286,7 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
       kind: 'success',
       lines: ['Task captured. It is safely held.'],
     });
-    return true;
+    return result;
   }, [refreshTaskPoolItems]);
 
   const moveTaskToToday = useCallback(async (item: TaskPoolItem) => {
@@ -411,12 +394,12 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
 
       setTaskPoolFeedback({
         kind: 'error',
-        lines: ['Task pool item was not changed. Nothing else changed.'],
+        lines: ['Held item was not changed. Nothing else changed.'],
       });
     } catch {
       setTaskPoolFeedback({
         kind: 'error',
-        lines: ['Task pool item was not changed. Nothing else changed.'],
+        lines: ['Held item was not changed. Nothing else changed.'],
       });
     } finally {
       setMarkingTaskPoolItemId(null);
@@ -440,12 +423,12 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
 
       {taskPoolReadState.status === 'partial' ? (
         <div
-          aria-label="Saved Pool task warning"
+          aria-label="Saved Held task warning"
           className="surface-read-state surface-read-state--warning"
           role="status"
         >
-          <h3>Some saved Pool task data could not be read.</h3>
-          <p>{taskPoolReadState.invalidRecordCount} saved Pool {taskPoolReadState.invalidRecordCount === 1 ? 'record was' : 'records were'} left unchanged.</p>
+          <h3>Some saved Held task data could not be read.</h3>
+          <p>{taskPoolReadState.invalidRecordCount} saved Held {taskPoolReadState.invalidRecordCount === 1 ? 'record was' : 'records were'} left unchanged.</p>
           <p>Nothing stored on this device was changed.</p>
         </div>
       ) : null}
@@ -453,28 +436,28 @@ export function TaskPoolPanel({ onOpenPlan }: TaskPoolPanelProps = {}) {
       {taskPoolReadState.status !== 'readFailed' &&
       (placementReadState.status === 'partial' || placementReadState.status === 'readFailed') ? (
         <div
-          aria-label="Saved Pool placement warning"
+          aria-label="Saved Held placement warning"
           className="surface-read-state surface-read-state--warning"
           role="status"
         >
           <h3>Some saved placement information is unavailable.</h3>
           <p>
             {taskPoolItems.length > 0
-              ? 'Pool tasks remain visible.'
-              : 'No readable Pool tasks are currently visible.'}
+              ? 'Held tasks remain visible.'
+              : 'No readable Held tasks are currently visible.'}
             {' Nothing stored on this device was changed.'}
           </p>
-          <Button onClick={() => void retryTaskPoolItems()}>Retry Pool placement data</Button>
+          <Button onClick={() => void retryTaskPoolItems()}>Retry Held placement data</Button>
         </div>
       ) : null}
 
       {taskPoolReadState.status === 'loading' ? (
         <div aria-busy="true" className="surface-read-state" role="status">
-          <h3>Loading your saved Pool tasks...</h3>
+          <h3>Loading your saved Held tasks...</h3>
         </div>
       ) : taskPoolReadState.status === 'readFailed' ? (
         <div aria-labelledby="pool-read-failed-title" className="surface-read-state surface-read-state--error" role="alert">
-          <h3 id="pool-read-failed-title">Your saved Pool tasks could not be loaded.</h3>
+          <h3 id="pool-read-failed-title">Your saved Held tasks could not be loaded.</h3>
           <p>Nothing stored on this device was changed.</p>
           <Button onClick={() => void retryTaskPoolItems()}>Retry</Button>
         </div>

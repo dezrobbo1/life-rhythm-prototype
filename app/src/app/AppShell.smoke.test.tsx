@@ -54,7 +54,7 @@ describe('primary app shell navigation', () => {
 
     const todayNavButton = within(nav).getByRole('button', { name: 'Today' });
     const planNavButton = within(nav).getByRole('button', { name: 'Plan' });
-    const poolNavButton = within(nav).getByRole('button', { name: 'Pool' });
+    const heldNavButton = within(nav).getByRole('button', { name: 'Held' });
     const libraryNavButton = within(nav).getByRole('button', { name: 'Library' });
 
     expect(todayNavButton.getAttribute('aria-current')).toBe('page');
@@ -70,9 +70,12 @@ describe('primary app shell navigation', () => {
     expect(screen.getByRole('heading', { name: 'Day Shape' })).toBeTruthy();
     expect(screen.queryByLabelText('Broad day blocks')).toBeNull();
 
-    await user.click(poolNavButton);
-    expect(poolNavButton.getAttribute('aria-current')).toBe('page');
-    expect(screen.getByRole('heading', { name: 'Pool' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Capture' })).toBeTruthy();
+    expect(within(nav).queryByRole('button', { name: 'Capture' })).toBeNull();
+
+    await user.click(heldNavButton);
+    expect(heldNavButton.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('heading', { name: 'Held' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Captured tasks' })).toBeTruthy();
 
     await user.click(libraryNavButton);
@@ -92,6 +95,7 @@ describe('primary app shell navigation', () => {
     expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Daily reset actions' })).toBeTruthy();
     expect(document.querySelector('.reset-card__icon .app-icon')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
 
     await user.click(within(secondaryNav).getByRole('button', { name: 'Settings' }));
     expect(within(secondaryNav).getByRole('button', { name: 'Settings' }).getAttribute('aria-current')).toBe('page');
@@ -100,6 +104,7 @@ describe('primary app shell navigation', () => {
     expect(document.querySelector('.app-shell')).toBeTruthy();
     expect(document.querySelector('.app-main')).toBeTruthy();
     expect(document.querySelector('.bottom-nav')).toBe(nav);
+    expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
   });
 
   it('keeps the read-only example separate from personal trial data', async () => {
@@ -137,7 +142,8 @@ describe('primary app shell navigation', () => {
 
     expect(within(nav).getByRole('button', { name: 'Today' })).toBeTruthy();
     expect(within(nav).getByRole('button', { name: 'Plan' })).toBeTruthy();
-    expect(within(nav).getByRole('button', { name: 'Pool' })).toBeTruthy();
+    expect(within(nav).getByRole('button', { name: 'Held' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
     expect(within(nav).getByRole('button', { name: 'Library' })).toBeTruthy();
     expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
     expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();
@@ -149,5 +155,6 @@ describe('primary app shell navigation', () => {
     expect(screen.getByRole('heading', { name: 'Time to leave alone' })).toBeTruthy();
     expect(screen.getByLabelText('Select settings backup file')).toBeTruthy();
     expect(screen.getByLabelText('Select soft placement backup file')).toBeTruthy();
+    expect(screen.getByLabelText('Select Held backup file')).toBeTruthy();
   });
 });

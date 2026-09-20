@@ -1139,7 +1139,7 @@ describe('Today screen', () => {
     const nav = await screen.findByRole('navigation', { name: 'Primary' });
     expect(within(nav).getByRole('button', { name: 'Today' })).toBeTruthy();
     expect(within(nav).getByRole('button', { name: 'Plan' })).toBeTruthy();
-    expect(within(nav).getByRole('button', { name: 'Pool' })).toBeTruthy();
+    expect(within(nav).getByRole('button', { name: 'Held' })).toBeTruthy();
     expect(within(nav).getByRole('button', { name: 'Library' })).toBeTruthy();
     expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
     expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();

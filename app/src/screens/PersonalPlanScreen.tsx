@@ -450,7 +450,7 @@ export function PersonalPlanScreen({
   const suggestionEmptyMessage = poolSoftSuggestions.openCapacityBlockCount === 0
     ? 'Blank time stays blank. Add an open-capacity block in Settings only when it is genuinely available.'
     : poolSoftSuggestions.eligibleTaskCount === 0
-      ? 'Capture or return a task to Pool when you want a manual placement option.'
+      ? 'Capture or return a task to Held when you want a manual placement option.'
       : 'The minimum version or useful window does not fit. Nothing was manually placed.';
   const manualDataLoading = poolReadState.status === 'loading' || placementReadState.status === 'loading';
   const manualDataFailed = poolReadState.status === 'readFailed' || placementReadState.status === 'readFailed';
@@ -666,7 +666,7 @@ export function PersonalPlanScreen({
         >
           <h2>Some saved manual Plan data could not be loaded.</h2>
           {placementReadState.status === 'readFailed' ? <p>Saved manual placements could not be loaded.</p> : null}
-          {poolReadState.status === 'readFailed' ? <p>Saved Pool tasks could not be loaded for manual suggestions.</p> : null}
+          {poolReadState.status === 'readFailed' ? <p>Saved Held tasks could not be loaded for manual suggestions.</p> : null}
           <p>The automatic private plan and other available Plan information remain unchanged.</p>
           <p>Nothing stored on this device was changed.</p>
           <Button onClick={() => void retryManualPlanData()}>Retry manual Plan data</Button>
@@ -678,7 +678,7 @@ export function PersonalPlanScreen({
           role="status"
         >
           <h2>Some saved manual Plan data could not be read.</h2>
-          <p>Readable Pool tasks and placements remain available. Nothing stored on this device was changed.</p>
+          <p>Readable Held tasks and placements remain available. Nothing stored on this device was changed.</p>
           <Button onClick={() => void retryManualPlanData()}>Retry manual Plan data</Button>
         </section>
       ) : null}
@@ -696,7 +696,7 @@ export function PersonalPlanScreen({
               </p>
               {preferredTask ? (
                 <p className="plan-section__context">
-                  Showing {preferredTask.title} first because you chose it in Pool.
+                  Showing {preferredTask.title} first because you chose it in Held.
                 </p>
               ) : null}
             </div>

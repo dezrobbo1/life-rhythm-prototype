@@ -31,7 +31,7 @@ describe('personal task lifecycle flow', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: 'Pool' }));
+    await user.click(await screen.findByRole('button', { name: 'Held' }));
     await user.click(screen.getByRole('button', { name: 'Capture task' }));
     await user.type(screen.getByLabelText('Task title'), 'Send school form');
     await user.selectOptions(screen.getByLabelText('Area'), 'admin');
@@ -57,7 +57,7 @@ describe('personal task lifecycle flow', () => {
 
     expect(await screen.findByText('Parked. It is safely held. No catch-up pile.')).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: 'Pool' }));
+    await user.click(screen.getByRole('button', { name: 'Held' }));
     expect(await screen.findByText('Send school form')).toBeTruthy();
     expect(screen.getByText('Admin - Parked')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Bring to Today' }));
@@ -71,7 +71,7 @@ describe('personal task lifecycle flow', () => {
 
     expect(await screen.findByText('Not today. It is out of the current list. No catch-up pile.')).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: 'Pool' }));
+    await user.click(screen.getByRole('button', { name: 'Held' }));
     expect(await screen.findByText('Send school form')).toBeTruthy();
     expect(screen.getByText('Admin - Not today')).toBeTruthy();
 
