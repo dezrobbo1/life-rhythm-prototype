@@ -174,6 +174,28 @@ describe('Personal Plan read states', () => {
     expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
   });
 
+  it('reports a successful manual flexible-plan refresh as recovery', async () => {
+    const user = userEvent.setup();
+    const onPlanRecovered = vi.fn();
+    render(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen embeddedInDayLine onPlanRecovered={onPlanRecovered} />
+      </AppSnapshotProvider>,
+    );
+
+    await waitFor(() => {
+      expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(1);
+    });
+    await user.click(screen.getByText('Plan details'));
+    await user.click(screen.getByRole('button', { name: 'Refresh flexible plan' }));
+
+    await waitFor(() => {
+      expect(coordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledTimes(1);
+      expect(onPlanRecovered).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByText('Flexible private work was refreshed. External calendar events were not changed.')).toBeTruthy();
+  });
+
   it('does not show an empty Changed section on the default Plan surface', async () => {
     renderEmbeddedPlan();
 

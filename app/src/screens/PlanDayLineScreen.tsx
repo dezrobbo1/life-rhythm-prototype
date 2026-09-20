@@ -14,6 +14,8 @@ import { dayShapePreviewDays, type DayName } from '../viewModels';
 import { PersonalPlanScreen } from './PersonalPlanScreen';
 
 type PlanDayLineScreenProps = {
+  calendarRepairIssue?: string | null;
+  onCalendarRepairIssueChange?: (message: string | null) => void;
   onPlanRepaired?: () => void;
   planRevision?: number;
   preferredPlacementDate?: string | null;
@@ -40,6 +42,8 @@ function initialSelectedDate(preferredPlacementDate: string | null) {
 }
 
 export function PlanDayLineScreen({
+  calendarRepairIssue = null,
+  onCalendarRepairIssueChange,
   onPlanRepaired,
   planRevision = 0,
   preferredPlacementDate = null,
@@ -60,6 +64,15 @@ export function PlanDayLineScreen({
     () => selectedPlacementDateOverride ?? localDateForNextSelectedDay(selectedDay),
     [selectedDay, selectedPlacementDateOverride],
   );
+
+  function handleCalendarPlanRepaired() {
+    onCalendarRepairIssueChange?.(null);
+    onPlanRepaired?.();
+  }
+
+  function handlePlanRecovered() {
+    onCalendarRepairIssueChange?.(null);
+  }
 
   useEffect(() => {
     const date = initialSelectedDate(preferredPlacementDate);
@@ -188,7 +201,13 @@ export function PlanDayLineScreen({
         </p>
       </section>
 
-      {calendarReadIssue ? (
+      {calendarRepairIssue ? (
+        <section className="surface-status surface-status--error plan-default-attention" role="alert">
+          <strong>Calendar change needs attention.</strong>
+          <p>{calendarRepairIssue}</p>
+          <p>Open Plan details to retry flexible-plan repair. The saved calendar change remains on this device.</p>
+        </section>
+      ) : calendarReadIssue ? (
         <section className="surface-status surface-status--error plan-default-attention" role="alert">
           <strong>Calendar source needs attention.</strong>
           <p>{calendarReadIssue}</p>
@@ -200,11 +219,13 @@ export function PlanDayLineScreen({
         <PersonalPlanScreen
           detailsFooter={(
             <CalendarSourceControl
-              onPlanRepaired={onPlanRepaired}
+              onPlanRepaired={handleCalendarPlanRepaired}
               onReadIssueChange={setCalendarReadIssue}
+              onRepairIssueChange={onCalendarRepairIssueChange}
             />
           )}
           embeddedInDayLine
+          onPlanRecovered={handlePlanRecovered}
           planRevision={planRevision}
           preferredPlacementDate={selectedDate}
           preferredTaskId={preferredTaskId}

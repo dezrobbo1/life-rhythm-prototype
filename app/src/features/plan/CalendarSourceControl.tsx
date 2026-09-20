@@ -9,6 +9,7 @@ import { repairCurrentPrivatePlan } from '../../data/schedulerPlanCoordinator';
 
 type CalendarSourceControlProps = {
   onReadIssueChange?: (message: string | null) => void;
+  onRepairIssueChange?: (message: string | null) => void;
   onPlanRepaired?: () => void;
 };
 
@@ -48,7 +49,13 @@ function browserCalendarWindow() {
   };
 }
 
-export function CalendarSourceControl({ onPlanRepaired, onReadIssueChange }: CalendarSourceControlProps) {
+const calendarRepairFailureMessage = 'Calendar change was saved, but the flexible private plan could not be repaired.';
+
+export function CalendarSourceControl({
+  onPlanRepaired,
+  onReadIssueChange,
+  onRepairIssueChange,
+}: CalendarSourceControlProps) {
   const [savedCalendar, setSavedCalendar] = useState<SavedCalendarSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
@@ -90,18 +97,24 @@ export function CalendarSourceControl({ onPlanRepaired, onReadIssueChange }: Cal
   }, [onReadIssueChange]);
 
   async function repairAfterCalendarChange(reason: string) {
-    const repaired = await repairCurrentPrivatePlan({
-      trigger: 'calendarChanged',
-      reason,
-    });
+    try {
+      const repaired = await repairCurrentPrivatePlan({
+        trigger: 'calendarChanged',
+        reason,
+      });
 
-    if (!repaired.ok) {
-      setStatus('Calendar change was saved, but the flexible private plan could not be repaired. Open Plan again after checking the saved data.');
+      if (!repaired.ok) {
+        onRepairIssueChange?.(calendarRepairFailureMessage);
+        return false;
+      }
+
+      onRepairIssueChange?.(null);
+      onPlanRepaired?.();
+      return true;
+    } catch {
+      onRepairIssueChange?.(calendarRepairFailureMessage);
       return false;
     }
-
-    onPlanRepaired?.();
-    return true;
   }
 
   async function importCalendarFile(event: ChangeEvent<HTMLInputElement>) {
