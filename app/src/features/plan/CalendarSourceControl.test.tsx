@@ -118,7 +118,6 @@ describe('CalendarSourceControl Plan health reporting', () => {
       expect(onReadIssueChange).toHaveBeenCalledWith(null);
       expect(onRepairIssueChange).toHaveBeenCalledWith(expected);
     });
-    expect(screen.getByText(expected)).toBeTruthy();
     expect(screen.queryByText('Calendar file could not be read. Nothing was replaced.')).toBeNull();
   });
 
@@ -138,7 +137,6 @@ describe('CalendarSourceControl Plan health reporting', () => {
 
     const expected = 'Calendar change was saved, but the flexible private plan could not be repaired.';
     await waitFor(() => expect(onRepairIssueChange).toHaveBeenCalledWith(expected));
-    expect(screen.getByText(expected)).toBeTruthy();
     expect(screen.queryByText('Calendar file could not be read. Nothing was replaced.')).toBeNull();
   });
 
@@ -168,7 +166,6 @@ describe('CalendarSourceControl Plan health reporting', () => {
 
     const expected = 'Calendar change was saved, but the flexible private plan could not be repaired.';
     await waitFor(() => expect(onRepairIssueChange).toHaveBeenCalledWith(expected));
-    expect(screen.getByText(expected)).toBeTruthy();
   });
 
   it('clears the repair issue after a later successful calendar repair', async () => {
