@@ -14,6 +14,8 @@ import { dayShapePreviewDays, type DayName } from '../viewModels';
 import { PersonalPlanScreen } from './PersonalPlanScreen';
 
 type PlanDayLineScreenProps = {
+  calendarRepairIssue?: string | null;
+  onCalendarRepairIssueChange?: (message: string | null) => void;
   onPlanRepaired?: () => void;
   planRevision?: number;
   preferredPlacementDate?: string | null;
@@ -40,6 +42,8 @@ function initialSelectedDate(preferredPlacementDate: string | null) {
 }
 
 export function PlanDayLineScreen({
+  calendarRepairIssue = null,
+  onCalendarRepairIssueChange,
   onPlanRepaired,
   planRevision = 0,
   preferredPlacementDate = null,
@@ -54,7 +58,6 @@ export function PlanDayLineScreen({
   );
   const [dayLineState, setDayLineState] = useState<DayLineState>({ status: 'loading' });
   const [calendarReadIssue, setCalendarReadIssue] = useState<string | null>(null);
-  const [calendarRepairIssue, setCalendarRepairIssue] = useState<string | null>(null);
   const [retryVersion, setRetryVersion] = useState(0);
 
   const selectedDate = useMemo(
@@ -62,17 +65,13 @@ export function PlanDayLineScreen({
     [selectedDay, selectedPlacementDateOverride],
   );
 
-  useEffect(() => {
-    setCalendarRepairIssue(null);
-  }, [planRevision]);
-
   function handleCalendarPlanRepaired() {
-    setCalendarRepairIssue(null);
+    onCalendarRepairIssueChange?.(null);
     onPlanRepaired?.();
   }
 
   function handlePlanRecovered() {
-    setCalendarRepairIssue(null);
+    onCalendarRepairIssueChange?.(null);
   }
 
   useEffect(() => {
@@ -222,7 +221,7 @@ export function PlanDayLineScreen({
             <CalendarSourceControl
               onPlanRepaired={handleCalendarPlanRepaired}
               onReadIssueChange={setCalendarReadIssue}
-              onRepairIssueChange={setCalendarRepairIssue}
+              onRepairIssueChange={onCalendarRepairIssueChange}
             />
           )}
           embeddedInDayLine
