@@ -465,6 +465,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   const [planUndoError, setPlanUndoError] = useState('');
   const [reducedDayRefreshVersion, setReducedDayRefreshVersion] = useState(0);
   const [todayDisplayClock, setTodayDisplayClock] = useState(() => new Date());
+  const todayDisplayClockRef = useRef(todayDisplayClock);
   const taskWriteGenerationRef = useRef(0);
   const planReadGenerationRef = useRef(0);
   const reentryReviewPreview = useMemo(
@@ -487,6 +488,14 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   );
 
   function refreshTodayPlanFacts() {
+    const now = new Date();
+    // Date presentation must recover even when optional plan reads fail or
+    // Retry runs before a suspended timer. Do not reset mode on same-day reads.
+    if (currentLocalDate(now) !== currentLocalDate(todayDisplayClockRef.current)) {
+      setReducedDayRefreshVersion((version) => version + 1);
+    }
+    todayDisplayClockRef.current = now;
+    setTodayDisplayClock(now);
     planReadGenerationRef.current += 1;
     setTodayPlanReadAttempt((attempt) => attempt + 1);
   }
@@ -704,8 +713,6 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       // yesterday's snapshot and then wait until tomorrow to refresh it.
       const completedAt = new Date();
       if (currentLocalDate(completedAt) !== readDate) {
-        setTodayDisplayClock(completedAt);
-        setReducedDayRefreshVersion((version) => version + 1);
         refreshTodayPlanFacts();
         return;
       }
@@ -730,7 +737,6 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
 
       const refreshAt = nextTodayRefreshAt(readStartedAt, surface.nextBoundaryTime);
       if (refreshAt <= completedAt.getTime()) {
-        setTodayDisplayClock(completedAt);
         refreshTodayPlanFacts();
         return;
       }
@@ -757,30 +763,27 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   }, [nextActiveTask?.id, nextTask?.id, planRevision, todayPlanReadAttempt]);
 
   useEffect(() => {
-    if (todayPlanReadState.status !== 'ready') return undefined;
-
-    const { readDate, refreshAt } = todayPlanReadState;
+    // A date-boundary timer exists in loading/error states too. A ready plan
+    // may refine that deadline to an earlier factual placement boundary.
+    const displayedClock = todayDisplayClockRef.current;
+    const readDate = todayPlanReadState.status === 'ready'
+      ? todayPlanReadState.readDate
+      : currentLocalDate(displayedClock);
+    const refreshAt = todayPlanReadState.status === 'ready'
+      ? todayPlanReadState.refreshAt
+      : nextTodayRefreshAt(displayedClock, null);
     const now = new Date();
-    const refreshAtCurrentTime = () => {
-      const firedAt = new Date();
-      setTodayDisplayClock(firedAt);
-      // Timers can be delivered long after their scheduled deadline when a
-      // tab resumes. Only the actual callback date determines the active mode.
-      if (currentLocalDate(firedAt) !== readDate) {
-        setReducedDayRefreshVersion((version) => version + 1);
-      }
-      refreshTodayPlanFacts();
-    };
 
-    // The date or a same-day boundary can pass between completion and setup.
-    // Preserve that expired deadline and refresh now instead of skipping it.
-    if (readDate !== currentLocalDate(now) || refreshAt <= now.getTime()) {
-      refreshAtCurrentTime();
+    // Preserve expired deadlines, including a day change while no plan was
+    // ready. The refresh path compares the actual date with the displayed one.
+    if (currentLocalDate(displayedClock) !== currentLocalDate(now) ||
+        readDate !== currentLocalDate(now) || refreshAt <= now.getTime()) {
+      refreshTodayPlanFacts();
       return undefined;
     }
 
     const timeout = window.setTimeout(
-      refreshAtCurrentTime,
+      refreshTodayPlanFacts,
       Math.max(1, refreshAt - now.getTime()),
     );
 
