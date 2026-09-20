@@ -37,12 +37,18 @@ vi.mock('dexie', () => ({
 vi.mock('../data/schedulerPlanCoordinator', () => coordinatorMocks);
 vi.mock('../data/schedulerPlanStateRepository', () => schedulerStateMocks);
 vi.mock('../features/plan/CalendarSourceControl', () => ({
-  CalendarSourceControl: ({ onReadIssueChange }: {
+  CalendarSourceControl: ({ onReadIssueChange, onRepairIssueChange }: {
     onReadIssueChange?: (message: string | null) => void;
+    onRepairIssueChange?: (message: string | null) => void;
   }) => (
-    <button onClick={() => onReadIssueChange?.('Saved calendar data could not be read safely.')}>
-      Report calendar issue
-    </button>
+    <>
+      <button onClick={() => onReadIssueChange?.('Saved calendar data could not be read safely.')}>
+        Report calendar issue
+      </button>
+      <button onClick={() => onRepairIssueChange?.('Calendar change was saved, but the flexible private plan could not be repaired.')}>
+        Report calendar repair issue
+      </button>
+    </>
   ),
 }));
 vi.mock('./PersonalPlanScreen', () => ({
@@ -244,5 +250,17 @@ describe('Gate 6C Plan Day Line screen', () => {
     expect(alert.textContent).toContain('Calendar source needs attention.');
     expect(alert.textContent).toContain('Saved calendar data could not be read safely.');
     expect(alert.textContent).toContain('Nothing stored on this device was changed.');
+  });
+  it('keeps a calendar repair failure visible outside closed Plan details', async () => {
+    const user = userEvent.setup();
+    render(<PlanDayLineScreen preferredPlacementDate={mondayDate} />);
+
+    await screen.findByText('School run');
+    await user.click(screen.getByRole('button', { name: 'Report calendar repair issue' }));
+
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('Calendar change needs attention.');
+    expect(alert.textContent).toContain('Calendar change was saved, but the flexible private plan could not be repaired.');
+    expect(alert.textContent).toContain('The saved calendar change remains on this device.');
   });
 });
