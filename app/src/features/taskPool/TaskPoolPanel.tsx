@@ -12,7 +12,11 @@ import {
 import type { CollectionReadResult } from '../../data/collectionReadResult';
 import type { SoftPlacement, TaskPoolItem, TaskPoolItemStatus } from '../../data/schemas';
 import { TaskPoolCaptureModal } from './TaskPoolCaptureModal';
-import { captureTaskPoolItem, type TaskPoolCaptureInput } from './taskPoolCapture';
+import {
+  captureTaskPoolItem,
+  type TaskPoolCaptureInput,
+  type TaskPoolCaptureResult,
+} from './taskPoolCapture';
 import { TaskPoolDeferModal } from './TaskPoolDeferModal';
 import {
   buildTaskPoolResurfacingGroups,
@@ -262,7 +266,7 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
     return () => clearTimeout(timer);
   }, [clockMs, taskPoolItems]);
 
-  const saveCapturedTask = useCallback(async (input: TaskPoolCaptureInput): Promise<boolean> => {
+  const saveCapturedTask = useCallback(async (input: TaskPoolCaptureInput): Promise<TaskPoolCaptureResult> => {
     setTaskPoolFeedback(null);
     taskPoolWriteGenerationRef.current += 1;
 
@@ -273,7 +277,7 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
         kind: 'error',
         lines: result.errors,
       });
-      return false;
+      return result;
     }
 
     await refreshTaskPoolItems();
@@ -282,7 +286,7 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
       kind: 'success',
       lines: ['Task captured. It is safely held.'],
     });
-    return true;
+    return result;
   }, [refreshTaskPoolItems]);
 
   const moveTaskToToday = useCallback(async (item: TaskPoolItem) => {

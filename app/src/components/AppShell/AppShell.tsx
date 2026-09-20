@@ -12,6 +12,8 @@ const navItems: Array<{ id: ScreenId; icon: AppIconName; label: string }> = [
   { id: 'library', icon: 'library', label: 'Library' },
 ];
 
+const captureScreenIds = new Set<ScreenId>(['today', 'plan', 'pool', 'library']);
+
 type AppShellProps = {
   activeScreen: ScreenId;
   children: ReactNode;
@@ -45,7 +47,7 @@ export function AppShell({
           </div>
         </div>
         <div className="app-header__actions">
-          {onCapture ? (
+          {onCapture && captureScreenIds.has(activeScreen) ? (
             <button className="shell-capture-action" onClick={onCapture} type="button">
               <AppIcon name="add" size={16} />
               <span>Capture</span>

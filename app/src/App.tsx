@@ -11,7 +11,11 @@ import { SetupScreen } from './screens/SetupScreen';
 import { CalendarSourceControl } from './features/plan/CalendarSourceControl';
 import { TimeDisruptionRepairWatcher } from './features/plan/TimeDisruptionRepairWatcher';
 import { TaskPoolCaptureModal } from './features/taskPool/TaskPoolCaptureModal';
-import { captureTaskPoolItem, type TaskPoolCaptureInput } from './features/taskPool/taskPoolCapture';
+import {
+  captureTaskPoolItem,
+  type TaskPoolCaptureInput,
+  type TaskPoolCaptureResult,
+} from './features/taskPool/taskPoolCapture';
 import type { ThemeName } from './app/theme';
 import { AppSnapshotProvider } from './data/AppSnapshotProvider';
 import {
@@ -298,19 +302,19 @@ export default function App() {
     setActiveScreen('plan');
   }
 
-  async function handleCaptureTask(input: TaskPoolCaptureInput): Promise<boolean> {
+  async function handleCaptureTask(input: TaskPoolCaptureInput): Promise<TaskPoolCaptureResult> {
     setCaptureFeedback(null);
     const result = await captureTaskPoolItem(input);
 
     if (!result.ok) {
       setCaptureFeedback({ kind: 'error', message: result.errors[0] ?? 'Task was not captured. Nothing else changed.' });
-      return false;
+      return result;
     }
 
     setCaptureOpen(false);
     setCaptureRevision((revision) => revision + 1);
     setCaptureFeedback({ kind: 'success', message: 'Task captured. It is safely held.' });
-    return true;
+    return result;
   }
 
   const appSnapshot = useMemo<AppDataSnapshot>(

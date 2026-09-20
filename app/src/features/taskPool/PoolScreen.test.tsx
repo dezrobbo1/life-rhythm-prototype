@@ -247,6 +247,26 @@ describe('Pool screen', () => {
     expect(dialog.textContent?.toLowerCase() ?? '').not.toContain('calendar');
   });
 
+  it('shows the real Held storage error inside the capture modal', async () => {
+    const user = userEvent.setup();
+    const database = getCurrentLifeRhythmDatabase();
+    const putSpy = vi.spyOn(database.taskPoolItems, 'put');
+
+    render(<PoolScreen />);
+
+    await screen.findByText('No captured tasks yet.');
+    vi.spyOn(database.taskPoolItems, 'toArray').mockRejectedValueOnce(new Error('storage unavailable'));
+    await user.click(screen.getByRole('button', { name: 'Capture task' }));
+    await user.type(screen.getByLabelText('Task title'), 'Keep this unsaved');
+    await user.type(screen.getByLabelText('Minimum version'), 'One safe step');
+    await user.click(screen.getByRole('button', { name: 'Save captured task' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Capture task' });
+    expect(await within(dialog).findByText(/Saved Held tasks could not be read, so nothing was captured/)).toBeTruthy();
+    expect(within(dialog).queryByText('Task was not captured. Check the required fields.')).toBeNull();
+    expect(putSpy).not.toHaveBeenCalled();
+  });
+
   it('captures a valid task into the Pool without creating Today tasks or soft placements', async () => {
     const user = userEvent.setup();
     const fetchSpy = vi.fn();

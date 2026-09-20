@@ -54,6 +54,12 @@ describe('persistent shell Capture', () => {
     }
 
     expect(within(nav).queryByRole('button', { name: 'Capture' })).toBeNull();
+
+    const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
+    await user.click(within(secondaryNav).getByRole('button', { name: 'Reset' }));
+    expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
+    await user.click(within(secondaryNav).getByRole('button', { name: 'Settings' }));
+    expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
   });
 
   it('captures once from Today, stays on Today, and shows the saved task in Held', async () => {
@@ -111,8 +117,9 @@ describe('persistent shell Capture', () => {
     await user.type(screen.getByLabelText('Minimum version'), 'One safe step');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
-    expect(await screen.findByText(/Saved Held tasks could not be read, so nothing was captured/)).toBeTruthy();
-    expect(screen.getByRole('dialog', { name: 'Capture task' })).toBeTruthy();
+    const dialog = screen.getByRole('dialog', { name: 'Capture task' });
+    expect(await within(dialog).findByText(/Saved Held tasks could not be read, so nothing was captured/)).toBeTruthy();
+    expect(within(dialog).queryByText('Task was not captured. Check the required fields.')).toBeNull();
     expect(screen.queryByText('Task captured. It is safely held.')).toBeNull();
     expect(putSpy).not.toHaveBeenCalled();
   });
