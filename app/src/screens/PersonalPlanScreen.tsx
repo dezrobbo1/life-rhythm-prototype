@@ -69,7 +69,7 @@ type SurfaceCollectionState<T> =
 type PersonalPlanScreenProps = {
   detailsFooter?: ReactNode;
   embeddedInDayLine?: boolean;
-  onPlanRepaired?: () => void;
+  onPlanRecovered?: () => void;
   planRevision?: number;
   preferredPlacementDate?: string | null;
   preferredTaskId?: string | null;
@@ -110,7 +110,7 @@ function formatChangedLine(
 export function PersonalPlanScreen({
   detailsFooter = null,
   embeddedInDayLine = false,
-  onPlanRepaired,
+  onPlanRecovered,
   planRevision = 0,
   preferredPlacementDate = null,
   preferredTaskId = null,
@@ -337,7 +337,7 @@ export function PersonalPlanScreen({
       });
       const applied = applyPrivatePlanResult(result);
       if (applied) {
-        onPlanRepaired?.();
+        onPlanRecovered?.();
       }
       setPrivatePlanFeedback(
         applied
@@ -349,7 +349,7 @@ export function PersonalPlanScreen({
     } finally {
       setPrivatePlanBusy(null);
     }
-  }, [applyPrivatePlanResult, onPlanRepaired]);
+  }, [applyPrivatePlanResult, onPlanRecovered]);
 
   const undoPrivatePlan = useCallback(async () => {
     setPrivatePlanBusy('undo');
