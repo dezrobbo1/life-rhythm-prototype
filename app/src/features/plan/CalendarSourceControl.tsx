@@ -6,6 +6,10 @@ import {
   removeCalendarSource,
 } from '../../data/calendarSourceRepository';
 import { repairCurrentPrivatePlan } from '../../data/schedulerPlanCoordinator';
+import {
+  CALENDAR_REPAIR_PENDING_MESSAGE,
+  markCalendarRepairPending,
+} from '../../data/schedulerPlanStateRepository';
 
 type CalendarSourceControlProps = {
   onReadIssueChange?: (message: string | null) => void;
@@ -48,8 +52,6 @@ function browserCalendarWindow() {
     end: addDays(start, 30),
   };
 }
-
-const calendarRepairFailureMessage = 'Calendar change was saved, but the flexible private plan could not be repaired.';
 
 export function CalendarSourceControl({
   onPlanRepaired,
@@ -98,13 +100,14 @@ export function CalendarSourceControl({
 
   async function repairAfterCalendarChange(reason: string) {
     try {
+      await markCalendarRepairPending();
       const repaired = await repairCurrentPrivatePlan({
         trigger: 'calendarChanged',
         reason,
       });
 
       if (!repaired.ok) {
-        onRepairIssueChange?.(calendarRepairFailureMessage);
+        onRepairIssueChange?.(CALENDAR_REPAIR_PENDING_MESSAGE);
         return false;
       }
 
@@ -112,7 +115,7 @@ export function CalendarSourceControl({
       onPlanRepaired?.();
       return true;
     } catch {
-      onRepairIssueChange?.(calendarRepairFailureMessage);
+      onRepairIssueChange?.(CALENDAR_REPAIR_PENDING_MESSAGE);
       return false;
     }
   }

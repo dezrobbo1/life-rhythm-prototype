@@ -1,3 +1,4 @@
+import { liveQuery } from 'dexie';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
 import { AppShell, type ScreenId } from './components/AppShell/AppShell';
@@ -30,6 +31,10 @@ import type { LegacySettingsConflict } from './data/dayProfileMigration';
 import { exportSettingsBackup, type SettingsBackupExport } from './data/settingsExport';
 import { exportSoftPlacementBackup, type SoftPlacementBackupExport } from './data/softPlacementBackup';
 import { exportTaskPoolBackup, type TaskPoolBackupExport } from './data/taskPoolBackup';
+import {
+  CALENDAR_REPAIR_PENDING_MESSAGE,
+  loadSchedulerPlanState,
+} from './data/schedulerPlanStateRepository';
 import {
   emptyAppSnapshot,
   normalDayWithOneTaskSnapshot,
@@ -201,6 +206,29 @@ export default function App() {
   const handlePrivatePlanChanged = useCallback(() => {
     setCalendarRepairIssue(null);
     setPlanRevision((revision) => revision + 1);
+  }, []);
+
+  useEffect(() => {
+    const subscription = liveQuery(() => loadSchedulerPlanState()).subscribe({
+      next: (result) => {
+        if (result.status === 'missing') {
+          setCalendarRepairIssue(null);
+          return;
+        }
+
+        if (result.status === 'ok') {
+          setCalendarRepairIssue(
+            result.calendarRepairPendingAt ? CALENDAR_REPAIR_PENDING_MESSAGE : null,
+          );
+        }
+      },
+      error: () => {
+        // Plan surfaces retain their existing read-failure presentation. A
+        // failed health read is not evidence that earlier attention cleared.
+      },
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {

@@ -16,6 +16,7 @@ import {
 import {
   buildAndPersistSchedulerPlan,
   loadSchedulerPlanState,
+  markCalendarRepairPending,
   repairAndPersistSchedulerPlan,
   undoPersistedSchedulerRepair,
 } from './schedulerPlanStateRepository';
@@ -172,6 +173,87 @@ describe('persisted Gate 4 scheduler plan state', () => {
       if (loaded.status !== 'ok') throw new Error('Expected saved scheduler plan state.');
       expect(loaded.plan).toEqual(built.plan);
       await expectOnlySchedulerPlanStateWritten(database);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('persists calendar repair attention without changing the accepted private plan, then clears it on repair', async () => {
+    const database = createTestDatabase();
+
+    try {
+      const built = await buildAndPersistSchedulerPlan(
+        model(),
+        database,
+        '2026-09-07T00:00:00.000Z',
+      );
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+
+      const marked = await markCalendarRepairPending(
+        database,
+        '2026-09-07T00:03:00.000Z',
+      );
+      expect(marked).toEqual({ ok: true, persisted: true });
+
+      const pending = await loadSchedulerPlanState(database);
+      expect(pending).toMatchObject({
+        calendarRepairPendingAt: '2026-09-07T00:03:00.000Z',
+        plan: built.plan,
+        status: 'ok',
+        updatedAt: '2026-09-07T00:00:00.000Z',
+      });
+
+      const repaired = await repairAndPersistSchedulerPlan(
+        {
+          reason: 'Current calendar was used for a successful repair.',
+          trigger: 'manualReplan',
+          now: { date: today, time: '08:00', timezone },
+          nextInput: model([candidate('later', '10:00', '11:00')]),
+        },
+        database,
+        '2026-09-07T00:05:00.000Z',
+      );
+      expect(repaired.ok).toBe(true);
+
+      const recovered = await loadSchedulerPlanState(database);
+      expect(recovered.status).toBe('ok');
+      if (recovered.status !== 'ok') return;
+      expect(recovered.calendarRepairPendingAt).toBeUndefined();
+      expect(recovered.updatedAt).toBe('2026-09-07T00:05:00.000Z');
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('does not treat plan-only Undo as proof that a pending calendar repair recovered', async () => {
+    const database = createTestDatabase();
+
+    try {
+      const built = await buildAndPersistSchedulerPlan(model(), database, '2026-09-07T00:00:00.000Z');
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+      const repaired = await repairAndPersistSchedulerPlan(
+        {
+          reason: 'Create one supported Undo snapshot.',
+          trigger: 'manualReplan',
+          now: { date: today, time: '08:00', timezone },
+          nextInput: model([candidate('later', '10:00', '11:00')]),
+        },
+        database,
+        '2026-09-07T00:02:00.000Z',
+      );
+      if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+
+      const marked = await markCalendarRepairPending(database, '2026-09-07T00:03:00.000Z');
+      expect(marked).toEqual({ ok: true, persisted: true });
+
+      const undone = await undoPersistedSchedulerRepair(database, '2026-09-07T00:04:00.000Z');
+      expect(undone.ok).toBe(true);
+
+      const loaded = await loadSchedulerPlanState(database);
+      expect(loaded).toMatchObject({
+        calendarRepairPendingAt: '2026-09-07T00:03:00.000Z',
+        status: 'ok',
+      });
     } finally {
       await database.delete();
     }
