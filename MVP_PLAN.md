@@ -203,7 +203,7 @@ Do not preserve existing object grammar merely because it is documented. Reuse g
 
 Exit condition: the user can operate the day without understanding Pool status, placement machinery, solver concepts or internal state boundaries.
 
-Status (Gate 6F, 2026-09-20): **Complete.** The connected v0 daily-loop acceptance and exit matrix are recorded in `app/docs/gate6-exit-report.md`. Gate 7 is next. Issue #146 remains an explicit DST-boundary limitation, and issue #141 remains governance-only follow-up work.
+Status (Gate 6F, 2026-09-20): **Not yet complete.** The connected v0 daily-loop acceptance and exit matrix are recorded in `app/docs/gate6-exit-report.md`. Repository, exact-head desktop and keyboard evidence pass, but the required approximately-390-pixel browser walkthrough remains unexecuted because no supported resize-capable browser was available. Gate 7 has not begun. Issue #146 remains an explicit DST-boundary limitation, and issue #141 remains governance-only follow-up work.
 
 ### Gate 7 — Behavioural Learning v0
 

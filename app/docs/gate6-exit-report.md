@@ -1,14 +1,14 @@
 # Gate 6 exit report — v0 daily loop
 
-Gate 6 exits with a **PASS**. The ordinary daily loop is coherent without requiring the user to understand Pool status, placement machinery, solver concepts, or internal persistence boundaries. The conclusion is bounded to the implemented v0 surfaces and the evidence below; it is not a claim that every scheduler or time-zone edge is solved.
+Gate 6 remains **NOT YET**. Repository and exact-head desktop evidence show a coherent ordinary daily loop without requiring the user to understand Pool status, placement machinery, solver concepts, or internal persistence boundaries. The required approximately-390-pixel browser acceptance could not be executed with the available viewport controls, so this report does not promote that bounded evidence to a complete Gate 6 exit.
 
 ## Tested source
 
 - Starting main: `8455080d10ba64a4fac4edd593ec7575a1e02b50`
 - Branch: `agent/gate6f-v0-daily-loop-acceptance`
-- Locally tested implementation/test head: `489a9cf10d02a8126fc8aec67947d886753c042a`
-- Published equivalent head: `096572b8bcd05f90525a5d3fb64ca24f7ebb5487`
-- Shared source tree: `1cc0414523e2978f1c6aabab076e31a12a1eaf32`
+- Locally tested implementation/test head: `9a749af66679ce9b82f19f716f62fe8c5d95b08c`
+- Published equivalent head: `af218acd1883a6d55f1d27289a236e6d812e3a3b`
+- Shared source tree: `ffac7b2abc660c53fde01d1f6c70d6e64b40466c`
 
 The implementation and published commits have different commit IDs because the authorized GitHub connector created the published commit, but their tree IDs are identical. This report and the small delivery-status update are documentation-only changes after that tested source tree. Their publication head and tree are recorded in PR #147 and the delivery handoff.
 
@@ -23,7 +23,7 @@ The implementation and published commits have different commit IDs because the a
 | Gate 6E0 | Library custom-rhythm reads remain truthful without hiding the built-in catalogue. |
 | Gate 6E1 | Pool became the user-facing Held surface and Capture became persistently reachable. |
 | Gate 6E2 | Day Line became the default Plan product; detailed machinery moved behind Plan details without changing scheduler authority. |
-| Gate 6F | The connected daily loop was accepted and calendar-repair attention was made durable across reload. |
+| Gate 6F | The connected daily loop was exercised, calendar-repair attention was made durable across reload, and final mobile browser acceptance remains open. |
 
 ## Exit matrix
 
@@ -33,14 +33,14 @@ The implementation and published commits have different commit IDs because the a
 | Capture | PASS | The connected App test captures one item into Held, stays on Today, and verifies that no active task, soft placement, or calendar source is created. |
 | Held | PASS | The same journey adds the captured item to Today and later parks it back into Held using the real linked lifecycle repositories. Existing defer, Not today, No longer needed, and Plan-handoff suites remain green. |
 | Plan | PASS | Day Line is the visible default; protected, ask-first, fixed, and accepted private facts retain their truth boundaries. Plan details remain closed by default and can be opened and closed without changing scheduler authority. |
-| Automatic repair | PASS | Existing scheduler, Today, Plan, Changed, and Undo persistence suites remain green. Gate 6F additionally fixes the one exit blocker found: a saved calendar change whose repair fails remains visible after reload until a later canonical repair succeeds. |
+| Automatic repair | PASS | Existing scheduler, Today, Plan, Changed, and Undo persistence suites remain green. A saved calendar change whose repair fails remains visible after reload until a later canonical repair succeeds. Marker-write failure now stops repair, Today suppresses stale automatic-plan facts while repair is pending, and Undo of a calendar repair restores pending attention. |
 | Reduced Day | PASS | Existing preview/apply, persisted date-scoped mode, Changed, Undo, Return to normal, reload, and next-date suites remain green in both required time zones. |
 | Minimum Done | PASS | The connected journey exercises Start, Minimum Done, Keep going, Pause, Resume, and Park, then verifies durable `minimumAchievedAt` in the real active-task record. Existing reload coverage remains green. |
 | Re-entry | PASS | Existing real-repository and Today suites preserve usefulness-based choices, exact Try Minimum selection, and the no-catch-up boundary. Rendering review remains read-only. |
 | Failure and trust | PASS | Gate 6 read-health suites remain green. The Gate 6F calendar-attention regression proves failure survives an App remount and clears through a later successful persisted repair, not through a local callback alone. |
-| Desktop browser | NOT TESTABLE IN AVAILABLE ENVIRONMENT | The exact-head Vercel preview deployed successfully but redirected the connected browser to protected Vercel sign-in, and no advertised browser-auth capability was available. Localhost was blocked from the connected browser. |
-| Approximately 390 px browser | NOT TESTABLE IN AVAILABLE ENVIRONMENT | No supported browser with viewport control could reach the exact-head application. Automated responsive/accessibility coverage passed, but it is not reported as a browser pass. |
-| Keyboard browser journey | NOT TESTABLE IN AVAILABLE ENVIRONMENT | The protected preview prevented exact-head interactive keyboard acceptance. Component tests still cover modal focus restoration, keyboard-operable disclosures, and accessible actions, but they are not reported as a browser walkthrough. |
+| Desktop browser | PASS | An authenticated exact-head Vercel preview was exercised at 1363 px. Today, Capture, Held, Plan, Library, Settings, task lifecycle, durable Minimum, Reduced Day preview/apply, and mode-aware Undo were operable. Primary surfaces had no horizontal overflow and no application-origin console errors. |
+| Approximately 390 px browser | NOT TESTABLE IN AVAILABLE ENVIRONMENT | The exact-head browser was reachable, but the available browser runtime exposed no viewport-resize capability and no installed local browser path was available. Automated responsive/accessibility coverage passed, but it is not reported as a browser pass. This is the remaining Gate 6 exit blocker. |
+| Keyboard browser journey | PASS | The exact-head walkthrough used keyboard activation for primary navigation, Capture, Held handoff, Plan details, Today Details, Start Boost, Reduced Day, and Undo. Capture Escape restored focus to its trigger. |
 
 ## Connected daily-loop scenario
 
@@ -59,18 +59,19 @@ Dedicated integration suites cover the state-heavy continuations that are unsafe
 
 Acceptance found one concrete trust blocker inherited from the merged calendar-attention correction: after a calendar source was saved and private-plan repair failed, the attention state lived only in React memory. Reload could therefore show a changed calendar beside a stale private plan without the warning.
 
-Gate 6F stores an optional validated `calendarRepairPendingAt` marker in the existing scheduler-plan state record. No database version, table, index, or migration changed. Calendar-source changes mark the plan pending before repair; successful canonical plan writes clear the marker; plan-only Undo preserves it because Undo does not repair the changed calendar context. A live read keeps Plan attention current across routes, reload, and successful repairs from any canonical path.
+Gate 6F stores an optional validated `calendarRepairPendingAt` marker in the existing scheduler-plan state record. No database version, table, index, or migration changed. Calendar-source changes must persist that marker before repair proceeds; successful canonical plan writes clear it. While the marker is present, Today keeps its task and readable fixed/user-confirmed facts usable but hides stale automatic placements and Changed metadata behind a targeted warning. Undo of a successful calendar repair re-marks the restored pre-calendar private plan as pending because Undo does not repair the changed calendar context. Live reads keep Plan and Today attention current across routes, reload, and successful repairs from any canonical path.
 
 ## Automated evidence
 
-- Focused affected matrix: 16 files, 230 tests passed.
-- Default full suite: 73 files, 864 tests passed.
-- UTC full suite: 73 files, 864 tests passed.
-- Australia/Perth full suite: 73 files, 864 tests passed on the fresh rerun.
+- Gate 6 acceptance matrix: 16 files, 230 tests passed.
+- Focused review-correction matrix: 6 files, 157 tests passed.
+- Default full suite: 73 files, 867 tests passed.
+- UTC full suite: 73 files, 867 tests passed.
+- Australia/Perth full suite: 73 files, 867 tests passed.
 - Build: TypeScript and Vite production build passed.
 - Diff check: passed.
 
-The first Perth full attempt exposed a timing-only failure in the untouched `AppSettingsPersistence.test.tsx`. That file passed immediately in isolation under Perth, and the complete Perth suite then passed without a code change. It is recorded as an execution flake, not hidden as a product failure.
+An earlier Perth full attempt exposed a timing-only failure in the untouched `AppSettingsPersistence.test.tsx`. That file passed immediately in isolation under Perth, the complete suite passed without a code change, and the final post-review Perth suite passed cleanly. It is recorded as an execution flake, not hidden as a product failure.
 
 ## Bounded qualitative review
 
@@ -85,11 +86,11 @@ The first Perth full attempt exposed a timing-only failure in the untouched `App
 
 - Issue #146 remains open. Spring-forward nonexistent local times and fall-back ambiguous internal placement times do not yet have the promised DST-safe boundary semantics. Gate 6F used ordinary non-transition dates and does not close or weaken that issue.
 - Issue #141 remains open as governance wording for schema-compatible next-milestone guidance. It does not block the product acceptance result.
-- Exact-head desktop, approximately-390-pixel, and keyboard browser walkthroughs remain unverified because deployment protection and unavailable local browser tooling blocked the supported paths. Automated interaction and accessibility evidence is green, but no browser pass is inferred.
+- Exact-head desktop and keyboard walkthroughs passed through a temporary authenticated preview path. The approximately-390-pixel walkthrough remains unverified because neither the exact-head browser runtime nor the local environment exposed a supported resize-capable browser. Automated responsive/accessibility evidence is green, but no mobile browser pass is inferred.
 - The existing production bundle-size advisory remains non-blocking and unchanged.
 
 ## Decision
 
-**GATE 6 EXIT — PASS**
+**GATE 6 EXIT — NOT YET**
 
-No unresolved Gate 6 surface blocker remains in repository evidence. Gate 7 is the next planned milestone, but this report does not begin Gate 7 implementation.
+The single remaining exit blocker is execution of the required approximately-390-pixel browser acceptance on the exact published tree (or an explicit owner decision to accept the unavailable evidence). Gate 7 has not begun.
