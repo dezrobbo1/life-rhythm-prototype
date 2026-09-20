@@ -194,10 +194,12 @@ export default function App() {
   const [preferredPlanPlacementDate, setPreferredPlanPlacementDate] = useState<string | null>(null);
   const [preferredPlanTaskId, setPreferredPlanTaskId] = useState<string | null>(null);
   const [planRevision, setPlanRevision] = useState(0);
+  const [calendarRepairIssue, setCalendarRepairIssue] = useState<string | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [captureRevision, setCaptureRevision] = useState(0);
   const [captureFeedback, setCaptureFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const handlePrivatePlanChanged = useCallback(() => {
+    setCalendarRepairIssue(null);
     setPlanRevision((revision) => revision + 1);
   }, []);
 
@@ -366,6 +368,8 @@ export default function App() {
     plan: (
       <>
         <PlanDayLineScreen
+          calendarRepairIssue={calendarRepairIssue}
+          onCalendarRepairIssueChange={setCalendarRepairIssue}
           onPlanRepaired={handlePrivatePlanChanged}
           planRevision={planRevision}
           preferredPlacementDate={preferredPlanPlacementDate}
