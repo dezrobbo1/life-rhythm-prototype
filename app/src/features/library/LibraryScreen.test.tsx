@@ -80,6 +80,23 @@ function validLibraryBackupJson(overrides: Partial<RhythmTemplate> = {}) {
   );
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+
+  return { promise, resolve };
+}
+
+function readableCustomRhythms(items: RhythmTemplate[] = [], invalidRecordCount = 0) {
+  return {
+    invalidRecordCount,
+    items,
+    status: invalidRecordCount > 0 ? 'partial' as const : 'ok' as const,
+  };
+}
+
 const originalCreateObjectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
 const originalRevokeObjectUrl = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
 
@@ -124,7 +141,7 @@ beforeEach(() => {
     ok: true,
     task: activeTaskSchema.parse(task),
   }));
-  libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue([]);
+  libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue(readableCustomRhythms());
   libraryRepositoryMocks.saveCustomLibraryRhythm.mockImplementation(async (rhythm: unknown) => ({
     ok: true,
     rhythm: rhythmTemplateSchema.parse(rhythm),
@@ -164,6 +181,140 @@ describe('Library screen', () => {
     await user.type(screen.getByLabelText('Purpose'), 'Give loose paperwork one safe place.');
     await user.type(screen.getByLabelText('Minimum version'), 'Put one paper in the folder.');
   }
+
+  it('keeps the built-in catalogue visible while saved custom rhythms are still loading', async () => {
+    const pendingRead = deferred<ReturnType<typeof readableCustomRhythms>>();
+    libraryRepositoryMocks.loadCustomLibraryRhythms.mockReturnValueOnce(pendingRead.promise);
+    render(<LibraryScreen />);
+
+    expect(screen.getByRole('status', { name: 'Saved Library rhythm loading' }).textContent).toContain(
+      'Reading saved custom rhythms',
+    );
+    expect(screen.queryByText('No saved custom rhythms yet.')).toBeNull();
+    expect(screen.getByRole('article', { name: 'Breakfast reset' })).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Create rhythm' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Export Library rhythms backup' }) as HTMLButtonElement).disabled).toBe(true);
+
+    pendingRead.resolve(readableCustomRhythms());
+    await screen.findByText('No saved custom rhythms yet.');
+  });
+
+  it('keeps built-in rhythms usable when the saved custom-rhythm read fails', async () => {
+    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValueOnce({
+      errors: ['rhythmTemplates: Saved custom Library rhythms could not be read.'],
+      status: 'readFailed',
+    });
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    const warning = await screen.findByRole('alert', { name: 'Saved Library rhythm read failure' });
+    expect(warning.textContent).toContain('Saved custom rhythms could not be loaded.');
+    expect(warning.textContent).toContain('Nothing stored on this device was changed.');
+    expect(screen.queryByText('No saved custom rhythms yet.')).toBeNull();
+    expect((screen.getByRole('button', { name: 'Create rhythm' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Export Library rhythms backup' }) as HTMLButtonElement).disabled).toBe(true);
+
+    const builtIn = screen.getByRole('article', { name: 'Breakfast reset' });
+    await user.click(within(builtIn).getByRole('button', { name: 'Add to Today now' }));
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).toHaveBeenCalledTimes(1);
+    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
+  });
+
+  it('retries read-only after failure and restores saved custom rhythms with sensible focus', async () => {
+    libraryRepositoryMocks.loadCustomLibraryRhythms
+      .mockResolvedValueOnce({
+        errors: ['rhythmTemplates: Saved custom Library rhythms could not be read.'],
+        status: 'readFailed',
+      })
+      .mockResolvedValueOnce(readableCustomRhythms([savedRhythmTemplate()]));
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    await user.click(await screen.findByRole('button', { name: 'Retry saved rhythms' }));
+
+    expect(await screen.findByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
+    expect(libraryRepositoryMocks.loadCustomLibraryRhythms).toHaveBeenCalledTimes(2);
+    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Create rhythm' }));
+  });
+
+  it('keeps a repeated saved-data read failure truthful and returns focus to Retry', async () => {
+    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue({
+      errors: ['rhythmTemplates: Saved custom Library rhythms could not be read.'],
+      status: 'readFailed',
+    });
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    await user.click(await screen.findByRole('button', { name: 'Retry saved rhythms' }));
+    const retry = await screen.findByRole('button', { name: 'Retry saved rhythms' });
+
+    expect(screen.getByRole('alert', { name: 'Saved Library rhythm read failure' })).toBeTruthy();
+    expect(screen.queryByText('No saved custom rhythms yet.')).toBeNull();
+    expect(document.activeElement).toBe(retry);
+    expect(libraryRepositoryMocks.loadCustomLibraryRhythms).toHaveBeenCalledTimes(2);
+    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
+  });
+
+  it('shows valid custom rhythms with a partial-read warning and leaves create available', async () => {
+    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValueOnce(
+      readableCustomRhythms([savedRhythmTemplate()], 2),
+    );
+    render(<LibraryScreen />);
+
+    expect(await screen.findByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
+    const warning = screen.getByRole('status', { name: 'Saved Library rhythm warning' });
+    expect(warning.textContent).toContain('Some saved Library rhythm data could not be read.');
+    expect(warning.textContent).toContain('2 saved custom rhythm records were left unchanged.');
+    expect((screen.getByRole('button', { name: 'Create rhythm' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
+  });
+
+  it('does not allow a stale initial read to overwrite a newer successful Retry', async () => {
+    const initialRead = deferred<ReturnType<typeof readableCustomRhythms>>();
+    libraryRepositoryMocks.loadCustomLibraryRhythms
+      .mockReturnValueOnce(initialRead.promise)
+      .mockResolvedValueOnce(readableCustomRhythms([savedRhythmTemplate()]));
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    await user.click(screen.getByRole('button', { name: 'Retry saved rhythms' }));
+    expect(await screen.findByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
+
+    initialRead.resolve(readableCustomRhythms());
+    await waitFor(() => expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy());
+  });
+
+  it('does not let a read started during a save erase the newly created rhythm', async () => {
+    const retryRead = deferred<ReturnType<typeof readableCustomRhythms>>();
+    let finishSave: (() => void) | undefined;
+    libraryRepositoryMocks.loadCustomLibraryRhythms
+      .mockResolvedValueOnce(readableCustomRhythms([savedRhythmTemplate({ id: 'custom-existing', title: 'Existing custom rhythm' })], 1))
+      .mockReturnValueOnce(retryRead.promise);
+    libraryRepositoryMocks.saveCustomLibraryRhythm.mockImplementationOnce(
+      async (rhythm: unknown) => new Promise((resolve) => {
+        finishSave = () => resolve({
+          ok: true,
+          rhythm: rhythmTemplateSchema.parse(rhythm),
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    await screen.findByRole('article', { name: 'Existing custom rhythm' });
+    await fillCreateRhythmForm(user);
+    fireEvent.click(screen.getByRole('button', { name: 'Save rhythm' }));
+    await screen.findByRole('button', { name: 'Saving rhythm...' });
+    fireEvent.click(screen.getByRole('button', { name: 'Retry saved rhythms' }));
+
+    finishSave?.();
+    expect(await screen.findByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
+    retryRead.resolve(readableCustomRhythms([savedRhythmTemplate({ id: 'custom-existing', title: 'Existing custom rhythm' })], 1));
+
+    await waitFor(() => expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy());
+  });
 
   it('renders library categories', () => {
     render(<LibraryScreen />);
@@ -291,7 +442,7 @@ describe('Library screen', () => {
   });
 
   it('exports saved custom Library rhythms as a valid backup download', async () => {
-    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue([savedRhythmTemplate()]);
+    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue(readableCustomRhythms([savedRhythmTemplate()]));
     const { anchorClick, createObjectUrl, revokeObjectUrl } = mockDownloadApi();
     const user = userEvent.setup();
     render(<LibraryScreen />);
@@ -516,7 +667,7 @@ describe('Library screen', () => {
   });
 
   it('reloads saved custom rhythms from the repository', async () => {
-    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue([savedRhythmTemplate()]);
+    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue(readableCustomRhythms([savedRhythmTemplate()]));
 
     const user = userEvent.setup();
     render(<LibraryScreen />);
@@ -528,7 +679,7 @@ describe('Library screen', () => {
   });
 
   it('does not restore Library enablement as persisted state', async () => {
-    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue([savedRhythmTemplate({ enabled: true })]);
+    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue(readableCustomRhythms([savedRhythmTemplate({ enabled: true })]));
 
     render(<LibraryScreen />);
 

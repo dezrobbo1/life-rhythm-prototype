@@ -132,6 +132,15 @@ function validRhythm(overrides: Partial<RhythmTemplate> = {}): RhythmTemplate {
   });
 }
 
+async function loadedCustomRhythmTitles() {
+  const result = await loadCustomLibraryRhythms();
+
+  expect(result.status).not.toBe('readFailed');
+  if (result.status === 'readFailed') return [];
+
+  return result.items.map((rhythm) => rhythm.title);
+}
+
 async function deleteNamespaces(namespaces: LocalDataNamespace[]) {
   for (const namespace of namespaces) {
     await createLifeRhythmDatabase(namespace.databaseName).delete();
@@ -263,7 +272,7 @@ describe('local data namespace', () => {
     }));
 
     setCurrentLocalDataNamespace(userBNamespace);
-    expect(await loadCustomLibraryRhythms()).toEqual([]);
+    expect(await loadedCustomRhythmTitles()).toEqual([]);
 
     await saveCustomLibraryRhythm(validRhythm({
       id: 'custom-user-b-rhythm',
@@ -271,10 +280,10 @@ describe('local data namespace', () => {
     }));
 
     setCurrentLocalDataNamespace(userANamespace);
-    expect((await loadCustomLibraryRhythms()).map((rhythm) => rhythm.title)).toEqual(['User A rhythm']);
+    expect(await loadedCustomRhythmTitles()).toEqual(['User A rhythm']);
 
     setCurrentLocalDataNamespace(userBNamespace);
-    expect((await loadCustomLibraryRhythms()).map((rhythm) => rhythm.title)).toEqual(['User B rhythm']);
+    expect(await loadedCustomRhythmTitles()).toEqual(['User B rhythm']);
   });
 
   it('does not delete signed-in local data when returning to the legacy signed-out namespace', async () => {
@@ -301,7 +310,7 @@ describe('local data namespace', () => {
 
     expect((await loadSettings()).theme).toBe('exhale');
     expect(await loadActiveTodayTasks()).toEqual([]);
-    expect(await loadCustomLibraryRhythms()).toEqual([]);
+    expect(await loadedCustomRhythmTitles()).toEqual([]);
   });
 
   it('keeps backup/export reads scoped to the current local namespace only', async () => {
@@ -425,7 +434,7 @@ describe('local data namespace', () => {
     expect(await tableCounts(userANamespace)).toEqual(beforeCounts);
     expect((await loadSettings()).theme).toBe('clear');
     expect((await loadActiveTodayTasks()).map((task) => task.title)).toEqual(['Auth active task']);
-    expect((await loadCustomLibraryRhythms()).map((rhythm) => rhythm.title)).toEqual(['Auth custom rhythm']);
+    expect(await loadedCustomRhythmTitles()).toEqual(['Auth custom rhythm']);
   });
 
   it('does not use fetch or localStorage while choosing local namespaces', async () => {

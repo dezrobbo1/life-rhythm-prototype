@@ -1,4 +1,8 @@
 import type { Table } from 'dexie';
+import {
+  successfulCollectionRead,
+  type CollectionReadResult,
+} from './collectionReadResult';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import { rhythmTemplateSchema, type RhythmTemplate } from './schemas';
 
@@ -58,21 +62,29 @@ function validateCustomRhythm(input: unknown): LibraryRhythmWriteResult {
 
 export async function loadCustomLibraryRhythms(
   store: LibraryRhythmStore = getCurrentLifeRhythmDatabase(),
-): Promise<RhythmTemplate[]> {
+): Promise<CollectionReadResult<RhythmTemplate>> {
   try {
     const stored = await store.rhythmTemplates.where('source').equals('custom').toArray();
+    const rhythms: RhythmTemplate[] = [];
+    let invalidRecordCount = 0;
 
-    return stored.flatMap((rhythm) => {
+    stored.forEach((rhythm) => {
       const parsed = rhythmTemplateSchema.safeParse(rhythm);
 
       if (!parsed.success || parsed.data.source !== 'custom') {
-        return [];
+        invalidRecordCount += 1;
+        return;
       }
 
-      return [disablePersistedEnablement(parsed.data)];
+      rhythms.push(disablePersistedEnablement(parsed.data));
     });
+
+    return successfulCollectionRead(rhythms, invalidRecordCount);
   } catch {
-    return [];
+    return {
+      errors: ['rhythmTemplates: Saved custom Library rhythms could not be read.'],
+      status: 'readFailed',
+    };
   }
 }
 

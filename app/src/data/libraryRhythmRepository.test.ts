@@ -4,6 +4,7 @@ import { createLifeRhythmDatabase } from './db';
 import {
   loadCustomLibraryRhythms,
   saveCustomLibraryRhythm,
+  type LibraryRhythmStore,
 } from './libraryRhythmRepository';
 import { rhythmTemplateSchema, type RhythmTemplate } from './schemas';
 import { mockLibraryRhythms } from '../features/library/mockLibraryData';
@@ -55,6 +56,64 @@ async function expectOnlyRhythmTemplatesWritten(database: ReturnType<typeof crea
 }
 
 describe('Library rhythm repository', () => {
+  it('reports a successful empty custom-rhythm read truthfully', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await expect(loadCustomLibraryRhythms(database)).resolves.toEqual({
+        invalidRecordCount: 0,
+        items: [],
+        status: 'ok',
+      });
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('reports valid and invalid saved custom rhythms as a partial read without changing either row', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await database.rhythmTemplates.bulkPut([
+        validRhythm(),
+        {
+          id: 'broken-custom-rhythm',
+          source: 'custom',
+        } as RhythmTemplate,
+      ]);
+
+      await expect(loadCustomLibraryRhythms(database)).resolves.toMatchObject({
+        invalidRecordCount: 1,
+        items: [expect.objectContaining({ id: 'custom-kitchen-landing' })],
+        status: 'partial',
+      });
+      expect(await database.rhythmTemplates.count()).toBe(2);
+      expect(await database.rhythmTemplates.get('broken-custom-rhythm')).toEqual({
+        id: 'broken-custom-rhythm',
+        source: 'custom',
+      });
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('reports a custom-rhythm storage failure instead of converting it to an empty read', async () => {
+    const store = {
+      rhythmTemplates: {
+        where: vi.fn(() => ({
+          equals: vi.fn(() => ({
+            toArray: vi.fn().mockRejectedValue(new Error('IndexedDB unavailable')),
+          })),
+        })),
+      },
+    } as unknown as LibraryRhythmStore;
+
+    await expect(loadCustomLibraryRhythms(store)).resolves.toEqual({
+      errors: ['rhythmTemplates: Saved custom Library rhythms could not be read.'],
+      status: 'readFailed',
+    });
+  });
+
   it('saves and reloads one user-created Library rhythm', async () => {
     const database = createTestDatabase();
 
@@ -63,13 +122,15 @@ describe('Library rhythm repository', () => {
       const loaded = await loadCustomLibraryRhythms(database);
 
       expect(result.ok).toBe(true);
-      expect(loaded).toHaveLength(1);
-      expect(loaded[0]).toMatchObject({
+      expect(loaded.status).toBe('ok');
+      if (loaded.status === 'readFailed') throw new Error('Expected a readable custom-rhythm collection.');
+      expect(loaded.items).toHaveLength(1);
+      expect(loaded.items[0]).toMatchObject({
         id: 'custom-kitchen-landing',
         source: 'custom',
         title: 'Kitchen landing',
       });
-      expect(loaded[0].enabled).toBe(false);
+      expect(loaded.items[0].enabled).toBe(false);
       await expectOnlyRhythmTemplatesWritten(database, 1);
     } finally {
       await database.delete();
@@ -80,7 +141,11 @@ describe('Library rhythm repository', () => {
     const database = createTestDatabase();
 
     try {
-      await expect(loadCustomLibraryRhythms(database)).resolves.toEqual([]);
+      await expect(loadCustomLibraryRhythms(database)).resolves.toEqual({
+        invalidRecordCount: 0,
+        items: [],
+        status: 'ok',
+      });
       await expectOnlyRhythmTemplatesWritten(database, 0);
     } finally {
       await database.delete();
@@ -112,7 +177,11 @@ describe('Library rhythm repository', () => {
         source: 'custom',
       } as RhythmTemplate);
 
-      await expect(loadCustomLibraryRhythms(database)).resolves.toEqual([]);
+      await expect(loadCustomLibraryRhythms(database)).resolves.toEqual({
+        invalidRecordCount: 1,
+        items: [],
+        status: 'partial',
+      });
       expect(await database.rhythmTemplates.count()).toBe(1);
       expect(await database.activeTasks.count()).toBe(0);
     } finally {
@@ -149,8 +218,10 @@ describe('Library rhythm repository', () => {
       const loaded = await loadCustomLibraryRhythms(database);
 
       expect(duplicateResult.ok).toBe(false);
-      expect(loaded).toHaveLength(1);
-      expect(loaded[0].title).toBe('Kitchen landing');
+      expect(loaded.status).toBe('ok');
+      if (loaded.status === 'readFailed') throw new Error('Expected a readable custom-rhythm collection.');
+      expect(loaded.items).toHaveLength(1);
+      expect(loaded.items[0].title).toBe('Kitchen landing');
       await expectOnlyRhythmTemplatesWritten(database, 1);
     } finally {
       await database.delete();
@@ -169,7 +240,9 @@ describe('Library rhythm repository', () => {
 
       expect(first.ok).toBe(true);
       expect(second.ok).toBe(true);
-      expect(loaded.map((rhythm) => rhythm.title)).toEqual(['Kitchen landing', 'Kitchen landing']);
+      expect(loaded.status).toBe('ok');
+      if (loaded.status === 'readFailed') throw new Error('Expected a readable custom-rhythm collection.');
+      expect(loaded.items.map((rhythm) => rhythm.title)).toEqual(['Kitchen landing', 'Kitchen landing']);
       await expectOnlyRhythmTemplatesWritten(database, 2);
     } finally {
       await database.delete();
@@ -185,7 +258,9 @@ describe('Library rhythm repository', () => {
       const loaded = await loadCustomLibraryRhythms(database);
 
       expect(stored?.enabled).toBe(false);
-      expect(loaded[0].enabled).toBe(false);
+      expect(loaded.status).toBe('ok');
+      if (loaded.status === 'readFailed') throw new Error('Expected a readable custom-rhythm collection.');
+      expect(loaded.items[0].enabled).toBe(false);
     } finally {
       await database.delete();
     }

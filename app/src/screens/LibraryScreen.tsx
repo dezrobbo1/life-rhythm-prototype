@@ -1,5 +1,6 @@
-import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, EmptyState, ScreenHero } from '../components';
+import type { CollectionReadResult } from '../data/collectionReadResult';
 import {
   createActiveTaskId,
   saveActiveTodayTask,
@@ -41,6 +42,9 @@ import {
 
 type RhythmArea = RhythmTemplate['area'];
 type RhythmTaskType = RhythmTemplate['taskType'];
+type CustomRhythmReadState =
+  | { status: 'loading' }
+  | CollectionReadResult<RhythmTemplate>;
 
 const categoryToArea: Record<LibraryRhythm['category'], RhythmArea> = {
   'Anti-scroll': 'antidrift',
@@ -266,8 +270,13 @@ export function LibraryScreen() {
       }),
     [snapshot],
   );
-  const [libraryRhythms, setLibraryRhythms] = useState<LibraryRhythm[]>(() =>
+  const catalogueRhythms = useMemo(() =>
     initialLibraryViewModel.reusableRhythms.map(rhythmFromViewModel),
+  [initialLibraryViewModel]);
+  const [customRhythms, setCustomRhythms] = useState<LibraryRhythm[]>([]);
+  const libraryRhythms = useMemo(
+    () => mergeRhythms(catalogueRhythms, customRhythms),
+    [catalogueRhythms, customRhythms],
   );
   const [activeCategory, setActiveCategory] = useState<LibraryCategory>('All');
   const [enabledById, setEnabledById] = useState<Record<string, boolean>>(() =>
@@ -280,26 +289,93 @@ export function LibraryScreen() {
   const [backupJson, setBackupJson] = useState('');
   const [backupPreview, setBackupPreview] = useState<LibraryRhythmBackupPreview | null>(null);
   const [backupErrors, setBackupErrors] = useState<string[]>([]);
+  const [customRhythmReadState, setCustomRhythmReadState] = useState<CustomRhythmReadState>({ status: 'loading' });
+  const customRhythmReadRequestRef = useRef(0);
+  const customRhythmWriteGenerationRef = useRef(0);
+  const restoreReadActionFocusRef = useRef(false);
+  const libraryScreenRef = useRef<HTMLDivElement | null>(null);
+
+  const applyCustomRhythmRead = useCallback((result: CollectionReadResult<RhythmTemplate>) => {
+    setCustomRhythmReadState(result);
+
+    if (result.status === 'readFailed') return;
+
+    const loadedRhythms = result.items.map((rhythm) => rhythmFromTemplate(rhythm, false));
+    setCustomRhythms(loadedRhythms);
+    setEnabledById((current) => ({
+      ...Object.fromEntries(loadedRhythms.map((rhythm) => [rhythm.id, false])),
+      ...current,
+    }));
+  }, []);
 
   useEffect(() => {
     let active = true;
+    const readRequest = customRhythmReadRequestRef.current + 1;
+    customRhythmReadRequestRef.current = readRequest;
+    const writeGenerationAtReadStart = customRhythmWriteGenerationRef.current;
 
-    loadCustomLibraryRhythms().then((savedRhythms) => {
-      if (!active || savedRhythms.length === 0) return;
-
-      const loadedRhythms = savedRhythms.map((rhythm) => rhythmFromTemplate(rhythm, false));
-
-      setLibraryRhythms((current) => mergeRhythms(current, loadedRhythms));
-      setEnabledById((current) => ({
-        ...Object.fromEntries(loadedRhythms.map((rhythm) => [rhythm.id, false])),
-        ...current,
-      }));
-    });
+    loadCustomLibraryRhythms()
+      .then((result) => {
+        if (
+          active &&
+          customRhythmReadRequestRef.current === readRequest &&
+          customRhythmWriteGenerationRef.current === writeGenerationAtReadStart
+        ) {
+          applyCustomRhythmRead(result);
+        }
+      })
+      .catch(() => {
+        if (
+          active &&
+          customRhythmReadRequestRef.current === readRequest &&
+          customRhythmWriteGenerationRef.current === writeGenerationAtReadStart
+        ) {
+          applyCustomRhythmRead({
+            errors: ['rhythmTemplates: Saved custom Library rhythms could not be read.'],
+            status: 'readFailed',
+          });
+        }
+      });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [applyCustomRhythmRead]);
+
+  useEffect(() => {
+    if (!restoreReadActionFocusRef.current || customRhythmReadState.status === 'loading') return;
+
+    restoreReadActionFocusRef.current = false;
+    const selector = customRhythmReadState.status === 'readFailed'
+      ? '[data-library-read-retry]'
+      : '[data-library-create]';
+    libraryScreenRef.current?.querySelector<HTMLButtonElement>(selector)?.focus();
+  }, [customRhythmReadState.status]);
+
+  const retryCustomRhythms = useCallback(async () => {
+    const readRequest = customRhythmReadRequestRef.current + 1;
+    customRhythmReadRequestRef.current = readRequest;
+    const writeGenerationAtReadStart = customRhythmWriteGenerationRef.current;
+    restoreReadActionFocusRef.current = true;
+    setCustomRhythmReadState({ status: 'loading' });
+
+    let result: CollectionReadResult<RhythmTemplate>;
+    try {
+      result = await loadCustomLibraryRhythms();
+    } catch {
+      result = {
+        errors: ['rhythmTemplates: Saved custom Library rhythms could not be read.'],
+        status: 'readFailed',
+      };
+    }
+
+    if (
+      customRhythmReadRequestRef.current === readRequest &&
+      customRhythmWriteGenerationRef.current === writeGenerationAtReadStart
+    ) {
+      applyCustomRhythmRead(result);
+    }
+  }, [applyCustomRhythmRead]);
 
   const filteredRhythms = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -355,7 +431,14 @@ export function LibraryScreen() {
   }
 
   async function exportSavedLibraryRhythms() {
-    const backup = await exportLibraryRhythmBackup();
+    let backup: LibraryRhythmBackupExport | null;
+
+    try {
+      backup = await exportLibraryRhythmBackup();
+    } catch {
+      setConfirmation('Library rhythms backup was not created because saved rhythms could not be read. Nothing changed on this device.');
+      return;
+    }
 
     if (!backup) {
       setConfirmation('No saved custom rhythms to export yet.');
@@ -399,6 +482,11 @@ export function LibraryScreen() {
   }
 
   async function saveCreatedRhythm(input: CreateRhythmInput): Promise<boolean> {
+    if (customRhythmReadState.status === 'loading' || customRhythmReadState.status === 'readFailed') {
+      setConfirmation('Rhythm was not saved. Retry the saved Library rhythm read first.');
+      return false;
+    }
+
     let result;
 
     try {
@@ -414,9 +502,10 @@ export function LibraryScreen() {
       return false;
     }
 
+    customRhythmWriteGenerationRef.current += 1;
     const rhythm = rhythmFromTemplate(result.rhythm, input.enabled);
 
-    setLibraryRhythms((current) => mergeRhythms(current, [rhythm]));
+    setCustomRhythms((current) => mergeRhythms(current, [rhythm]));
     setEnabledById((current) => ({ ...current, [rhythm.id]: input.enabled }));
     setActiveCategory(rhythm.category);
     setSearchTerm('');
@@ -426,7 +515,7 @@ export function LibraryScreen() {
   }
 
   return (
-    <div className="screen-stack library-screen">
+    <div className="screen-stack library-screen" ref={libraryScreenRef}>
       <ScreenHero
         className="library-hero"
         eyebrow="Rhythm catalogue"
@@ -444,12 +533,66 @@ export function LibraryScreen() {
             <p>It does not include Today tasks, settings, enablement, or packs.</p>
           </div>
           <div className="library-create-card__actions">
-            <Button onClick={() => setCreateRhythmOpen(true)} variant="primary">Create rhythm</Button>
-            <Button onClick={exportSavedLibraryRhythms}>Export Library rhythms backup</Button>
+            <Button
+              data-library-create
+              disabled={customRhythmReadState.status === 'loading' || customRhythmReadState.status === 'readFailed'}
+              onClick={() => setCreateRhythmOpen(true)}
+              variant="primary"
+            >
+              Create rhythm
+            </Button>
+            <Button
+              disabled={customRhythmReadState.status === 'loading' || customRhythmReadState.status === 'readFailed'}
+              onClick={exportSavedLibraryRhythms}
+            >
+              Export Library rhythms backup
+            </Button>
             <Button disabled>Create pack later</Button>
           </div>
         </section>
       </Card>
+
+      {customRhythmReadState.status === 'loading' ? (
+        <div
+          aria-busy="true"
+          aria-label="Saved Library rhythm loading"
+          className="surface-read-state"
+          role="status"
+        >
+          <h2>Reading saved custom rhythms...</h2>
+          <p>The built-in catalogue remains available while this read finishes.</p>
+          <Button data-library-read-retry onClick={() => void retryCustomRhythms()}>Retry saved rhythms</Button>
+        </div>
+      ) : customRhythmReadState.status === 'readFailed' ? (
+        <div
+          aria-label="Saved Library rhythm read failure"
+          className="surface-read-state surface-read-state--error"
+          role="alert"
+        >
+          <h2>Saved custom rhythms could not be loaded.</h2>
+          <p>The built-in catalogue remains available. Nothing stored on this device was changed.</p>
+          <Button data-library-read-retry onClick={() => void retryCustomRhythms()}>Retry saved rhythms</Button>
+        </div>
+      ) : customRhythmReadState.status === 'partial' ? (
+        <div
+          aria-label="Saved Library rhythm warning"
+          className="surface-read-state surface-read-state--warning"
+          role="status"
+        >
+          <h2>Some saved Library rhythm data could not be read.</h2>
+          <p>
+            {customRhythmReadState.invalidRecordCount} saved custom rhythm{' '}
+            {customRhythmReadState.invalidRecordCount === 1 ? 'record was' : 'records were'} left unchanged.
+          </p>
+          <p>Readable saved rhythms and the built-in catalogue remain available. Nothing stored on this device was changed.</p>
+          <Button data-library-read-retry onClick={() => void retryCustomRhythms()}>Retry saved rhythms</Button>
+        </div>
+      ) : customRhythms.length === 0 ? (
+        <section aria-label="Saved Library rhythms empty" className="surface-read-state">
+          <h2>No saved custom rhythms yet.</h2>
+          <p>The built-in catalogue remains available.</p>
+        </section>
+      ) : null}
 
       <Card>
         <section aria-labelledby="library-backup-check-title" className="library-backup-checker">

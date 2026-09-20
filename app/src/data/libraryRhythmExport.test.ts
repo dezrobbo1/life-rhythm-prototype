@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { createLifeRhythmDatabase } from './db';
 import { exportLibraryRhythmBackup } from './libraryRhythmExport';
 import { libraryRhythmBackupSchema } from './libraryRhythmBackup';
-import { saveCustomLibraryRhythm } from './libraryRhythmRepository';
+import {
+  saveCustomLibraryRhythm,
+  type LibraryRhythmStore,
+} from './libraryRhythmRepository';
 import { rhythmTemplateSchema, type RhythmTemplate } from './schemas';
 
 let testDatabaseIndex = 0;
@@ -84,6 +87,22 @@ describe('Library rhythm export backup', () => {
     } finally {
       await database.delete();
     }
+  });
+
+  it('rejects an unreadable collection instead of exporting a false empty backup', async () => {
+    const store = {
+      rhythmTemplates: {
+        where: vi.fn(() => ({
+          equals: vi.fn(() => ({
+            toArray: vi.fn().mockRejectedValue(new Error('IndexedDB unavailable')),
+          })),
+        })),
+      },
+    } as unknown as LibraryRhythmStore;
+
+    await expect(
+      exportLibraryRhythmBackup(store, '2026-06-16T00:00:00.000Z'),
+    ).rejects.toThrow('Saved custom Library rhythms could not be read.');
   });
 
   it('does not include settings, task, scheduler, migration, reset, future module, or legacy data', async () => {
