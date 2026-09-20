@@ -132,6 +132,7 @@ export function CalendarSourceControl({ onPlanRepaired, onReadIssueChange }: Cal
         return;
       }
 
+      onReadIssueChange?.(null);
       setSavedCalendar({
         importedAt: imported.record.importedAt,
         label: imported.record.label,
@@ -164,6 +165,7 @@ export function CalendarSourceControl({ onPlanRepaired, onReadIssueChange }: Cal
       return;
     }
 
+    onReadIssueChange?.(null);
     setSavedCalendar(null);
     const repaired = await repairAfterCalendarChange('Read-only calendar source removed.');
     if (repaired) {
