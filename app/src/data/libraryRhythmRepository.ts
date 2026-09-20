@@ -6,7 +6,7 @@ import {
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import { rhythmTemplateSchema, type RhythmTemplate } from './schemas';
 
-type RhythmTemplatesTable = Pick<Table<RhythmTemplate, string>, 'get' | 'put' | 'where'>;
+type RhythmTemplatesTable = Pick<Table<RhythmTemplate, string>, 'get' | 'put' | 'toArray'>;
 
 export type LibraryRhythmStore = {
   rhythmTemplates: RhythmTemplatesTable;
@@ -64,17 +64,19 @@ export async function loadCustomLibraryRhythms(
   store: LibraryRhythmStore = getCurrentLifeRhythmDatabase(),
 ): Promise<CollectionReadResult<RhythmTemplate>> {
   try {
-    const stored = await store.rhythmTemplates.where('source').equals('custom').toArray();
+    const stored = await store.rhythmTemplates.toArray();
     const rhythms: RhythmTemplate[] = [];
     let invalidRecordCount = 0;
 
     stored.forEach((rhythm) => {
       const parsed = rhythmTemplateSchema.safeParse(rhythm);
 
-      if (!parsed.success || parsed.data.source !== 'custom') {
+      if (!parsed.success) {
         invalidRecordCount += 1;
         return;
       }
+
+      if (parsed.data.source !== 'custom') return;
 
       rhythms.push(disablePersistedEnablement(parsed.data));
     });

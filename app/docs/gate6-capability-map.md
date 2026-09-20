@@ -65,7 +65,7 @@ This ledger records capabilities reachable in the React/Vite personal trial at t
 | Quick-pack preview/enable | Library | Preview pack / Enable selected rhythms | Session-only enablement over fixture catalogue | MAY RETIRE | Library recommendations | Demo/sample convenience, not durable personal configuration |
 | Library rhythm backup export | Library | Export Library rhythms backup | Exports saved custom rhythms only | SECONDARY | Settings / Recovery | Excludes Today, settings, enablement and packs |
 | Library rhythm backup check | Library | Paste/select and Check | Read-only parse/preview; restore not connected | SECONDARY | Settings / Recovery | Writes nothing |
-| Saved Library read health | Library | Automatic load or read-only Retry of custom rhythms | Typed collection result distinguishes loading, empty, valid, partial-invalid and read failure; valid rows remain visible and invalid rows remain stored | YES | Library surface status | Built-in catalogue remains independent; create/export wait while personal saved state is unknown or unreadable |
+| Saved Library read health | Library | Automatic load or read-only Retry of custom rhythms | Typed collection result distinguishes loading, empty, valid, partial-invalid and read failure; valid rows remain visible and invalid rows remain stored | YES | Library surface status | Built-in catalogue remains independent; create waits while personal saved state is unknown or failed, and export requires a complete valid read |
 | Create pack later | Library | Disabled button | No implementation | MAY RETIRE | Library | Explicit scaffold only |
 
 ## Settings / Setup

@@ -97,14 +97,42 @@ describe('Library rhythm repository', () => {
     }
   });
 
+  it('counts malformed unindexed rhythm rows without treating valid built-ins as personal saved data', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await database.rhythmTemplates.bulkPut([
+        validRhythm(),
+        validRhythm({
+          id: 'built-in-breakfast-reset',
+          source: 'built-in',
+          title: 'Breakfast reset',
+        }),
+        {
+          id: 'missing-source-rhythm',
+          title: 'Unclassified saved rhythm',
+        } as RhythmTemplate,
+      ]);
+
+      await expect(loadCustomLibraryRhythms(database)).resolves.toMatchObject({
+        invalidRecordCount: 1,
+        items: [expect.objectContaining({ id: 'custom-kitchen-landing' })],
+        status: 'partial',
+      });
+      expect(await database.rhythmTemplates.count()).toBe(3);
+      expect(await database.rhythmTemplates.get('missing-source-rhythm')).toEqual({
+        id: 'missing-source-rhythm',
+        title: 'Unclassified saved rhythm',
+      });
+    } finally {
+      await database.delete();
+    }
+  });
+
   it('reports a custom-rhythm storage failure instead of converting it to an empty read', async () => {
     const store = {
       rhythmTemplates: {
-        where: vi.fn(() => ({
-          equals: vi.fn(() => ({
-            toArray: vi.fn().mockRejectedValue(new Error('IndexedDB unavailable')),
-          })),
-        })),
+        toArray: vi.fn().mockRejectedValue(new Error('IndexedDB unavailable')),
       },
     } as unknown as LibraryRhythmStore;
 

@@ -266,8 +266,10 @@ describe('Library screen', () => {
     expect(await screen.findByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
     const warning = screen.getByRole('status', { name: 'Saved Library rhythm warning' });
     expect(warning.textContent).toContain('Some saved Library rhythm data could not be read.');
-    expect(warning.textContent).toContain('2 saved custom rhythm records were left unchanged.');
+    expect(warning.textContent).toContain('2 saved Library rhythm records were left unchanged.');
+    expect(warning.textContent).toContain('Backup export stays unavailable until every saved rhythm record can be read.');
     expect((screen.getByRole('button', { name: 'Create rhythm' }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: 'Export Library rhythms backup' }) as HTMLButtonElement).disabled).toBe(true);
     expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
   });
 
@@ -313,7 +315,12 @@ describe('Library screen', () => {
     expect(await screen.findByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
     retryRead.resolve(readableCustomRhythms([savedRhythmTemplate({ id: 'custom-existing', title: 'Existing custom rhythm' })], 1));
 
-    await waitFor(() => expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy());
+    await waitFor(() => {
+      expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
+      expect(screen.getByRole('article', { name: 'Existing custom rhythm' })).toBeTruthy();
+      expect(screen.queryByRole('status', { name: 'Saved Library rhythm loading' })).toBeNull();
+      expect((screen.getByRole('button', { name: 'Create rhythm' }) as HTMLButtonElement).disabled).toBe(false);
+    });
   });
 
   it('renders library categories', () => {

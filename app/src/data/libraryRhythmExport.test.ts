@@ -92,17 +92,34 @@ describe('Library rhythm export backup', () => {
   it('rejects an unreadable collection instead of exporting a false empty backup', async () => {
     const store = {
       rhythmTemplates: {
-        where: vi.fn(() => ({
-          equals: vi.fn(() => ({
-            toArray: vi.fn().mockRejectedValue(new Error('IndexedDB unavailable')),
-          })),
-        })),
+        toArray: vi.fn().mockRejectedValue(new Error('IndexedDB unavailable')),
       },
     } as unknown as LibraryRhythmStore;
 
     await expect(
       exportLibraryRhythmBackup(store, '2026-06-16T00:00:00.000Z'),
     ).rejects.toThrow('Saved custom Library rhythms could not be read.');
+  });
+
+  it('refuses a partial backup that would silently omit invalid saved rows', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await database.rhythmTemplates.bulkPut([
+        validRhythm(),
+        {
+          id: 'broken-custom-rhythm',
+          source: 'custom',
+        } as RhythmTemplate,
+      ]);
+
+      await expect(
+        exportLibraryRhythmBackup(database, '2026-06-16T00:00:00.000Z'),
+      ).rejects.toThrow('Some saved custom Library rhythms could not be read.');
+      expect(await database.rhythmTemplates.count()).toBe(2);
+    } finally {
+      await database.delete();
+    }
   });
 
   it('does not include settings, task, scheduler, migration, reset, future module, or legacy data', async () => {

@@ -486,6 +486,7 @@ export function LibraryScreen() {
       setConfirmation('Rhythm was not saved. Retry the saved Library rhythm read first.');
       return false;
     }
+    const readableStateAtSaveStart = customRhythmReadState;
 
     let result;
 
@@ -503,9 +504,22 @@ export function LibraryScreen() {
     }
 
     customRhythmWriteGenerationRef.current += 1;
-    const rhythm = rhythmFromTemplate(result.rhythm, input.enabled);
+    const savedRhythm = result.rhythm;
+    const rhythm = rhythmFromTemplate(savedRhythm, input.enabled);
 
     setCustomRhythms((current) => mergeRhythms(current, [rhythm]));
+    setCustomRhythmReadState((current) => {
+      if (current.status === 'readFailed') return current;
+
+      const settledState = current.status === 'loading' ? readableStateAtSaveStart : current;
+      return {
+        ...settledState,
+        items: [
+          ...settledState.items.filter((item) => item.id !== savedRhythm.id),
+          savedRhythm,
+        ],
+      };
+    });
     setEnabledById((current) => ({ ...current, [rhythm.id]: input.enabled }));
     setActiveCategory(rhythm.category);
     setSearchTerm('');
@@ -542,7 +556,7 @@ export function LibraryScreen() {
               Create rhythm
             </Button>
             <Button
-              disabled={customRhythmReadState.status === 'loading' || customRhythmReadState.status === 'readFailed'}
+              disabled={customRhythmReadState.status !== 'ok'}
               onClick={exportSavedLibraryRhythms}
             >
               Export Library rhythms backup
@@ -581,10 +595,11 @@ export function LibraryScreen() {
         >
           <h2>Some saved Library rhythm data could not be read.</h2>
           <p>
-            {customRhythmReadState.invalidRecordCount} saved custom rhythm{' '}
+            {customRhythmReadState.invalidRecordCount} saved Library rhythm{' '}
             {customRhythmReadState.invalidRecordCount === 1 ? 'record was' : 'records were'} left unchanged.
           </p>
           <p>Readable saved rhythms and the built-in catalogue remain available. Nothing stored on this device was changed.</p>
+          <p>Backup export stays unavailable until every saved rhythm record can be read.</p>
           <Button data-library-read-retry onClick={() => void retryCustomRhythms()}>Retry saved rhythms</Button>
         </div>
       ) : customRhythms.length === 0 ? (
