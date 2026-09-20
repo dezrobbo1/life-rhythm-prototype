@@ -3,6 +3,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
 
 const coordinatorMocks = vi.hoisted(() => ({
   buildCurrentLiveSchedulingContext: vi.fn(),
@@ -35,9 +36,24 @@ vi.mock('dexie', () => ({
 
 vi.mock('../data/schedulerPlanCoordinator', () => coordinatorMocks);
 vi.mock('../data/schedulerPlanStateRepository', () => schedulerStateMocks);
+vi.mock('../features/plan/CalendarSourceControl', () => ({
+  CalendarSourceControl: ({ onReadIssueChange }: {
+    onReadIssueChange?: (message: string | null) => void;
+  }) => (
+    <button onClick={() => onReadIssueChange?.('Saved calendar data could not be read safely.')}>
+      Report calendar issue
+    </button>
+  ),
+}));
 vi.mock('./PersonalPlanScreen', () => ({
-  PersonalPlanScreen: ({ preferredPlacementDate }: { preferredPlacementDate?: string | null }) => (
-    <div data-testid="personal-plan-proxy">Detailed Plan {preferredPlacementDate}</div>
+  PersonalPlanScreen: ({ detailsFooter, preferredPlacementDate }: {
+    detailsFooter?: ReactNode;
+    preferredPlacementDate?: string | null;
+  }) => (
+    <div data-testid="personal-plan-proxy">
+      Detailed Plan {preferredPlacementDate}
+      {detailsFooter}
+    </div>
   ),
 }));
 
@@ -215,5 +231,18 @@ describe('Gate 6C Plan Day Line screen', () => {
 
     expect(await screen.findByText('School run')).toBeTruthy();
     expect(coordinatorMocks.buildCurrentLiveSchedulingContext).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a material calendar read issue visible outside Plan details', async () => {
+    const user = userEvent.setup();
+    render(<PlanDayLineScreen preferredPlacementDate={mondayDate} />);
+
+    await screen.findByText('School run');
+    await user.click(screen.getByRole('button', { name: 'Report calendar issue' }));
+
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('Calendar source needs attention.');
+    expect(alert.textContent).toContain('Saved calendar data could not be read safely.');
+    expect(alert.textContent).toContain('Nothing stored on this device was changed.');
   });
 });

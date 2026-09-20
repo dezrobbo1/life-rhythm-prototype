@@ -67,7 +67,12 @@ describe('primary app shell navigation', () => {
     expect(planNavButton.getAttribute('aria-current')).toBe('page');
     expect(todayNavButton.getAttribute('aria-current')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Plan' })).toBeTruthy();
+    expect(screen.getByText('Day Line')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Day Shape' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Read-only calendar' })).toBeNull();
+    await user.click(screen.getByText('Plan details'));
     expect(screen.getByRole('heading', { name: 'Day Shape' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Read-only calendar' })).toBeTruthy();
     expect(screen.queryByLabelText('Broad day blocks')).toBeNull();
 
     expect(screen.getByRole('button', { name: 'Capture' })).toBeTruthy();

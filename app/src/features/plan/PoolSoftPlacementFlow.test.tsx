@@ -65,6 +65,7 @@ describe('Pool soft placement flow', () => {
     await user.click(within(taskPool).getByRole('button', { name: 'Find soft window' }));
 
     expect(await screen.findByRole('heading', { name: 'Plan' })).toBeTruthy();
+    await user.click(screen.getByText('Plan details'));
     const suggestions = screen.getByRole('heading', { name: 'Soft suggestions' }).closest('section');
     if (!suggestions) throw new Error('Soft suggestions section was not found.');
 

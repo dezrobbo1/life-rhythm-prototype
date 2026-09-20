@@ -35,10 +35,45 @@ const emptyPlan = {
   unscheduledRhythmIds: [],
 };
 
+const changedPlan = {
+  ...emptyPlan,
+  repair: {
+    changes: [{
+      from: {
+        date: '2026-09-07',
+        end: '09:20',
+        start: '09:00',
+      },
+      kind: 'moved' as const,
+      reason: 'A calendar commitment changed.',
+      targetId: 'task-moved',
+      targetKind: 'intention' as const,
+      to: {
+        date: '2026-09-07',
+        end: '10:20',
+        start: '10:00',
+      },
+    }],
+    frozenPastPlacementIds: [],
+    preservedPlacementIds: [],
+    reason: 'A calendar commitment changed.',
+    trigger: 'calendarChanged' as const,
+    undo: emptyPlan,
+  },
+};
+
 function renderPlan() {
   return render(
     <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
       <PersonalPlanScreen />
+    </AppSnapshotProvider>,
+  );
+}
+
+function renderEmbeddedPlan() {
+  return render(
+    <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+      <PersonalPlanScreen embeddedInDayLine />
     </AppSnapshotProvider>,
   );
 }
@@ -82,6 +117,108 @@ afterEach(() => {
 });
 
 describe('Personal Plan read states', () => {
+  it('keeps planning mounted while calm Plan details are closed and toggled', async () => {
+    const user = userEvent.setup();
+
+    renderEmbeddedPlan();
+
+    await waitFor(() => {
+      expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(1);
+    });
+
+    const disclosure = screen.getByText('Plan details').closest('details');
+    expect(disclosure?.open).toBe(false);
+    expect(screen.queryByRole('heading', { name: 'Private plan' })).toBeNull();
+
+    await user.click(screen.getByText('Plan details'));
+    expect(disclosure?.open).toBe(true);
+    expect(screen.getByRole('heading', { name: 'Private plan' })).toBeTruthy();
+
+    await user.click(screen.getByText('Plan details'));
+    expect(disclosure?.open).toBe(false);
+    expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(1);
+    expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+  });
+
+  it('rereads the accepted plan without closing Plan details when the plan revision changes', async () => {
+    const user = userEvent.setup();
+    const rendered = render(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen embeddedInDayLine planRevision={0} />
+      </AppSnapshotProvider>,
+    );
+
+    await waitFor(() => {
+      expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(1);
+    });
+    await user.click(screen.getByText('Plan details'));
+    expect(screen.getByText('Plan details').closest('details')?.open).toBe(true);
+
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: changedPlan,
+      titleByTargetId: { 'task-moved': 'Move the form' },
+      warnings: [],
+    });
+    rendered.rerender(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen embeddedInDayLine planRevision={1} />
+      </AppSnapshotProvider>,
+    );
+
+    await waitFor(() => {
+      expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByRole('heading', { name: 'Changed' })).toBeTruthy();
+    expect(screen.getByText('Plan details').closest('details')?.open).toBe(true);
+    expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+  });
+
+  it('does not show an empty Changed section on the default Plan surface', async () => {
+    renderEmbeddedPlan();
+
+    await waitFor(() => {
+      expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(1);
+    });
+
+    expect(screen.queryByRole('heading', { name: 'Changed' })).toBeNull();
+  });
+
+  it('keeps real Changed information and supported Undo visible outside closed details', async () => {
+    const user = userEvent.setup();
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: changedPlan,
+      titleByTargetId: { 'task-moved': 'Move the form' },
+      warnings: [],
+    });
+
+    renderEmbeddedPlan();
+
+    const changed = (await screen.findByRole('heading', { name: 'Changed' })).closest('section');
+    if (!changed) throw new Error('Changed section was not found.');
+
+    expect(changed.textContent).toContain('Move the form moved from 2026-09-07 09:00-09:20 to 2026-09-07 10:00-10:20.');
+    expect(screen.getByText('Plan details').closest('details')?.open).toBe(false);
+
+    await user.click(screen.getByRole('button', { name: 'Undo last repair' }));
+    expect(coordinatorMocks.undoCurrentPrivatePlan).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a private-plan failure visible while details remain closed', async () => {
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      errors: ['Saved scheduler state is invalid.'],
+      ok: false,
+    });
+
+    renderEmbeddedPlan();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Private plan needs attention.');
+    expect(alert.textContent).toContain('Saved scheduler state is invalid.');
+    expect(screen.getByText('Plan details').closest('details')?.open).toBe(false);
+  });
+
   it('keeps the automatic plan truthful when optional manual-placement data fails', async () => {
     placementMocks.loadSoftPlacementsForDateResult.mockResolvedValue({
       errors: ['softPlacements: Saved manual placements could not be read.'],

@@ -27,19 +27,19 @@ This ledger records capabilities reachable in the React/Vite personal trial at t
 
 | Capability | Current screen | Current user action | Persistence/read-write boundary | Must survive Gate 6? | Likely future destination | Notes/dependencies |
 |---|---|---|---|---|---|---|
-| Automatic private plan | Plan | Open Plan | Reads/builds validated scheduler plan through the canonical coordinator | YES | Plan / Day Line | External calendar time is never treated as writable private work |
-| Automatic placement detail | Plan | Read placement cards | Displays target, date/time, execution form and scheduler provenance | YES | Plan details | Generated versus user-confirmed authority remains explicit |
-| Refresh/repair | Plan | Refresh private plan | Canonical rolling repair and persisted scheduler-plan write | YES | Plan / Changed | Not invoked by a presentation-read failure |
-| Changed | Plan | Read recent automatic changes | Reads persisted repair metadata | YES | Changed | Must match actual before/after state |
-| One-step Undo | Plan | Undo last private-plan change | Restores supported private-plan snapshot only | YES | Changed | Does not undo external calendar commitments |
-| Day/date selection and Day Shape | Plan | Select weekday/date and inspect protected/available blocks | View-model projection from settings and selected date | YES | Day Line / Plan | Blank calendar time is not implied capacity |
-| Soft suggestions | Plan | Review suggested Pool tasks | Reads Pool items plus current date; computes suggestions in memory | SECONDARY | Held / Plan suggestion | Optional Plan dependency; Gate 6A isolates its read failure |
-| Add user-confirmed soft placement | Plan | Choose Add to Plan | Writes a validated soft placement and updates linked Pool lifecycle; repair follows | YES | Plan | Does not create a calendar event |
-| User-confirmed placements | Plan | View or remove placement | Reads/writes soft-placement table and linked lifecycle | YES | Plan | User-owned authority must remain visible |
+| Automatic private plan | Plan | Open Plan; optionally inspect Plan details | Reads/builds validated scheduler plan through the canonical coordinator even while details are closed | YES | Plan details / Day Line | Presentation collapse does not defer or duplicate plan preparation; external calendar time is never writable private work |
+| Automatic placement detail | Plan details | Open Plan details and read placement rows | Displays target, date/time, execution form and scheduler provenance | YES | Plan details | Generated versus user-confirmed authority remains explicit |
+| Refresh/repair | Plan details | Open Plan details, then Refresh flexible plan | Canonical rolling repair and persisted scheduler-plan write | YES | Plan details / Changed | Not invoked by opening/closing disclosure or a presentation-read failure |
+| Changed | Plan default surface | Read recent automatic changes | Reads persisted repair metadata | YES | Changed | Visible outside Plan details only when actual changes exist; must match actual before/after state |
+| One-step Undo | Plan default surface | Undo last private-plan change | Restores supported private-plan snapshot only | YES | Changed | Remains visible with an eligible real change; does not undo external calendar commitments |
+| Day/date selection and Day Shape | Plan / Plan details | Select date on Day Line; inspect detailed boundaries in Plan details | View-model projection from settings and selected date | YES | Day Line / Plan details | Day Line is the default authority; blank calendar time is not implied capacity |
+| Soft suggestions | Plan details | Open Plan details and review suggested Held tasks | Reads Held items plus current date; computes suggestions in memory | SECONDARY | Held / Plan details | Optional Plan dependency; read failure remains visible without hiding Day Line |
+| Add user-confirmed soft placement | Plan details | Open Plan details and choose Add manual placement | Writes a validated soft placement and updates linked Held lifecycle; repair follows | YES | Plan details | Does not create a calendar event |
+| User-confirmed placements | Plan details | Open Plan details to view or remove placement | Reads/writes soft-placement table and linked lifecycle | YES | Plan details / Day Line | User-owned authority remains visible on Day Line and editable in details |
 | Held-to-Plan handoff | Held then Plan | Find soft window / View in Plan | Passes task/date selection in app state; persisted placement remains separate | SECONDARY | Held / Plan | Current manual machinery may become less prominent, not disappear |
-| Read-only calendar import | Plan | Select or replace `.ics` file | Validates and stores one local read-only source; repair uses expanded events | YES | Settings / Plan | Recurring rules are rejected; no external writes |
-| Remove calendar source | Plan | Remove calendar | Deletes only saved local source then repairs private plan | YES | Settings / Plan | Explicit user action |
-| Manual-data health state | Plan | Wait or Retry manual Plan data | Gate 6A isolates Pool/soft-placement loading, partial and read failure | YES | Surface status | Automatic plan stays visible when optional data fails; Retry does not rebuild it |
+| Read-only calendar import | Plan details | Open Plan details, then select or replace `.ics` file | Validates and stores one local read-only source; repair uses expanded events | YES | Plan details / Settings | Read failure is surfaced outside closed details; recurring rules are rejected; no external writes |
+| Remove calendar source | Plan details | Open Plan details, then Remove calendar | Deletes only saved local source then repairs private plan | YES | Plan details / Settings | Explicit user action |
+| Manual-data health state | Plan default surface | Read warning or Retry manual Plan data | Gate 6A isolates Held/soft-placement loading, partial and read failure | YES | Surface status | Material health status remains outside closed details; Retry does not rebuild the automatic plan |
 
 ## Held (persisted internally as Task Pool)
 

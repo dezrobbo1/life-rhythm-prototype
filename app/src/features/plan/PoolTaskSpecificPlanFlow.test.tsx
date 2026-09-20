@@ -71,6 +71,7 @@ describe('task-specific Pool to Plan routing', () => {
     if (!chosenRow) throw new Error('Chosen task row was not found.');
 
     await user.click(within(chosenRow).getByRole('button', { name: 'Find soft window' }));
+    await user.click(await screen.findByText('Plan details'));
 
     const suggestions = (await screen.findByRole('heading', { name: 'Soft suggestions' })).closest('section');
     if (!suggestions) throw new Error('Soft suggestions section was not found.');
@@ -122,6 +123,7 @@ describe('task-specific Pool to Plan routing', () => {
 
     expect(await screen.findByRole('heading', { name: 'Plan' })).toBeTruthy();
     expect((screen.getByLabelText('Selected day') as HTMLSelectElement).value).toBe('Tuesday');
+    await user.click(screen.getByText('Plan details'));
 
     const placements = (await screen.findByRole('heading', { name: 'User-confirmed placements' })).closest('section');
     if (!placements) throw new Error('User-confirmed placements section was not found.');
