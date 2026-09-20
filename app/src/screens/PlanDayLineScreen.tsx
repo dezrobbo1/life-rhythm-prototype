@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, ScreenHero } from '../components';
 import { buildCurrentLiveSchedulingContext } from '../data/schedulerPlanCoordinator';
 import { loadSchedulerPlanState } from '../data/schedulerPlanStateRepository';
+import { CalendarSourceControl } from '../features/plan/CalendarSourceControl';
 import { buildPlanDayLine, type DayLineViewModel } from '../features/plan/dayLine';
 import {
   currentLocalDate,
@@ -13,6 +14,7 @@ import { dayShapePreviewDays, type DayName } from '../viewModels';
 import { PersonalPlanScreen } from './PersonalPlanScreen';
 
 type PlanDayLineScreenProps = {
+  onPlanRepaired?: () => void;
   preferredPlacementDate?: string | null;
   preferredTaskId?: string | null;
 };
@@ -37,6 +39,7 @@ function initialSelectedDate(preferredPlacementDate: string | null) {
 }
 
 export function PlanDayLineScreen({
+  onPlanRepaired,
   preferredPlacementDate = null,
   preferredTaskId = null,
 }: PlanDayLineScreenProps = {}) {
@@ -48,6 +51,7 @@ export function PlanDayLineScreen({
     () => initialSelectedDate(preferredPlacementDate),
   );
   const [dayLineState, setDayLineState] = useState<DayLineState>({ status: 'loading' });
+  const [calendarReadIssue, setCalendarReadIssue] = useState<string | null>(null);
   const [retryVersion, setRetryVersion] = useState(0);
 
   const selectedDate = useMemo(
@@ -182,8 +186,22 @@ export function PlanDayLineScreen({
         </p>
       </section>
 
+      {calendarReadIssue ? (
+        <section className="surface-status surface-status--error plan-default-attention" role="alert">
+          <strong>Calendar source needs attention.</strong>
+          <p>{calendarReadIssue}</p>
+          <p>Open Plan details to review the saved source. Nothing stored on this device was changed.</p>
+        </section>
+      ) : null}
+
       <div className="gate6-plan-surface__details" aria-label="Detailed Plan controls">
         <PersonalPlanScreen
+          detailsFooter={(
+            <CalendarSourceControl
+              onPlanRepaired={onPlanRepaired}
+              onReadIssueChange={setCalendarReadIssue}
+            />
+          )}
           embeddedInDayLine
           preferredPlacementDate={selectedDate}
           preferredTaskId={preferredTaskId}

@@ -8,7 +8,6 @@ import { PoolScreen } from './screens/PoolScreen';
 import { LibraryScreen } from './screens/LibraryScreen';
 import { ResetScreen } from './screens/ResetScreen';
 import { SetupScreen } from './screens/SetupScreen';
-import { CalendarSourceControl } from './features/plan/CalendarSourceControl';
 import { TimeDisruptionRepairWatcher } from './features/plan/TimeDisruptionRepairWatcher';
 import { TaskPoolCaptureModal } from './features/taskPool/TaskPoolCaptureModal';
 import {
@@ -368,10 +367,10 @@ export default function App() {
       <>
         <PlanDayLineScreen
           key={`plan-surface-${planRevision}`}
+          onPlanRepaired={handlePrivatePlanChanged}
           preferredPlacementDate={preferredPlanPlacementDate}
           preferredTaskId={preferredPlanTaskId}
         />
-        <CalendarSourceControl onPlanRepaired={handlePrivatePlanChanged} />
       </>
     ),
     pool: <PoolScreen captureRevision={captureRevision} onOpenPlan={openPlanForTask} />,

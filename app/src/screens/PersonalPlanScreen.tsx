@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, ScreenHero } from '../components';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import {
@@ -67,6 +67,7 @@ type SurfaceCollectionState<T> =
   | CollectionReadResult<T>;
 
 type PersonalPlanScreenProps = {
+  detailsFooter?: ReactNode;
   embeddedInDayLine?: boolean;
   preferredPlacementDate?: string | null;
   preferredTaskId?: string | null;
@@ -105,6 +106,7 @@ function formatChangedLine(
 }
 
 export function PersonalPlanScreen({
+  detailsFooter = null,
   embeddedInDayLine = false,
   preferredPlacementDate = null,
   preferredTaskId = null,
@@ -124,6 +126,7 @@ export function PersonalPlanScreen({
   const [privatePlanState, setPrivatePlanState] = useState<PrivatePlanViewState>({ status: 'loading' });
   const [privatePlanBusy, setPrivatePlanBusy] = useState<'refresh' | 'undo' | null>(null);
   const [privatePlanFeedback, setPrivatePlanFeedback] = useState<string | null>(null);
+  const [planDetailsOpen, setPlanDetailsOpen] = useState(!embeddedInDayLine);
   const [poolReadState, setPoolReadState] = useState<SurfaceCollectionState<TaskPoolItem>>({ status: 'loading' });
   const [placementReadState, setPlacementReadState] = useState<SurfaceCollectionState<SoftPlacement>>({ status: 'loading' });
   const manualPlanReadRequestRef = useRef(0);
@@ -467,6 +470,87 @@ export function PersonalPlanScreen({
         />
       ) : null}
 
+      {embeddedInDayLine && privatePlanState.status === 'error' ? (
+        <section className="surface-status surface-status--error plan-default-attention" role="alert">
+          <h2>Private plan needs attention.</h2>
+          {privatePlanState.errors.map((error) => <p key={error}>{error}</p>)}
+          <p>Saved scheduler state was left unchanged. Open Plan details to recheck flexible work.</p>
+        </section>
+      ) : null}
+
+      {privatePlanState.status === 'ready' && changedItems.length > 0 ? (
+        <section
+          className="private-plan-changed plan-section plan-section--changed plan-default-changed"
+          aria-labelledby="personal-private-plan-changed-title"
+        >
+          <div className="soft-placements__header">
+            <p className="section-label">Recent automatic repair</p>
+            <h2 id="personal-private-plan-changed-title">Changed</h2>
+            <div className="plan-section__guidance">
+              <p>Only the latest private-plan repair is shown here.</p>
+            </div>
+          </div>
+
+          <ul className="soft-placements__list">
+            {changedItems.map((change, index) => (
+              <li key={`${change.targetKind}:${change.targetId}:${change.kind}:${index}`}>
+                <div className="soft-placements__item-copy">
+                  <strong>{formatChangedLine(change, privatePlanState.titleByTargetId)}</strong>
+                  <p>{change.reason}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {privatePlanState.plan.repair?.undo ? (
+            <Button
+              disabled={privatePlanBusy !== null}
+              onClick={() => void undoPrivatePlan()}
+            >
+              {privatePlanBusy === 'undo' ? 'Restoring plan' : 'Undo last repair'}
+            </Button>
+          ) : null}
+        </section>
+      ) : null}
+
+      {privatePlanFeedback ? <p className="plan-default-feedback" role="status">{privatePlanFeedback}</p> : null}
+
+      {manualDataFailed ? (
+        <section
+          aria-label="Manual Plan data unavailable"
+          className="surface-read-state surface-read-state--error plan-default-attention"
+          role="alert"
+        >
+          <h2>Some saved manual Plan data could not be loaded.</h2>
+          {placementReadState.status === 'readFailed' ? <p>Saved manual placements could not be loaded.</p> : null}
+          {poolReadState.status === 'readFailed' ? <p>Saved Held tasks could not be loaded for manual suggestions.</p> : null}
+          <p>The automatic private plan and other available Plan information remain unchanged.</p>
+          <p>Nothing stored on this device was changed.</p>
+          <Button onClick={() => void retryManualPlanData()}>Retry manual Plan data</Button>
+        </section>
+      ) : manualDataPartial ? (
+        <section
+          aria-label="Saved manual Plan data warning"
+          className="surface-read-state surface-read-state--warning plan-default-attention"
+          role="status"
+        >
+          <h2>Some saved manual Plan data could not be read.</h2>
+          <p>Readable Held tasks and placements remain available. Nothing stored on this device was changed.</p>
+          <Button onClick={() => void retryManualPlanData()}>Retry manual Plan data</Button>
+        </section>
+      ) : null}
+
+      <details
+        className="plan-details-disclosure"
+        onToggle={(event) => setPlanDetailsOpen(event.currentTarget.open)}
+        open={planDetailsOpen}
+      >
+        <summary>
+          <span>Plan details</span>
+          <span>Flexible placements, planning boundaries and manual controls</span>
+        </summary>
+        <div className="plan-details-disclosure__content" hidden={!planDetailsOpen}>
+
       <section
         className="private-plan plan-section plan-section--private"
         aria-labelledby="personal-private-plan-title"
@@ -541,46 +625,6 @@ export function PersonalPlanScreen({
           </details>
         ) : null}
 
-        {privatePlanFeedback ? <p role="status">{privatePlanFeedback}</p> : null}
-      </section>
-
-      <section
-        className="private-plan-changed plan-section plan-section--changed"
-        aria-labelledby="personal-private-plan-changed-title"
-      >
-        <div className="soft-placements__header">
-          <p className="section-label">Recent automatic repair</p>
-          <h2 id="personal-private-plan-changed-title">Changed</h2>
-          <div className="plan-section__guidance">
-            <p>Only the latest private-plan repair is shown here.</p>
-          </div>
-        </div>
-
-        {privatePlanState.status === 'ready' && changedItems.length > 0 ? (
-          <ul className="soft-placements__list">
-            {changedItems.map((change, index) => (
-              <li key={`${change.targetKind}:${change.targetId}:${change.kind}:${index}`}>
-                <div className="soft-placements__item-copy">
-                  <strong>{formatChangedLine(change, privatePlanState.titleByTargetId)}</strong>
-                  <p>{change.reason}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="soft-placements__empty">
-            <h3>No recent automatic changes.</h3>
-          </div>
-        )}
-
-        {privatePlanState.status === 'ready' && privatePlanState.plan.repair?.undo ? (
-          <Button
-            disabled={privatePlanBusy !== null}
-            onClick={() => void undoPrivatePlan()}
-          >
-            {privatePlanBusy === 'undo' ? 'Restoring plan' : 'Undo last repair'}
-          </Button>
-        ) : null}
       </section>
 
       <section
@@ -657,31 +701,6 @@ export function PersonalPlanScreen({
             </div>
           )}
       </section>
-
-      {manualDataFailed ? (
-        <section
-          aria-label="Manual Plan data unavailable"
-          className="surface-read-state surface-read-state--error"
-          role="alert"
-        >
-          <h2>Some saved manual Plan data could not be loaded.</h2>
-          {placementReadState.status === 'readFailed' ? <p>Saved manual placements could not be loaded.</p> : null}
-          {poolReadState.status === 'readFailed' ? <p>Saved Held tasks could not be loaded for manual suggestions.</p> : null}
-          <p>The automatic private plan and other available Plan information remain unchanged.</p>
-          <p>Nothing stored on this device was changed.</p>
-          <Button onClick={() => void retryManualPlanData()}>Retry manual Plan data</Button>
-        </section>
-      ) : manualDataPartial ? (
-        <section
-          aria-label="Saved manual Plan data warning"
-          className="surface-read-state surface-read-state--warning"
-          role="status"
-        >
-          <h2>Some saved manual Plan data could not be read.</h2>
-          <p>Readable Held tasks and placements remain available. Nothing stored on this device was changed.</p>
-          <Button onClick={() => void retryManualPlanData()}>Retry manual Plan data</Button>
-        </section>
-      ) : null}
 
       <section
         className="soft-suggestions plan-section plan-section--suggestions"
@@ -805,6 +824,9 @@ export function PersonalPlanScreen({
             </div>
           ) : null}
       </section>
+          {detailsFooter}
+        </div>
+      </details>
     </div>
   );
 }

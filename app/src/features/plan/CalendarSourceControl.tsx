@@ -8,6 +8,7 @@ import {
 import { repairCurrentPrivatePlan } from '../../data/schedulerPlanCoordinator';
 
 type CalendarSourceControlProps = {
+  onReadIssueChange?: (message: string | null) => void;
   onPlanRepaired?: () => void;
 };
 
@@ -47,7 +48,7 @@ function browserCalendarWindow() {
   };
 }
 
-export function CalendarSourceControl({ onPlanRepaired }: CalendarSourceControlProps) {
+export function CalendarSourceControl({ onPlanRepaired, onReadIssueChange }: CalendarSourceControlProps) {
   const [savedCalendar, setSavedCalendar] = useState<SavedCalendarSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
@@ -60,6 +61,7 @@ export function CalendarSourceControl({ onPlanRepaired }: CalendarSourceControlP
       if (!active) return;
 
       if (result.status === 'ok') {
+        onReadIssueChange?.(null);
         setSavedCalendar({
           importedAt: result.record.importedAt,
           label: result.record.label,
@@ -68,14 +70,24 @@ export function CalendarSourceControl({ onPlanRepaired }: CalendarSourceControlP
       }
 
       if (result.status === 'invalid' || result.status === 'error') {
-        setStatus('Saved calendar data could not be read safely. The flexible plan will not use it.');
+        const message = 'Saved calendar data could not be read safely. The flexible plan will not use it.';
+        setStatus(message);
+        onReadIssueChange?.(message);
+        return;
       }
+
+      onReadIssueChange?.(null);
+    }).catch(() => {
+      if (!active) return;
+      const message = 'Saved calendar data could not be read. The flexible plan will not use it.';
+      setStatus(message);
+      onReadIssueChange?.(message);
     });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [onReadIssueChange]);
 
   async function repairAfterCalendarChange(reason: string) {
     const repaired = await repairCurrentPrivatePlan({
