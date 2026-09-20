@@ -15,6 +15,7 @@ import { PersonalPlanScreen } from './PersonalPlanScreen';
 
 type PlanDayLineScreenProps = {
   onPlanRepaired?: () => void;
+  planRevision?: number;
   preferredPlacementDate?: string | null;
   preferredTaskId?: string | null;
 };
@@ -40,6 +41,7 @@ function initialSelectedDate(preferredPlacementDate: string | null) {
 
 export function PlanDayLineScreen({
   onPlanRepaired,
+  planRevision = 0,
   preferredPlacementDate = null,
   preferredTaskId = null,
 }: PlanDayLineScreenProps = {}) {
@@ -203,6 +205,7 @@ export function PlanDayLineScreen({
             />
           )}
           embeddedInDayLine
+          planRevision={planRevision}
           preferredPlacementDate={selectedDate}
           preferredTaskId={preferredTaskId}
         />

@@ -366,8 +366,8 @@ export default function App() {
     plan: (
       <>
         <PlanDayLineScreen
-          key={`plan-surface-${planRevision}`}
           onPlanRepaired={handlePrivatePlanChanged}
+          planRevision={planRevision}
           preferredPlacementDate={preferredPlanPlacementDate}
           preferredTaskId={preferredPlanTaskId}
         />

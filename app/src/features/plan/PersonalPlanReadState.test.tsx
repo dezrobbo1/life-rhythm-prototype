@@ -140,6 +140,40 @@ describe('Personal Plan read states', () => {
     expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
   });
 
+  it('rereads the accepted plan without closing Plan details when the plan revision changes', async () => {
+    const user = userEvent.setup();
+    const rendered = render(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen embeddedInDayLine planRevision={0} />
+      </AppSnapshotProvider>,
+    );
+
+    await waitFor(() => {
+      expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(1);
+    });
+    await user.click(screen.getByText('Plan details'));
+    expect(screen.getByText('Plan details').closest('details')?.open).toBe(true);
+
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: changedPlan,
+      titleByTargetId: { 'task-moved': 'Move the form' },
+      warnings: [],
+    });
+    rendered.rerender(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen embeddedInDayLine planRevision={1} />
+      </AppSnapshotProvider>,
+    );
+
+    await waitFor(() => {
+      expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByRole('heading', { name: 'Changed' })).toBeTruthy();
+    expect(screen.getByText('Plan details').closest('details')?.open).toBe(true);
+    expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+  });
+
   it('does not show an empty Changed section on the default Plan surface', async () => {
     renderEmbeddedPlan();
 

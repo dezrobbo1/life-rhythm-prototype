@@ -69,6 +69,7 @@ type SurfaceCollectionState<T> =
 type PersonalPlanScreenProps = {
   detailsFooter?: ReactNode;
   embeddedInDayLine?: boolean;
+  planRevision?: number;
   preferredPlacementDate?: string | null;
   preferredTaskId?: string | null;
 };
@@ -108,6 +109,7 @@ function formatChangedLine(
 export function PersonalPlanScreen({
   detailsFooter = null,
   embeddedInDayLine = false,
+  planRevision = 0,
   preferredPlacementDate = null,
   preferredTaskId = null,
 }: PersonalPlanScreenProps = {}) {
@@ -282,7 +284,7 @@ export function PersonalPlanScreen({
     return () => {
       active = false;
     };
-  }, [applyPrivatePlanResult]);
+  }, [applyPrivatePlanResult, planRevision]);
 
   useEffect(() => {
     let active = true;
