@@ -156,7 +156,7 @@ The verification pass must check the corrected behaviour and directly affected p
 
 A genuinely new material blocker introduced by the correction may justify another pass. If repeated findings cluster around the same mechanism, perform one bounded matrix-style review of that mechanism, correct the confirmed cases together, then stop. Do not enter open-ended adjacent-edge-case review churn.
 
-Do not automatically request another Codex/agent review after every correction. Trigger another substantive review only when the correction materially changes the risk-bearing design or when required by the owner.
+Do not automatically request another Codex/agent review after every correction. Trigger another substantive review only when the correction introduces or reveals a genuinely new material blocker, materially changes the risk-bearing design, or when required by the owner.
 
 ### Validation evidence
 
@@ -168,11 +168,13 @@ Do not automatically request another Codex/agent review after every correction. 
 
 ### Final review outcome
 
-A final review must end with one of:
+Where the review interface permits a summary or verdict, end the final review with one of:
 
 - **BLOCK** — unresolved merge blocker(s) remain;
 - **MERGE WITH FOLLOW-UPS** — the milestone is safe to merge and bounded non-blocking issues are recorded;
 - **MERGE** — no material blocker remains.
+
+When a structured review interface permits only findings and no free-form verdict, do not violate its response schema merely to emit one of these labels. In that interface, use the equivalent disposition: any blocking finding means **BLOCK**; only explicitly non-blocking follow-up findings means **MERGE WITH FOLLOW-UPS**; an empty findings result means **MERGE**.
 
 A clean review is a valid result; reviewers are not required to invent findings. When the current milestone is complete, identify the next planned product milestone instead of continuing hardening by default.
 
