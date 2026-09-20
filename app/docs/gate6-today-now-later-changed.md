@@ -6,17 +6,17 @@ Gate 6D makes the personal Today screen a calm read surface over the existing ta
 
 `Now` keeps the existing Today task-selection authority. The same persisted active task that the prior Today surface selected remains the dominant `TaskCard`, with its lifecycle, durable Minimum achievement, Details, Start Boost, Park, Not today, and re-entry selection behaviour intact.
 
-A hard external commitment that is currently in progress may appear as concise read-only context. It does not replace the active task, write to the calendar, or become a task.
+A hard external commitment that is currently in progress may appear as concise read-only context. Other current private placements remain visible as “Scheduled for this time” context while the selected task stays dominant. Crossing a placement boundary changes presentation only: it does not imply that work started, replace the active task, or write task, plan, or calendar state.
 
 ## Later truth boundary
 
-`Later` reuses the Gate 6C Day Line composition. For the current local date it admits only unelapsed:
+`Later` reuses the Gate 6C Day Line composition. For the current local date it admits only unelapsed, not-current:
 
 - hard external commitments;
 - current user-confirmed private placements from live canonical input;
 - scheduler-owned placements from the persisted accepted private plan.
 
-The current task and any current commitment already shown in `Now` are not repeated. The first four facts are shown in chronological order; remaining facts are summarized for Plan.
+The current task and current fixed/private facts already shown in `Now` are not repeated. The first four facts are shown in chronological order; remaining facts are summarized for Plan.
 
 Blank gaps, possible-space blocks, ask-first time, protected time, work context, and unplanned catalogue rhythms are not Later facts. Their absence never means a gap is scheduling capacity.
 
@@ -30,7 +30,7 @@ The section uses the existing mode-aware one-step Undo. Reduced Day controls ret
 
 Opening Today performs read-only live-context and saved-plan reads. It never builds or repairs a plan merely to render. A missing plan cannot fabricate flexible work. An invalid plan is not described as an empty day.
 
-Task reads and optional plan/context reads fail independently: a readable `Now` task remains usable when Later or Changed cannot be read. Monotonic request generations prevent an older async plan read from replacing newer facts. Today refreshes after its own lifecycle repairs, Reduced Day actions, Undo, and the app's existing background plan-revision signal.
+Task reads and optional plan/context reads fail independently: a readable `Now` task remains usable when Later or Changed cannot be read. Monotonic request generations prevent an older async plan or day-mode read from replacing newer facts. The existing one-shot time-boundary refresh moves recorded facts between Later and current context without writes, and local midnight also rereads the date-scoped Reduced Day mode without repairing a plan. Today refreshes after its own lifecycle repairs, Reduced Day actions, Undo, and the app's existing background plan-revision signal.
 
 ## Preserved and demoted capabilities
 
