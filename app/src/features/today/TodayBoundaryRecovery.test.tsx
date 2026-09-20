@@ -230,7 +230,7 @@ describe('Today midnight independently of optional plan reads', () => {
       .mockImplementation(async (options = {}) => {
         if (options.horizonDays === 1 && failing) {
           if (failure === 'rejection') throw new Error('Synthetic calendar read failure');
-          return { ok: false, errors: ['Synthetic calendar read failure'] };
+          return { ok: false, errors: ['Synthetic calendar read failure'], warnings: [] };
         }
         return originalRead(options);
       });
@@ -326,7 +326,7 @@ describe('Today midnight independently of optional plan reads', () => {
     let failing = true;
     const liveRead = vi.spyOn(planCoordinator, 'buildCurrentLiveSchedulingContext')
       .mockImplementation(async (options = {}) => {
-        if (options.horizonDays === 1 && failing) return { ok: false, errors: ['Synthetic calendar read failure'] };
+        if (options.horizonDays === 1 && failing) return { ok: false, errors: ['Synthetic calendar read failure'], warnings: [] };
         return originalRead(options);
       });
     const modeRead = vi.spyOn(reducedDayCoordinator, 'loadTodayDayMode');
