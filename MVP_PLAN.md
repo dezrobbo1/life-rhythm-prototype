@@ -203,6 +203,8 @@ Do not preserve existing object grammar merely because it is documented. Reuse g
 
 Exit condition: the user can operate the day without understanding Pool status, placement machinery, solver concepts or internal state boundaries.
 
+Status (Gate 6F, 2026-09-20): **Complete.** The connected v0 daily-loop acceptance and exit matrix are recorded in `app/docs/gate6-exit-report.md`. Gate 7 is next. Issue #146 remains an explicit DST-boundary limitation, and issue #141 remains governance-only follow-up work.
+
 ### Gate 7 — Behavioural Learning v0
 
 Goal: make Life Rhythm start learning without building a machine-learning platform.
