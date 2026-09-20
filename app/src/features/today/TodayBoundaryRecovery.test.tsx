@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import 'fake-indexeddb/auto';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppSnapshotProvider } from '../../data/AppSnapshotProvider';
 import {
@@ -209,6 +209,143 @@ describe('Today delayed timer and read boundaries', () => {
     view.rerender(renderToday(1));
     await settleUntil(() => planReady() && scheduledContextHasB() && !laterHasB());
     expectNowUnchanged();
+    expect(await storedState()).toEqual(before);
+    for (const write of writes) expect(write).not.toHaveBeenCalled();
+    cleanup();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+
+describe('Today midnight independently of optional plan reads', () => {
+  it.each(['result', 'rejection'] as const)('keeps midnight active after a %s failure and permits next-day Retry', async (failure) => {
+    vi.setSystemTime(new Date(2026, 8, 15, 23, 59, 30));
+    await seedBoundaryDay();
+    const before = await storedState();
+    const writes = watchWrites();
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const originalRead = planCoordinator.buildCurrentLiveSchedulingContext;
+    let failing = false;
+    const liveRead = vi.spyOn(planCoordinator, 'buildCurrentLiveSchedulingContext')
+      .mockImplementation(async (options = {}) => {
+        if (options.horizonDays === 1 && failing) {
+          if (failure === 'rejection') throw new Error('Synthetic calendar read failure');
+          return { ok: false, errors: ['Synthetic calendar read failure'] };
+        }
+        return originalRead(options);
+      });
+    const modeRead = vi.spyOn(reducedDayCoordinator, 'loadTodayDayMode');
+    const view = render(renderToday());
+    await settleUntil(() => planReady() && Boolean(screen.queryByText('Reduced Day active')));
+    expectNowUnchanged();
+
+    // A failed refresh must not remove the midnight timer installed by the
+    // preceding successful read. Only the optional horizon-one read fails.
+    failing = true;
+    view.rerender(renderToday(1));
+    await settleUntil(() => Boolean(screen.queryByText('Later and Changed could not be read.')));
+    const readsBeforeMidnight = liveRead.mock.calls.filter(([options]) => options?.horizonDays === 1).length;
+    const modesBeforeMidnight = modeRead.mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(31_000); });
+    await settleUntil(() => Boolean(screen.queryByText('Wednesday, September 16')) &&
+      Boolean(screen.queryByRole('button', { name: 'Reduce today' })) &&
+      Boolean(screen.queryByText('Later and Changed could not be read.')));
+    expect(screen.queryByText('Reduced Day active')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Return to normal day' })).toBeNull();
+    expectNowUnchanged();
+    expect(liveRead.mock.calls.filter(([options]) => options?.horizonDays === 1).length - readsBeforeMidnight).toBe(1);
+    expect(modeRead.mock.calls.length - modesBeforeMidnight).toBe(1);
+
+    // Persistent failure retains a daily deadline, not a tight retry loop.
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(liveRead.mock.calls.filter(([options]) => options?.horizonDays === 1).length - readsBeforeMidnight).toBe(1);
+    expect(vi.getTimerCount()).toBe(1);
+    failing = false;
+    fireEvent.click(within(screen.getByRole('region', { name: 'Later' })).getByRole('button', { name: 'Retry' }));
+    await settleUntil(() => planReady() && laterHasB());
+    expect(within(screen.getByRole('region', { name: 'Later' })).getByText('09:00–09:30')).toBeTruthy();
+    expect(screen.queryByText('Later and Changed could not be read.')).toBeNull();
+    expect(modeRead.mock.calls.length - modesBeforeMidnight).toBe(1);
+    expect(await storedState()).toEqual(before);
+    for (const write of writes) expect(write).not.toHaveBeenCalled();
+    cleanup();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('advances date and day mode while plan reads remain pending across midnight', async () => {
+    vi.setSystemTime(new Date(2026, 8, 15, 23, 59, 30));
+    await seedBoundaryDay();
+    const before = await storedState();
+    const writes = watchWrites();
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const modeRead = vi.spyOn(reducedDayCoordinator, 'loadTodayDayMode');
+    const view = render(renderToday());
+    await settleUntil(() => planReady() && Boolean(screen.queryByText('Reduced Day active')));
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let captured = 0;
+    const originalRead = planCoordinator.buildCurrentLiveSchedulingContext;
+    const liveRead = vi.spyOn(planCoordinator, 'buildCurrentLiveSchedulingContext')
+      .mockImplementation(async (options = {}) => {
+        const result = await originalRead(options);
+        if (options.horizonDays === 1) {
+          captured += 1;
+          await held;
+        }
+        return result;
+      });
+    const modesBeforeMidnight = modeRead.mock.calls.length;
+    view.rerender(renderToday(1));
+    await settleUntil(() => captured === 1 && !planReady());
+    await act(async () => { await vi.advanceTimersByTimeAsync(31_000); });
+    await settleUntil(() => Boolean(screen.queryByText('Wednesday, September 16')) &&
+      Boolean(screen.queryByRole('button', { name: 'Reduce today' })) && captured === 2);
+    expect(screen.getByText('Reading today’s recorded plan...')).toBeTruthy();
+    expect(screen.queryByText('Reduced Day active')).toBeNull();
+    expectNowUnchanged();
+    expect(modeRead.mock.calls.length - modesBeforeMidnight).toBe(1);
+    // Releasing yesterday's obsolete result must not overwrite the new date.
+    await act(async () => { release(); });
+    await settleUntil(() => planReady() && laterHasB());
+    expect(within(screen.getByRole('region', { name: 'Later' })).getByText('09:00–09:30')).toBeTruthy();
+    expect(liveRead.mock.calls.filter(([options]) => options?.horizonDays === 1)).toHaveLength(2);
+    expect(modeRead.mock.calls.length - modesBeforeMidnight).toBe(1);
+    expect(await storedState()).toEqual(before);
+    for (const write of writes) expect(write).not.toHaveBeenCalled();
+    cleanup();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('synchronises the represented date on Retry before a suspended midnight timer is delivered', async () => {
+    vi.setSystemTime(new Date(2026, 8, 15, 23, 59, 30));
+    await seedBoundaryDay();
+    const before = await storedState();
+    const writes = watchWrites();
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const originalRead = planCoordinator.buildCurrentLiveSchedulingContext;
+    let failing = true;
+    const liveRead = vi.spyOn(planCoordinator, 'buildCurrentLiveSchedulingContext')
+      .mockImplementation(async (options = {}) => {
+        if (options.horizonDays === 1 && failing) return { ok: false, errors: ['Synthetic calendar read failure'] };
+        return originalRead(options);
+      });
+    const modeRead = vi.spyOn(reducedDayCoordinator, 'loadTodayDayMode');
+    render(renderToday());
+    await settleUntil(() => Boolean(screen.queryByText('Later and Changed could not be read.')) &&
+      Boolean(screen.queryByText('Reduced Day active')));
+    const readsBeforeRetry = liveRead.mock.calls.filter(([options]) => options?.horizonDays === 1).length;
+    const modesBeforeRetry = modeRead.mock.calls.length;
+    // Set the wall clock without running the pending timeout.
+    vi.setSystemTime(new Date(2026, 8, 16, 8, 0, 0));
+    failing = false;
+    fireEvent.click(within(screen.getByRole('region', { name: 'Later' })).getByRole('button', { name: 'Retry' }));
+    await settleUntil(() => planReady() && laterHasB() &&
+      Boolean(screen.queryByText('Wednesday, September 16')) &&
+      Boolean(screen.queryByRole('button', { name: 'Reduce today' })));
+    expectNowUnchanged();
+    expect(screen.queryByText('Reduced Day active')).toBeNull();
+    expect(modeRead.mock.calls.length - modesBeforeRetry).toBe(1);
+    expect(liveRead.mock.calls.filter(([options]) => options?.horizonDays === 1).length - readsBeforeRetry).toBe(1);
     expect(await storedState()).toEqual(before);
     for (const write of writes) expect(write).not.toHaveBeenCalled();
     cleanup();
