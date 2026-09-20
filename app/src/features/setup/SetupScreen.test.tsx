@@ -458,15 +458,15 @@ describe('Setup screen', () => {
   it('renders Task Pool backup export and checker controls', () => {
     render(<SetupScreen />);
 
-    expect(screen.getByRole('heading', { name: 'Export Task Pool' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Export Task Pool backup' })).toBeTruthy();
-    expect(screen.getByText('Creates a local backup file for saved Pool items, including status and deferral metadata.')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Export Held' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Export Held backup' })).toBeTruthy();
+    expect(screen.getByText('Creates a local backup file for saved Held items, including status and deferral metadata.')).toBeTruthy();
     expect(screen.getByText('It does not include settings, Today tasks, Library rhythms, soft placements, or calendar events.')).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Check Task Pool backup' })).toBeTruthy();
-    expect(screen.getByLabelText('Task Pool backup text')).toBeTruthy();
-    expect(screen.getByLabelText('Select Task Pool backup file')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Check Task Pool backup' })).toBeTruthy();
-    expect(screen.getByText('Check only. Paste or select a Task Pool backup.')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Check Held backup' })).toBeTruthy();
+    expect(screen.getByLabelText('Held backup text')).toBeTruthy();
+    expect(screen.getByLabelText('Select Held backup file')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Check Held backup' })).toBeTruthy();
+    expect(screen.getByText('Check only. Paste or select a Held backup.')).toBeTruthy();
   });
 
   it('exports a Task Pool backup through the connected handler', async () => {
@@ -488,9 +488,9 @@ describe('Setup screen', () => {
 
     render(<SetupScreen onExportTaskPoolBackup={onExportTaskPoolBackup} />);
 
-    await user.click(screen.getByRole('button', { name: 'Export Task Pool backup' }));
+    await user.click(screen.getByRole('button', { name: 'Export Held backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('Task Pool backup created on this device.');
+    expect(screen.getByRole('status').textContent).toContain('Held backup created on this device.');
     expect(onExportTaskPoolBackup).toHaveBeenCalledTimes(1);
   });
 
@@ -509,16 +509,16 @@ describe('Setup screen', () => {
       });
       render(<SetupScreen onExportTaskPoolBackup={onExportTaskPoolBackup} />);
 
-      fireEvent.change(screen.getByLabelText('Task Pool backup text'), {
+      fireEvent.change(screen.getByLabelText('Held backup text'), {
         target: {
           value: validTaskPoolBackupJson(),
         },
       });
-      await user.click(screen.getByRole('button', { name: 'Check Task Pool backup' }));
+      await user.click(screen.getByRole('button', { name: 'Check Held backup' }));
 
-      expect(screen.getByRole('status').textContent).toContain('Task Pool backup looks valid. Restore is not connected yet.');
-      const preview = screen.getByLabelText('Task Pool backup preview');
-      expect(preview.textContent).toContain('Pool items');
+      expect(screen.getByRole('status').textContent).toContain('Held backup looks valid. Restore is not connected yet.');
+      const preview = screen.getByLabelText('Held backup preview');
+      expect(preview.textContent).toContain('Held items');
       expect(preview.textContent).toContain('2');
       expect(preview.textContent).toContain('1 captured, 1 deferred');
       expect(preview.textContent).toContain('Included');
@@ -540,15 +540,15 @@ describe('Setup screen', () => {
     const user = userEvent.setup();
     render(<SetupScreen />);
 
-    fireEvent.change(screen.getByLabelText('Task Pool backup text'), {
+    fireEvent.change(screen.getByLabelText('Held backup text'), {
       target: {
         value: '{ not json',
       },
     });
-    await user.click(screen.getByRole('button', { name: 'Check Task Pool backup' }));
+    await user.click(screen.getByRole('button', { name: 'Check Held backup' }));
 
-    expect(screen.getByRole('status').textContent).toContain('This Task Pool backup could not be used. Nothing changed on this device.');
-    expect(screen.getByRole('list', { name: 'Task Pool backup errors' })).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toContain('This Held backup could not be used. Nothing changed on this device.');
+    expect(screen.getByRole('list', { name: 'Held backup errors' })).toBeTruthy();
     expect(screen.getByText('backup: Task Pool backup JSON is malformed.')).toBeTruthy();
   });
 
@@ -762,7 +762,7 @@ describe('Setup screen', () => {
     const nav = screen.getByRole('navigation', { name: 'Primary' });
     expect(within(nav).getByRole('button', { name: 'Today' })).toBeTruthy();
     expect(within(nav).getByRole('button', { name: 'Plan' })).toBeTruthy();
-    expect(within(nav).getByRole('button', { name: 'Pool' })).toBeTruthy();
+    expect(within(nav).getByRole('button', { name: 'Held' })).toBeTruthy();
     expect(within(nav).getByRole('button', { name: 'Library' })).toBeTruthy();
     expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
     expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();

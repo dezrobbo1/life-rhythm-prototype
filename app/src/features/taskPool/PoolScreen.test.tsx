@@ -92,7 +92,7 @@ describe('Pool screen', () => {
 
     render(<PoolScreen />);
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Your saved Pool tasks could not be loaded.');
+    expect((await screen.findByRole('alert')).textContent).toContain('Your saved Held tasks could not be loaded.');
     expect(screen.queryByText('No captured tasks yet.')).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Retry' }));
@@ -113,8 +113,8 @@ describe('Pool screen', () => {
     render(<PoolScreen />);
 
     expect(await screen.findByText('Captured form task')).toBeTruthy();
-    expect((await screen.findByRole('status', { name: 'Saved Pool task warning' })).textContent).toContain(
-      'Some saved Pool task data could not be read.',
+    expect((await screen.findByRole('status', { name: 'Saved Held task warning' })).textContent).toContain(
+      'Some saved Held task data could not be read.',
     );
     expect(await database.taskPoolItems.get('broken-pool-row')).toBeTruthy();
   });
@@ -130,11 +130,11 @@ describe('Pool screen', () => {
     render(<PoolScreen />);
 
     expect(await screen.findByText('Captured form task')).toBeTruthy();
-    expect(await screen.findByRole('status', { name: 'Saved Pool placement warning' })).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Retry Pool placement data' }));
+    expect(await screen.findByRole('status', { name: 'Saved Held placement warning' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Retry Held placement data' }));
 
     await waitFor(() => {
-      expect(screen.queryByRole('status', { name: 'Saved Pool placement warning' })).toBeNull();
+      expect(screen.queryByRole('status', { name: 'Saved Held placement warning' })).toBeNull();
     });
     expect(placementReadSpy).toHaveBeenCalledTimes(2);
     expect(taskPutSpy).not.toHaveBeenCalled();
@@ -155,8 +155,8 @@ describe('Pool screen', () => {
 
     render(<PoolScreen />);
 
-    expect(await screen.findByRole('status', { name: 'Saved Pool placement warning' })).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Retry Pool placement data' }));
+    expect(await screen.findByRole('status', { name: 'Saved Held placement warning' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Retry Held placement data' }));
     await waitFor(() => expect(taskReadSpy).toHaveBeenCalledTimes(2));
     await user.click(screen.getByRole('button', { name: 'Add to Today' }));
     expect(await screen.findByText('Added to Today.')).toBeTruthy();
@@ -166,7 +166,7 @@ describe('Pool screen', () => {
       resolvePlacementRetry([]);
     });
 
-    expect(screen.getByRole('status', { name: 'Saved Pool placement warning' })).toBeTruthy();
+    expect(screen.getByRole('status', { name: 'Saved Held placement warning' })).toBeTruthy();
     expect(screen.queryByText('Captured form task')).toBeNull();
     expect((await getTaskPoolItem('task-pool-captured-form', database))?.status).toBe('today');
   });
@@ -190,7 +190,7 @@ describe('Pool screen', () => {
 
     render(<PoolScreen />);
 
-    const retry = await screen.findByRole('button', { name: 'Retry Pool placement data' });
+    const retry = await screen.findByRole('button', { name: 'Retry Held placement data' });
     await user.click(retry);
     await user.click(retry);
     expect(await screen.findByText('No captured tasks yet.')).toBeTruthy();
@@ -211,15 +211,15 @@ describe('Pool screen', () => {
 
     render(<PoolScreen />);
 
-    const warning = await screen.findByRole('status', { name: 'Saved Pool placement warning' });
-    expect(warning.textContent).toContain('No readable Pool tasks are currently visible.');
-    expect(warning.textContent).not.toContain('Pool tasks remain visible.');
+    const warning = await screen.findByRole('status', { name: 'Saved Held placement warning' });
+    expect(warning.textContent).toContain('No readable Held tasks are currently visible.');
+    expect(warning.textContent).not.toContain('Held tasks remain visible.');
   });
 
   it('renders the holding-tray task pool surface without Inbox language', async () => {
     render(<PoolScreen />);
 
-    expect(screen.getByRole('heading', { name: 'Pool' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Held' })).toBeTruthy();
     expect(screen.queryByText('Holding Tray')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Captured tasks' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Capture task' })).toBeTruthy();
@@ -338,7 +338,7 @@ describe('Pool screen', () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: 'Pool' }));
+    await user.click(await screen.findByRole('button', { name: 'Held' }));
     await user.click(screen.getByRole('button', { name: 'Capture task' }));
     await user.type(screen.getByLabelText('Task title'), 'Task held outside Today');
     await user.type(screen.getByLabelText('Minimum version'), 'Write the first note');

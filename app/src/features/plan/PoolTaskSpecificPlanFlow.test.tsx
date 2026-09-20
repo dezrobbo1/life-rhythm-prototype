@@ -63,7 +63,7 @@ describe('task-specific Pool to Plan routing', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: 'Pool' }));
+    await user.click(await screen.findByRole('button', { name: 'Held' }));
     await captureTask(user, 'Older task');
     await captureTask(user, 'Chosen task');
 
@@ -77,7 +77,7 @@ describe('task-specific Pool to Plan routing', () => {
 
     expect(await within(suggestions).findByText('Chosen task')).toBeTruthy();
     expect(within(suggestions).queryByText('Older task')).toBeNull();
-    expect(within(suggestions).getByText('Showing Chosen task first because you chose it in Pool.')).toBeTruthy();
+    expect(within(suggestions).getByText('Showing Chosen task first because you chose it in Held.')).toBeTruthy();
   });
 
   it('opens View in Plan on the actual soft-placement day', async () => {
@@ -114,7 +114,7 @@ describe('task-specific Pool to Plan routing', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: 'Pool' }));
+    await user.click(await screen.findByRole('button', { name: 'Held' }));
     const taskRow = (await screen.findByText('Placed task')).closest('li');
     if (!taskRow) throw new Error('Placed task row was not found.');
 

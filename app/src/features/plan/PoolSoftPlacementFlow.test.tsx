@@ -51,7 +51,7 @@ describe('Pool soft placement flow', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: 'Pool' }));
+    await user.click(await screen.findByRole('button', { name: 'Held' }));
     await user.click(screen.getByRole('button', { name: 'Capture task' }));
     await user.type(screen.getByLabelText('Task title'), 'Send school form');
     await user.selectOptions(screen.getByLabelText('Area'), 'admin');
@@ -98,7 +98,7 @@ describe('Pool soft placement flow', () => {
     expect(await screen.findByText('User-confirmed placement removed.')).toBeTruthy();
     expect(await within(placements).findByText(/No user-confirmed placements for/)).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: 'Pool' }));
+    await user.click(screen.getByRole('button', { name: 'Held' }));
     expect(await screen.findByText('Send school form')).toBeTruthy();
     expect(screen.getByText('Admin - Safely held')).toBeTruthy();
     expect(await database.softPlacements.toArray()).toEqual([

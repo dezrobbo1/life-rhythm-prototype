@@ -1,22 +1,9 @@
 import { useRef, useState } from 'react';
 import { Button, Modal } from '../../components';
 import type { TaskPoolItem } from '../../data/schemas';
+import type { TaskPoolCaptureInput } from './taskPoolCapture';
 
 type TaskPoolArea = TaskPoolItem['area'];
-
-export type TaskPoolCaptureInput = {
-  area: TaskPoolArea;
-  dueAt?: string;
-  fullVersion: string;
-  minimumStillUsefulAfterDeadline?: boolean;
-  minimumVersion: string;
-  normalVersion: string;
-  notes?: string;
-  notUsefulAfter?: string;
-  purpose?: string;
-  timeConstraint?: 'dueBy';
-  title: string;
-};
 
 type TaskPoolCaptureModalProps = {
   onClose: () => void;

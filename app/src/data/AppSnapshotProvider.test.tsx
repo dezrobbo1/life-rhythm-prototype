@@ -144,8 +144,8 @@ describe('AppSnapshotProvider', () => {
     await user.click(within(nav).getByRole('button', { name: 'Plan' }));
     expect(screen.getByRole('heading', { name: 'Plan' })).toBeTruthy();
 
-    await user.click(within(nav).getByRole('button', { name: 'Pool' }));
-    expect(screen.getByRole('heading', { name: 'Pool' })).toBeTruthy();
+    await user.click(within(nav).getByRole('button', { name: 'Held' }));
+    expect(screen.getByRole('heading', { name: 'Held' })).toBeTruthy();
 
     await user.click(within(nav).getByRole('button', { name: 'Library' }));
     expect(screen.getByRole('heading', { name: 'Library' })).toBeTruthy();

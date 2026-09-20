@@ -36,23 +36,23 @@ This ledger records capabilities reachable in the React/Vite personal trial at t
 | Soft suggestions | Plan | Review suggested Pool tasks | Reads Pool items plus current date; computes suggestions in memory | SECONDARY | Held / Plan suggestion | Optional Plan dependency; Gate 6A isolates its read failure |
 | Add user-confirmed soft placement | Plan | Choose Add to Plan | Writes a validated soft placement and updates linked Pool lifecycle; repair follows | YES | Plan | Does not create a calendar event |
 | User-confirmed placements | Plan | View or remove placement | Reads/writes soft-placement table and linked lifecycle | YES | Plan | User-owned authority must remain visible |
-| Pool-to-Plan handoff | Pool then Plan | Find soft window / View in Plan | Passes task/date selection in app state; persisted placement remains separate | SECONDARY | Held / Plan | Current manual machinery may become less prominent, not disappear |
+| Held-to-Plan handoff | Held then Plan | Find soft window / View in Plan | Passes task/date selection in app state; persisted placement remains separate | SECONDARY | Held / Plan | Current manual machinery may become less prominent, not disappear |
 | Read-only calendar import | Plan | Select or replace `.ics` file | Validates and stores one local read-only source; repair uses expanded events | YES | Settings / Plan | Recurring rules are rejected; no external writes |
 | Remove calendar source | Plan | Remove calendar | Deletes only saved local source then repairs private plan | YES | Settings / Plan | Explicit user action |
 | Manual-data health state | Plan | Wait or Retry manual Plan data | Gate 6A isolates Pool/soft-placement loading, partial and read failure | YES | Surface status | Automatic plan stays visible when optional data fails; Retry does not rebuild it |
 
-## Pool
+## Held (persisted internally as Task Pool)
 
 | Capability | Current screen | Current user action | Persistence/read-write boundary | Must survive Gate 6? | Likely future destination | Notes/dependencies |
 |---|---|---|---|---|---|---|
-| Capture task | Pool | Capture task and enter Minimum/optional details/useful window | Validated Task Pool item write | YES | Capture / Held | Does not add to Today or calendar by itself |
-| Holding and status groups | Pool | View captured, deferred, parked, not-today, suggested and softly placed items | Reads validated `taskPoolItems`; derives resurfacing groups | YES | Held | Personal holding state, not a backlog/debt list |
-| Add/bring to Today | Pool | Add to Today / Bring to Today | Linked Pool + active-task lifecycle transaction; repair follows | YES | Held | Avoids duplicate active tasks |
-| Defer / bring back later | Pool | Choose Bring back later and a date | Persists validated deferral metadata | YES | Held | Resurfacing time does not create a hard schedule |
-| No longer needed | Pool | Choose Other choices → No longer needed | Linked lifecycle transaction removes eligible active/soft placement state | YES | Held | Explicit action; no unrelated deletion |
-| Plan handoff | Pool | Find soft window / View in Plan | Navigation hint plus Plan's soft-placement path | SECONDARY | Held / Plan | No calendar event is created |
+| Capture task | Shell and Held | Capture and enter Minimum/optional details/useful window | Shared validated Task Pool item write after a truthful collection-read preflight | YES | Persistent Capture / Held | Does not add to Today, Plan, calendar, or Library by itself |
+| Holding and status groups | Held | View captured, deferred, parked, not-today, suggested and softly placed items | Reads validated `taskPoolItems`; derives resurfacing groups | YES | Held | Personal holding state, not a backlog/debt list |
+| Add/bring to Today | Held | Add to Today / Bring to Today | Linked Pool + active-task lifecycle transaction; repair follows | YES | Held | Avoids duplicate active tasks |
+| Defer / bring back later | Held | Choose Bring back later and a date | Persists validated deferral metadata | YES | Held | Resurfacing time does not create a hard schedule |
+| No longer needed | Held | Choose Other choices → No longer needed | Linked lifecycle transaction removes eligible active/soft placement state | YES | Held | Explicit action; no unrelated deletion |
+| Plan handoff | Held | Find soft window / View in Plan | Navigation hint plus Plan's soft-placement path | SECONDARY | Held / Plan | No calendar event is created |
 | Task Pool backup export/check | Setup | Export or Check Task Pool backup | Export reads validated items; check parses without restore/write | SECONDARY | Settings / Recovery | Backup controls are not currently on Pool itself |
-| Pool data-health state | Pool | Wait or Retry after warning/failure | Gate 6A distinguishes empty, partial-invalid and read failure | YES | Surface status | Valid rows remain usable; invalid rows remain stored |
+| Held data-health state | Held | Wait or Retry after warning/failure | Gate 6A distinguishes empty, partial-invalid and read failure | YES | Surface status | Valid rows remain usable; invalid rows remain stored; capture fails closed on total read failure |
 
 ## Library
 

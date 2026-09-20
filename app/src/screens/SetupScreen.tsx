@@ -292,16 +292,16 @@ export function SetupScreen({
 
   async function exportTaskPoolItemsBackup() {
     if (!onExportTaskPoolBackup) {
-      setStatus('Task Pool backup export is not connected in this render.');
+      setStatus('Held backup export is not connected in this render.');
       return;
     }
 
     try {
       const backup = await onExportTaskPoolBackup();
 
-      setStatus(backup ? 'Task Pool backup created on this device.' : 'No saved Pool items to export yet.');
+      setStatus(backup ? 'Held backup created on this device.' : 'No saved Held items to export yet.');
     } catch {
-      setStatus('Task Pool backup was not created.');
+      setStatus('Held backup was not created.');
     }
   }
 
@@ -341,13 +341,13 @@ export function SetupScreen({
     if (result.ok) {
       setTaskPoolBackupErrors([]);
       setTaskPoolBackupPreview(result.preview);
-      setStatus('Task Pool backup looks valid. Restore is not connected yet.');
+      setStatus('Held backup looks valid. Restore is not connected yet.');
       return;
     }
 
     setTaskPoolBackupErrors(result.errors);
     setTaskPoolBackupPreview(null);
-    setStatus('This Task Pool backup could not be used. Nothing changed on this device.');
+    setStatus('This Held backup could not be used. Nothing changed on this device.');
   }
 
   async function readSettingsBackupFile(event: ChangeEvent<HTMLInputElement>) {
@@ -393,11 +393,11 @@ export function SetupScreen({
       setTaskPoolBackupJson(await file.text());
       setTaskPoolBackupErrors([]);
       setTaskPoolBackupPreview(null);
-      setStatus('Task Pool backup loaded. Choose Check Task Pool backup.');
+      setStatus('Held backup loaded. Choose Check Held backup.');
     } catch {
-      setTaskPoolBackupErrors(['backup: Task Pool backup file could not be read.']);
+      setTaskPoolBackupErrors(['backup: Held backup file could not be read.']);
       setTaskPoolBackupPreview(null);
-      setStatus('This Task Pool backup could not be used. Nothing changed on this device.');
+      setStatus('This Held backup could not be used. Nothing changed on this device.');
     }
   }
 
@@ -902,51 +902,51 @@ export function SetupScreen({
         </div>
         <div className="setup-backup-panel">
           <div className="setup-subheading">
-            <h3>Export Task Pool</h3>
-            <p>Creates a local backup file for saved Pool items, including status and deferral metadata.</p>
+            <h3>Export Held</h3>
+            <p>Creates a local backup file for saved Held items, including status and deferral metadata.</p>
             <p>It does not include settings, Today tasks, Library rhythms, soft placements, or calendar events.</p>
           </div>
           <div className="setup-action-row">
-            <Button onClick={exportTaskPoolItemsBackup}>Export Task Pool backup</Button>
+            <Button onClick={exportTaskPoolItemsBackup}>Export Held backup</Button>
           </div>
         </div>
         <div className="setup-backup-checker" aria-labelledby="task-pool-backup-check-title">
           <div className="setup-subheading">
-            <h3 id="task-pool-backup-check-title">Check Task Pool backup</h3>
-            <p>Check only. Paste or select a Task Pool backup.</p>
+            <h3 id="task-pool-backup-check-title">Check Held backup</h3>
+            <p>Check only. Paste or select a Held backup.</p>
             <p>Restore is not connected yet. Checking does not change this device.</p>
           </div>
           <label className="life-shape-control life-shape-control--wide">
             <span>Paste backup text</span>
             <textarea
-              aria-label="Task Pool backup text"
+              aria-label="Held backup text"
               onChange={(event) => {
                 setTaskPoolBackupJson(event.target.value);
                 setTaskPoolBackupErrors([]);
                 setTaskPoolBackupPreview(null);
               }}
-              placeholder="Paste a Task Pool backup file here."
+              placeholder="Paste a Held backup file here."
               rows={6}
               value={taskPoolBackupJson}
             />
-            <small>Checking does not restore Pool items or change this device.</small>
+            <small>Checking does not restore Held items or change this device.</small>
           </label>
           <div className="setup-action-row">
             <label className="setup-file-picker">
-              <span>Select Task Pool backup file</span>
+              <span>Select Held backup file</span>
               <input
                 accept="application/json,.json"
-                aria-label="Select Task Pool backup file"
+                aria-label="Select Held backup file"
                 onChange={readTaskPoolBackupFile}
                 type="file"
               />
             </label>
-            <Button onClick={checkTaskPoolBackup}>Check Task Pool backup</Button>
+            <Button onClick={checkTaskPoolBackup}>Check Held backup</Button>
           </div>
           {taskPoolBackupPreview ? (
-            <dl aria-label="Task Pool backup preview" className="setup-about-list">
+            <dl aria-label="Held backup preview" className="setup-about-list">
               <div>
-                <dt>Pool items</dt>
+                <dt>Held items</dt>
                 <dd>{taskPoolBackupPreview.itemCount}</dd>
               </div>
               <div>
@@ -963,7 +963,7 @@ export function SetupScreen({
               </div>
               <div>
                 <dt>Titles</dt>
-                <dd>{taskPoolBackupPreview.itemTitles.join(', ') || 'No Pool item titles in backup.'}</dd>
+                <dd>{taskPoolBackupPreview.itemTitles.join(', ') || 'No Held item titles in backup.'}</dd>
               </div>
               <div>
                 <dt>Exported</dt>
@@ -975,7 +975,7 @@ export function SetupScreen({
             <div className="setup-validation-summary">
               <strong>Backup check notes</strong>
               <p>Nothing changed on this device. The first items to review are below.</p>
-              <ul aria-label="Task Pool backup errors" className="setup-validation-list">
+              <ul aria-label="Held backup errors" className="setup-validation-list">
                 {taskPoolBackupErrors.slice(0, 3).map((error) => (
                   <li key={error}>{error}</li>
                 ))}

@@ -8,7 +8,7 @@ export type ScreenId = 'today' | 'plan' | 'pool' | 'library' | 'reset' | 'setup'
 const navItems: Array<{ id: ScreenId; icon: AppIconName; label: string }> = [
   { id: 'today', icon: 'today', label: 'Today' },
   { id: 'plan', icon: 'plan', label: 'Plan' },
-  { id: 'pool', icon: 'pool', label: 'Pool' },
+  { id: 'pool', icon: 'pool', label: 'Held' },
   { id: 'library', icon: 'library', label: 'Library' },
 ];
 
@@ -16,6 +16,8 @@ type AppShellProps = {
   activeScreen: ScreenId;
   children: ReactNode;
   onScreenChange: (screen: ScreenId) => void;
+  onCapture?: () => void;
+  captureFeedback?: { kind: 'error' | 'success'; message: string } | null;
   onShowExample?: () => void;
   onThemeChange?: (theme: ThemeName) => void;
   theme: ThemeName;
@@ -23,7 +25,9 @@ type AppShellProps = {
 
 export function AppShell({
   activeScreen,
+  captureFeedback,
   children,
+  onCapture,
   onScreenChange,
   onShowExample,
   onThemeChange,
@@ -41,6 +45,12 @@ export function AppShell({
           </div>
         </div>
         <div className="app-header__actions">
+          {onCapture ? (
+            <button className="shell-capture-action" onClick={onCapture} type="button">
+              <AppIcon name="add" size={16} />
+              <span>Capture</span>
+            </button>
+          ) : null}
           {activeScreen === 'setup' && onThemeChange ? (
             <label className="theme-control theme-control--settings">
               <span>Theme</span>
@@ -79,6 +89,14 @@ export function AppShell({
           </nav>
         </div>
       </header>
+      {captureFeedback ? (
+        <p
+          className={`shell-capture-feedback shell-capture-feedback--${captureFeedback.kind}`}
+          role={captureFeedback.kind === 'error' ? 'alert' : 'status'}
+        >
+          {captureFeedback.message}
+        </p>
+      ) : null}
       <main className="app-main">{children}</main>
       <nav className="bottom-nav" aria-label="Primary">
         {navItems.map((item) => (

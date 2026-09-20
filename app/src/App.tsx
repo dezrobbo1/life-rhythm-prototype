@@ -10,6 +10,8 @@ import { ResetScreen } from './screens/ResetScreen';
 import { SetupScreen } from './screens/SetupScreen';
 import { CalendarSourceControl } from './features/plan/CalendarSourceControl';
 import { TimeDisruptionRepairWatcher } from './features/plan/TimeDisruptionRepairWatcher';
+import { TaskPoolCaptureModal } from './features/taskPool/TaskPoolCaptureModal';
+import { captureTaskPoolItem, type TaskPoolCaptureInput } from './features/taskPool/taskPoolCapture';
 import type { ThemeName } from './app/theme';
 import { AppSnapshotProvider } from './data/AppSnapshotProvider';
 import {
@@ -140,7 +142,7 @@ function ExamplePreview({ onReturnToPersonalTrial, theme }: ExamplePreviewProps)
         <div className="trial-example__grid">
           <section aria-labelledby="trial-example-pool-title">
             <p className="section-label">Holding Tray</p>
-            <h2 id="trial-example-pool-title">Pool</h2>
+            <h2 id="trial-example-pool-title">Held</h2>
             <p>Capture something without turning it into an immediate demand.</p>
             <p className="trial-example__quiet">Safely held · No schedule created</p>
           </section>
@@ -189,6 +191,9 @@ export default function App() {
   const [preferredPlanPlacementDate, setPreferredPlanPlacementDate] = useState<string | null>(null);
   const [preferredPlanTaskId, setPreferredPlanTaskId] = useState<string | null>(null);
   const [planRevision, setPlanRevision] = useState(0);
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [captureRevision, setCaptureRevision] = useState(0);
+  const [captureFeedback, setCaptureFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const handlePrivatePlanChanged = useCallback(() => {
     setPlanRevision((revision) => revision + 1);
   }, []);
@@ -293,6 +298,21 @@ export default function App() {
     setActiveScreen('plan');
   }
 
+  async function handleCaptureTask(input: TaskPoolCaptureInput): Promise<boolean> {
+    setCaptureFeedback(null);
+    const result = await captureTaskPoolItem(input);
+
+    if (!result.ok) {
+      setCaptureFeedback({ kind: 'error', message: result.errors[0] ?? 'Task was not captured. Nothing else changed.' });
+      return false;
+    }
+
+    setCaptureOpen(false);
+    setCaptureRevision((revision) => revision + 1);
+    setCaptureFeedback({ kind: 'success', message: 'Task captured. It is safely held.' });
+    return true;
+  }
+
   const appSnapshot = useMemo<AppDataSnapshot>(
     () => settings === null
       ? emptyAppSnapshot
@@ -350,7 +370,7 @@ export default function App() {
         <CalendarSourceControl onPlanRepaired={handlePrivatePlanChanged} />
       </>
     ),
-    pool: <PoolScreen onOpenPlan={openPlanForTask} />,
+    pool: <PoolScreen captureRevision={captureRevision} onOpenPlan={openPlanForTask} />,
     library: <LibraryScreen />,
     reset: <ResetScreen />,
     setup: (
@@ -380,6 +400,11 @@ export default function App() {
       ) : null}
       <AppShell
         activeScreen={activeScreen}
+        captureFeedback={captureFeedback}
+        onCapture={() => {
+          setCaptureFeedback(null);
+          setCaptureOpen(true);
+        }}
         onScreenChange={handleScreenChange}
         onShowExample={() => setExampleOpen(true)}
         onThemeChange={setTheme}
@@ -387,6 +412,11 @@ export default function App() {
       >
         {screens[activeScreen]}
       </AppShell>
+      <TaskPoolCaptureModal
+        onClose={() => setCaptureOpen(false)}
+        onSave={handleCaptureTask}
+        open={captureOpen}
+      />
     </AppSnapshotProvider>
   );
 }
