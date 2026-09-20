@@ -252,11 +252,14 @@ describe('Gate 6C Plan Day Line screen', () => {
     expect(alert.textContent).toContain('Nothing stored on this device was changed.');
   });
   it('keeps a calendar repair failure visible outside closed Plan details', async () => {
-    const user = userEvent.setup();
-    render(<PlanDayLineScreen preferredPlacementDate={mondayDate} />);
+    render(
+      <PlanDayLineScreen
+        calendarRepairIssue="Calendar change was saved, but the flexible private plan could not be repaired."
+        preferredPlacementDate={mondayDate}
+      />,
+    );
 
     await screen.findByText('School run');
-    await user.click(screen.getByRole('button', { name: 'Report calendar repair issue' }));
 
     const alert = screen.getByRole('alert');
     expect(alert.textContent).toContain('Calendar change needs attention.');
