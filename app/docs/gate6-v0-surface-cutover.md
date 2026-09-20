@@ -6,7 +6,7 @@ Gate 6E2 makes the truthful Day Line the default Plan product while retaining th
 
 Plan opens with the selected date and the read-only Day Line. Fixed commitments, protected and ask-first time, explicit possible space, scheduler-owned placements, and user-confirmed placements keep the Gate 6C truth boundary. Blank gaps are not capacity.
 
-A concise **Changed** section and its supported one-step Undo remain visible when the latest accepted private-plan repair contains real changes. Empty Changed state is omitted. Material scheduler, manual-data, or calendar-source read failures remain visible outside the closed disclosure and are never described as a healthy empty plan.
+A concise **Changed** section and its supported one-step Undo remain visible when the latest accepted private-plan repair contains real changes. Empty Changed state is omitted. Material scheduler, manual-data, calendar-source read failures, and post-calendar-change repair failures remain visible outside the closed disclosure and are never described as a healthy empty plan. A saved calendar change whose private-plan repair fails remains explicitly visible until a later successful repair/recovery.
 
 ## Plan details
 
