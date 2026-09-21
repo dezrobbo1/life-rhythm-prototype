@@ -6,7 +6,7 @@ Gate 6 remains **NOT YET**. Repository and exact-head desktop evidence show a co
 
 - Starting main: `8455080d10ba64a4fac4edd593ec7575a1e02b50`
 - Branch: `agent/gate6f-v0-daily-loop-acceptance`
-- Published implementation/test head: `46d5f1fe5621babe7cbdd2f27c4118908003b8b1`
+- Published implementation/test head: `ea51ed99dfb7537ce06dc098f53756fe4c593dfd`
 - Tested implementation/test tree: `4a85800f98f753f69e64826e694a3d24ac050011`
 
 The report correction after that tree is documentation-only. The final published head and tree are recorded in PR #147 and the delivery handoff.
