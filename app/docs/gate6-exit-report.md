@@ -6,11 +6,10 @@ Gate 6 remains **NOT YET**. Repository and exact-head desktop evidence show a co
 
 - Starting main: `8455080d10ba64a4fac4edd593ec7575a1e02b50`
 - Branch: `agent/gate6f-v0-daily-loop-acceptance`
-- Locally tested implementation/test head: `9a749af66679ce9b82f19f716f62fe8c5d95b08c`
-- Published equivalent head: `af218acd1883a6d55f1d27289a236e6d812e3a3b`
-- Shared source tree: `ffac7b2abc660c53fde01d1f6c70d6e64b40466c`
+- Published implementation/test head: `2879e83a170ca848b9d8951c323fd99483556449`
+- Tested implementation/test tree: `23ab2d67513eb96e59db8db11f9e11a4674e7108`
 
-The implementation and published commits have different commit IDs because the authorized GitHub connector created the published commit, but their tree IDs are identical. This report and the small delivery-status update are documentation-only changes after that tested source tree. Their publication head and tree are recorded in PR #147 and the delivery handoff.
+The report correction after that tree is documentation-only. The final published head and tree are recorded in PR #147 and the delivery handoff.
 
 ## Gate 6 progression
 
@@ -33,7 +32,7 @@ The implementation and published commits have different commit IDs because the a
 | Capture | PASS | The connected App test captures one item into Held, stays on Today, and verifies that no active task, soft placement, or calendar source is created. |
 | Held | PASS | The same journey adds the captured item to Today and later parks it back into Held using the real linked lifecycle repositories. Existing defer, Not today, No longer needed, and Plan-handoff suites remain green. |
 | Plan | PASS | Day Line is the visible default; protected, ask-first, fixed, and accepted private facts retain their truth boundaries. Plan details remain closed by default and can be opened and closed without changing scheduler authority. |
-| Automatic repair | PASS | Existing scheduler, Today, Plan, Changed, and Undo persistence suites remain green. A saved calendar change whose repair fails remains visible after reload until a later canonical repair succeeds. Marker-write failure now stops repair, Today suppresses stale automatic-plan facts while repair is pending, and Undo of a calendar repair restores pending attention. |
+| Automatic repair | PASS | Existing scheduler, Today, Plan, Changed, and Undo persistence suites remain green. A saved calendar change whose repair fails remains visible after reload until a later canonical repair succeeds. Marker-write failure stops repair, stale concurrent plan writes are rejected, Today suppresses stale automatic-plan facts while repair is pending, and Undo of a calendar repair restores pending attention. |
 | Reduced Day | PASS | Existing preview/apply, persisted date-scoped mode, Changed, Undo, Return to normal, reload, and next-date suites remain green in both required time zones. |
 | Minimum Done | PASS | The connected journey exercises Start, Minimum Done, Keep going, Pause, Resume, and Park, then verifies durable `minimumAchievedAt` in the real active-task record. Existing reload coverage remains green. |
 | Re-entry | PASS | Existing real-repository and Today suites preserve usefulness-based choices, exact Try Minimum selection, and the no-catch-up boundary. Rendering review remains read-only. |
@@ -59,19 +58,20 @@ Dedicated integration suites cover the state-heavy continuations that are unsafe
 
 Acceptance found one concrete trust blocker inherited from the merged calendar-attention correction: after a calendar source was saved and private-plan repair failed, the attention state lived only in React memory. Reload could therefore show a changed calendar beside a stale private plan without the warning.
 
-Gate 6F stores an optional validated `calendarRepairPendingAt` marker in the existing scheduler-plan state record. No database version, table, index, or migration changed. Calendar-source changes must persist that marker before repair proceeds; successful canonical plan writes clear it. While the marker is present, Today keeps its task and readable fixed/user-confirmed facts usable but hides stale automatic placements and Changed metadata behind a targeted warning. Undo of a successful calendar repair re-marks the restored pre-calendar private plan as pending because Undo does not repair the changed calendar context. Live reads keep Plan and Today attention current across routes, reload, and successful repairs from any canonical path.
+Gate 6F stores an optional validated `calendarRepairPendingAt` marker in the existing scheduler-plan state record. No database version, table, index, or migration changed. Calendar-source changes persist that marker in the same Dexie transaction as the source mutation. Repairs then carry the exact calendar source snapshot used to build their scheduling input and compare both that snapshot and the previously read scheduler record inside a transaction spanning `calendarSources` and `schedulerPlanState`. A concurrent source mutation or plan write therefore rejects the stale result before it can overwrite the plan or clear attention. The same compare-and-save boundary protects initial plan creation and Undo.
+
+Successful canonical repairs using the current calendar snapshot clear pending attention. While the marker is present, Today keeps its task and readable fixed/user-confirmed facts usable but hides stale automatic placements and Changed metadata behind a targeted warning. Its Retry repair action now runs that canonical repair and retains the warning plus the returned error when recovery fails. Undo of a successful calendar repair re-marks the restored pre-calendar private plan as pending because Undo does not repair the changed calendar context. Live reads keep Plan and Today attention current across routes, reload, and successful repairs from any canonical path.
 
 ## Automated evidence
 
-- Gate 6 acceptance matrix: 16 files, 230 tests passed.
-- Focused review-correction matrix: 6 files, 157 tests passed.
-- Default full suite: 73 files, 867 tests passed.
-- UTC full suite: 73 files, 867 tests passed.
-- Australia/Perth full suite: 73 files, 867 tests passed.
+- Focused final correction matrix: 8 files, 164 tests passed.
+- Default full suite: 74 files, 881 tests passed.
+- UTC full suite: 73 files and 880 tests passed; the untouched Gate 6 acceptance test hit its known broad-text-query flake, then passed 1 file / 1 test in immediate isolated execution.
+- Australia/Perth full suite: 73 files and 880 tests passed; the same untouched Gate 6 acceptance query flaked, then passed 1 file / 1 test in immediate isolated execution.
 - Build: TypeScript and Vite production build passed.
 - Diff check: passed.
 
-An earlier Perth full attempt exposed a timing-only failure in the untouched `AppSettingsPersistence.test.tsx`. That file passed immediately in isolation under Perth, the complete suite passed without a code change, and the final post-review Perth suite passed cleanly. It is recorded as an execution flake, not hidden as a product failure.
+The timezone failures were both the existing broad `findByText('Quiet reset')` assertion observing two valid rendered copies in untouched `Gate6DailyLoopAcceptance.test.tsx`. The exact test passed immediately in isolation in both time zones. No unrelated test was weakened or edited.
 
 ## Bounded qualitative review
 
