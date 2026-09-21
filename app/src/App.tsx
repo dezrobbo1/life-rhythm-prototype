@@ -1,5 +1,5 @@
 import { liveQuery } from 'dexie';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import { AppShell, type ScreenId } from './components/AppShell/AppShell';
 import { BrandMark, Button } from './components';
@@ -200,6 +200,7 @@ export default function App() {
   const [preferredPlanTaskId, setPreferredPlanTaskId] = useState<string | null>(null);
   const [planRevision, setPlanRevision] = useState(0);
   const [calendarRepairIssue, setCalendarRepairIssue] = useState<string | null>(null);
+  const observedCalendarRepairPendingRef = useRef<boolean | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [captureRevision, setCaptureRevision] = useState(0);
   const [captureFeedback, setCaptureFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
@@ -211,15 +212,17 @@ export default function App() {
   useEffect(() => {
     const subscription = liveQuery(() => loadSchedulerPlanState()).subscribe({
       next: (result) => {
-        if (result.status === 'missing') {
-          setCalendarRepairIssue(null);
-          return;
-        }
+        if (result.status !== 'missing' && result.status !== 'ok') return;
 
-        if (result.status === 'ok') {
-          setCalendarRepairIssue(
-            result.calendarRepairPendingAt ? CALENDAR_REPAIR_PENDING_MESSAGE : null,
-          );
+        const repairPending = result.status === 'ok' && Boolean(result.calendarRepairPendingAt);
+        setCalendarRepairIssue(repairPending ? CALENDAR_REPAIR_PENDING_MESSAGE : null);
+
+        const previouslyObserved = observedCalendarRepairPendingRef.current;
+        observedCalendarRepairPendingRef.current = repairPending;
+        if (previouslyObserved !== null && previouslyObserved !== repairPending) {
+          // This is a presentation refresh only. Today rereads current facts;
+          // the live observer never builds, repairs or writes a private plan.
+          setPlanRevision((revision) => revision + 1);
         }
       },
       error: () => {

@@ -11,15 +11,21 @@ import {
   setCurrentLocalDataNamespace,
 } from '../data/localDataNamespace';
 import {
+  commitCalendarSourceImport,
+} from '../data/calendarSourceMutationCoordinator';
+import {
   importIcsCalendarSource,
   loadCalendarSource,
 } from '../data/calendarSourceRepository';
+import { buildCurrentLiveSchedulingContext } from '../data/schedulerPlanCoordinator';
 import {
   loadSchedulerPlanState,
   repairAndPersistSchedulerPlan,
   saveSchedulerPlanState,
 } from '../data/schedulerPlanStateRepository';
+import { activeTaskSchema } from '../data/schemas';
 import { createDefaultSettings, saveSettings } from '../data/settingsRepository';
+import { scheduler } from '../domain/primaryScheduler';
 
 const coordinatorMocks = vi.hoisted(() => ({
   repairCurrentPrivatePlan: vi.fn(),
@@ -56,6 +62,8 @@ const priorCalendar = calendar
 
 beforeEach(async () => {
   coordinatorMocks.repairCurrentPrivatePlan.mockReset();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(2026, 8, 20, 9, 0, 0));
   namespaceIndex += 1;
   setCurrentLocalDataNamespace(createAuthLocalDataNamespace(`gate6f-calendar-attention-${namespaceIndex}`));
 
@@ -84,11 +92,136 @@ beforeEach(async () => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   resetCurrentLocalDataNamespace();
 });
 
 describe('persisted calendar repair attention', () => {
+  it('refreshes mounted Today only when durable calendar-repair attention changes', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const timestamp = new Date().toISOString();
+    const defaults = createDefaultSettings(timestamp);
+    const settings = await saveSettings({
+      lifeShape: {
+        ...defaults.lifeShape,
+        timeBlocks: [{
+          days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+          end: '17:00',
+          id: 'test-capacity',
+          label: 'Test capacity',
+          schedulerUse: 'available',
+          start: '09:00',
+          type: 'openCapacity',
+        }],
+      },
+      startBoostSafety: defaults.startBoostSafety,
+      theme: defaults.theme,
+    });
+    expect(settings.ok).toBe(true);
+
+    for (const [id, title] of [
+      ['current-task', 'Current focus'],
+      ['scheduled-task', 'Stale flexible placement'],
+    ]) {
+      await database.activeTasks.put(activeTaskSchema.parse({
+        area: 'admin',
+        createdAt: timestamp,
+        full: { label: `Finish ${title}`, minutes: 40 },
+        id,
+        minimum: { label: `Start ${title}`, minutes: 5 },
+        normal: { label: title, minutes: 30 },
+        showToday: true,
+        source: 'adhoc',
+        status: 'active',
+        title,
+        updatedAt: timestamp,
+      }));
+    }
+
+    const acceptedPlan = await saveSchedulerPlanState({
+      placements: [{
+        date: '2026-09-20',
+        end: '12:30',
+        id: 'scheduled-task-placement',
+        intentionId: 'scheduled-task',
+        origin: 'scheduler',
+        provenance: ['Synthetic accepted private plan.'],
+        start: '12:00',
+        targetKind: 'intention',
+        variantKind: 'normal',
+      }],
+      rejectedExistingPlacements: [],
+      unscheduledIntentionIds: [],
+      unscheduledRhythmIds: [],
+    }, database, timestamp);
+    expect(acceptedPlan.ok).toBe(true);
+
+    render(<App />);
+    const later = await screen.findByRole('region', { name: 'Later' });
+    expect(await within(later).findByText('Stale flexible placement')).toBeTruthy();
+
+    const committed = await commitCalendarSourceImport({
+      importedAt: '2026-09-20T09:05:00.000Z',
+      label: 'external-tab.ics',
+      options: {
+        targetTimezone: 'UTC',
+        windowEndDate: '2026-09-21',
+        windowStartDate: '2026-09-20',
+      },
+      source: calendar,
+    }, database);
+    expect(committed.ok).toBe(true);
+
+    const planPut = vi.spyOn(database.schedulerPlanState, 'put');
+    const planUpdate = vi.spyOn(database.schedulerPlanState, 'update');
+    const buildPlan = vi.spyOn(scheduler, 'buildPlan');
+    const repairPlan = vi.spyOn(scheduler, 'repairPlan');
+
+    expect((await within(later).findByRole('alert')).textContent).toContain(
+      'The flexible private plan needs repair after a calendar change.',
+    );
+    expect(within(later).queryByText('Stale flexible placement')).toBeNull();
+    expect(within(later).getByText('Gate 6F meeting')).toBeTruthy();
+    expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+    expect(planPut).not.toHaveBeenCalled();
+    expect(planUpdate).not.toHaveBeenCalled();
+    expect(buildPlan).not.toHaveBeenCalled();
+    expect(repairPlan).not.toHaveBeenCalled();
+
+    const live = await buildCurrentLiveSchedulingContext({
+      horizonDays: 1,
+      planningPolicy: { dayMode: 'normal' },
+      readOnly: true,
+    });
+    if (!live.ok) throw new Error(live.errors.join(' '));
+    const savedCalendar = await loadCalendarSource(database);
+    if (savedCalendar.status !== 'ok') throw new Error('Expected saved calendar source.');
+    const repaired = await repairAndPersistSchedulerPlan({
+      nextInput: live.context.input,
+      now: live.now,
+      reason: 'A current-calendar repair succeeded in another tab.',
+      trigger: 'calendarChanged',
+    }, database, '2026-09-20T09:10:00.000Z', undefined, {
+      source: savedCalendar.record.source,
+      updatedAt: savedCalendar.record.updatedAt,
+    });
+    expect(repaired.ok).toBe(true);
+    expect(repaired.ok && repaired.calendarRepairPendingAt).toBeUndefined();
+    planPut.mockClear();
+    planUpdate.mockClear();
+    buildPlan.mockClear();
+    repairPlan.mockClear();
+
+    expect(await within(later).findByText('Stale flexible placement')).toBeTruthy();
+    expect(within(later).queryByRole('alert')).toBeNull();
+    expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+    expect(planPut).not.toHaveBeenCalled();
+    expect(planUpdate).not.toHaveBeenCalled();
+    expect(buildPlan).not.toHaveBeenCalled();
+    expect(repairPlan).not.toHaveBeenCalled();
+  });
+
   it('survives an application reload until a successful private-plan repair is saved', async () => {
     const firstUser = userEvent.setup();
     const firstRender = render(<App />);

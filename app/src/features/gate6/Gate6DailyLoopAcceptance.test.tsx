@@ -126,8 +126,9 @@ describe('Gate 6 connected daily loop', () => {
 
     await user.click(screen.getByRole('button', { name: 'Plan' }));
     expect(await screen.findByRole('heading', { name: 'Plan' })).toBeTruthy();
-    expect(screen.getByLabelText('Selected day')).toBeTruthy();
-    expect(await screen.findByText('Quiet reset')).toBeTruthy();
+    const selectedDay = screen.getByLabelText('Selected day') as HTMLSelectElement;
+    const dayLine = await screen.findByRole('list', { name: `${selectedDay.value} Day Line` });
+    expect(within(dayLine).getByText('Quiet reset')).toBeTruthy();
     expect(screen.getAllByText('Ask first').length).toBeGreaterThan(0);
     const details = screen.getByText('Plan details').closest('details');
     expect(details?.open).toBe(false);
