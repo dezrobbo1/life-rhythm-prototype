@@ -1,14 +1,15 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { Button, Card } from '../../components';
 import {
-  importIcsCalendarSource,
   loadCalendarSource,
-  removeCalendarSource,
 } from '../../data/calendarSourceRepository';
+import {
+  commitCalendarSourceImport,
+  commitCalendarSourceRemoval,
+} from '../../data/calendarSourceMutationCoordinator';
 import { repairCurrentPrivatePlan } from '../../data/schedulerPlanCoordinator';
 import {
   CALENDAR_REPAIR_PENDING_MESSAGE,
-  markCalendarRepairPending,
 } from '../../data/schedulerPlanStateRepository';
 
 type CalendarSourceControlProps = {
@@ -100,12 +101,6 @@ export function CalendarSourceControl({
 
   async function repairAfterCalendarChange(reason: string) {
     try {
-      const marked = await markCalendarRepairPending();
-      if (!marked.ok) {
-        onRepairIssueChange?.(CALENDAR_REPAIR_PENDING_MESSAGE);
-        return false;
-      }
-
       const repaired = await repairCurrentPrivatePlan({
         trigger: 'calendarChanged',
         reason,
@@ -137,7 +132,7 @@ export function CalendarSourceControl({
     try {
       const source = await file.text();
       const window = browserCalendarWindow();
-      const imported = await importIcsCalendarSource({
+      const imported = await commitCalendarSourceImport({
         label: file.name,
         source,
         options: {
@@ -179,7 +174,7 @@ export function CalendarSourceControl({
     setStatus('');
     setWarnings([]);
 
-    const removed = await removeCalendarSource();
+    const removed = await commitCalendarSourceRemoval();
     if (!removed.ok) {
       setStatus(removed.errors[0] ?? 'Saved calendar could not be removed.');
       setBusy(false);
