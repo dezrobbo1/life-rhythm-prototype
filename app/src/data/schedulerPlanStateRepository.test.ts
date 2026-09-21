@@ -1,11 +1,13 @@
 import 'fake-indexeddb/auto';
 import Dexie from 'dexie';
 import { scheduler } from '../domain/primaryScheduler';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DATABASE_VERSION,
   createLifeRhythmDatabase,
 } from './db';
+import { importIcsCalendarSource } from './calendarSourceRepository';
+import { commitCalendarSourceImport } from './calendarSourceMutationCoordinator';
 import { findBlockedDataClassKey } from './dataClassBoundary';
 import {
   createAuthLocalDataNamespace,
@@ -30,6 +32,28 @@ import type {
 const timezone = 'Australia/Perth';
 const today = '2026-09-07';
 let databaseIndex = 0;
+
+const calendarA = [
+  'BEGIN:VCALENDAR',
+  'VERSION:2.0',
+  'BEGIN:VEVENT',
+  'UID:calendar-a',
+  'DTSTART:20260907T010000Z',
+  'DTEND:20260907T020000Z',
+  'SUMMARY:Calendar A',
+  'END:VEVENT',
+  'END:VCALENDAR',
+].join('\r\n');
+
+const calendarB = calendarA
+  .replace('calendar-a', 'calendar-b')
+  .replace('Calendar A', 'Calendar B');
+
+const calendarOptions = {
+  targetTimezone: timezone,
+  windowStartDate: today,
+  windowEndDate: '2026-09-08',
+};
 
 const version3Stores = {
   settings: 'id, appVersion, updatedAt',
@@ -212,6 +236,8 @@ describe('persisted Gate 4 scheduler plan state', () => {
         },
         database,
         '2026-09-07T00:05:00.000Z',
+        undefined,
+        null,
       );
       expect(repaired.ok).toBe(true);
 
@@ -220,6 +246,198 @@ describe('persisted Gate 4 scheduler plan state', () => {
       if (recovered.status !== 'ok') return;
       expect(recovered.calendarRepairPendingAt).toBeUndefined();
       expect(recovered.updatedAt).toBe('2026-09-07T00:05:00.000Z');
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('does not clear pending calendar attention through a direct plan build', async () => {
+    const database = createTestDatabase();
+
+    try {
+      const initial = await buildAndPersistSchedulerPlan(model(), database, '2026-09-07T00:00:00.000Z');
+      if (!initial.ok) throw new Error(initial.errors.join('\n'));
+      expect(await markCalendarRepairPending(database, '2026-09-07T00:01:00.000Z')).toEqual({
+        ok: true,
+        persisted: true,
+      });
+
+      const rebuilt = await buildAndPersistSchedulerPlan(
+        model([candidate('later', '10:00', '11:00')]),
+        database,
+        '2026-09-07T00:02:00.000Z',
+      );
+
+      expect(rebuilt).toEqual(expect.objectContaining({
+        ok: true,
+        calendarRepairPendingAt: '2026-09-07T00:01:00.000Z',
+      }));
+      expect(await loadSchedulerPlanState(database)).toEqual(expect.objectContaining({
+        status: 'ok',
+        calendarRepairPendingAt: '2026-09-07T00:01:00.000Z',
+      }));
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('rejects a repair that used an older calendar snapshot without clearing newer repair attention', async () => {
+    const database = createTestDatabase();
+
+    try {
+      const built = await buildAndPersistSchedulerPlan(
+        model(),
+        database,
+        '2026-09-07T00:00:00.000Z',
+      );
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+
+      const firstImport = await importIcsCalendarSource({
+        label: 'Calendar A',
+        source: calendarA,
+        options: calendarOptions,
+        importedAt: '2026-09-07T00:01:00.000Z',
+      }, database);
+      expect(firstImport.ok).toBe(true);
+      if (!firstImport.ok) return;
+      const staleCalendarSnapshot = {
+        source: firstImport.record.source,
+        updatedAt: firstImport.record.updatedAt,
+      };
+
+      const replacement = await commitCalendarSourceImport({
+        label: 'Calendar B',
+        source: calendarB,
+        options: calendarOptions,
+        importedAt: '2026-09-07T00:02:00.000Z',
+      }, database);
+      expect(replacement.ok).toBe(true);
+
+      const beforeRepair = await database.schedulerPlanState.get('current');
+      expect(beforeRepair?.calendarRepairPendingAt).toEqual(expect.any(String));
+
+      const repaired = await repairAndPersistSchedulerPlan(
+        {
+          reason: 'A stale background repair must not clear newer calendar attention.',
+          trigger: 'missedStart',
+          now: { date: today, time: '08:00', timezone },
+          nextInput: model([candidate('stale-calendar-capacity', '10:00', '11:00')]),
+        },
+        database,
+        '2026-09-07T00:03:00.000Z',
+        undefined,
+        staleCalendarSnapshot,
+      );
+
+      expect(repaired).toEqual({
+        ok: false,
+        errors: ['schedulerPlanState: Scheduling inputs changed before the repaired plan could be saved.'],
+      });
+      expect(await database.schedulerPlanState.get('current')).toEqual(beforeRepair);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('does not create an initial plan from a calendar snapshot that was replaced before the write', async () => {
+    const database = createTestDatabase();
+
+    try {
+      const firstImport = await importIcsCalendarSource({
+        label: 'Calendar A',
+        source: calendarA,
+        options: calendarOptions,
+        importedAt: '2026-09-07T00:01:00.000Z',
+      }, database);
+      expect(firstImport.ok).toBe(true);
+      if (!firstImport.ok) return;
+      const staleCalendarSnapshot = {
+        source: firstImport.record.source,
+        updatedAt: firstImport.record.updatedAt,
+      };
+
+      const replacement = await commitCalendarSourceImport({
+        label: 'Calendar B',
+        source: calendarB,
+        options: calendarOptions,
+        importedAt: '2026-09-07T00:02:00.000Z',
+      }, database);
+      expect(replacement.ok).toBe(true);
+      if (!replacement.ok) return;
+      expect(replacement.repairAttentionPersisted).toBe(false);
+
+      const built = await repairAndPersistSchedulerPlan(
+        {
+          reason: 'Do not build from superseded calendar information.',
+          trigger: 'manualReplan',
+          now: { date: today, time: '08:00', timezone },
+          nextInput: model(),
+        },
+        database,
+        '2026-09-07T00:03:00.000Z',
+        undefined,
+        staleCalendarSnapshot,
+      );
+
+      expect(built).toEqual({
+        ok: false,
+        errors: ['schedulerPlanState: Scheduling inputs changed before the repaired plan could be saved.'],
+      });
+      expect(await database.schedulerPlanState.get('current')).toBeUndefined();
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('does not let Undo erase calendar attention committed after Undo read the plan', async () => {
+    const database = createTestDatabase();
+
+    try {
+      const built = await buildAndPersistSchedulerPlan(model(), database, '2026-09-07T00:00:00.000Z');
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+      const repaired = await repairAndPersistSchedulerPlan(
+        {
+          reason: 'Create an undo snapshot.',
+          trigger: 'manualReplan',
+          now: { date: today, time: '08:00', timezone },
+          nextInput: model([candidate('later', '10:00', '11:00')]),
+        },
+        database,
+        '2026-09-07T00:01:00.000Z',
+      );
+      if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+
+      const originalGet = database.schedulerPlanState.get.bind(database.schedulerPlanState);
+      const getSpy = vi.spyOn(database.schedulerPlanState, 'get');
+      getSpy.mockImplementationOnce((async (key: string) => {
+        const beforeCalendarChange = await originalGet(key);
+        getSpy.mockRestore();
+        const changed = await commitCalendarSourceImport({
+          label: 'Calendar B',
+          source: calendarB,
+          options: calendarOptions,
+          importedAt: '2026-09-07T00:02:00.000Z',
+        }, database);
+        expect(changed.ok).toBe(true);
+        return beforeCalendarChange;
+      }) as never);
+
+      const undone = await undoPersistedSchedulerRepair(
+        database,
+        '2026-09-07T00:03:00.000Z',
+      );
+
+      expect(undone).toEqual({
+        ok: false,
+        errors: ['schedulerPlanState: Scheduling inputs changed before the repaired plan could be saved.'],
+      });
+      const after = await loadSchedulerPlanState(database);
+      expect(after).toEqual(expect.objectContaining({
+        status: 'ok',
+        calendarRepairPendingAt: expect.any(String),
+      }));
+      if (after.status !== 'ok') return;
+      expect(after.plan).toEqual(repaired.plan);
     } finally {
       await database.delete();
     }

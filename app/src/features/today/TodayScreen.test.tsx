@@ -996,6 +996,79 @@ describe('Today screen', () => {
     expect(screen.queryByRole('heading', { name: 'Changed' })).toBeNull();
   });
 
+  it('uses the pending calendar-repair action to run a canonical repair before refreshing Today', async () => {
+    const user = userEvent.setup();
+    const pendingPlan = {
+      placements: [],
+      rejectedExistingPlacements: [],
+      unscheduledIntentionIds: [],
+      unscheduledRhythmIds: [],
+    };
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState
+      .mockResolvedValueOnce({
+        calendarRepairPendingAt: '2026-09-15T01:00:00.000Z',
+        status: 'ok',
+        updatedAt: '2026-09-15T00:00:00.000Z',
+        plan: pendingPlan,
+      })
+      .mockResolvedValue({
+        status: 'ok',
+        updatedAt: '2026-09-15T01:05:00.000Z',
+        plan: pendingPlan,
+      });
+
+    render(<TodayScreen />);
+
+    const later = screen.getByRole('region', { name: 'Later' });
+    expect((await within(later).findByRole('alert')).textContent).toContain(
+      'The flexible private plan needs repair after a calendar change.',
+    );
+
+    await user.click(within(later).getByRole('button', { name: 'Retry repair' }));
+
+    expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledWith({
+      reason: 'Retry the saved calendar change using current scheduling information.',
+      trigger: 'calendarChanged',
+    });
+    await waitFor(() => {
+      expect(within(later).queryByText(
+        'The flexible private plan needs repair after a calendar change.',
+      )).toBeNull();
+    });
+  });
+
+  it('keeps pending attention visible when the Today repair retry fails', async () => {
+    const user = userEvent.setup();
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      calendarRepairPendingAt: '2026-09-15T01:00:00.000Z',
+      status: 'ok',
+      updatedAt: '2026-09-15T00:00:00.000Z',
+      plan: {
+        placements: [],
+        rejectedExistingPlacements: [],
+        unscheduledIntentionIds: [],
+        unscheduledRhythmIds: [],
+      },
+    });
+    schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan.mockResolvedValue({
+      ok: false,
+      errors: ['schedulerPlanState: Synthetic retry failure.'],
+      warnings: [],
+    });
+
+    render(<TodayScreen />);
+
+    const later = screen.getByRole('region', { name: 'Later' });
+    await user.click(await within(later).findByRole('button', { name: 'Retry repair' }));
+
+    expect((await within(later).findByRole('alert')).textContent).toContain(
+      'schedulerPlanState: Synthetic retry failure.',
+    );
+    expect(within(later).getByText(
+      'The flexible private plan needs repair after a calendar change.',
+    )).toBeTruthy();
+  });
+
   it('isolates an optional live-context failure from the readable Now task', async () => {
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
     schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext.mockResolvedValue({

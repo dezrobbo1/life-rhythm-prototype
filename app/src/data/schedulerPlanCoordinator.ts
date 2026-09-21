@@ -16,7 +16,7 @@ import type {
 import { readPersistedCalendarEvents } from './calendarSourceRepository';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
-  buildAndPersistSchedulerPlan,
+  type CalendarSourceSnapshot,
   loadSchedulerPlanState,
   repairAndPersistSchedulerPlan,
   undoPersistedSchedulerRepair,
@@ -46,6 +46,7 @@ type MinuteRange = {
 };
 
 export type LiveSchedulerContext = {
+  calendarSourceSnapshot?: CalendarSourceSnapshot;
   input: SchedulingDomainModel;
   titleByTargetId: Record<string, string>;
   warnings: string[];
@@ -375,6 +376,12 @@ export async function buildCurrentLiveSchedulingContext(
   }
 
   const calendarEvents = calendarRead.events;
+  const calendarSourceSnapshot: CalendarSourceSnapshot = calendarRead.status === 'ok'
+    ? {
+        source: calendarRead.record.source,
+        updatedAt: calendarRead.record.updatedAt,
+      }
+    : null;
   const calendarCommitments = externalCommitmentsFromCalendarEvents(calendarEvents);
   const planningBase: SchedulingDomainModel = {
     ...base,
@@ -437,6 +444,7 @@ export async function buildCurrentLiveSchedulingContext(
   return {
     ok: true,
     context: {
+      calendarSourceSnapshot,
       input,
       titleByTargetId: titleMap(input),
       warnings: [...new Set(warnings)],
@@ -468,7 +476,12 @@ export async function ensureCurrentPrivatePlan(
     };
   }
 
-  const built = await buildAndPersistSchedulerPlan(live.context.input);
+  const built = await repairAndPersistSchedulerPlan({
+    nextInput: live.context.input,
+    now: live.now,
+    reason: 'Create the current private plan from live scheduling information.',
+    trigger: 'manualReplan',
+  }, undefined, undefined, undefined, live.context.calendarSourceSnapshot);
   if (!built.ok) {
     return { ok: false, errors: built.errors, warnings: live.context.warnings };
   }
@@ -496,7 +509,7 @@ export async function repairCurrentPrivatePlan(
     ...(request.releasePlacementIds ? { releasePlacementIds: request.releasePlacementIds } : {}),
     ...(request.surfacedPlacementIds ? { surfacedPlacementIds: request.surfacedPlacementIds } : {}),
     ...(request.pinnedPlacementIds ? { pinnedPlacementIds: request.pinnedPlacementIds } : {}),
-  });
+  }, undefined, undefined, undefined, live.context.calendarSourceSnapshot);
 
   if (!repaired.ok) {
     return { ok: false, errors: repaired.errors, warnings: live.context.warnings };

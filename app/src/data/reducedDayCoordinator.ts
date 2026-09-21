@@ -220,7 +220,7 @@ export async function applyReduceToday(
     now: proposed.live.now,
     reason: reducedDayReason,
     trigger: 'userCorrection',
-  }, undefined, undefined, context);
+  }, undefined, undefined, context, proposed.live.context.calendarSourceSnapshot);
   if (!saved.ok) return { ok: false, errors: saved.errors, warnings: proposed.live.context.warnings };
   return {
     ok: true,
@@ -260,7 +260,7 @@ export async function returnTodayToNormal(
     reason: 'Today returned to Normal using current live scheduling information.',
     trigger: 'userCorrection',
     ...(reducedPlacementsToday?.length ? { releasePlacementIds: reducedPlacementsToday } : {}),
-  }, undefined, undefined, null);
+  }, undefined, undefined, null, live.context.calendarSourceSnapshot);
   if (!saved.ok) return { ok: false, errors: saved.errors, warnings: live.context.warnings };
   return {
     ok: true,

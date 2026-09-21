@@ -7,6 +7,11 @@ import type {
   SchedulerPlan,
   SchedulingDomainModel,
 } from '../domain/schedulingModel';
+import {
+  CURRENT_CALENDAR_SOURCE_ID,
+  calendarSourceRecordSchema,
+} from './calendarSourceSchema';
+import { LifeRhythmDatabase } from './db';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   schedulerPlanStateRecordSchema,
@@ -38,6 +43,11 @@ type SchedulerStateFields = SchedulerModeFields & {
   calendarRepairPendingAt?: string;
 };
 
+export type CalendarSourceSnapshot = {
+  source: string;
+  updatedAt: string;
+} | null;
+
 export const CALENDAR_REPAIR_PENDING_MESSAGE =
   'Calendar change was saved, but the flexible private plan could not be repaired.';
 
@@ -54,6 +64,9 @@ export type SchedulerPlanStateWriteResult =
 export type SchedulerPlanPersistActionResult =
   | ({ ok: true; mode: 'built' | 'repaired' | 'undone'; plan: SchedulerPlan; updatedAt: string } & SchedulerStateFields)
   | { ok: false; errors: string[] };
+
+const STALE_SCHEDULER_WRITE_ERROR =
+  'schedulerPlanState: Scheduling inputs changed before the repaired plan could be saved.';
 
 function issuesToMessages(issues: Array<{ message: string; path: Array<string | number> }>) {
   return issues.map((issue) => {
@@ -76,6 +89,121 @@ function stateFields(record: SchedulerStateFields): SchedulerStateFields {
       ? { undoDayModeContext: record.undoDayModeContext ? { ...record.undoDayModeContext } : null }
       : {}),
   };
+}
+
+function validatedSchedulerPlanStateRecord(
+  plan: SchedulerPlan,
+  updatedAt: string,
+  fields: SchedulerStateFields,
+) {
+  return schedulerPlanStateRecordSchema.safeParse({
+    id: CURRENT_SCHEDULER_PLAN_STATE_ID,
+    version: 1,
+    updatedAt,
+    ...stateFields(fields),
+    plan: clonePlan(plan),
+  });
+}
+
+function loadedStateRecord(
+  loaded: Extract<SchedulerPlanStateLoadResult, { status: 'ok' }>,
+) {
+  return schedulerPlanStateRecordSchema.parse({
+    id: CURRENT_SCHEDULER_PLAN_STATE_ID,
+    version: 1,
+    updatedAt: loaded.updatedAt,
+    ...stateFields(loaded),
+    plan: clonePlan(loaded.plan),
+  });
+}
+
+function storedStateMatchesLoaded(
+  stored: unknown,
+  loaded: Extract<SchedulerPlanStateLoadResult, { status: 'missing' | 'ok' }>,
+) {
+  if (loaded.status === 'missing') return stored === undefined;
+
+  const parsed = schedulerPlanStateRecordSchema.safeParse(stored);
+  if (!parsed.success) return false;
+  return JSON.stringify(parsed.data) === JSON.stringify(loadedStateRecord(loaded));
+}
+
+function storedCalendarMatchesSnapshot(
+  stored: unknown,
+  snapshot: CalendarSourceSnapshot,
+) {
+  if (snapshot === null) return stored === undefined;
+
+  const parsed = calendarSourceRecordSchema.safeParse(stored);
+  return parsed.success &&
+    parsed.data.source === snapshot.source &&
+    parsed.data.updatedAt === snapshot.updatedAt;
+}
+
+async function saveSchedulerPlanStateIfCurrent(
+  plan: SchedulerPlan,
+  expected: Extract<SchedulerPlanStateLoadResult, { status: 'missing' | 'ok' }>,
+  store: SchedulerPlanStateStore,
+  updatedAt: string,
+  fields: SchedulerStateFields,
+  calendarSourceSnapshot?: CalendarSourceSnapshot,
+): Promise<SchedulerPlanStateWriteResult> {
+  const candidate = validatedSchedulerPlanStateRecord(plan, updatedAt, fields);
+  if (!candidate.success) {
+    return { ok: false, errors: issuesToMessages(candidate.error.issues) };
+  }
+
+  if (!(store instanceof LifeRhythmDatabase)) {
+    if (
+      expected.status === 'ok' &&
+      expected.calendarRepairPendingAt &&
+      !fields.calendarRepairPendingAt &&
+      calendarSourceSnapshot === undefined
+    ) {
+      return { ok: false, errors: [STALE_SCHEDULER_WRITE_ERROR] };
+    }
+    return saveSchedulerPlanState(plan, store, updatedAt, fields);
+  }
+
+  try {
+    return await store.transaction(
+      'rw',
+      store.schedulerPlanState,
+      store.calendarSources,
+      async () => {
+        const latest = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
+        if (!storedStateMatchesLoaded(latest, expected)) {
+          return { ok: false as const, errors: [STALE_SCHEDULER_WRITE_ERROR] };
+        }
+
+        if (calendarSourceSnapshot !== undefined) {
+          const calendar = await store.calendarSources.get(CURRENT_CALENDAR_SOURCE_ID);
+          if (!storedCalendarMatchesSnapshot(calendar, calendarSourceSnapshot)) {
+            return { ok: false as const, errors: [STALE_SCHEDULER_WRITE_ERROR] };
+          }
+        } else if (
+          expected.status === 'ok' &&
+          expected.calendarRepairPendingAt &&
+          !fields.calendarRepairPendingAt
+        ) {
+          return { ok: false as const, errors: [STALE_SCHEDULER_WRITE_ERROR] };
+        }
+
+        await store.schedulerPlanState.put(candidate.data);
+        return {
+          ok: true as const,
+          plan: clonePlan(candidate.data.plan as SchedulerPlan),
+          updatedAt: candidate.data.updatedAt,
+          ...stateFields(candidate.data),
+        };
+      },
+    );
+  } catch {
+    return {
+      ok: false,
+      errors: ['schedulerPlanState: Saved scheduler state could not be written.'],
+    };
+  }
 }
 
 export async function loadSchedulerPlanState(
@@ -117,14 +245,7 @@ export async function saveSchedulerPlanState(
   updatedAt = new Date().toISOString(),
   fields: SchedulerStateFields = {},
 ): Promise<SchedulerPlanStateWriteResult> {
-  const candidate = {
-    id: CURRENT_SCHEDULER_PLAN_STATE_ID,
-    version: 1,
-    updatedAt,
-    ...stateFields(fields),
-    plan: clonePlan(plan),
-  };
-  const parsed = schedulerPlanStateRecordSchema.safeParse(candidate);
+  const parsed = validatedSchedulerPlanStateRecord(plan, updatedAt, fields);
 
   if (!parsed.success) {
     return {
@@ -194,10 +315,21 @@ export async function buildAndPersistSchedulerPlan(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
   updatedAt = new Date().toISOString(),
   dayModeContext?: SchedulerDayModeContext,
+  calendarSourceSnapshot?: CalendarSourceSnapshot,
 ): Promise<SchedulerPlanPersistActionResult> {
+  const current = await loadSchedulerPlanState(store);
+  if (current.status === 'invalid' || current.status === 'error') {
+    return { ok: false, errors: current.errors };
+  }
+
   try {
     const plan = scheduler.buildPlan(input);
-    const saved = await saveSchedulerPlanState(plan, store, updatedAt, { dayModeContext });
+    const saved = await saveSchedulerPlanStateIfCurrent(plan, current, store, updatedAt, {
+      dayModeContext,
+      ...(current.status === 'ok' && current.calendarRepairPendingAt
+        ? { calendarRepairPendingAt: current.calendarRepairPendingAt }
+        : {}),
+    }, calendarSourceSnapshot);
 
     return saved.ok
       ? { ...saved, mode: 'built' }
@@ -215,6 +347,7 @@ export async function repairAndPersistSchedulerPlan(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
   updatedAt = new Date().toISOString(),
   nextDayModeContext?: SchedulerDayModeContext | null,
+  calendarSourceSnapshot?: CalendarSourceSnapshot,
 ): Promise<SchedulerPlanPersistActionResult> {
   const current = await loadSchedulerPlanState(store);
 
@@ -236,10 +369,10 @@ export async function repairAndPersistSchedulerPlan(
     const dayModeContext = nextDayModeContext === undefined
       ? inheritedContext
       : nextDayModeContext ?? undefined;
-    const saved = await saveSchedulerPlanState(plan, store, updatedAt, {
+    const saved = await saveSchedulerPlanStateIfCurrent(plan, current, store, updatedAt, {
       dayModeContext,
       ...(current.status === 'ok' ? { undoDayModeContext: previousContext ?? null } : {}),
-    });
+    }, calendarSourceSnapshot);
 
     if (!saved.ok) {
       return saved;
@@ -284,7 +417,7 @@ export async function undoPersistedSchedulerRepair(
   const reverted = scheduler.undoRepair(current.plan);
   const calendarRepairPendingAt = current.calendarRepairPendingAt ??
     (current.plan.repair?.trigger === 'calendarChanged' ? updatedAt : undefined);
-  const saved = await saveSchedulerPlanState(reverted, store, updatedAt, {
+  const saved = await saveSchedulerPlanStateIfCurrent(reverted, current, store, updatedAt, {
     calendarRepairPendingAt,
     dayModeContext: current.undoDayModeContext ?? undefined,
   });

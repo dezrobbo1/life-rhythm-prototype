@@ -120,6 +120,8 @@ describe('persisted calendar repair attention', () => {
       expect(screen.getByRole('alert').textContent).toContain('Calendar change needs attention.');
     });
 
+    const savedCalendar = await loadCalendarSource();
+    if (savedCalendar.status !== 'ok') throw new Error('Expected saved calendar source.');
     const recovered = await repairAndPersistSchedulerPlan({
       nextInput: {
         candidateIntervals: [],
@@ -134,7 +136,10 @@ describe('persisted calendar repair attention', () => {
       now: { date: '2026-09-20', time: '12:00', timezone: 'UTC' },
       reason: 'A later current-context repair succeeded.',
       trigger: 'userCorrection',
-    }, getCurrentLifeRhythmDatabase(), '2026-09-20T12:00:00.000Z');
+    }, getCurrentLifeRhythmDatabase(), '2026-09-20T12:00:00.000Z', undefined, {
+      source: savedCalendar.record.source,
+      updatedAt: savedCalendar.record.updatedAt,
+    });
     expect(recovered.ok).toBe(true);
 
     await waitFor(() => {

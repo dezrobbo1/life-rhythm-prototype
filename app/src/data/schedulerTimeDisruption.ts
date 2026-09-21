@@ -146,7 +146,7 @@ export async function maintainCurrentPrivatePlanForTimeDisruption(
     trigger: disruption.trigger,
     now: live.now,
     releasePlacementIds: disruption.releasePlacementIds,
-  });
+  }, undefined, undefined, undefined, live.context.calendarSourceSnapshot);
 
   if (!repaired.ok) {
     return {

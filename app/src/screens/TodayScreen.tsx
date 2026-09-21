@@ -468,6 +468,8 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   const [todayTasksReadAttempt, setTodayTasksReadAttempt] = useState(0);
   const [todayPlanReadState, setTodayPlanReadState] = useState<TodayPlanReadState>({ status: 'loading' });
   const [todayPlanReadAttempt, setTodayPlanReadAttempt] = useState(0);
+  const [calendarRepairRetryBusy, setCalendarRepairRetryBusy] = useState(false);
+  const [calendarRepairRetryError, setCalendarRepairRetryError] = useState('');
   const [planUndoBusy, setPlanUndoBusy] = useState(false);
   const [planUndoError, setPlanUndoError] = useState('');
   const [reducedDayRefreshVersion, setReducedDayRefreshVersion] = useState(0);
@@ -505,6 +507,26 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
     setTodayDisplayClock(now);
     planReadGenerationRef.current += 1;
     setTodayPlanReadAttempt((attempt) => attempt + 1);
+  }
+
+  async function retryPendingCalendarRepair() {
+    setCalendarRepairRetryBusy(true);
+    setCalendarRepairRetryError('');
+
+    try {
+      const repaired = await repairCurrentPrivatePlan({
+        reason: 'Retry the saved calendar change using current scheduling information.',
+        trigger: 'calendarChanged',
+      });
+      if (!repaired.ok) {
+        setCalendarRepairRetryError(repaired.errors.join(' '));
+      }
+    } catch {
+      setCalendarRepairRetryError('The flexible private plan could not be repaired.');
+    } finally {
+      setCalendarRepairRetryBusy(false);
+      refreshTodayPlanFacts();
+    }
   }
 
   async function repairAndRefreshPrivatePlanAfterTodayChange(
@@ -1211,7 +1233,13 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
               <div className="surface-read-state surface-read-state--error" role="alert">
                 <h3>The flexible private plan needs repair after a calendar change.</h3>
                 <p>Now remains available. Fixed and user-confirmed facts can still appear, but automatic private placements are hidden until repair succeeds.</p>
-                <Button onClick={refreshTodayPlanFacts}>Retry</Button>
+                {calendarRepairRetryError ? <p>{calendarRepairRetryError}</p> : null}
+                <Button
+                  disabled={calendarRepairRetryBusy}
+                  onClick={() => { void retryPendingCalendarRepair(); }}
+                >
+                  {calendarRepairRetryBusy ? 'Repairing...' : 'Retry repair'}
+                </Button>
               </div>
             ) : todayPlanSurface?.later.planStatus === 'invalid' || todayPlanSurface?.later.planStatus === 'error' ? (
               <div className="surface-read-state surface-read-state--error" role="alert">
