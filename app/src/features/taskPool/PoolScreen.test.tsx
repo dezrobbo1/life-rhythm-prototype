@@ -381,7 +381,7 @@ describe('Pool screen', () => {
       notUsefulAfter: '2026-06-21T10:30:00.000Z',
       timeConstraint: 'dueBy',
     }));
-    await saveTaskPoolItem(validTaskPoolItem({
+    await getCurrentLifeRhythmDatabase().taskPoolItems.put(validTaskPoolItem({
       id: 'task-pool-no-longer-needed',
       status: 'noLongerNeeded',
       title: 'Hidden pool item',

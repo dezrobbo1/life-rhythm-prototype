@@ -153,11 +153,11 @@ describe('task pool repository', () => {
         status: 'captured',
         title: 'Captured task',
       }), database);
-      await saveTaskPoolItem(validTaskPoolItem({
+      await database.taskPoolItems.put(validTaskPoolItem({
         id: 'task-pool-parked',
         status: 'parked',
         title: 'Parked task',
-      }), database);
+      }));
 
       const captured = await loadTaskPoolItemsByStatus('captured', database);
       const parked = await loadTaskPoolItemsByStatus('parked', database);

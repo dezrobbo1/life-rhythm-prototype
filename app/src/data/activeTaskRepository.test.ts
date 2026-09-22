@@ -282,6 +282,9 @@ describe('active task repository', () => {
 
     try {
       await saveActiveTodayTask(validActiveTask(), database);
+      if (status === 'paused') {
+        await database.activeTasks.put(validActiveTask({ status: 'inProgress' }));
+      }
 
       const result = await updateActiveTaskStatus('active-kitchen-landing', status, database);
       const loaded = await loadActiveTodayTasks(database);
@@ -313,6 +316,15 @@ describe('active task repository', () => {
         notUsefulAfter: '2026-06-17T10:00:00.000Z',
         timeConstraint: 'dueBy',
       }), database);
+      await database.activeTasks.put(validActiveTask({
+        dueAt: '2026-06-17T09:00:00.000Z',
+        latestUsefulStartAt: '2026-06-17T08:45:00.000Z',
+        minimumStillUsefulAfterDeadline: true,
+        missedPolicy: 'minimumOnly',
+        notUsefulAfter: '2026-06-17T10:00:00.000Z',
+        status: 'inProgress',
+        timeConstraint: 'dueBy',
+      }));
 
       const result = await updateActiveTaskStatus('active-kitchen-landing', 'paused', database);
       const stored = await database.activeTasks.get('active-kitchen-landing');
@@ -396,6 +408,7 @@ describe('active task repository', () => {
     try {
       await saveActiveTodayTask(validActiveTask({ id: 'active-first' }), database);
       await saveActiveTodayTask(validActiveTask({ id: 'active-second', title: 'Second task' }), database);
+      await database.activeTasks.put(validActiveTask({ id: 'active-first', status: 'inProgress' }));
 
       await updateActiveTaskStatus('active-first', 'paused', database);
       const loaded = await loadActiveTodayTasks(database);

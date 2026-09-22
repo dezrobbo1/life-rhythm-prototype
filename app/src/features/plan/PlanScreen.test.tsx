@@ -527,7 +527,7 @@ describe('Plan screen', () => {
   });
 
   it('does not show removed soft placements as active placements', async () => {
-    await saveSoftPlacement(validSoftPlacement({
+    await getCurrentLifeRhythmDatabase().softPlacements.put(validSoftPlacement({
       id: 'soft-placement-removed',
       status: 'removed',
     }));

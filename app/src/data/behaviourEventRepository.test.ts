@@ -94,13 +94,17 @@ function lifecycleEvent(
   eventType: BehaviourEvent['eventType'],
   action: BehaviourEvent['action'],
   occurredAt: string,
-  beforeStatus: 'active' | 'inProgress' | 'paused' | 'minimumDone' | 'parked',
+  beforeStatus: 'active' | 'inProgress' | 'paused' | 'minimumDone' | 'done' | 'parked',
   afterStatus: 'inProgress' | 'paused' | 'minimumDone' | 'done' | 'parked',
 ) {
+  const minimumWasAchieved = beforeStatus === 'minimumDone';
   return createBehaviourEvent({
     action,
-    after: { minimumAchieved: afterStatus === 'minimumDone', taskStatus: afterStatus },
-    before: { minimumAchieved: beforeStatus === 'minimumDone', taskStatus: beforeStatus },
+    after: {
+      minimumAchieved: minimumWasAchieved || afterStatus === 'minimumDone',
+      taskStatus: afterStatus,
+    },
+    before: { minimumAchieved: minimumWasAchieved, taskStatus: beforeStatus },
     eventType,
     occurredAt,
     provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },
@@ -111,10 +115,11 @@ function lifecycleEvent(
 
 describe('behaviour event ledger', () => {
   it('accepts the canonical event-variant matrix', () => {
-    const taskBefore = { taskStatus: 'active' as const };
-    const taskAfter = { taskStatus: 'inProgress' as const };
+    const taskBefore = { minimumAchieved: false, taskStatus: 'active' as const };
+    const taskAfter = { minimumAchieved: false, taskStatus: 'inProgress' as const };
+    const createdTaskAfter = { taskStatus: 'active' as const };
     const poolBefore = { poolStatus: 'captured' as const };
-    const poolAfter = { poolStatus: 'today' as const };
+    const poolAfter = { poolStatus: 'today' as const, taskStatus: 'active' as const };
     const placement = {
       date: '2026-09-22',
       end: '10:15',
@@ -122,6 +127,18 @@ describe('behaviour event ledger', () => {
       start: '10:00',
     };
     const userPlacement = { ...placement, placementStatus: 'planned' as const };
+    const movedUserPlacement = {
+      ...userPlacement,
+      end: '10:45',
+      placementStatus: 'moved' as const,
+      start: '10:30',
+    };
+    const movedAutomaticPlacement = { ...placement, end: '10:45', start: '10:30' };
+    const minimumAutomaticPlacement = {
+      ...placement,
+      end: '10:05',
+      variantKind: 'minimum' as const,
+    };
     const common = {
       occurredAt: '2026-09-22T09:00:00.000Z',
       recordKind: 'behaviourEvent' as const,
@@ -131,32 +148,188 @@ describe('behaviour event ledger', () => {
     };
     const variants = [
       { eventType: 'taskCaptured', action: 'capture', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskPoolCapture' }, taskId: 'task', after: poolBefore },
-      { eventType: 'taskCreated', action: 'create', source: 'user', provenance: { origin: 'userAction', mechanism: 'todayCapture' }, taskId: 'task', after: taskBefore },
+      { eventType: 'taskCreated', action: 'create', source: 'user', provenance: { origin: 'userAction', mechanism: 'todayCapture' }, taskId: 'task', after: createdTaskAfter },
       { eventType: 'taskAddedToToday', action: 'addToToday', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: poolBefore, after: poolAfter },
+      { eventType: 'taskAddedToToday', action: 'addToToday', source: 'user', provenance: { origin: 'userAction', mechanism: 'todayCapture' }, taskId: 'task', after: createdTaskAfter },
       { eventType: 'taskStarted', action: 'start', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: taskBefore, after: taskAfter },
-      { eventType: 'taskPaused', action: 'pause', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: taskAfter, after: { taskStatus: 'paused' } },
-      { eventType: 'taskResumed', action: 'resume', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: { taskStatus: 'paused' }, after: taskAfter },
-      { eventType: 'taskContinued', action: 'continue', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: { taskStatus: 'minimumDone' }, after: taskAfter },
+      { eventType: 'taskPaused', action: 'pause', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: taskAfter, after: { minimumAchieved: false, taskStatus: 'paused' } },
+      { eventType: 'taskResumed', action: 'resume', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: { minimumAchieved: false, taskStatus: 'paused' }, after: taskAfter },
+      { eventType: 'taskContinued', action: 'continue', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: { minimumAchieved: true, taskStatus: 'minimumDone' }, after: { minimumAchieved: true, taskStatus: 'inProgress' } },
       { eventType: 'taskMinimumAchieved', action: 'minimumDone', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: taskAfter, after: { taskStatus: 'minimumDone', minimumAchieved: true } },
-      { eventType: 'taskCompleted', action: 'complete', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: taskAfter, after: { taskStatus: 'done' }, actualMinutes: 10 },
-      { eventType: 'taskParked', action: 'park', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: taskBefore, after: { taskStatus: 'parked' } },
-      { eventType: 'taskNotToday', action: 'notToday', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: taskBefore, after: { taskStatus: 'notToday' } },
-      { eventType: 'taskDeferred', action: 'defer', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskPoolDeferral' }, taskId: 'task', before: poolBefore, after: { poolStatus: 'deferred' } },
+      { eventType: 'taskCompleted', action: 'complete', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: taskAfter, after: { minimumAchieved: false, taskStatus: 'done' }, actualMinutes: 10 },
+      { eventType: 'taskParked', action: 'park', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: taskBefore, after: { minimumAchieved: false, taskStatus: 'parked' } },
+      { eventType: 'taskNotToday', action: 'notToday', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: taskBefore, after: { minimumAchieved: false, taskStatus: 'notToday' } },
+      { eventType: 'taskDeferred', action: 'defer', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskPoolDeferral' }, taskId: 'task', before: poolBefore, after: { bringBackAfter: '2026-09-23T09:00:00.000Z', poolStatus: 'deferred' } },
       { eventType: 'taskNoLongerNeeded', action: 'noLongerNeeded', source: 'user', provenance: { origin: 'userAction', mechanism: 'taskLifecycle' }, taskId: 'task', before: poolBefore, after: { poolStatus: 'noLongerNeeded' } },
       { eventType: 'userPlacementCreated', action: 'createPlacement', source: 'user', provenance: { origin: 'userAction', mechanism: 'softPlacement' }, taskId: 'task', placementId: 'placement', after: userPlacement },
-      { eventType: 'userPlacementMoved', action: 'movePlacement', source: 'user', provenance: { origin: 'userAction', mechanism: 'softPlacement' }, taskId: 'task', placementId: 'placement', before: userPlacement, after: userPlacement },
+      { eventType: 'userPlacementMoved', action: 'movePlacement', source: 'user', provenance: { origin: 'userAction', mechanism: 'softPlacement' }, taskId: 'task', placementId: 'placement', before: userPlacement, after: movedUserPlacement },
       { eventType: 'userPlacementRemoved', action: 'removePlacement', source: 'user', provenance: { origin: 'userAction', mechanism: 'softPlacement' }, taskId: 'task', placementId: 'placement', before: userPlacement, after: { ...userPlacement, placementStatus: 'removed' } },
       { eventType: 'schedulerPlacementAdded', action: 'addAutomaticPlacement', source: 'scheduler', provenance: { origin: 'initialPlanBuild', mechanism: 'schedulerInitialBuild' }, taskId: 'task', placementId: 'automatic-placement', after: placement },
       { eventType: 'schedulerPlacementAdded', action: 'addAutomaticPlacement', source: 'scheduler', provenance: { origin: 'automaticRepair', mechanism: 'schedulerRepair' }, taskId: 'task', after: placement },
-      { eventType: 'schedulerPlacementMoved', action: 'moveAutomaticPlacement', source: 'scheduler', provenance: { origin: 'automaticRepair', mechanism: 'schedulerRepair' }, taskId: 'task', before: placement, after: placement },
+      { eventType: 'schedulerPlacementMoved', action: 'moveAutomaticPlacement', source: 'scheduler', provenance: { origin: 'automaticRepair', mechanism: 'schedulerRepair' }, taskId: 'task', before: placement, after: movedAutomaticPlacement },
       { eventType: 'schedulerPlacementRemoved', action: 'removeAutomaticPlacement', source: 'scheduler', provenance: { origin: 'automaticRepair', mechanism: 'schedulerRepair' }, rhythmId: 'rhythm', before: placement },
-      { eventType: 'schedulerPlacementVariantChanged', action: 'changeAutomaticPlacementVariant', source: 'scheduler', provenance: { origin: 'automaticRepair', mechanism: 'schedulerRepair' }, rhythmId: 'rhythm', before: placement, after: placement },
+      { eventType: 'schedulerPlacementVariantChanged', action: 'changeAutomaticPlacementVariant', source: 'scheduler', provenance: { origin: 'automaticRepair', mechanism: 'schedulerRepair' }, rhythmId: 'rhythm', before: { ...placement, variantKind: 'normal' }, after: minimumAutomaticPlacement },
       { eventType: 'schedulerRepairUndone', action: 'undoRepair', source: 'user', provenance: { origin: 'undo', mechanism: 'schedulerRepairUndo' } },
     ];
 
     variants.forEach((variant, index) => {
       expect(behaviourEventSchema.safeParse({ ...common, ...variant, id: `valid-${index}` }).success).toBe(true);
     });
+  });
+
+  it.each([
+    ['taskStarted', 'start', 'paused', 'inProgress'],
+    ['taskPaused', 'pause', 'active', 'paused'],
+    ['taskResumed', 'resume', 'active', 'inProgress'],
+    ['taskContinued', 'continue', 'paused', 'inProgress'],
+    ['taskCompleted', 'complete', 'done', 'done'],
+  ] as const)('rejects the impossible task transition %s', (eventType, action, beforeStatus, afterStatus) => {
+    const event = {
+      action,
+      after: { minimumAchieved: false, taskStatus: afterStatus },
+      before: { minimumAchieved: false, taskStatus: beforeStatus },
+      eventType,
+      id: `invalid-${eventType}`,
+      localDate: '2026-09-22',
+      occurredAt: '2026-09-22T09:00:00.000Z',
+      provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },
+      recordKind: 'behaviourEvent',
+      source: 'user',
+      taskId: 'task',
+      timezone: 'UTC',
+      version: 1,
+    };
+
+    expect(behaviourEventSchema.safeParse(event).success).toBe(false);
+  });
+
+  it('rejects unrelated task status facts smuggled into add-to-Today events', () => {
+    const valid = createBehaviourEvent({
+      action: 'addToToday',
+      after: { poolStatus: 'today', taskStatus: 'active' },
+      before: { poolStatus: 'captured' },
+      eventType: 'taskAddedToToday',
+      occurredAt: '2026-09-22T09:00:00.000Z',
+      provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },
+      source: 'user',
+      taskId: 'task',
+    });
+
+    expect(behaviourEventSchema.safeParse({
+      ...valid,
+      after: { poolStatus: 'today', taskStatus: 'done' },
+    }).success).toBe(false);
+  });
+
+  it.each([
+    ['userPlacementRemoved', 'removePlacement', 'removed', 'planned', '10:00', '10:30'],
+    ['userPlacementMoved', 'movePlacement', 'planned', 'moved', '10:00', '10:00'],
+    ['schedulerPlacementMoved', 'moveAutomaticPlacement', 'automatic', 'automatic', '10:00', '10:00'],
+  ] as const)(
+    'rejects the impossible placement transition %s',
+    (eventType, action, beforeStatus, afterStatus, beforeStart, afterStart) => {
+      const schedulerEvent = eventType.startsWith('scheduler');
+      const placement = (
+        placementStatus: 'planned' | 'moved' | 'removed' | 'completedFromToday' | 'automatic',
+        start: string,
+      ) => ({
+        date: '2026-09-22',
+        end: start === '10:00' ? '10:15' : '10:45',
+        placementStatus,
+        start,
+      });
+      const candidate = {
+        action,
+        after: placement(afterStatus, afterStart),
+        before: placement(beforeStatus, beforeStart),
+        eventType,
+        id: `invalid-${eventType}`,
+        localDate: '2026-09-22',
+        occurredAt: '2026-09-22T09:00:00.000Z',
+        provenance: schedulerEvent
+          ? { origin: 'automaticRepair', mechanism: 'schedulerRepair' }
+          : { origin: 'userAction', mechanism: 'softPlacement' },
+        recordKind: 'behaviourEvent',
+        source: schedulerEvent ? 'scheduler' : 'user',
+        taskId: 'task',
+        ...(schedulerEvent ? {} : { placementId: 'placement' }),
+        timezone: 'UTC',
+        version: 1,
+      };
+
+      expect(behaviourEventSchema.safeParse(candidate).success).toBe(false);
+    },
+  );
+
+  it('requires placement moves and variant changes to describe the claimed factual change', () => {
+    const automaticPlacement = {
+      date: '2026-09-22',
+      end: '10:15',
+      placementStatus: 'automatic' as const,
+      start: '10:00',
+      variantKind: 'normal' as const,
+    };
+    const common = {
+      id: 'invalid-automatic-change',
+      localDate: '2026-09-22',
+      occurredAt: '2026-09-22T09:00:00.000Z',
+      provenance: { origin: 'automaticRepair' as const, mechanism: 'schedulerRepair' },
+      recordKind: 'behaviourEvent' as const,
+      source: 'scheduler' as const,
+      taskId: 'task',
+      timezone: 'UTC',
+      version: 1 as const,
+    };
+
+    expect(behaviourEventSchema.safeParse({
+      ...common,
+      action: 'moveAutomaticPlacement',
+      after: automaticPlacement,
+      before: automaticPlacement,
+      eventType: 'schedulerPlacementMoved',
+    }).success).toBe(false);
+    expect(behaviourEventSchema.safeParse({
+      ...common,
+      action: 'changeAutomaticPlacementVariant',
+      after: automaticPlacement,
+      before: automaticPlacement,
+      eventType: 'schedulerPlacementVariantChanged',
+    }).success).toBe(false);
+  });
+
+  it('rejects before facts on placement additions and after facts on placement removals', () => {
+    const placement = {
+      date: '2026-09-22',
+      end: '10:15',
+      placementStatus: 'automatic' as const,
+      start: '10:00',
+    };
+    const common = {
+      id: 'invalid-placement-snapshot-direction',
+      localDate: '2026-09-22',
+      occurredAt: '2026-09-22T09:00:00.000Z',
+      provenance: { origin: 'automaticRepair' as const, mechanism: 'schedulerRepair' },
+      recordKind: 'behaviourEvent' as const,
+      source: 'scheduler' as const,
+      taskId: 'task',
+      timezone: 'UTC',
+      version: 1 as const,
+    };
+
+    expect(behaviourEventSchema.safeParse({
+      ...common,
+      action: 'addAutomaticPlacement',
+      after: placement,
+      before: placement,
+      eventType: 'schedulerPlacementAdded',
+    }).success).toBe(false);
+    expect(behaviourEventSchema.safeParse({
+      ...common,
+      action: 'removeAutomaticPlacement',
+      after: placement,
+      before: placement,
+      eventType: 'schedulerPlacementRemoved',
+    }).success).toBe(false);
   });
 
   it('rejects contradictory event variants and incoherent temporal tuples', () => {
@@ -431,6 +604,47 @@ describe('behaviour event ledger', () => {
           metadata: {},
         },
         { id: 'malformed-row', eventType: 'taskStarted' },
+        {
+          action: 'addToToday',
+          after: { poolStatus: 'today', taskStatus: 'done' },
+          before: { poolStatus: 'captured' },
+          eventType: 'taskAddedToToday',
+          id: 'contradictory-task-transition-row',
+          localDate: '2026-09-22',
+          occurredAt: '2026-09-22T09:03:00.000Z',
+          provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },
+          recordKind: 'behaviourEvent',
+          source: 'user',
+          taskId: 'task-filing',
+          timezone: 'UTC',
+          version: 1,
+        },
+        {
+          action: 'removePlacement',
+          after: {
+            date: '2026-09-22',
+            end: '10:15',
+            placementStatus: 'planned',
+            start: '10:00',
+          },
+          before: {
+            date: '2026-09-22',
+            end: '10:15',
+            placementStatus: 'removed',
+            start: '10:00',
+          },
+          eventType: 'userPlacementRemoved',
+          id: 'contradictory-placement-transition-row',
+          localDate: '2026-09-22',
+          occurredAt: '2026-09-22T09:04:00.000Z',
+          placementId: 'placement-filing',
+          provenance: { origin: 'userAction', mechanism: 'softPlacement' },
+          recordKind: 'behaviourEvent',
+          source: 'user',
+          taskId: 'task-filing',
+          timezone: 'UTC',
+          version: 1,
+        },
       ] as never[]);
       await appendBehaviourEvent(lifecycleEvent(
         'taskStarted',
@@ -441,7 +655,7 @@ describe('behaviour event ledger', () => {
       ), database);
 
       const loaded = await loadBehaviourEventsResult(database);
-      expect(loaded).toMatchObject({ invalidRecordCount: 2, status: 'partial' });
+      expect(loaded).toMatchObject({ invalidRecordCount: 4, status: 'partial' });
       if (loaded.status === 'readFailed') throw new Error('Expected readable events.');
       expect(loaded.items).toHaveLength(1);
       expect(loaded.items[0].recordKind).toBe('behaviourEvent');

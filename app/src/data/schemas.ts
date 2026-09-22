@@ -916,71 +916,233 @@ function localDateInTimezone(occurredAt: string, timezone: string): string | nul
   }
 }
 
+type BehaviourEventFactShape = z.infer<typeof behaviourEventFactSchema>;
+type BehaviourEventTransitionFact = {
+  taskStatus?: readonly z.infer<typeof activeTaskStatusSchema>[] | 'absent';
+  poolStatus?: readonly z.infer<typeof taskPoolItemStatusSchema>[] | 'absent';
+  placementStatus?: readonly NonNullable<BehaviourEventFactShape['placementStatus']>[];
+  variantKind?: readonly NonNullable<BehaviourEventFactShape['variantKind']>[] | 'absent';
+  minimumAchieved?: readonly boolean[] | 'absent';
+  bringBackAfter?: 'present' | 'absent';
+};
+type BehaviourEventTransitionRule = {
+  provenance?: readonly [
+    'userAction' | 'initialPlanBuild' | 'automaticRepair' | 'undo',
+    string,
+  ];
+  before: BehaviourEventTransitionFact | null;
+  after: BehaviourEventTransitionFact | null;
+  change?: 'minimumAchieved' | 'minimumPreserved' | 'placementPosition' | 'placementVariant' | 'poolDeferral';
+};
+type BehaviourEventVariantRule = {
+  action: string;
+  source: 'user' | 'scheduler';
+  provenance: readonly (readonly [
+    'userAction' | 'initialPlanBuild' | 'automaticRepair' | 'undo',
+    string,
+  ])[];
+  ids: 'task' | 'userPlacement' | 'schedulerTarget' | 'none';
+  before: 'required' | 'optional' | 'forbidden';
+  after: 'required' | 'optional' | 'forbidden';
+  facts: 'task' | 'pool' | 'taskOrPool' | 'placement' | 'none';
+  transitions: readonly BehaviourEventTransitionRule[];
+};
+
 const behaviourEventVariantRules = {
   taskCaptured: {
     action: 'capture', source: 'user', provenance: [['userAction', 'taskPoolCapture']], ids: 'task', before: 'forbidden', after: 'required', facts: 'pool',
+    transitions: [{ before: null, after: { bringBackAfter: 'absent', poolStatus: ['captured'] } }],
   },
   taskCreated: {
     action: 'create', source: 'user', provenance: [['userAction', 'todayCapture']], ids: 'task', before: 'forbidden', after: 'required', facts: 'task',
+    transitions: [{ before: null, after: { minimumAchieved: 'absent', taskStatus: ['active'] } }],
   },
   taskAddedToToday: {
     action: 'addToToday', source: 'user', provenance: [['userAction', 'taskLifecycle'], ['userAction', 'todayCapture']], ids: 'task', before: 'optional', after: 'required', facts: 'taskOrPool',
+    transitions: [
+      {
+        provenance: ['userAction', 'taskLifecycle'],
+        before: {
+          poolStatus: ['captured', 'suggested', 'softPlaced', 'today', 'parked', 'notToday', 'deferred'],
+          taskStatus: 'absent',
+          bringBackAfter: 'absent',
+          minimumAchieved: 'absent',
+        },
+        after: {
+          bringBackAfter: 'absent',
+          minimumAchieved: 'absent',
+          poolStatus: ['today'],
+          taskStatus: ['active'],
+        },
+      },
+      {
+        provenance: ['userAction', 'todayCapture'],
+        before: null,
+        after: { minimumAchieved: 'absent', poolStatus: 'absent', taskStatus: ['active'] },
+      },
+    ],
   },
   taskStarted: {
     action: 'start', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['active', 'parked', 'skipped', 'notToday'] }, after: { taskStatus: ['inProgress'] }, change: 'minimumPreserved' }],
   },
   taskPaused: {
     action: 'pause', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['inProgress'] }, after: { taskStatus: ['paused'] }, change: 'minimumPreserved' }],
   },
   taskResumed: {
     action: 'resume', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['paused'] }, after: { taskStatus: ['inProgress'] }, change: 'minimumPreserved' }],
   },
   taskContinued: {
     action: 'continue', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [
+      { before: { taskStatus: ['minimumDone'], minimumAchieved: [true] }, after: { taskStatus: ['inProgress'], minimumAchieved: [true] }, change: 'minimumPreserved' },
+      { before: { taskStatus: ['minimumDone'], minimumAchieved: [false] }, after: { taskStatus: ['inProgress'], minimumAchieved: [true] }, change: 'minimumAchieved' },
+    ],
   },
   taskMinimumAchieved: {
     action: 'minimumDone', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['active', 'inProgress', 'paused'], minimumAchieved: [false] }, after: { taskStatus: ['minimumDone'], minimumAchieved: [true] }, change: 'minimumAchieved' }],
   },
   taskCompleted: {
     action: 'complete', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['active', 'inProgress', 'paused', 'minimumDone'] }, after: { taskStatus: ['done'] }, change: 'minimumPreserved' }],
   },
   taskParked: {
     action: 'park', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['active', 'inProgress', 'paused', 'minimumDone', 'skipped', 'notToday'] }, after: { taskStatus: ['parked'] }, change: 'minimumPreserved' }],
   },
   taskNotToday: {
     action: 'notToday', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['active', 'inProgress', 'paused', 'minimumDone', 'parked'] }, after: { taskStatus: ['notToday', 'skipped'] }, change: 'minimumPreserved' }],
   },
   taskDeferred: {
     action: 'defer', source: 'user', provenance: [['userAction', 'taskPoolDeferral']], ids: 'task', before: 'required', after: 'required', facts: 'pool',
+    transitions: [{
+      before: { poolStatus: ['captured', 'suggested', 'parked', 'notToday', 'deferred'] },
+      after: { poolStatus: ['deferred'], bringBackAfter: 'present' },
+      change: 'poolDeferral',
+    }],
   },
   taskNoLongerNeeded: {
     action: 'noLongerNeeded', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'pool',
+    transitions: [{
+      before: { bringBackAfter: 'absent', poolStatus: ['captured', 'suggested', 'softPlaced', 'today', 'parked', 'notToday', 'deferred'] },
+      after: { bringBackAfter: 'absent', poolStatus: ['noLongerNeeded'] },
+    }],
   },
   userPlacementCreated: {
     action: 'createPlacement', source: 'user', provenance: [['userAction', 'softPlacement']], ids: 'userPlacement', before: 'forbidden', after: 'required', facts: 'placement',
+    transitions: [{ before: null, after: { placementStatus: ['planned'], variantKind: 'absent' } }],
   },
   userPlacementMoved: {
     action: 'movePlacement', source: 'user', provenance: [['userAction', 'softPlacement']], ids: 'userPlacement', before: 'required', after: 'required', facts: 'placement',
+    transitions: [{
+      before: { placementStatus: ['planned', 'moved'], variantKind: 'absent' },
+      after: { placementStatus: ['moved'], variantKind: 'absent' },
+      change: 'placementPosition',
+    }],
   },
   userPlacementRemoved: {
     action: 'removePlacement', source: 'user', provenance: [['userAction', 'softPlacement']], ids: 'userPlacement', before: 'required', after: 'required', facts: 'placement',
+    transitions: [{
+      before: { placementStatus: ['planned', 'moved', 'completedFromToday'], variantKind: 'absent' },
+      after: { placementStatus: ['removed'], variantKind: 'absent' },
+    }],
   },
   schedulerPlacementAdded: {
     action: 'addAutomaticPlacement', source: 'scheduler', provenance: [['initialPlanBuild', 'schedulerInitialBuild'], ['automaticRepair', 'schedulerRepair']], ids: 'schedulerTarget', before: 'forbidden', after: 'required', facts: 'placement',
+    transitions: [{ before: null, after: { placementStatus: ['automatic'] } }],
   },
   schedulerPlacementMoved: {
     action: 'moveAutomaticPlacement', source: 'scheduler', provenance: [['automaticRepair', 'schedulerRepair']], ids: 'schedulerTarget', before: 'required', after: 'required', facts: 'placement',
+    transitions: [{
+      before: { placementStatus: ['automatic'] },
+      after: { placementStatus: ['automatic'] },
+      change: 'placementPosition',
+    }],
   },
   schedulerPlacementRemoved: {
     action: 'removeAutomaticPlacement', source: 'scheduler', provenance: [['automaticRepair', 'schedulerRepair']], ids: 'schedulerTarget', before: 'required', after: 'forbidden', facts: 'placement',
+    transitions: [{ before: { placementStatus: ['automatic'] }, after: null }],
   },
   schedulerPlacementVariantChanged: {
     action: 'changeAutomaticPlacementVariant', source: 'scheduler', provenance: [['automaticRepair', 'schedulerRepair']], ids: 'schedulerTarget', before: 'required', after: 'required', facts: 'placement',
+    transitions: [{
+      before: { placementStatus: ['automatic'] },
+      after: { placementStatus: ['automatic'] },
+      change: 'placementVariant',
+    }],
   },
   schedulerRepairUndone: {
     action: 'undoRepair', source: 'user', provenance: [['undo', 'schedulerRepairUndo']], ids: 'none', before: 'forbidden', after: 'forbidden', facts: 'none',
+    transitions: [{ before: null, after: null }],
   },
-} as const;
+} as const satisfies Record<z.infer<typeof behaviourEventTypeSchema>, BehaviourEventVariantRule>;
+
+function snapshotMatchesTransition(
+  snapshot: BehaviourEventFactShape | undefined,
+  expected: BehaviourEventTransitionFact | null,
+) {
+  if (expected === null) return snapshot === undefined;
+  if (!snapshot) return false;
+
+  if (
+    expected.taskStatus === 'absent'
+      ? snapshot.taskStatus !== undefined
+      : expected.taskStatus && !expected.taskStatus.includes(snapshot.taskStatus as never)
+  ) return false;
+  if (
+    expected.poolStatus === 'absent'
+      ? snapshot.poolStatus !== undefined
+      : expected.poolStatus && !expected.poolStatus.includes(snapshot.poolStatus as never)
+  ) return false;
+  if (
+    expected.placementStatus &&
+    !expected.placementStatus.includes(snapshot.placementStatus as never)
+  ) return false;
+  if (
+    expected.variantKind === 'absent'
+      ? snapshot.variantKind !== undefined
+      : expected.variantKind && !expected.variantKind.includes(snapshot.variantKind as never)
+  ) return false;
+  if (
+    expected.minimumAchieved === 'absent'
+      ? snapshot.minimumAchieved !== undefined
+      : expected.minimumAchieved &&
+        !expected.minimumAchieved.includes(snapshot.minimumAchieved as never)
+  ) return false;
+  if (expected.bringBackAfter === 'present' && !snapshot.bringBackAfter) return false;
+  if (expected.bringBackAfter === 'absent' && snapshot.bringBackAfter !== undefined) return false;
+
+  return true;
+}
+
+function transitionChangeMatches(
+  before: BehaviourEventFactShape | undefined,
+  after: BehaviourEventFactShape | undefined,
+  change: BehaviourEventTransitionRule['change'],
+) {
+  if (!change) return true;
+  if (!before || !after) return false;
+
+  if (change === 'minimumAchieved') {
+    return before.minimumAchieved === false && after.minimumAchieved === true;
+  }
+  if (change === 'minimumPreserved') {
+    return typeof before.minimumAchieved === 'boolean' &&
+      before.minimumAchieved === after.minimumAchieved;
+  }
+  if (change === 'placementPosition') {
+    return before.date !== after.date || before.start !== after.start || before.end !== after.end;
+  }
+  if (change === 'placementVariant') {
+    return before.variantKind !== after.variantKind;
+  }
+
+  return before.poolStatus !== after.poolStatus || before.bringBackAfter !== after.bringBackAfter;
+}
 
 export const behaviourEventSchema = z
   .object({
@@ -1159,69 +1321,22 @@ export const behaviourEventSchema = z
       }
     }
 
-    const expectedAfterStatus: Partial<Record<string, string[]>> = {
-      taskStarted: ['inProgress'],
-      taskPaused: ['paused'],
-      taskResumed: ['inProgress'],
-      taskContinued: ['inProgress'],
-      taskMinimumAchieved: ['minimumDone'],
-      taskCompleted: ['done'],
-      taskParked: ['parked'],
-      taskNotToday: ['notToday', 'skipped'],
-    };
-    const allowedAfterStatuses = expectedAfterStatus[event.eventType];
-    if (allowedAfterStatuses && !allowedAfterStatuses.includes(event.after?.taskStatus ?? '')) {
+    const transitionMatches = (rule.transitions as readonly BehaviourEventTransitionRule[]).some((transition) => {
+      const provenanceMatchesTransition = !transition.provenance || (
+        event.provenance.origin === transition.provenance[0] &&
+        event.provenance.mechanism === transition.provenance[1]
+      );
+
+      return provenanceMatchesTransition &&
+        snapshotMatchesTransition(event.before, transition.before) &&
+        snapshotMatchesTransition(event.after, transition.after) &&
+        transitionChangeMatches(event.before, event.after, transition.change);
+    });
+    if (!transitionMatches) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'After status does not match the event type.',
-        path: ['after', 'taskStatus'],
-      });
-    }
-    const expectedAfterPoolStatus: Partial<Record<string, string>> = {
-      taskAddedToToday: 'today',
-      taskDeferred: 'deferred',
-      taskNoLongerNeeded: 'noLongerNeeded',
-    };
-    const allowedAfterPoolStatus = expectedAfterPoolStatus[event.eventType];
-    if (
-      allowedAfterPoolStatus &&
-      event.after?.poolStatus &&
-      event.after.poolStatus !== allowedAfterPoolStatus
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'After pool status does not match the event type.',
-        path: ['after', 'poolStatus'],
-      });
-    }
-    if (
-      event.eventType === 'taskMinimumAchieved' &&
-      event.after?.minimumAchieved !== true
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Minimum achievement must be recorded.',
-        path: ['after', 'minimumAchieved'],
-      });
-    }
-    if (
-      event.eventType.startsWith('schedulerPlacement') &&
-      snapshots.some((snapshot) => snapshot?.placementStatus !== 'automatic')
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Scheduler placement facts must be automatic.',
-        path: ['after', 'placementStatus'],
-      });
-    }
-    if (
-      event.eventType.startsWith('userPlacement') &&
-      snapshots.some((snapshot) => snapshot?.placementStatus === 'automatic')
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'User placement facts cannot be automatic.',
-        path: ['after', 'placementStatus'],
+        message: 'Before and after facts do not match the event transition.',
+        path: ['after'],
       });
     }
 

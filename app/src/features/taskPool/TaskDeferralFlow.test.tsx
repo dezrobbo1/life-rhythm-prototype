@@ -11,7 +11,6 @@ import {
   resetCurrentLocalDataNamespace,
   setCurrentLocalDataNamespace,
 } from '../../data/localDataNamespace';
-import { saveTaskPoolItem } from '../../data/taskPoolRepository';
 
 let namespaceIndex = 0;
 
@@ -66,7 +65,7 @@ describe('personal task deferral and resurfacing', () => {
 
   it('shows an arrived deferred task as Ready to revisit and lets the user bring it to Today', async () => {
     const database = getCurrentLifeRhythmDatabase();
-    await saveTaskPoolItem({
+    await database.taskPoolItems.put({
       area: 'admin',
       bringBackAfter: '2020-01-01T09:00:00.000Z',
       createdAt: '2020-01-01T08:00:00.000Z',

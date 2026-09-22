@@ -33,8 +33,8 @@ describe('behaviour history controls', () => {
       });
       await appendBehaviourEvent(createBehaviourEvent({
         action: 'start',
-        after: { taskStatus: 'inProgress' },
-        before: { taskStatus: 'active' },
+        after: { minimumAchieved: false, taskStatus: 'inProgress' },
+        before: { minimumAchieved: false, taskStatus: 'active' },
         eventType: 'taskStarted',
         occurredAt: '2026-09-22T09:00:00.000Z',
         provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },

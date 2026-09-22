@@ -64,7 +64,7 @@ describe('task lifecycle repository', () => {
 
     try {
       await saveTaskPoolItem(validTaskPoolItem(), database);
-      await saveTaskPoolItem(validTaskPoolItem({ id: 'already-removed', status: 'noLongerNeeded' }), database);
+      await database.taskPoolItems.put(validTaskPoolItem({ id: 'already-removed', status: 'noLongerNeeded' }));
       await database.taskPoolItems.put({ id: 'malformed-link', status: 'today' } as TaskPoolItem);
 
       await expect(loadLinkedTaskPoolItemIds([
@@ -301,7 +301,7 @@ describe('task lifecycle repository', () => {
     const database = createTestDatabase();
 
     try {
-      await saveTaskPoolItem(validTaskPoolItem({ status: 'noLongerNeeded' }), database);
+      await database.taskPoolItems.put(validTaskPoolItem({ status: 'noLongerNeeded' }));
 
       const result = await bringTaskPoolItemToToday('task-pool-form', database);
 
