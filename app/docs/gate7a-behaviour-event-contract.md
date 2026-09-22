@@ -37,6 +37,6 @@ Every trusted event has a stable ID, schema version, event type, ISO `occurredAt
 
 Events stay in the existing local IndexedDB namespace. Reset now has a dedicated control that exports every Gate 7A-tagged `behaviourEvent` row as local JSON and a separately protected control that deletes only those rows after the person types `DELETE BEHAVIOUR HISTORY`. This includes an unreadable tagged row so corruption cannot make personal data invisible or undeletable, while only schema-valid rows can become trusted facts. Legacy task-history rows share the table but are excluded from both the Gate 7A export and deletion; tasks, plans, settings, placements, calendars, and other logs are untouched. Gate 7A adds no network transport, cloud profile, telemetry, or external-calendar write. The ledger stores compact structured facts and identifiers rather than free-text behavioural interpretations.
 
-## Deferred to Gate 7B
+## Relationship to Gate 7B
 
-Gate 7B may compute transparent descriptive statistics from validated events. Preference learning, scoring, confidence, user-facing learning explanations, scheduler adaptation, and any predictive or psychological inference are explicitly outside Gate 7A.
+Gate 7B computes transparent descriptive statistics from validated events under `app/docs/gate7b-descriptive-statistics-contract.md`. Preference learning, scoring, confidence, user-facing learning explanations, scheduler adaptation, and any predictive or psychological inference remain outside Gate 7A.

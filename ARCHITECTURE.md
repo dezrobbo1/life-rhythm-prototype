@@ -88,7 +88,7 @@ Structured explicit or learnt preferences with scope, source, confidence, suppor
 
 Observed facts about interaction and execution. The event log must not embed speculative psychological explanations.
 
-The Gate 7A v0 record shape, runtime write boundaries, provenance rules, and deferred learning work are defined in `app/docs/gate7a-behaviour-event-contract.md`.
+The Gate 7A v0 record shape, runtime write boundaries, provenance rules, and deferred learning work are defined in `app/docs/gate7a-behaviour-event-contract.md`. Gate 7B's read-only descriptive-statistics and read-health contract is defined in `app/docs/gate7b-descriptive-statistics-contract.md`.
 
 ## Scheduler boundary
 

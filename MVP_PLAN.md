@@ -203,13 +203,13 @@ Do not preserve existing object grammar merely because it is documented. Reuse g
 
 Exit condition: the user can operate the day without understanding Pool status, placement machinery, solver concepts or internal state boundaries.
 
-Status (Gate 6F, 2026-09-22): **Complete.** Gate 6A–6F and the final owner-provided approximately-390-pixel portrait mobile-browser acceptance are complete, as recorded in `app/docs/gate6-exit-report.md`. Desktop, keyboard, and mobile acceptance pass, and the ordinary daily loop can be operated without understanding scheduler internals. Issue #146 remains an explicit DST-boundary limitation and issue #141 remains governance-only follow-up work; neither prevents Gate 6 exit. **Gate 7 — Behavioural Learning v0 is the next development milestone and has not begun.**
+Status (Gate 6F, 2026-09-22): **Complete.** Gate 6A–6F and the final owner-provided approximately-390-pixel portrait mobile-browser acceptance are complete, as recorded in `app/docs/gate6-exit-report.md`. Desktop, keyboard, and mobile acceptance pass, and the ordinary daily loop can be operated without understanding scheduler internals. Issue #146 remains an explicit DST-boundary limitation and issue #141 remains governance-only follow-up work; neither prevents Gate 6 exit. Gate 7 — Behavioural Learning v0 followed as the next milestone; its current status is recorded below.
 
 ### Gate 7 — Behavioural Learning v0
 
 Goal: make Life Rhythm start learning without building a machine-learning platform.
 
-Status (Gate 7A, 2026-09-22): **Observed behaviour event ledger complete in this milestone.** The local, factual, provenance-bearing event contract is recorded in `app/docs/gate7a-behaviour-event-contract.md`. Gate 7 as a whole remains in progress; descriptive statistics, preference learning, scheduler adaptation, and the user-facing learning view are deferred and Gate 7B has not begun.
+Status (Gate 7B, 2026-09-22): **Observed behaviour event ledger and descriptive statistics complete through this milestone.** Gate 7A's local, factual, provenance-bearing event contract is recorded in `app/docs/gate7a-behaviour-event-contract.md`; Gate 7B's read-only duration summaries, factual counts, local-time observations, and read-health rules are recorded in `app/docs/gate7b-descriptive-statistics-contract.md`. Gate 7 as a whole remains in progress. Preference learning, scheduler adaptation, and the user-facing learning view have not begun.
 
 Work:
 
