@@ -6,8 +6,8 @@ Gate 6 remains **NOT YET**. Repository and exact-head desktop evidence show a co
 
 - Starting main: `8455080d10ba64a4fac4edd593ec7575a1e02b50`
 - Branch: `agent/gate6f-v0-daily-loop-acceptance`
-- Published implementation/test head: `ea51ed99dfb7537ce06dc098f53756fe4c593dfd`
-- Tested implementation/test tree: `4a85800f98f753f69e64826e694a3d24ac050011`
+- Published implementation/test head: `e44caa586c7f0d01f7607ddc2fbbb0d4ff30d99b`
+- Tested implementation/test tree: `db2b99f7f234313d0a9d80b2b856f748c510af47`
 
 The report correction after that tree is documentation-only. The final published head and tree are recorded in PR #147 and the delivery handoff.
 
@@ -60,15 +60,17 @@ Acceptance found one concrete trust blocker inherited from the merged calendar-a
 
 Gate 6F stores an optional validated `calendarRepairPendingAt` marker in the existing scheduler-plan state record. No database version, table, index, or migration changed. Calendar-source changes persist that marker in the same Dexie transaction as the source mutation. Repairs then carry the exact calendar source snapshot used to build their scheduling input and compare both that snapshot and the previously read scheduler record inside a transaction spanning `calendarSources` and `schedulerPlanState`. A concurrent source mutation or plan write therefore rejects the stale result before it can overwrite the plan or clear attention. The same compare-and-save boundary protects initial plan creation and Undo.
 
-Successful canonical repairs using the current calendar snapshot clear pending attention. While the marker is present, Today keeps its task and readable fixed/user-confirmed facts usable but hides stale automatic placements and Changed metadata behind a targeted warning. Its Retry repair action now runs that canonical repair and retains the warning plus the returned error when recovery fails. Undo of a successful calendar repair re-marks the restored pre-calendar private plan as pending because Undo does not repair the changed calendar context. App's scheduler-state live observation now advances Today's read generation only when the durable pending boolean changes, so both pending and cleared states propagate to an already-mounted Today without authorising a build, repair, or write.
+Successful canonical repairs using the current calendar snapshot clear pending attention. While the marker is present, Today keeps its task and readable fixed/user-confirmed facts usable but hides stale automatic placements and Changed metadata behind a targeted warning. Its Retry repair action now runs that canonical repair and retains the warning plus the returned error when recovery fails. Undo of a successful calendar repair re-marks the restored pre-calendar private plan as pending because Undo does not repair the changed calendar context. App's scheduler-state live observation advances Today's read generation on later pending-state transitions and when its first observation is already pending, closing the bootstrap race without authorising a build, repair, or write.
+
+Scheduler persistence now also compares one deterministic snapshot of every persisted input projected into an automatic decision: settings/Life Shape, active tasks, task-pool items, rhythm templates, and soft placements. The expected scheduler record, including Reduced Day mode, and the calendar source remain separately authoritative. If a high-level build or semantic repair loses that boundary, it rebuilds the complete live context and recalculates at most once. Time-disruption maintenance reruns clipping and disruption detection from the fresh state; initial creation accepts a plan that won concurrently; Reduced Day apply/return recompute once; and Undo remains tied to its exact accepted history rather than being replayed against newer state.
 
 ## Automated evidence
 
 - Gate 6 daily-loop acceptance test in isolation: 1 file, 1 test passed.
-- Focused final correction matrix: 9 files, 176 tests passed.
-- Default full suite: 74 files, 882 tests passed.
-- UTC full suite: 74 files, 882 tests passed.
-- Australia/Perth full suite: 74 files, 882 tests passed.
+- Focused final correction matrix: 12 files, 182 tests passed.
+- Default full suite: 76 files, 893 tests passed.
+- UTC full suite: 76 files, 893 tests passed.
+- Australia/Perth full suite: 76 files, 893 tests passed.
 - Build: TypeScript and Vite production build passed.
 - Diff check: passed.
 
