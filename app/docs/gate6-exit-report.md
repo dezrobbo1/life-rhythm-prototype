@@ -1,6 +1,6 @@
 # Gate 6 exit report — v0 daily loop
 
-Gate 6 remains **NOT YET**. Repository and exact-head desktop evidence show a coherent ordinary daily loop without requiring the user to understand Pool status, placement machinery, solver concepts, or internal persistence boundaries. The required approximately-390-pixel browser acceptance could not be executed with the available viewport controls, so this report does not promote that bounded evidence to a complete Gate 6 exit.
+Gate 6 is **PASS**. Repository evidence plus desktop, keyboard, and owner-provided approximately-390-pixel portrait mobile-browser acceptance show a coherent ordinary daily loop without requiring the user to understand Pool status, placement machinery, solver concepts, or internal persistence boundaries.
 
 ## Tested source
 
@@ -10,6 +10,8 @@ Gate 6 remains **NOT YET**. Repository and exact-head desktop evidence show a co
 - Tested implementation/test tree: `db2b99f7f234313d0a9d80b2b856f748c510af47`
 
 The report correction after that tree is documentation-only. The final published head and tree are recorded in PR #147 and the delivery handoff.
+
+Final mobile acceptance was supplied by the owner as a portrait browser recording of current `main` at `1ecf410b00ad1161d2bfca72b9b079ba23534787`. The recording is qualitative acceptance evidence; no precise CSS viewport width is claimed.
 
 ## Gate 6 progression
 
@@ -22,7 +24,7 @@ The report correction after that tree is documentation-only. The final published
 | Gate 6E0 | Library custom-rhythm reads remain truthful without hiding the built-in catalogue. |
 | Gate 6E1 | Pool became the user-facing Held surface and Capture became persistently reachable. |
 | Gate 6E2 | Day Line became the default Plan product; detailed machinery moved behind Plan details without changing scheduler authority. |
-| Gate 6F | The connected daily loop was exercised, calendar-repair attention was made durable across reload, and final mobile browser acceptance remains open. |
+| Gate 6F | The connected daily loop was exercised, calendar-repair attention was made durable across reload, and final approximately-390-pixel portrait mobile-browser acceptance passed. |
 
 ## Exit matrix
 
@@ -38,7 +40,7 @@ The report correction after that tree is documentation-only. The final published
 | Re-entry | PASS | Existing real-repository and Today suites preserve usefulness-based choices, exact Try Minimum selection, and the no-catch-up boundary. Rendering review remains read-only. |
 | Failure and trust | PASS | Gate 6 read-health suites remain green. The Gate 6F calendar-attention regressions prove failure survives an App remount, propagates through Dexie to an already-mounted Today, and clears there only through a later successful persisted repair. |
 | Desktop browser | PASS | An authenticated exact-head Vercel preview was exercised at 1363 px. Today, Capture, Held, Plan, Library, Settings, task lifecycle, durable Minimum, Reduced Day preview/apply, and mode-aware Undo were operable. Primary surfaces had no horizontal overflow and no application-origin console errors. |
-| Approximately 390 px browser | NOT TESTABLE IN AVAILABLE ENVIRONMENT | The exact-head browser was reachable, but the available browser runtime exposed no viewport-resize capability and no installed local browser path was available. Automated responsive/accessibility coverage passed, but it is not reported as a browser pass. This is the remaining Gate 6 exit blocker. |
+| Approximately 390 px browser | PASS | The owner-provided portrait mobile-browser recording of current main exercised Today/Now/Later, persistent bottom navigation, Capture with the mobile keyboard, Held, Library, Plan Day Line and Plan details, Settings forms and scrolling, Start Boost, Start/Pause/Resume, Minimum Done and continuation, Reduced Day, Park/return to Held, and repeated primary navigation. No horizontal page overflow or clipped primary action was observed; bottom navigation, keyboard-backed forms/modals, vertical scrolling, and the ordinary daily-loop actions remained usable. The visible calendar/planning warning was truthful application state, not a responsive-layout failure. |
 | Keyboard browser journey | PASS | The exact-head walkthrough used keyboard activation for primary navigation, Capture, Held handoff, Plan details, Today Details, Start Boost, Reduced Day, and Undo. Capture Escape restored focus to its trigger. |
 
 ## Connected daily-loop scenario
@@ -88,12 +90,13 @@ The Gate 6 acceptance assertion now scopes `Quiet reset` to the labelled Day Lin
 ## Known limitations and follow-ups
 
 - Issue #146 remains open. Spring-forward nonexistent local times and fall-back ambiguous internal placement times do not yet have the promised DST-safe boundary semantics. Gate 6F used ordinary non-transition dates and does not close or weaken that issue.
-- Issue #141 remains open as governance wording for schema-compatible next-milestone guidance. It does not block the product acceptance result.
-- Exact-head desktop and keyboard walkthroughs passed through a temporary authenticated preview path. The approximately-390-pixel walkthrough remains unverified because neither the exact-head browser runtime nor the local environment exposed a supported resize-capable browser. Automated responsive/accessibility evidence is green, but no mobile browser pass is inferred.
+- Issue #141 remains open as governance wording for schema-compatible next-milestone guidance.
+- Issues #146 and #141 do not prevent Gate 6 exit.
+- Exact-head desktop and keyboard walkthroughs passed through a temporary authenticated preview path. The owner-provided approximately-390-pixel portrait mobile-browser walkthrough of current main also passed.
 - The existing production bundle-size advisory remains non-blocking and unchanged.
 
 ## Decision
 
-**GATE 6 EXIT — NOT YET**
+**GATE 6 EXIT — PASS**
 
-The single remaining exit blocker is execution of the required approximately-390-pixel browser acceptance on the exact published tree (or an explicit owner decision to accept the unavailable evidence). Gate 7 has not begun.
+Desktop acceptance passed, keyboard acceptance passed, and approximately-390-pixel portrait mobile acceptance passed. The user can operate the ordinary daily loop without understanding scheduler internals. Gate 7 — Behavioural Learning v0 is the next development milestone and has not begun.
