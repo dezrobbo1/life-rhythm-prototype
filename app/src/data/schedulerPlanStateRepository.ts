@@ -22,6 +22,12 @@ import {
   schedulerPlanStateRecordSchema,
   type SchedulerPlanStateRecord,
 } from './schedulerPlanStateSchema';
+import {
+  appendBehaviourEvent,
+  behaviourEventForSchedulerUndo,
+  behaviourEventsForSchedulerRepair,
+} from './behaviourEventRepository';
+import type { BehaviourEvent } from './schemas';
 
 export const CURRENT_SCHEDULER_PLAN_STATE_ID = 'current';
 
@@ -181,6 +187,7 @@ async function saveSchedulerPlanStateIfCurrent(
   fields: SchedulerStateFields,
   calendarSourceSnapshot?: CalendarSourceSnapshot,
   canonicalInputSnapshot?: CanonicalSchedulingInputSnapshot,
+  behaviourEvents: BehaviourEvent[] = [],
 ): Promise<SchedulerPlanStateWriteResult> {
   const candidate = validatedSchedulerPlanStateRecord(plan, updatedAt, fields);
   if (!candidate.success) {
@@ -210,6 +217,7 @@ async function saveSchedulerPlanStateIfCurrent(
         store.taskPoolItems,
         store.rhythmTemplates,
         store.softPlacements,
+        store.taskHistory,
       ],
       async () => {
         const latest = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
@@ -238,6 +246,9 @@ async function saveSchedulerPlanStateIfCurrent(
         }
 
         await store.schedulerPlanState.put(candidate.data);
+        for (const event of behaviourEvents) {
+          await appendBehaviourEvent(event, store);
+        }
         return {
           ok: true as const,
           plan: clonePlan(candidate.data.plan as SchedulerPlan),
@@ -431,7 +442,7 @@ export async function repairAndPersistSchedulerPlan(
     const saved = await saveSchedulerPlanStateIfCurrent(plan, current, store, updatedAt, {
       dayModeContext,
       ...(current.status === 'ok' ? { undoDayModeContext: previousContext ?? null } : {}),
-    }, calendarSourceSnapshot, canonicalInputSnapshot);
+    }, calendarSourceSnapshot, canonicalInputSnapshot, behaviourEventsForSchedulerRepair(plan, updatedAt));
 
     if (!saved.ok) {
       return saved;
@@ -479,7 +490,7 @@ export async function undoPersistedSchedulerRepair(
   const saved = await saveSchedulerPlanStateIfCurrent(reverted, current, store, updatedAt, {
     calendarRepairPendingAt,
     dayModeContext: current.undoDayModeContext ?? undefined,
-  });
+  }, undefined, undefined, [behaviourEventForSchedulerUndo(current.plan, updatedAt)]);
 
   return saved.ok
     ? { ...saved, mode: 'undone' }

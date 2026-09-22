@@ -209,6 +209,8 @@ Status (Gate 6F, 2026-09-22): **Complete.** Gate 6A–6F and the final owner-pro
 
 Goal: make Life Rhythm start learning without building a machine-learning platform.
 
+Status (Gate 7A, 2026-09-22): **Observed behaviour event ledger complete in this milestone.** The local, factual, provenance-bearing event contract is recorded in `app/docs/gate7a-behaviour-event-contract.md`. Gate 7 as a whole remains in progress; descriptive statistics, preference learning, scheduler adaptation, and the user-facing learning view are deferred and Gate 7B has not begun.
+
 Work:
 
 - actual-duration statistics and uncertainty ranges;

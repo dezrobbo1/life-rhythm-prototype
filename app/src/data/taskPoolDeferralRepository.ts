@@ -1,6 +1,10 @@
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import { taskPoolItemSchema, type TaskPoolItem } from './schemas';
 import type { LifeRhythmDatabase } from './db';
+import {
+  appendBehaviourEvent,
+  behaviourEventForDeferredTask,
+} from './behaviourEventRepository';
 
 export type TaskPoolDeferralResult =
   | {
@@ -49,7 +53,7 @@ export async function deferTaskPoolItem(
     };
   }
 
-  return database.transaction('rw', database.taskPoolItems, async () => {
+  return database.transaction('rw', database.taskPoolItems, database.taskHistory, async () => {
     const storedItem = await database.taskPoolItems.get(itemId);
 
     if (!storedItem) {
@@ -83,6 +87,15 @@ export async function deferTaskPoolItem(
     });
 
     await database.taskPoolItems.put(updatedItem);
+    if (
+      parsedItem.data.status !== updatedItem.status ||
+      parsedItem.data.bringBackAfter !== updatedItem.bringBackAfter
+    ) {
+      await appendBehaviourEvent(
+        behaviourEventForDeferredTask(parsedItem.data, updatedItem, now.toISOString()),
+        database,
+      );
+    }
 
     return {
       item: updatedItem,

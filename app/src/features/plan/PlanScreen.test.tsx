@@ -469,7 +469,7 @@ describe('Plan screen', () => {
         settings: 0,
         softPlacements: 1,
         startBoostLog: 0,
-        taskHistory: 0,
+        taskHistory: 1,
       });
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(getItemSpy).not.toHaveBeenCalled();
@@ -599,7 +599,7 @@ describe('Plan screen', () => {
         settings: 0,
         softPlacements: 1,
         startBoostLog: 0,
-        taskHistory: 0,
+        taskHistory: 2,
       });
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(getItemSpy).not.toHaveBeenCalled();

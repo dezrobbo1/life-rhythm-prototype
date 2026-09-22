@@ -1,0 +1,42 @@
+# Gate 7A — observed behaviour event contract
+
+## Boundary
+
+Gate 7A records facts that the application directly observed. It does not infer preferences, motivation, psychological state, productivity, or the reason a person acted. It does not score behaviour or change scheduler ranking.
+
+The canonical v0 ledger reuses the existing IndexedDB `taskHistory` table. New rows are strict, versioned `behaviourEvent` records; the older task-history row shape remains readable for backup compatibility but is not accepted as a learning fact. The existing `completionLog` and `startBoostLog` tables remain legacy/schema-only infrastructure because the application does not currently write them at runtime. Current scheduler repair metadata remains the accepted-plan audit snapshot, while selected factual placement changes are copied into the append-only ledger.
+
+## Canonical fields
+
+Every trusted event has a stable ID, schema version, event type, ISO `occurredAt`, local date, IANA timezone, observed source, action, and provenance. Task, template, rhythm, or placement IDs are present when applicable. Strict before/after snapshots contain only factual lifecycle or placement values. A completion includes observed active minutes only when start/resume facts make that duration available.
+
+`source` distinguishes user, scheduler, and system activity. `provenance.origin` distinguishes a user action, automatic repair, Undo, or system action, and `provenance.mechanism` names the write path. A scheduler movement remains scheduler-originated even when a user action caused the repair; the event does not claim that the user chose that movement.
+
+## Event types
+
+| Area | Events | Runtime boundary |
+| --- | --- | --- |
+| Capture and Today | `taskCaptured`, `taskCreated`, `taskAddedToToday` | Held capture, one-off Today creation, and Library/Held addition to Today |
+| Task lifecycle | `taskStarted`, `taskPaused`, `taskResumed`, `taskContinued`, `taskMinimumAchieved`, `taskCompleted`, `taskParked`, `taskNotToday`, `taskNoLongerNeeded` | Material persisted lifecycle transitions |
+| Holding | `taskDeferred` | A factual Hold-until change |
+| User placement | `userPlacementCreated`, `userPlacementMoved`, `userPlacementRemoved` | User-confirmed placement changes; v0 currently emits create/remove because no coordinate-move action exists |
+| Automatic placement | `schedulerPlacementAdded`, `schedulerPlacementMoved`, `schedulerPlacementRemoved`, `schedulerPlacementVariantChanged` | Changes accepted by a scheduler repair, with scheduler provenance |
+| Override | `schedulerRepairUndone` | A successful one-step scheduler repair Undo |
+
+“Stop”, “Normal Done”, and “Full Done” currently share the persisted `done` transition, so Gate 7A records the supported fact `taskCompleted` and does not invent an unavailable completion-mode explanation. Opening Start Boost does not currently persist a choice, so it does not create a behavioural event.
+
+## Atomicity and idempotency
+
+- Production capture, Today creation/addition, lifecycle, deferral, and user-placement facts are required writes in the same Dexie transaction as their primary state change. If the fact cannot be stored, the primary change rolls back.
+- Automatic placement facts and Undo facts commit in the existing conditional scheduler-plan transaction. A stale or failed plan write commits neither the plan nor its events.
+- Repeating an already-material lifecycle state, reloading, rendering, or reading the ledger does not append an event. Duplicate placement IDs remain rejected. Scheduler event IDs are deterministic within an accepted repair, and the conditional scheduler-state boundary prevents a stale retry from appending facts.
+- Malformed rows and legacy task-history rows are excluded by the dedicated strict reader and reported as a partial read. They never become trusted learning input.
+- Writing or reading a behaviour event has no scheduler authority and cannot write an external calendar.
+
+## Privacy and local-first behaviour
+
+Events stay in the existing local IndexedDB namespace and are removed by the existing full local-data reset. Existing data-class-scoped task and placement backups intentionally continue to exclude unrelated history; a dedicated ledger export is deferred. Gate 7A adds no network transport, cloud profile, telemetry, or external-calendar write. The ledger stores compact structured facts and identifiers rather than free-text behavioural interpretations.
+
+## Deferred to Gate 7B
+
+Gate 7B may compute transparent descriptive statistics from validated events. Preference learning, scoring, confidence, retention controls beyond existing local reset/backup behaviour, user-facing learning explanations, scheduler adaptation, and any predictive or psychological inference are explicitly outside Gate 7A.

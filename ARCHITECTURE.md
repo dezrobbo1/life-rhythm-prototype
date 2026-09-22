@@ -88,6 +88,8 @@ Structured explicit or learnt preferences with scope, source, confidence, suppor
 
 Observed facts about interaction and execution. The event log must not embed speculative psychological explanations.
 
+The Gate 7A v0 record shape, runtime write boundaries, provenance rules, and deferred learning work are defined in `app/docs/gate7a-behaviour-event-contract.md`.
+
 ## Scheduler boundary
 
 The product domain must not depend directly on OR-Tools, CP-SAT or any single optimisation library.

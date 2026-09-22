@@ -55,11 +55,14 @@ function createTestDatabase() {
   return createLifeRhythmDatabase(`life-rhythm-soft-placement-backup-test-${backupDatabaseIndex}`);
 }
 
-async function expectNoNonPlacementRows(database: ReturnType<typeof createTestDatabase>) {
+async function expectNoNonPlacementRows(
+  database: ReturnType<typeof createTestDatabase>,
+  taskHistoryCount = 0,
+) {
   expect(await database.activeTasks.count()).toBe(0);
   expect(await database.settings.count()).toBe(0);
   expect(await database.rhythmTemplates.count()).toBe(0);
-  expect(await database.taskHistory.count()).toBe(0);
+  expect(await database.taskHistory.count()).toBe(taskHistoryCount);
   expect(await database.completionLog.count()).toBe(0);
   expect(await database.resetLog.count()).toBe(0);
   expect(await database.startBoostLog.count()).toBe(0);
@@ -178,8 +181,8 @@ describe('soft placement backup', () => {
       expect(backup?.placementCount).toBe(1);
       expect(backup?.payload.placements[0].taskTitleSnapshot).toBe('User A placement');
       expect(backup?.json).toContain('life-rhythm-soft-placement-backup');
-      await expectNoNonPlacementRows(userADatabase);
-      await expectNoNonPlacementRows(userBDatabase);
+      await expectNoNonPlacementRows(userADatabase, 1);
+      await expectNoNonPlacementRows(userBDatabase, 1);
     } finally {
       resetCurrentLocalDataNamespace();
       await userADatabase.delete();

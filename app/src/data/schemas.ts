@@ -825,7 +825,7 @@ export const softPlacementSchema = z
     }
   });
 
-export const taskHistorySchema = z
+export const legacyTaskHistorySchema = z
   .object({
     id: idSchema,
     taskId: idSchema,
@@ -835,6 +835,98 @@ export const taskHistorySchema = z
     metadata: z.record(z.unknown()).default({}),
   })
   .strict();
+
+export const behaviourEventTypeSchema = z.enum([
+  'taskCaptured',
+  'taskCreated',
+  'taskAddedToToday',
+  'taskStarted',
+  'taskPaused',
+  'taskResumed',
+  'taskContinued',
+  'taskMinimumAchieved',
+  'taskCompleted',
+  'taskParked',
+  'taskNotToday',
+  'taskDeferred',
+  'taskNoLongerNeeded',
+  'userPlacementCreated',
+  'userPlacementMoved',
+  'userPlacementRemoved',
+  'schedulerPlacementAdded',
+  'schedulerPlacementMoved',
+  'schedulerPlacementRemoved',
+  'schedulerPlacementVariantChanged',
+  'schedulerRepairUndone',
+]);
+
+export const behaviourEventFactSchema = z
+  .object({
+    taskStatus: activeTaskStatusSchema.optional(),
+    poolStatus: taskPoolItemStatusSchema.optional(),
+    placementStatus: z
+      .enum(['planned', 'moved', 'removed', 'completedFromToday', 'automatic'])
+      .optional(),
+    date: isoDate.optional(),
+    start: timeOfDay.optional(),
+    end: timeOfDay.optional(),
+    variantKind: z.enum(['minimum', 'normal', 'full']).optional(),
+    minimumAchieved: z.boolean().optional(),
+    bringBackAfter: activeTaskDeadlineIsoDateTimeSchema.optional(),
+  })
+  .strict();
+
+export const behaviourEventSchema = z
+  .object({
+    recordKind: z.literal('behaviourEvent'),
+    version: z.literal(1),
+    id: idSchema,
+    eventType: behaviourEventTypeSchema,
+    occurredAt: activeTaskDeadlineIsoDateTimeSchema,
+    localDate: isoDate,
+    timezone: z.string().min(1),
+    taskId: idSchema.optional(),
+    templateId: idSchema.optional(),
+    rhythmId: idSchema.optional(),
+    placementId: idSchema.optional(),
+    source: z.enum(['user', 'scheduler', 'system']),
+    action: z.enum([
+      'capture',
+      'create',
+      'addToToday',
+      'start',
+      'pause',
+      'resume',
+      'continue',
+      'minimumDone',
+      'complete',
+      'park',
+      'notToday',
+      'defer',
+      'noLongerNeeded',
+      'createPlacement',
+      'movePlacement',
+      'removePlacement',
+      'addAutomaticPlacement',
+      'moveAutomaticPlacement',
+      'removeAutomaticPlacement',
+      'changeAutomaticPlacementVariant',
+      'undoRepair',
+    ]),
+    before: behaviourEventFactSchema.optional(),
+    after: behaviourEventFactSchema.optional(),
+    actualMinutes: z.number().int().nonnegative().optional(),
+    provenance: z
+      .object({
+        origin: z.enum(['userAction', 'automaticRepair', 'undo', 'system']),
+        mechanism: z.string().min(1),
+        trigger: z.string().min(1).optional(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const taskHistorySchema = z.union([legacyTaskHistorySchema, behaviourEventSchema]);
 
 export const completionLogSchema = z
   .object({
@@ -961,6 +1053,8 @@ export type TaskPoolItemStatus = z.infer<typeof taskPoolItemStatusSchema>;
 export type SoftPlacement = z.infer<typeof softPlacementSchema>;
 export type SoftPlacementStatus = z.infer<typeof softPlacementStatusSchema>;
 export type TaskHistory = z.infer<typeof taskHistorySchema>;
+export type BehaviourEvent = z.infer<typeof behaviourEventSchema>;
+export type BehaviourEventFact = z.infer<typeof behaviourEventFactSchema>;
 export type CompletionLog = z.infer<typeof completionLogSchema>;
 export type ResetLog = z.infer<typeof resetLogSchema>;
 export type StartBoostLog = z.infer<typeof startBoostLogSchema>;

@@ -1,5 +1,5 @@
 import type { Table } from 'dexie';
-import type { LifeRhythmDatabase } from './db';
+import { LifeRhythmDatabase } from './db';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   activeTaskSchema,
@@ -18,6 +18,7 @@ import {
   successfulCollectionRead,
   type CollectionReadResult,
 } from './collectionReadResult';
+import { appendBehaviourEvent, createBehaviourEvent } from './behaviourEventRepository';
 
 type ActiveTasksTable = Pick<Table<ActiveTask, string>, 'get' | 'put' | 'toArray'>;
 type TaskPoolItemsTable = Pick<Table<TaskPoolItem, string>, 'get' | 'put'>;
@@ -268,6 +269,41 @@ export async function saveActiveTodayTask(
 
   if (!validated.ok) {
     return validated;
+  }
+
+  if (store instanceof LifeRhythmDatabase) {
+    return store.transaction('rw', store.activeTasks, store.taskHistory, async () => {
+      const existingTasks = await loadActiveTodayTasks(store);
+      const existingLibraryTask = findExistingLibraryTask(existingTasks, validated.task);
+      if (existingLibraryTask) {
+        return {
+          alreadyExists: true,
+          ok: true as const,
+          task: existingLibraryTask,
+        };
+      }
+
+      const existingById = await store.activeTasks.get(validated.task.id);
+      if (existingById) {
+        return {
+          errors: ['id: An active Today task with this ID already exists.'],
+          ok: false as const,
+        };
+      }
+
+      await store.activeTasks.put(validated.task);
+      await appendBehaviourEvent(createBehaviourEvent({
+        action: validated.task.source === 'library' ? 'addToToday' : 'create',
+        after: { taskStatus: validated.task.status },
+        eventType: validated.task.source === 'library' ? 'taskAddedToToday' : 'taskCreated',
+        occurredAt: validated.task.createdAt,
+        provenance: { origin: 'userAction', mechanism: 'todayCapture' },
+        source: 'user',
+        taskId: validated.task.id,
+        ...(validated.task.templateId ? { templateId: validated.task.templateId } : {}),
+      }), store);
+      return validated;
+    });
   }
 
   const existingTasks = await loadActiveTodayTasks(store);

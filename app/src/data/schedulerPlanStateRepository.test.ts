@@ -149,7 +149,6 @@ async function expectOnlySchedulerPlanStateWritten(
   expect(await database.settings.count()).toBe(0);
   expect(await database.rhythmTemplates.count()).toBe(0);
   expect(await database.activeTasks.count()).toBe(0);
-  expect(await database.taskHistory.count()).toBe(0);
   expect(await database.completionLog.count()).toBe(0);
   expect(await database.resetLog.count()).toBe(0);
   expect(await database.startBoostLog.count()).toBe(0);
@@ -196,6 +195,7 @@ describe('persisted Gate 4 scheduler plan state', () => {
       });
       if (loaded.status !== 'ok') throw new Error('Expected saved scheduler plan state.');
       expect(loaded.plan).toEqual(built.plan);
+      expect(await database.taskHistory.count()).toBe(0);
       await expectOnlySchedulerPlanStateWritten(database);
     } finally {
       await database.delete();

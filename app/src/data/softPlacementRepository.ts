@@ -1,4 +1,5 @@
 import type { Table } from 'dexie';
+import { LifeRhythmDatabase } from './db';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   successfulCollectionRead,
@@ -11,6 +12,10 @@ import {
   type SoftPlacement,
   type SoftPlacementStatus,
 } from './schemas';
+import {
+  appendBehaviourEvent,
+  behaviourEventForUserPlacement,
+} from './behaviourEventRepository';
 
 type SoftPlacementsTable = Pick<Table<SoftPlacement, string>, 'get' | 'put' | 'toArray' | 'where'>;
 
@@ -74,6 +79,29 @@ export async function saveSoftPlacement(
 
   if (!validated.ok) {
     return validated;
+  }
+
+  if (store instanceof LifeRhythmDatabase) {
+    return store.transaction('rw', store.softPlacements, store.taskHistory, async () => {
+      const existing = await store.softPlacements.get(validated.placement.id);
+      if (existing) {
+        return {
+          errors: ['id: A soft placement with this ID already exists.'],
+          ok: false as const,
+        };
+      }
+
+      await store.softPlacements.put(validated.placement);
+      await appendBehaviourEvent(
+        behaviourEventForUserPlacement(
+          validated.placement,
+          'create',
+          validated.placement.createdAt,
+        ),
+        store,
+      );
+      return validated;
+    });
   }
 
   const existing = await store.softPlacements.get(validated.placement.id);
@@ -183,6 +211,37 @@ export async function updateSoftPlacementStatus(
       errors: issuesToMessages(statusResult.error.issues),
       ok: false,
     };
+  }
+
+  if (store instanceof LifeRhythmDatabase) {
+    return store.transaction('rw', store.softPlacements, store.taskHistory, async () => {
+      const storedPlacement = await store.softPlacements.get(id);
+      if (!storedPlacement) {
+        return { errors: ['id: Soft placement was not found.'], ok: false as const };
+      }
+      const parsedPlacement = softPlacementSchema.safeParse(storedPlacement);
+      if (!parsedPlacement.success) {
+        return { errors: issuesToMessages(parsedPlacement.error.issues), ok: false as const };
+      }
+      if (parsedPlacement.data.status === statusResult.data) {
+        return { ok: true as const, placement: parsedPlacement.data };
+      }
+
+      const timestamp = nowIso();
+      const updatedPlacement = softPlacementSchema.parse({
+        ...parsedPlacement.data,
+        status: statusResult.data,
+        updatedAt: timestamp,
+      });
+      await store.softPlacements.put(updatedPlacement);
+      if (statusResult.data === 'removed') {
+        await appendBehaviourEvent(
+          behaviourEventForUserPlacement(updatedPlacement, 'remove', timestamp, parsedPlacement.data),
+          store,
+        );
+      }
+      return { ok: true as const, placement: updatedPlacement };
+    });
   }
 
   const storedPlacement = await store.softPlacements.get(id);

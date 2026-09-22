@@ -118,7 +118,10 @@ describe('task lifecycle repository', () => {
       });
       expect(await loadActiveTodayTasks(database)).toHaveLength(1);
       expect(await database.softPlacements.count()).toBe(0);
-      expect(await database.taskHistory.count()).toBe(0);
+      expect((await database.taskHistory.toArray()).map((event) => event.eventType).sort()).toEqual([
+        'taskAddedToToday',
+        'taskCaptured',
+      ]);
     } finally {
       await database.delete();
     }

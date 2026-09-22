@@ -11,6 +11,12 @@ import {
   type TaskPoolItemStatus,
 } from './schemas';
 import type { LifeRhythmDatabase } from './db';
+import {
+  appendBehaviourEvent,
+  behaviourEventForAddedToToday,
+  behaviourEventForTaskTransition,
+  createBehaviourEvent,
+} from './behaviourEventRepository';
 
 export type BringTaskPoolItemToTodayResult =
   | {
@@ -242,7 +248,7 @@ export async function bringTaskPoolItemToToday(
   itemId: string,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
 ): Promise<BringTaskPoolItemToTodayResult> {
-  return database.transaction('rw', database.taskPoolItems, database.activeTasks, async () => {
+  return database.transaction('rw', database.taskPoolItems, database.activeTasks, database.taskHistory, async () => {
     const storedPoolItem = await database.taskPoolItems.get(itemId);
 
     if (!storedPoolItem) {
@@ -326,6 +332,12 @@ export async function bringTaskPoolItemToToday(
       await database.activeTasks.put(activeTask);
     }
     await database.taskPoolItems.put(updatedPoolItem);
+    if (!alreadyInToday) {
+      await appendBehaviourEvent(
+        behaviourEventForAddedToToday(parsedPoolItem.data, timestamp),
+        database,
+      );
+    }
 
     return {
       alreadyInToday,
@@ -355,6 +367,7 @@ export async function updateTaskLifecycleStatus(
     database.activeTasks,
     database.taskPoolItems,
     database.softPlacements,
+    database.taskHistory,
     async () => {
       const storedTask = await database.activeTasks.get(taskId);
 
@@ -420,10 +433,19 @@ export async function updateTaskLifecycleStatus(
         timestamp,
         database,
       );
+      const behaviourEvent = await behaviourEventForTaskTransition(
+        parsedTask.data,
+        updatedTask,
+        timestamp,
+        database,
+      );
 
       await database.activeTasks.put(updatedTask);
       if (updatedPoolItem) {
         await database.taskPoolItems.put(updatedPoolItem);
+      }
+      if (behaviourEvent) {
+        await appendBehaviourEvent(behaviourEvent, database);
       }
 
       return {
@@ -446,6 +468,7 @@ export async function markTaskLifecycleNoLongerNeeded(
     database.taskPoolItems,
     database.activeTasks,
     database.softPlacements,
+    database.taskHistory,
     async () => {
       const storedItem = await database.taskPoolItems.get(itemId);
 
@@ -504,6 +527,19 @@ export async function markTaskLifecycleNoLongerNeeded(
       await database.taskPoolItems.put(updatedItem);
       if (updatedTask) {
         await database.activeTasks.put(updatedTask);
+      }
+      if (parsedItem.data.status !== 'noLongerNeeded') {
+        await appendBehaviourEvent(createBehaviourEvent({
+          action: 'noLongerNeeded',
+          after: { poolStatus: 'noLongerNeeded' },
+          before: { poolStatus: parsedItem.data.status },
+          eventType: 'taskNoLongerNeeded',
+          occurredAt: timestamp,
+          provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },
+          source: 'user',
+          taskId: parsedItem.data.id,
+          ...(parsedItem.data.templateId ? { templateId: parsedItem.data.templateId } : {}),
+        }), database);
       }
 
       return {

@@ -338,7 +338,7 @@ describe('Pool screen', () => {
         settings: 0,
         softPlacements: 0,
         startBoostLog: 0,
-        taskHistory: 0,
+        taskHistory: 1,
         taskPoolItems: 1,
       });
       expect(fetchSpy).not.toHaveBeenCalled();
@@ -520,7 +520,7 @@ describe('Pool screen', () => {
         settings: 0,
         softPlacements: 0,
         startBoostLog: 0,
-        taskHistory: 0,
+        taskHistory: 2,
         taskPoolItems: 1,
       });
       expect(fetchSpy).not.toHaveBeenCalled();
