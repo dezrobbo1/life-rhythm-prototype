@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { liveQuery } from 'dexie';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import { AppShell, type ScreenId } from './components/AppShell/AppShell';
 import { BrandMark, Button } from './components';
@@ -30,6 +31,10 @@ import type { LegacySettingsConflict } from './data/dayProfileMigration';
 import { exportSettingsBackup, type SettingsBackupExport } from './data/settingsExport';
 import { exportSoftPlacementBackup, type SoftPlacementBackupExport } from './data/softPlacementBackup';
 import { exportTaskPoolBackup, type TaskPoolBackupExport } from './data/taskPoolBackup';
+import {
+  CALENDAR_REPAIR_PENDING_MESSAGE,
+  loadSchedulerPlanState,
+} from './data/schedulerPlanStateRepository';
 import {
   emptyAppSnapshot,
   normalDayWithOneTaskSnapshot,
@@ -195,12 +200,43 @@ export default function App() {
   const [preferredPlanTaskId, setPreferredPlanTaskId] = useState<string | null>(null);
   const [planRevision, setPlanRevision] = useState(0);
   const [calendarRepairIssue, setCalendarRepairIssue] = useState<string | null>(null);
+  const observedCalendarRepairPendingRef = useRef<boolean | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [captureRevision, setCaptureRevision] = useState(0);
   const [captureFeedback, setCaptureFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const handlePrivatePlanChanged = useCallback(() => {
     setCalendarRepairIssue(null);
     setPlanRevision((revision) => revision + 1);
+  }, []);
+
+  useEffect(() => {
+    const subscription = liveQuery(() => loadSchedulerPlanState()).subscribe({
+      next: (result) => {
+        if (result.status !== 'missing' && result.status !== 'ok') return;
+
+        const repairPending = result.status === 'ok' && Boolean(result.calendarRepairPendingAt);
+        setCalendarRepairIssue(repairPending ? CALENDAR_REPAIR_PENDING_MESSAGE : null);
+
+        const previouslyObserved = observedCalendarRepairPendingRef.current;
+        observedCalendarRepairPendingRef.current = repairPending;
+        if (
+          (previouslyObserved === null && repairPending) ||
+          (previouslyObserved !== null && previouslyObserved !== repairPending)
+        ) {
+          // This is a presentation refresh only. Today rereads current facts;
+          // the live observer never builds, repairs or writes a private plan.
+          // An initially pending observation also reconciles a Today read that
+          // may have started just before another tab committed the marker.
+          setPlanRevision((revision) => revision + 1);
+        }
+      },
+      error: () => {
+        // Plan surfaces retain their existing read-failure presentation. A
+        // failed health read is not evidence that earlier attention cleared.
+      },
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {

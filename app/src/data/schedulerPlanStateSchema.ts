@@ -179,6 +179,7 @@ export const schedulerPlanStateRecordSchema = z
     id: z.literal('current'),
     version: z.literal(1),
     updatedAt: strictIsoDateTimeSchema,
+    calendarRepairPendingAt: strictIsoDateTimeSchema.optional(),
     dayModeContext: schedulerDayModeContextSchema.optional(),
     undoDayModeContext: schedulerDayModeContextSchema.nullable().optional(),
     plan: persistedSchedulerPlanSchema,

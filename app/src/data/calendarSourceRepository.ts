@@ -47,6 +47,13 @@ export type CalendarSourceImportResult =
     }
   | { ok: false; errors: string[]; warnings: string[] };
 
+export type CalendarSourceImportInput = {
+  label: string;
+  source: string;
+  options: CalendarReadOptions;
+  importedAt?: string;
+};
+
 export type CalendarSourceRemoveResult =
   | { ok: true; removed: boolean }
   | { ok: false; errors: string[] };
@@ -155,12 +162,7 @@ export async function readPersistedCalendarEvents(
 }
 
 export async function importIcsCalendarSource(
-  input: {
-    label: string;
-    source: string;
-    options: CalendarReadOptions;
-    importedAt?: string;
-  },
+  input: CalendarSourceImportInput,
   store: CalendarSourceStore = getCurrentLifeRhythmDatabase(),
 ): Promise<CalendarSourceImportResult> {
   const label = input.label.trim() || 'Imported calendar';

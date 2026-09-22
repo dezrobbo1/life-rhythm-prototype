@@ -126,6 +126,7 @@ describe('re-entry actions through real persistence', () => {
 
     await waitFor(async () => {
       expect(await database.taskPoolItems.get('pool-task')).toMatchObject({ status: 'noLongerNeeded' });
+      expect(await database.schedulerPlanState.count()).toBe(1);
     });
     expect(await database.activeTasks.get('pool-task')).toMatchObject({ showToday: false, status: 'skipped' });
     expect(screen.queryByRole('article', { name: 'Review old form' })).toBeNull();
@@ -148,6 +149,7 @@ describe('re-entry actions through real persistence', () => {
 
     await waitFor(async () => {
       expect(await database.activeTasks.get('pool-task')).toMatchObject({ showToday: false, status: 'parked' });
+      expect(await database.schedulerPlanState.count()).toBe(1);
     });
     expect(await database.taskPoolItems.get('pool-task')).toMatchObject({ status: 'parked' });
     expect(await database.taskPoolItems.count()).toBe(1);

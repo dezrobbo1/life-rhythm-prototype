@@ -11,6 +11,7 @@ import {
 } from './schedulerPlanCoordinator';
 import {
   loadSchedulerPlanState,
+  isStaleSchedulerPlanWrite,
   repairAndPersistSchedulerPlan,
 } from './schedulerPlanStateRepository';
 
@@ -32,6 +33,7 @@ export type TimeDisruptionMaintenanceResult =
     }
   | {
       ok: false;
+      conflict?: 'stale';
       errors: string[];
       warnings: string[];
     };
@@ -114,6 +116,14 @@ function detectTimeDisruption(
 export async function maintainCurrentPrivatePlanForTimeDisruption(
   options: PrivatePlanCoordinatorOptions = {},
 ): Promise<TimeDisruptionMaintenanceResult> {
+  const first = await attemptTimeDisruptionMaintenance(options);
+  if (first.ok || first.conflict !== 'stale') return first;
+  return attemptTimeDisruptionMaintenance(options);
+}
+
+async function attemptTimeDisruptionMaintenance(
+  options: PrivatePlanCoordinatorOptions,
+): Promise<TimeDisruptionMaintenanceResult> {
   // Time disruption checks maintain an already-created private plan. They do
   // not create a new plan merely because the app shell mounted.
   const current = await loadSchedulerPlanState();
@@ -127,8 +137,13 @@ export async function maintainCurrentPrivatePlanForTimeDisruption(
   const live = await buildCurrentLiveSchedulingContext(options);
   if (!live.ok) return live;
 
+  const representedCurrent = live.context.schedulerStateSnapshot ?? current;
+  if (representedCurrent.status === 'missing') {
+    return { ok: true, action: 'none', warnings: live.context.warnings };
+  }
+
   const input = clipSchedulingInputToNow(live.context.input, live.now);
-  const disruption = detectTimeDisruption(current.plan, input, live.now);
+  const disruption = detectTimeDisruption(representedCurrent.plan, input, live.now);
   if (!disruption) {
     return {
       ok: true,
@@ -146,11 +161,12 @@ export async function maintainCurrentPrivatePlanForTimeDisruption(
     trigger: disruption.trigger,
     now: live.now,
     releasePlacementIds: disruption.releasePlacementIds,
-  });
+  }, undefined, undefined, undefined, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, representedCurrent);
 
   if (!repaired.ok) {
     return {
       ok: false,
+      ...(isStaleSchedulerPlanWrite(repaired) ? { conflict: 'stale' as const } : {}),
       errors: repaired.errors,
       warnings: live.context.warnings,
     };

@@ -5,16 +5,22 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const calendarMocks = vi.hoisted(() => ({
-  importIcsCalendarSource: vi.fn(),
   loadCalendarSource: vi.fn(),
-  removeCalendarSource: vi.fn(),
+  commitCalendarSourceImport: vi.fn(),
+  commitCalendarSourceRemoval: vi.fn(),
 }));
 
 const coordinatorMocks = vi.hoisted(() => ({
   repairCurrentPrivatePlan: vi.fn(),
 }));
 
-vi.mock('../../data/calendarSourceRepository', () => calendarMocks);
+vi.mock('../../data/calendarSourceRepository', () => ({
+  loadCalendarSource: calendarMocks.loadCalendarSource,
+}));
+vi.mock('../../data/calendarSourceMutationCoordinator', () => ({
+  commitCalendarSourceImport: calendarMocks.commitCalendarSourceImport,
+  commitCalendarSourceRemoval: calendarMocks.commitCalendarSourceRemoval,
+}));
 vi.mock('../../data/schedulerPlanCoordinator', () => coordinatorMocks);
 
 import { CalendarSourceControl } from './CalendarSourceControl';
@@ -24,9 +30,10 @@ beforeEach(() => {
     errors: ['calendarSources: Saved source is invalid.'],
     status: 'invalid',
   });
-  calendarMocks.importIcsCalendarSource.mockResolvedValue({
+  calendarMocks.commitCalendarSourceImport.mockResolvedValue({
     busyEventCount: 1,
     ok: true,
+    repairAttentionPersisted: false,
     record: {
       events: [],
       id: 'primary',
@@ -37,7 +44,11 @@ beforeEach(() => {
     },
     warnings: [],
   });
-  calendarMocks.removeCalendarSource.mockResolvedValue({ ok: true });
+  calendarMocks.commitCalendarSourceRemoval.mockResolvedValue({
+    ok: true,
+    removed: true,
+    repairAttentionPersisted: false,
+  });
   coordinatorMocks.repairCurrentPrivatePlan.mockResolvedValue({
     ok: true,
     plan: {
@@ -57,6 +68,103 @@ afterEach(() => {
 });
 
 describe('CalendarSourceControl Plan health reporting', () => {
+  it('does not claim or repair a calendar change when its atomic commit fails', async () => {
+    const user = userEvent.setup();
+    const onRepairIssueChange = vi.fn();
+    calendarMocks.commitCalendarSourceImport.mockResolvedValue({
+      errors: [
+        'calendarSource: Calendar change was not saved because repair attention could not be stored safely.',
+      ],
+      ok: false,
+      warnings: [],
+    });
+    render(<CalendarSourceControl onRepairIssueChange={onRepairIssueChange} />);
+
+    const file = new File(['BEGIN:VCALENDAR\nEND:VCALENDAR'], 'replacement.ics', {
+      type: 'text/calendar',
+    });
+    Object.defineProperty(file, 'text', {
+      value: vi.fn().mockResolvedValue('BEGIN:VCALENDAR\nEND:VCALENDAR'),
+    });
+    await user.upload(screen.getByLabelText('Select read-only calendar file'), file);
+
+    await screen.findByText(
+      'calendarSource: Calendar change was not saved because repair attention could not be stored safely.',
+    );
+    expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+    expect(onRepairIssueChange).not.toHaveBeenCalled();
+    expect(screen.queryByText('replacement.ics')).toBeNull();
+  });
+
+  it('keeps the displayed prior source when an atomic replacement fails', async () => {
+    const user = userEvent.setup();
+    calendarMocks.loadCalendarSource.mockResolvedValue({
+      record: {
+        id: 'primary',
+        version: 1,
+        adapterId: 'ics',
+        importedAt: '2026-09-20T07:00:00.000Z',
+        label: 'saved.ics',
+        source: 'BEGIN:VCALENDAR\nEND:VCALENDAR',
+        updatedAt: '2026-09-20T07:00:00.000Z',
+      },
+      status: 'ok',
+    });
+    calendarMocks.commitCalendarSourceImport.mockResolvedValue({
+      errors: [
+        'calendarSource: Calendar change was not saved because repair attention could not be stored safely.',
+      ],
+      ok: false,
+      warnings: [],
+    });
+    render(<CalendarSourceControl />);
+
+    const file = new File(['BEGIN:VCALENDAR\nEND:VCALENDAR'], 'replacement.ics', {
+      type: 'text/calendar',
+    });
+    Object.defineProperty(file, 'text', {
+      value: vi.fn().mockResolvedValue('BEGIN:VCALENDAR\nEND:VCALENDAR'),
+    });
+    await user.upload(await screen.findByLabelText('Select read-only calendar file'), file);
+
+    await screen.findByText(
+      'calendarSource: Calendar change was not saved because repair attention could not be stored safely.',
+    );
+    expect(screen.getByText('saved.ics')).toBeTruthy();
+    expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+  });
+
+  it('keeps the displayed source when an atomic removal fails', async () => {
+    const user = userEvent.setup();
+    calendarMocks.loadCalendarSource.mockResolvedValue({
+      record: {
+        id: 'primary',
+        version: 1,
+        adapterId: 'ics',
+        importedAt: '2026-09-20T07:00:00.000Z',
+        label: 'saved.ics',
+        source: 'BEGIN:VCALENDAR\nEND:VCALENDAR',
+        updatedAt: '2026-09-20T07:00:00.000Z',
+      },
+      status: 'ok',
+    });
+    calendarMocks.commitCalendarSourceRemoval.mockResolvedValue({
+      errors: [
+        'calendarSource: Calendar removal was not saved because repair attention could not be stored safely.',
+      ],
+      ok: false,
+    });
+    render(<CalendarSourceControl />);
+
+    await user.click(await screen.findByRole('button', { name: 'Remove calendar' }));
+
+    await screen.findByText(
+      'calendarSource: Calendar removal was not saved because repair attention could not be stored safely.',
+    );
+    expect(screen.getByText('saved.ics')).toBeTruthy();
+    expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
+  });
+
   it('clears a saved-source read warning after a valid replacement is imported', async () => {
     const user = userEvent.setup();
     const onReadIssueChange = vi.fn();
@@ -81,6 +189,7 @@ describe('CalendarSourceControl Plan health reporting', () => {
     await waitFor(() => {
       expect(onReadIssueChange).toHaveBeenCalledWith(null);
     });
+    expect(coordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledTimes(1);
     expect(await screen.findByText(/Calendar saved on this device/)).toBeTruthy();
   });
   it('reports a saved-calendar repair failure outside the calendar detail after import', async () => {

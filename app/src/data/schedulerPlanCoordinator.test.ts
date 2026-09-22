@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createAuthLocalDataNamespace,
   getCurrentLifeRhythmDatabase,
@@ -7,12 +7,15 @@ import {
   setCurrentLocalDataNamespace,
 } from './localDataNamespace';
 import {
+  buildCurrentLiveSchedulingContext,
   ensureCurrentPrivatePlan,
   repairCurrentPrivatePlan,
   undoCurrentPrivatePlan,
 } from './schedulerPlanCoordinator';
+import { saveSchedulerPlanState } from './schedulerPlanStateRepository';
 import { taskPoolItemSchema } from './schemas';
 import { createDefaultSettings, saveSettings } from './settingsRepository';
+import { scheduler } from '../domain/primaryScheduler';
 
 const timestamp = '2026-09-07T00:00:00.000Z';
 const monday = '2026-09-07';
@@ -75,6 +78,10 @@ beforeEach(() => {
   setCurrentLocalDataNamespace(
     createAuthLocalDataNamespace(`gate4-live-plan-${namespaceIndex}`),
   );
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('live scheduler plan coordinator', () => {
@@ -231,6 +238,177 @@ describe('live scheduler plan coordinator', () => {
     expect(undone.mode).toBe('undone');
     expect(undone.plan.placements).toHaveLength(1);
     expect(undone.plan.repair).toBeUndefined();
+  });
+
+  it('rebuilds current live inputs once when the first semantic repair is stale', async () => {
+    await saveLifeShape({
+      timeBlocks: [{
+        id: 'monday-available',
+        label: 'Monday available',
+        type: 'openCapacity',
+        schedulerUse: 'available',
+        days: ['Monday'],
+        start: '09:00',
+        end: '10:00',
+      }],
+    });
+    const database = getCurrentLifeRhythmDatabase();
+    await database.taskPoolItems.put(task('task-a'));
+    const initial = await ensureCurrentPrivatePlan(coordinatorOptions());
+    expect(initial.ok).toBe(true);
+
+    const originalGet = database.schedulerPlanState.get.bind(database.schedulerPlanState);
+    let getCount = 0;
+    vi.spyOn(database.schedulerPlanState, 'get').mockImplementation((async (key: string) => {
+      getCount += 1;
+      const current = await originalGet(key);
+      if (getCount === 2) {
+        await database.taskPoolItems.put(taskPoolItemSchema.parse({
+          ...task('task-a'),
+          status: 'noLongerNeeded',
+          updatedAt: '2026-09-07T00:10:00.000Z',
+        }));
+      }
+      return current;
+    }) as never);
+    const repairPlan = vi.spyOn(scheduler, 'repairPlan');
+    const put = vi.spyOn(database.schedulerPlanState, 'put');
+
+    const result = await repairCurrentPrivatePlan({
+      ...coordinatorOptions(),
+      reason: 'Use current task-pool truth.',
+      trigger: 'userCorrection',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.placements).toEqual([]);
+    expect(repairPlan).toHaveBeenCalledTimes(2);
+    expect(put).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops after one fresh semantic retry when canonical inputs change twice', async () => {
+    await saveLifeShape({
+      timeBlocks: [{
+        id: 'monday-available',
+        label: 'Monday available',
+        type: 'openCapacity',
+        schedulerUse: 'available',
+        days: ['Monday'],
+        start: '09:00',
+        end: '10:00',
+      }],
+    });
+    const database = getCurrentLifeRhythmDatabase();
+    await database.taskPoolItems.put(task('task-a'));
+    const initial = await ensureCurrentPrivatePlan(coordinatorOptions());
+    expect(initial.ok).toBe(true);
+
+    const originalGet = database.schedulerPlanState.get.bind(database.schedulerPlanState);
+    let getCount = 0;
+    let mutationCount = 0;
+    vi.spyOn(database.schedulerPlanState, 'get').mockImplementation((async (key: string) => {
+      getCount += 1;
+      const current = await originalGet(key);
+      if (getCount === 2 || getCount === 5) {
+        mutationCount += 1;
+        await database.taskPoolItems.put(taskPoolItemSchema.parse({
+          ...task('task-a'),
+          title: `Changed while repairing ${mutationCount}`,
+          updatedAt: `2026-09-07T00:${10 + mutationCount}:00.000Z`,
+        }));
+      }
+      return current;
+    }) as never);
+    const repairPlan = vi.spyOn(scheduler, 'repairPlan');
+    const put = vi.spyOn(database.schedulerPlanState, 'put');
+
+    const result = await repairCurrentPrivatePlan({
+      ...coordinatorOptions(),
+      reason: 'Bound contention.',
+      trigger: 'userCorrection',
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.conflict).toBe('stale');
+    expect(repairPlan).toHaveBeenCalledTimes(2);
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it('uses one repair calculation and one write without contention', async () => {
+    await saveLifeShape({
+      timeBlocks: [{
+        id: 'monday-available',
+        label: 'Monday available',
+        type: 'openCapacity',
+        schedulerUse: 'available',
+        days: ['Monday'],
+        start: '09:00',
+        end: '10:00',
+      }],
+    });
+    const database = getCurrentLifeRhythmDatabase();
+    await database.taskPoolItems.put(task('task-a'));
+    const initial = await ensureCurrentPrivatePlan(coordinatorOptions());
+    expect(initial.ok).toBe(true);
+    const repairPlan = vi.spyOn(scheduler, 'repairPlan');
+    const put = vi.spyOn(database.schedulerPlanState, 'put');
+
+    const result = await repairCurrentPrivatePlan({
+      ...coordinatorOptions(),
+      reason: 'Ordinary repair.',
+      trigger: 'userCorrection',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(repairPlan).toHaveBeenCalledTimes(1);
+    expect(put).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads a concurrently accepted initial plan instead of forcing an obsolete build', async () => {
+    await saveLifeShape({
+      timeBlocks: [{
+        id: 'monday-available',
+        label: 'Monday available',
+        type: 'openCapacity',
+        schedulerUse: 'available',
+        days: ['Monday'],
+        start: '09:00',
+        end: '10:00',
+      }],
+    });
+    const database = getCurrentLifeRhythmDatabase();
+    await database.taskPoolItems.put(task('task-a'));
+    const live = await buildCurrentLiveSchedulingContext(coordinatorOptions());
+    if (!live.ok) throw new Error(live.errors.join(' '));
+    const acceptedPlan = scheduler.buildPlan(live.context.input);
+
+    const originalGet = database.schedulerPlanState.get.bind(database.schedulerPlanState);
+    let getCount = 0;
+    const getSpy = vi.spyOn(database.schedulerPlanState, 'get');
+    getSpy.mockImplementation((async (key: string) => {
+      getCount += 1;
+      const current = await originalGet(key);
+      if (getCount === 3) {
+        getSpy.mockRestore();
+        const saved = await saveSchedulerPlanState(
+          acceptedPlan,
+          database,
+          '2026-09-07T00:05:00.000Z',
+        );
+        expect(saved.ok).toBe(true);
+      }
+      return current;
+    }) as never);
+
+    const result = await ensureCurrentPrivatePlan(coordinatorOptions());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.mode).toBe('loaded');
+    expect(result.updatedAt).toBe('2026-09-07T00:05:00.000Z');
+    expect(result.plan).toEqual(acceptedPlan);
   });
 
   it('fails closed when persisted scheduler state is malformed', async () => {

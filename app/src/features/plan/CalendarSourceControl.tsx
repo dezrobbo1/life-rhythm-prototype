@@ -1,11 +1,16 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { Button, Card } from '../../components';
 import {
-  importIcsCalendarSource,
   loadCalendarSource,
-  removeCalendarSource,
 } from '../../data/calendarSourceRepository';
+import {
+  commitCalendarSourceImport,
+  commitCalendarSourceRemoval,
+} from '../../data/calendarSourceMutationCoordinator';
 import { repairCurrentPrivatePlan } from '../../data/schedulerPlanCoordinator';
+import {
+  CALENDAR_REPAIR_PENDING_MESSAGE,
+} from '../../data/schedulerPlanStateRepository';
 
 type CalendarSourceControlProps = {
   onReadIssueChange?: (message: string | null) => void;
@@ -48,8 +53,6 @@ function browserCalendarWindow() {
     end: addDays(start, 30),
   };
 }
-
-const calendarRepairFailureMessage = 'Calendar change was saved, but the flexible private plan could not be repaired.';
 
 export function CalendarSourceControl({
   onPlanRepaired,
@@ -104,7 +107,7 @@ export function CalendarSourceControl({
       });
 
       if (!repaired.ok) {
-        onRepairIssueChange?.(calendarRepairFailureMessage);
+        onRepairIssueChange?.(CALENDAR_REPAIR_PENDING_MESSAGE);
         return false;
       }
 
@@ -112,7 +115,7 @@ export function CalendarSourceControl({
       onPlanRepaired?.();
       return true;
     } catch {
-      onRepairIssueChange?.(calendarRepairFailureMessage);
+      onRepairIssueChange?.(CALENDAR_REPAIR_PENDING_MESSAGE);
       return false;
     }
   }
@@ -129,7 +132,7 @@ export function CalendarSourceControl({
     try {
       const source = await file.text();
       const window = browserCalendarWindow();
-      const imported = await importIcsCalendarSource({
+      const imported = await commitCalendarSourceImport({
         label: file.name,
         source,
         options: {
@@ -171,7 +174,7 @@ export function CalendarSourceControl({
     setStatus('');
     setWarnings([]);
 
-    const removed = await removeCalendarSource();
+    const removed = await commitCalendarSourceRemoval();
     if (!removed.ok) {
       setStatus(removed.errors[0] ?? 'Saved calendar could not be removed.');
       setBusy(false);

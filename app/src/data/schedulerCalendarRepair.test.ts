@@ -6,13 +6,14 @@ import {
   resetCurrentLocalDataNamespace,
   setCurrentLocalDataNamespace,
 } from './localDataNamespace';
-import { importIcsCalendarSource } from './calendarSourceRepository';
+import { commitCalendarSourceImport } from './calendarSourceMutationCoordinator';
 import {
   ensureCurrentPrivatePlan,
   repairCurrentPrivatePlan,
 } from './schedulerPlanCoordinator';
 import { createDefaultSettings, saveSettings } from './settingsRepository';
 import { taskPoolItemSchema } from './schemas';
+import { loadSchedulerPlanState } from './schedulerPlanStateRepository';
 
 const monday = '2026-09-07';
 const timezone = 'Australia/Perth';
@@ -100,7 +101,7 @@ describe('calendar-driven rolling repair', () => {
       }),
     ]);
 
-    const imported = await importIcsCalendarSource({
+    const imported = await commitCalendarSourceImport({
       label: 'Work calendar',
       source: blockingCalendar,
       options: {
@@ -111,6 +112,12 @@ describe('calendar-driven rolling repair', () => {
       importedAt: '2026-09-05T06:00:00.000Z',
     });
     expect(imported.ok).toBe(true);
+    if (!imported.ok) return;
+    expect(imported.repairAttentionPersisted).toBe(true);
+    expect(await loadSchedulerPlanState()).toEqual(expect.objectContaining({
+      status: 'ok',
+      calendarRepairPendingAt: expect.any(String),
+    }));
 
     const repaired = await repairCurrentPrivatePlan({
       ...coordinatorOptions(),
@@ -138,6 +145,9 @@ describe('calendar-driven rolling repair', () => {
       }),
     ]);
     expect(repaired.warnings.some((warning) => warning.includes('Work calendar supplied 1 event'))).toBe(true);
+    expect(await loadSchedulerPlanState()).toEqual(expect.not.objectContaining({
+      calendarRepairPendingAt: expect.any(String),
+    }));
   });
 
   it('fails closed when the stored calendar source record is malformed', async () => {
