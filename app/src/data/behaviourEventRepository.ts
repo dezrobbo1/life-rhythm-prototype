@@ -13,9 +13,13 @@ import {
   successfulCollectionRead,
   type CollectionReadResult,
 } from './collectionReadResult';
-import type { SchedulerPlan, SchedulerPlanChange } from '../domain/schedulingModel';
+import type {
+  InternalPlacement,
+  SchedulerPlan,
+  SchedulerPlanChange,
+} from '../domain/schedulingModel';
 
-type TaskHistoryTable = Pick<Table<TaskHistory, string>, 'put' | 'toArray' | 'where'>;
+type TaskHistoryTable = Pick<Table<TaskHistory, string>, 'add' | 'get' | 'toArray' | 'where'>;
 
 export type BehaviourEventStore = {
   taskHistory: TaskHistoryTable;
@@ -38,13 +42,20 @@ function eventId(prefix = 'behaviour-event') {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+const localDateFormatters = new Map<string, Intl.DateTimeFormat>();
+
 function localDateAt(occurredAt: string, timezone: string) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    day: '2-digit',
-    month: '2-digit',
-    timeZone: timezone,
-    year: 'numeric',
-  }).formatToParts(new Date(occurredAt));
+  let formatter = localDateFormatters.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      day: '2-digit',
+      month: '2-digit',
+      timeZone: timezone,
+      year: 'numeric',
+    });
+    localDateFormatters.set(timezone, formatter);
+  }
+  const parts = formatter.formatToParts(new Date(occurredAt));
   const value = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value ?? '';
 
@@ -69,8 +80,22 @@ export async function appendBehaviourEvent(
   store: BehaviourEventStore = getCurrentLifeRhythmDatabase(),
 ) {
   const parsed = behaviourEventSchema.parse(event);
-  await store.taskHistory.put(parsed);
+  const existing = await store.taskHistory.get(parsed.id);
+
+  if (existing !== undefined) {
+    const existingEvent = behaviourEventSchema.safeParse(existing);
+    if (existingEvent.success && JSON.stringify(existingEvent.data) === JSON.stringify(parsed)) {
+      return parsed;
+    }
+    throw new Error(`Behaviour event ID ${parsed.id} already belongs to a different behaviour event.`);
+  }
+
+  await store.taskHistory.add(parsed);
   return parsed;
+}
+
+function compareByOccurredAt(left: BehaviourEvent, right: BehaviourEvent) {
+  return new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime();
 }
 
 export async function loadBehaviourEventsResult(
@@ -86,7 +111,7 @@ export async function loadBehaviourEventsResult(
         return [];
       }
       return [parsed.data];
-    }).sort((left, right) => left.occurredAt.localeCompare(right.occurredAt));
+    }).sort(compareByOccurredAt);
 
     return successfulCollectionRead(items, invalidRecordCount);
   } catch {
@@ -102,7 +127,7 @@ async function trustedEventsForTask(taskId: string, store: BehaviourEventStore) 
   return rows.flatMap((row) => {
     const parsed = behaviourEventSchema.safeParse(row);
     return parsed.success ? [parsed.data] : [];
-  }).sort((left, right) => left.occurredAt.localeCompare(right.occurredAt));
+  }).sort(compareByOccurredAt);
 }
 
 async function observedActiveMinutes(
@@ -122,6 +147,7 @@ async function observedActiveMinutes(
       activeSince !== null &&
       (
         event.eventType === 'taskPaused' ||
+        event.eventType === 'taskMinimumAchieved' ||
         event.eventType === 'taskCompleted' ||
         event.eventType === 'taskParked' ||
         event.eventType === 'taskNotToday' ||
@@ -277,6 +303,44 @@ function schedulerPlacementFact(
     start: point.start,
     ...(point.variantKind ? { variantKind: point.variantKind } : {}),
   };
+}
+
+function initialSchedulerPlacementFact(placement: InternalPlacement): BehaviourEventFact {
+  return {
+    date: placement.date,
+    end: placement.end,
+    placementStatus: 'automatic',
+    start: placement.start,
+    ...(placement.variantKind ? { variantKind: placement.variantKind } : {}),
+  };
+}
+
+export function behaviourEventsForInitialSchedulerPlan(
+  plan: SchedulerPlan,
+  occurredAt: string,
+): BehaviourEvent[] {
+  return plan.placements
+    .filter((placement) => placement.origin === 'scheduler')
+    .map((placement) => {
+      const rhythmTarget = placement.targetKind === 'rhythm' || Boolean(placement.rhythmId);
+      const targetId = rhythmTarget ? placement.rhythmId ?? placement.intentionId : placement.intentionId;
+
+      return createBehaviourEvent({
+        action: 'addAutomaticPlacement',
+        after: initialSchedulerPlacementFact(placement),
+        eventType: 'schedulerPlacementAdded',
+        id: `behaviour-event-initial-plan-${occurredAt}-${placement.id}`,
+        occurredAt,
+        placementId: placement.id,
+        ...(placement.timezone ? { timezone: placement.timezone } : {}),
+        provenance: {
+          origin: 'initialPlanBuild',
+          mechanism: 'schedulerInitialBuild',
+        },
+        source: 'scheduler',
+        ...(rhythmTarget ? { rhythmId: targetId } : { taskId: targetId }),
+      });
+    });
 }
 
 export function behaviourEventsForSchedulerRepair(

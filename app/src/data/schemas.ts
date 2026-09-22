@@ -867,7 +867,7 @@ export const behaviourEventFactSchema = z
     placementStatus: z
       .enum(['planned', 'moved', 'removed', 'completedFromToday', 'automatic'])
       .optional(),
-    date: isoDate.optional(),
+    date: softPlacementDateSchema.optional(),
     start: timeOfDay.optional(),
     end: timeOfDay.optional(),
     variantKind: z.enum(['minimum', 'normal', 'full']).optional(),
@@ -876,6 +876,112 @@ export const behaviourEventFactSchema = z
   })
   .strict();
 
+const behaviourTimezoneFormatters = new Map<string, Intl.DateTimeFormat>();
+const invalidBehaviourTimezones = new Set<string>();
+
+function behaviourTimezoneFormatter(value: string): Intl.DateTimeFormat | null {
+  const cached = behaviourTimezoneFormatters.get(value);
+  if (cached) return cached;
+  if (invalidBehaviourTimezones.has(value)) return null;
+
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      day: '2-digit',
+      month: '2-digit',
+      timeZone: value,
+      year: 'numeric',
+    });
+    behaviourTimezoneFormatters.set(value, formatter);
+    return formatter;
+  } catch {
+    invalidBehaviourTimezones.add(value);
+    return null;
+  }
+}
+
+function isIanaTimezone(value: string): boolean {
+  return behaviourTimezoneFormatter(value) !== null;
+}
+
+function localDateInTimezone(occurredAt: string, timezone: string): string | null {
+  try {
+    const formatter = behaviourTimezoneFormatter(timezone);
+    if (!formatter) return null;
+    const parts = formatter.formatToParts(new Date(occurredAt));
+    const value = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((part) => part.type === type)?.value ?? '';
+    return `${value('year')}-${value('month')}-${value('day')}`;
+  } catch {
+    return null;
+  }
+}
+
+const behaviourEventVariantRules = {
+  taskCaptured: {
+    action: 'capture', source: 'user', provenance: [['userAction', 'taskPoolCapture']], ids: 'task', before: 'forbidden', after: 'required', facts: 'pool',
+  },
+  taskCreated: {
+    action: 'create', source: 'user', provenance: [['userAction', 'todayCapture']], ids: 'task', before: 'forbidden', after: 'required', facts: 'task',
+  },
+  taskAddedToToday: {
+    action: 'addToToday', source: 'user', provenance: [['userAction', 'taskLifecycle'], ['userAction', 'todayCapture']], ids: 'task', before: 'optional', after: 'required', facts: 'taskOrPool',
+  },
+  taskStarted: {
+    action: 'start', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+  },
+  taskPaused: {
+    action: 'pause', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+  },
+  taskResumed: {
+    action: 'resume', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+  },
+  taskContinued: {
+    action: 'continue', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+  },
+  taskMinimumAchieved: {
+    action: 'minimumDone', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+  },
+  taskCompleted: {
+    action: 'complete', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+  },
+  taskParked: {
+    action: 'park', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+  },
+  taskNotToday: {
+    action: 'notToday', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+  },
+  taskDeferred: {
+    action: 'defer', source: 'user', provenance: [['userAction', 'taskPoolDeferral']], ids: 'task', before: 'required', after: 'required', facts: 'pool',
+  },
+  taskNoLongerNeeded: {
+    action: 'noLongerNeeded', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'pool',
+  },
+  userPlacementCreated: {
+    action: 'createPlacement', source: 'user', provenance: [['userAction', 'softPlacement']], ids: 'userPlacement', before: 'forbidden', after: 'required', facts: 'placement',
+  },
+  userPlacementMoved: {
+    action: 'movePlacement', source: 'user', provenance: [['userAction', 'softPlacement']], ids: 'userPlacement', before: 'required', after: 'required', facts: 'placement',
+  },
+  userPlacementRemoved: {
+    action: 'removePlacement', source: 'user', provenance: [['userAction', 'softPlacement']], ids: 'userPlacement', before: 'required', after: 'required', facts: 'placement',
+  },
+  schedulerPlacementAdded: {
+    action: 'addAutomaticPlacement', source: 'scheduler', provenance: [['initialPlanBuild', 'schedulerInitialBuild'], ['automaticRepair', 'schedulerRepair']], ids: 'schedulerTarget', before: 'forbidden', after: 'required', facts: 'placement',
+  },
+  schedulerPlacementMoved: {
+    action: 'moveAutomaticPlacement', source: 'scheduler', provenance: [['automaticRepair', 'schedulerRepair']], ids: 'schedulerTarget', before: 'required', after: 'required', facts: 'placement',
+  },
+  schedulerPlacementRemoved: {
+    action: 'removeAutomaticPlacement', source: 'scheduler', provenance: [['automaticRepair', 'schedulerRepair']], ids: 'schedulerTarget', before: 'required', after: 'forbidden', facts: 'placement',
+  },
+  schedulerPlacementVariantChanged: {
+    action: 'changeAutomaticPlacementVariant', source: 'scheduler', provenance: [['automaticRepair', 'schedulerRepair']], ids: 'schedulerTarget', before: 'required', after: 'required', facts: 'placement',
+  },
+  schedulerRepairUndone: {
+    action: 'undoRepair', source: 'user', provenance: [['undo', 'schedulerRepairUndo']], ids: 'none', before: 'forbidden', after: 'forbidden', facts: 'none',
+  },
+} as const;
+
 export const behaviourEventSchema = z
   .object({
     recordKind: z.literal('behaviourEvent'),
@@ -883,13 +989,13 @@ export const behaviourEventSchema = z
     id: idSchema,
     eventType: behaviourEventTypeSchema,
     occurredAt: activeTaskDeadlineIsoDateTimeSchema,
-    localDate: isoDate,
-    timezone: z.string().min(1),
+    localDate: softPlacementDateSchema,
+    timezone: z.string().min(1).refine(isIanaTimezone, 'Expected an IANA timezone'),
     taskId: idSchema.optional(),
     templateId: idSchema.optional(),
     rhythmId: idSchema.optional(),
     placementId: idSchema.optional(),
-    source: z.enum(['user', 'scheduler', 'system']),
+    source: z.enum(['user', 'scheduler']),
     action: z.enum([
       'capture',
       'create',
@@ -918,13 +1024,215 @@ export const behaviourEventSchema = z
     actualMinutes: z.number().int().nonnegative().optional(),
     provenance: z
       .object({
-        origin: z.enum(['userAction', 'automaticRepair', 'undo', 'system']),
+        origin: z.enum(['userAction', 'initialPlanBuild', 'automaticRepair', 'undo']),
         mechanism: z.string().min(1),
         trigger: z.string().min(1).optional(),
       })
       .strict(),
   })
-  .strict();
+  .strict()
+  .superRefine((event, context) => {
+    const expectedLocalDate = localDateInTimezone(event.occurredAt, event.timezone);
+    if (expectedLocalDate !== event.localDate) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'localDate must match occurredAt in timezone.',
+        path: ['localDate'],
+      });
+    }
+
+    const rule = behaviourEventVariantRules[event.eventType];
+    if (event.action !== rule.action) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: `Expected ${rule.action}.`, path: ['action'] });
+    }
+    if (event.source !== rule.source) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: `Expected ${rule.source}.`, path: ['source'] });
+    }
+    const provenanceMatches = rule.provenance.some(
+      ([origin, mechanism]) => event.provenance.origin === origin && event.provenance.mechanism === mechanism,
+    );
+    if (!provenanceMatches) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provenance does not match the event type.',
+        path: ['provenance'],
+      });
+    }
+    if (
+      event.provenance.trigger &&
+      event.provenance.mechanism !== 'schedulerRepair' &&
+      event.provenance.mechanism !== 'schedulerRepairUndo'
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'A trigger is not applicable to this provenance.',
+        path: ['provenance', 'trigger'],
+      });
+    }
+
+    const requireField = (field: 'taskId' | 'placementId') => {
+      if (!event[field]) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: `${field} is required.`, path: [field] });
+      }
+    };
+    const forbidField = (field: 'taskId' | 'templateId' | 'rhythmId' | 'placementId') => {
+      if (event[field]) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: `${field} is not applicable.`, path: [field] });
+      }
+    };
+
+    if (rule.ids === 'task') {
+      requireField('taskId');
+      forbidField('rhythmId');
+      forbidField('placementId');
+    } else if (rule.ids === 'userPlacement') {
+      requireField('taskId');
+      requireField('placementId');
+      forbidField('templateId');
+      forbidField('rhythmId');
+    } else if (rule.ids === 'schedulerTarget') {
+      if (Boolean(event.taskId) === Boolean(event.rhythmId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Exactly one scheduler target ID is required.',
+          path: ['taskId'],
+        });
+      }
+      forbidField('templateId');
+      const initialBuild = event.provenance.origin === 'initialPlanBuild';
+      if (initialBuild) requireField('placementId');
+      else forbidField('placementId');
+    } else {
+      forbidField('taskId');
+      forbidField('templateId');
+      forbidField('rhythmId');
+      forbidField('placementId');
+    }
+
+    const validateSnapshotPresence = (
+      field: 'before' | 'after',
+      requirement: 'required' | 'optional' | 'forbidden',
+    ) => {
+      if (requirement === 'required' && !event[field]) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: `${field} is required.`, path: [field] });
+      }
+      if (requirement === 'forbidden' && event[field]) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: `${field} is not applicable.`, path: [field] });
+      }
+    };
+    validateSnapshotPresence('before', rule.before);
+    validateSnapshotPresence('after', rule.after);
+
+    const snapshots = [event.before, event.after].filter(Boolean);
+    for (const snapshot of snapshots) {
+      if (!snapshot) continue;
+      const allowedFactFields = rule.facts === 'task'
+        ? ['taskStatus', 'minimumAchieved']
+        : rule.facts === 'pool'
+          ? ['poolStatus', 'bringBackAfter']
+          : rule.facts === 'taskOrPool'
+            ? ['taskStatus', 'poolStatus', 'minimumAchieved', 'bringBackAfter']
+            : rule.facts === 'placement'
+              ? ['placementStatus', 'date', 'start', 'end', 'variantKind']
+              : [];
+      if (Object.keys(snapshot).some((field) => !allowedFactFields.includes(field))) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Snapshot contains facts that are not applicable to this event.',
+          path: ['after'],
+        });
+      }
+      if (rule.facts === 'task' && !snapshot.taskStatus) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'Task status fact is required.', path: ['after'] });
+      }
+      if (rule.facts === 'pool' && !snapshot.poolStatus) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'Pool status fact is required.', path: ['after'] });
+      }
+      if (rule.facts === 'taskOrPool' && !snapshot.taskStatus && !snapshot.poolStatus) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'Task or pool status fact is required.', path: ['after'] });
+      }
+      if (
+        rule.facts === 'placement' &&
+        (!snapshot.placementStatus || !snapshot.date || !snapshot.start || !snapshot.end)
+      ) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'Complete placement facts are required.', path: ['after'] });
+      }
+    }
+
+    const expectedAfterStatus: Partial<Record<string, string[]>> = {
+      taskStarted: ['inProgress'],
+      taskPaused: ['paused'],
+      taskResumed: ['inProgress'],
+      taskContinued: ['inProgress'],
+      taskMinimumAchieved: ['minimumDone'],
+      taskCompleted: ['done'],
+      taskParked: ['parked'],
+      taskNotToday: ['notToday', 'skipped'],
+    };
+    const allowedAfterStatuses = expectedAfterStatus[event.eventType];
+    if (allowedAfterStatuses && !allowedAfterStatuses.includes(event.after?.taskStatus ?? '')) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'After status does not match the event type.',
+        path: ['after', 'taskStatus'],
+      });
+    }
+    const expectedAfterPoolStatus: Partial<Record<string, string>> = {
+      taskAddedToToday: 'today',
+      taskDeferred: 'deferred',
+      taskNoLongerNeeded: 'noLongerNeeded',
+    };
+    const allowedAfterPoolStatus = expectedAfterPoolStatus[event.eventType];
+    if (
+      allowedAfterPoolStatus &&
+      event.after?.poolStatus &&
+      event.after.poolStatus !== allowedAfterPoolStatus
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'After pool status does not match the event type.',
+        path: ['after', 'poolStatus'],
+      });
+    }
+    if (
+      event.eventType === 'taskMinimumAchieved' &&
+      event.after?.minimumAchieved !== true
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Minimum achievement must be recorded.',
+        path: ['after', 'minimumAchieved'],
+      });
+    }
+    if (
+      event.eventType.startsWith('schedulerPlacement') &&
+      snapshots.some((snapshot) => snapshot?.placementStatus !== 'automatic')
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Scheduler placement facts must be automatic.',
+        path: ['after', 'placementStatus'],
+      });
+    }
+    if (
+      event.eventType.startsWith('userPlacement') &&
+      snapshots.some((snapshot) => snapshot?.placementStatus === 'automatic')
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'User placement facts cannot be automatic.',
+        path: ['after', 'placementStatus'],
+      });
+    }
+
+    if (event.actualMinutes !== undefined && event.eventType !== 'taskCompleted') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'actualMinutes is only valid for task completion.',
+        path: ['actualMinutes'],
+      });
+    }
+  });
 
 export const taskHistorySchema = z.union([legacyTaskHistorySchema, behaviourEventSchema]);
 

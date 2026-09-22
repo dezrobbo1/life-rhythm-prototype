@@ -195,7 +195,16 @@ describe('persisted Gate 4 scheduler plan state', () => {
       });
       if (loaded.status !== 'ok') throw new Error('Expected saved scheduler plan state.');
       expect(loaded.plan).toEqual(built.plan);
-      expect(await database.taskHistory.count()).toBe(0);
+      expect(await database.taskHistory.toArray()).toEqual([
+        expect.objectContaining({
+          eventType: 'schedulerPlacementAdded',
+          provenance: {
+            mechanism: 'schedulerInitialBuild',
+            origin: 'initialPlanBuild',
+          },
+          taskId: 'task-a',
+        }),
+      ]);
       await expectOnlySchedulerPlanStateWritten(database);
     } finally {
       await database.delete();

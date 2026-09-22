@@ -25,6 +25,7 @@ import {
 import {
   appendBehaviourEvent,
   behaviourEventForSchedulerUndo,
+  behaviourEventsForInitialSchedulerPlan,
   behaviourEventsForSchedulerRepair,
 } from './behaviourEventRepository';
 import type { BehaviourEvent } from './schemas';
@@ -394,7 +395,8 @@ export async function buildAndPersistSchedulerPlan(
       ...(current.status === 'ok' && current.calendarRepairPendingAt
         ? { calendarRepairPendingAt: current.calendarRepairPendingAt }
         : {}),
-    }, calendarSourceSnapshot, canonicalInputSnapshot);
+    }, calendarSourceSnapshot, canonicalInputSnapshot,
+    current.status === 'missing' ? behaviourEventsForInitialSchedulerPlan(plan, updatedAt) : []);
 
     return saved.ok
       ? { ...saved, mode: 'built' }
@@ -442,7 +444,10 @@ export async function repairAndPersistSchedulerPlan(
     const saved = await saveSchedulerPlanStateIfCurrent(plan, current, store, updatedAt, {
       dayModeContext,
       ...(current.status === 'ok' ? { undoDayModeContext: previousContext ?? null } : {}),
-    }, calendarSourceSnapshot, canonicalInputSnapshot, behaviourEventsForSchedulerRepair(plan, updatedAt));
+    }, calendarSourceSnapshot, canonicalInputSnapshot,
+    current.status === 'missing'
+      ? behaviourEventsForInitialSchedulerPlan(plan, updatedAt)
+      : behaviourEventsForSchedulerRepair(plan, updatedAt));
 
     if (!saved.ok) {
       return saved;

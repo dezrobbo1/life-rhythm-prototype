@@ -255,6 +255,52 @@ describe('Reset screen', () => {
     expect(clearSpy).not.toHaveBeenCalled();
   });
 
+  it('exports behaviour history through the dedicated local JSON control', async () => {
+    const user = userEvent.setup();
+    const exportBehaviourHistoryAction = vi.fn(async () => ({
+      eventCount: 2,
+      fileName: 'life-rhythm-behaviour-history-2026-09-22.json',
+      json: '{"events":[]}',
+    }));
+    const createObjectURL = vi.fn(() => 'blob:behaviour-history');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    render(<ResetScreen exportBehaviourHistoryAction={exportBehaviourHistoryAction} />);
+
+    await user.click(screen.getByRole('button', { name: 'Export behaviour history' }));
+
+    expect(exportBehaviourHistoryAction).toHaveBeenCalledTimes(1);
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:behaviour-history');
+    expect(screen.getByRole('status').textContent).toContain('Exported 2 behaviour events as local JSON.');
+  });
+
+  it('requires explicit confirmation before deleting only behaviour history', async () => {
+    const user = userEvent.setup();
+    const deleteBehaviourHistoryAction = vi.fn(async () => ({ deletedCount: 3, ok: true as const }));
+    render(<ResetScreen deleteBehaviourHistoryAction={deleteBehaviourHistoryAction} />);
+
+    const button = screen.getByRole('button', { name: 'Delete behaviour history' }) as HTMLButtonElement;
+    const input = screen.getByLabelText('Type DELETE BEHAVIOUR HISTORY to delete behaviour history');
+    expect(button.disabled).toBe(true);
+
+    await user.type(input, 'DELETE');
+    expect(button.disabled).toBe(true);
+    expect(deleteBehaviourHistoryAction).not.toHaveBeenCalled();
+
+    await user.clear(input);
+    await user.type(input, 'DELETE BEHAVIOUR HISTORY');
+    expect(button.disabled).toBe(false);
+    await user.click(button);
+
+    expect(deleteBehaviourHistoryAction).toHaveBeenCalledWith('DELETE BEHAVIOUR HISTORY');
+    expect(screen.getByRole('status').textContent).toContain(
+      'Deleted 3 behaviour events. Tasks, plans, settings, and calendars were not changed.',
+    );
+  });
+
   it('keeps forbidden copy out of Reset', () => {
     render(<ResetScreen />);
 
@@ -291,5 +337,7 @@ describe('Reset screen', () => {
     expect(within(secondaryNav).getByRole('button', { name: 'Reset' })).toBeTruthy();
     expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
+    const behaviourHistoryHeading = screen.getByRole('heading', { name: 'Behaviour history' });
+    expect(behaviourHistoryHeading.closest('section')?.classList.contains('reset-danger-zone')).toBe(false);
   });
 });
