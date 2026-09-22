@@ -2292,6 +2292,7 @@ textarea:focus-visible {
 
 .reset-card,
 .reset-secondary,
+.reset-behaviour-history,
 .reset-danger-zone {
   background: var(--color-surface);
   border: 1px solid var(--color-line);
@@ -2314,6 +2315,7 @@ textarea:focus-visible {
 }
 
 .reset-card--destructive,
+.reset-behaviour-history,
 .reset-danger-zone {
   border-color: color-mix(in srgb, var(--color-danger-line) 35%, var(--color-line));
 }
@@ -2326,6 +2328,7 @@ textarea:focus-visible {
 
 .reset-card h3,
 .reset-secondary h3,
+.reset-behaviour-history h2,
 .reset-danger-zone h2 {
   font-size: 1.1rem;
   line-height: 1.15;
@@ -2334,6 +2337,7 @@ textarea:focus-visible {
 
 .reset-card p,
 .reset-secondary p,
+.reset-behaviour-history p,
 .reset-danger-zone p {
   color: var(--color-muted);
   margin: var(--space-2) 0 0;
@@ -2402,12 +2406,14 @@ textarea:focus-visible {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.reset-behaviour-history,
 .reset-danger-zone {
   background: color-mix(in srgb, var(--color-surface) 86%, var(--color-danger-bg));
   box-shadow: none;
   opacity: 0.92;
 }
 
+.reset-behaviour-history label,
 .reset-danger-zone label {
   color: var(--color-muted);
   display: grid;
@@ -2416,6 +2422,7 @@ textarea:focus-visible {
   gap: var(--space-2);
 }
 
+.reset-behaviour-history input,
 .reset-danger-zone input {
   background: var(--color-surface-strong);
   border: 1px solid var(--color-line);
@@ -3295,6 +3302,7 @@ textarea:focus-visible {
   .library-card,
   .reset-card,
   .reset-secondary,
+  .reset-behaviour-history,
   .reset-danger-zone {
     padding: var(--space-4);
   }

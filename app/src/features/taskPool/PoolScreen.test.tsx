@@ -338,7 +338,7 @@ describe('Pool screen', () => {
         settings: 0,
         softPlacements: 0,
         startBoostLog: 0,
-        taskHistory: 0,
+        taskHistory: 1,
         taskPoolItems: 1,
       });
       expect(fetchSpy).not.toHaveBeenCalled();
@@ -381,7 +381,7 @@ describe('Pool screen', () => {
       notUsefulAfter: '2026-06-21T10:30:00.000Z',
       timeConstraint: 'dueBy',
     }));
-    await saveTaskPoolItem(validTaskPoolItem({
+    await getCurrentLifeRhythmDatabase().taskPoolItems.put(validTaskPoolItem({
       id: 'task-pool-no-longer-needed',
       status: 'noLongerNeeded',
       title: 'Hidden pool item',
@@ -520,7 +520,7 @@ describe('Pool screen', () => {
         settings: 0,
         softPlacements: 0,
         startBoostLog: 0,
-        taskHistory: 0,
+        taskHistory: 2,
         taskPoolItems: 1,
       });
       expect(fetchSpy).not.toHaveBeenCalled();

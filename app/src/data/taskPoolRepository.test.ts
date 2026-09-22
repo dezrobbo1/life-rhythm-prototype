@@ -55,7 +55,6 @@ async function expectOnlyTaskPoolItemsWritten(
   expect(await database.settings.count()).toBe(0);
   expect(await database.rhythmTemplates.count()).toBe(0);
   expect(await database.softPlacements.count()).toBe(0);
-  expect(await database.taskHistory.count()).toBe(0);
   expect(await database.completionLog.count()).toBe(0);
   expect(await database.resetLog.count()).toBe(0);
   expect(await database.startBoostLog.count()).toBe(0);
@@ -154,11 +153,11 @@ describe('task pool repository', () => {
         status: 'captured',
         title: 'Captured task',
       }), database);
-      await saveTaskPoolItem(validTaskPoolItem({
+      await database.taskPoolItems.put(validTaskPoolItem({
         id: 'task-pool-parked',
         status: 'parked',
         title: 'Parked task',
-      }), database);
+      }));
 
       const captured = await loadTaskPoolItemsByStatus('captured', database);
       const parked = await loadTaskPoolItemsByStatus('parked', database);

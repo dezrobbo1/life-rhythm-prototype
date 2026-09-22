@@ -469,7 +469,7 @@ describe('Plan screen', () => {
         settings: 0,
         softPlacements: 1,
         startBoostLog: 0,
-        taskHistory: 0,
+        taskHistory: 1,
       });
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(getItemSpy).not.toHaveBeenCalled();
@@ -527,7 +527,7 @@ describe('Plan screen', () => {
   });
 
   it('does not show removed soft placements as active placements', async () => {
-    await saveSoftPlacement(validSoftPlacement({
+    await getCurrentLifeRhythmDatabase().softPlacements.put(validSoftPlacement({
       id: 'soft-placement-removed',
       status: 'removed',
     }));
@@ -599,7 +599,7 @@ describe('Plan screen', () => {
         settings: 0,
         softPlacements: 1,
         startBoostLog: 0,
-        taskHistory: 0,
+        taskHistory: 2,
       });
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(getItemSpy).not.toHaveBeenCalled();

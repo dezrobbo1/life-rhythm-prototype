@@ -5,6 +5,13 @@ import {
   updateActiveTaskStatus,
   type ActiveTaskStatusUpdateResult,
 } from '../data/activeTaskRepository';
+import {
+  BEHAVIOUR_HISTORY_DELETE_CONFIRMATION,
+  deleteBehaviourHistory,
+  exportBehaviourHistory,
+  type BehaviourHistoryExport,
+  type DeleteBehaviourHistoryResult,
+} from '../data/behaviourHistoryControl';
 import type { ActiveTask, ActiveTaskStatus } from '../data/schemas';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import { ResetActionCard } from '../features/reset/ResetActionCard';
@@ -61,6 +68,8 @@ type ResetScreenProps = {
     taskId: string,
     status: ActiveTaskStatus,
   ) => Promise<ActiveTaskStatusUpdateResult>;
+  exportBehaviourHistoryAction?: () => Promise<BehaviourHistoryExport>;
+  deleteBehaviourHistoryAction?: (confirmation: string) => Promise<DeleteBehaviourHistoryResult>;
 };
 
 type RestartPreview = {
@@ -80,6 +89,8 @@ function restartPreviewFromTask(task: ActiveTask): RestartPreview {
 export function ResetScreen({
   loadTodayTasks = loadActiveTodayTasks,
   updateTaskStatus = updateActiveTaskStatus,
+  exportBehaviourHistoryAction = exportBehaviourHistory,
+  deleteBehaviourHistoryAction = deleteBehaviourHistory,
 }: ResetScreenProps = {}) {
   const { snapshot } = useAppSnapshot();
   const resetViewModel = useMemo(
@@ -95,6 +106,7 @@ export function ResetScreen({
   const [selectedRestart, setSelectedRestart] = useState<RestartPreview | null>(null);
   const [fullResetInput, setFullResetInput] = useState('');
   const [fullResetConfirmed, setFullResetConfirmed] = useState(false);
+  const [behaviourDeleteInput, setBehaviourDeleteInput] = useState('');
 
   async function refreshVisibleTodayTasks() {
     const tasks = await loadTodayTasks();
@@ -192,6 +204,40 @@ export function ResetScreen({
     setConfirmation(fullResetAction.confirmationCopy);
   }
 
+  async function exportLocalBehaviourHistory() {
+    try {
+      const exported = await exportBehaviourHistoryAction();
+      const url = URL.createObjectURL(new Blob([exported.json], { type: 'application/json' }));
+      const anchor = document.createElement('a');
+      anchor.download = exported.fileName;
+      anchor.href = url;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setConfirmation(
+        exported.eventCount === 1
+          ? 'Exported 1 behaviour event as local JSON.'
+          : `Exported ${exported.eventCount} behaviour events as local JSON.`,
+      );
+    } catch {
+      setConfirmation('Behaviour history could not be exported. Nothing was changed.');
+    }
+  }
+
+  async function deleteLocalBehaviourHistory() {
+    const result = await deleteBehaviourHistoryAction(behaviourDeleteInput);
+    if (!result.ok) {
+      setConfirmation(result.errors.join(' '));
+      return;
+    }
+
+    setBehaviourDeleteInput('');
+    setConfirmation(
+      result.deletedCount === 1
+        ? 'Deleted 1 behaviour event. Tasks, plans, settings, and calendars were not changed.'
+        : `Deleted ${result.deletedCount} behaviour events. Tasks, plans, settings, and calendars were not changed.`,
+    );
+  }
+
   return (
     <div className="screen-stack reset-screen">
       <ScreenHero
@@ -249,6 +295,30 @@ export function ResetScreen({
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="reset-behaviour-history" aria-labelledby="behaviour-history-title">
+        <div>
+          <p className="eyebrow">Local data control</p>
+          <h2 id="behaviour-history-title">Behaviour history</h2>
+          <p>Export the observed-event ledger as JSON, or delete only that ledger from this device.</p>
+          <p>Tasks, plans, settings, calendar data, and legacy task history are not changed.</p>
+        </div>
+        <Button onClick={exportLocalBehaviourHistory}>Export behaviour history</Button>
+        <label>
+          <span>Type {BEHAVIOUR_HISTORY_DELETE_CONFIRMATION} to delete this ledger</span>
+          <input
+            aria-label={`Type ${BEHAVIOUR_HISTORY_DELETE_CONFIRMATION} to delete behaviour history`}
+            onChange={(event) => setBehaviourDeleteInput(event.target.value)}
+            value={behaviourDeleteInput}
+          />
+        </label>
+        <Button
+          disabled={behaviourDeleteInput !== BEHAVIOUR_HISTORY_DELETE_CONFIRMATION}
+          onClick={deleteLocalBehaviourHistory}
+        >
+          Delete behaviour history
+        </Button>
       </section>
 
       <section className="reset-danger-zone" aria-labelledby="full-reset-title">

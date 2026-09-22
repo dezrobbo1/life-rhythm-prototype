@@ -7,6 +7,10 @@ import {
   type TaskPoolItem,
 } from './schemas';
 import type { LifeRhythmDatabase } from './db';
+import {
+  appendBehaviourEvent,
+  behaviourEventForUserPlacement,
+} from './behaviourEventRepository';
 
 export type ConfirmTaskSoftPlacementInput = {
   blockEnd: string;
@@ -66,7 +70,7 @@ export async function confirmTaskPoolSoftPlacement(
   input: ConfirmTaskSoftPlacementInput,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
 ): Promise<TaskSoftPlacementResult> {
-  return database.transaction('rw', database.taskPoolItems, database.softPlacements, async () => {
+  return database.transaction('rw', database.taskPoolItems, database.softPlacements, database.taskHistory, async () => {
     const storedItem = await database.taskPoolItems.get(input.taskId);
     const parsedItem = taskPoolItemSchema.safeParse(storedItem);
 
@@ -148,6 +152,10 @@ export async function confirmTaskPoolSoftPlacement(
 
     await database.softPlacements.put(parsedPlacement.data);
     await database.taskPoolItems.put(updatedItem);
+    await appendBehaviourEvent(
+      behaviourEventForUserPlacement(parsedPlacement.data, 'create', timestamp),
+      database,
+    );
 
     return {
       item: updatedItem,
@@ -166,6 +174,7 @@ export async function removeTaskPoolSoftPlacement(
     database.softPlacements,
     database.taskPoolItems,
     database.activeTasks,
+    database.taskHistory,
     async () => {
       const storedPlacement = await database.softPlacements.get(placementId);
       const parsedPlacement = softPlacementSchema.safeParse(storedPlacement);
@@ -201,6 +210,12 @@ export async function removeTaskPoolSoftPlacement(
       await database.softPlacements.put(removedPlacement);
       if (updatedItem) {
         await database.taskPoolItems.put(updatedItem);
+      }
+      if (parsedPlacement.data.status !== 'removed') {
+        await appendBehaviourEvent(
+          behaviourEventForUserPlacement(removedPlacement, 'remove', timestamp, parsedPlacement.data),
+          database,
+        );
       }
 
       return {

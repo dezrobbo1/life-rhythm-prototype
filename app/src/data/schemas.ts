@@ -825,7 +825,7 @@ export const softPlacementSchema = z
     }
   });
 
-export const taskHistorySchema = z
+export const legacyTaskHistorySchema = z
   .object({
     id: idSchema,
     taskId: idSchema,
@@ -835,6 +835,521 @@ export const taskHistorySchema = z
     metadata: z.record(z.unknown()).default({}),
   })
   .strict();
+
+export const behaviourEventTypeSchema = z.enum([
+  'taskCaptured',
+  'taskCreated',
+  'taskAddedToToday',
+  'taskStarted',
+  'taskPaused',
+  'taskResumed',
+  'taskContinued',
+  'taskMinimumAchieved',
+  'taskCompleted',
+  'taskParked',
+  'taskNotToday',
+  'taskDeferred',
+  'taskNoLongerNeeded',
+  'userPlacementCreated',
+  'userPlacementMoved',
+  'userPlacementRemoved',
+  'schedulerPlacementAdded',
+  'schedulerPlacementMoved',
+  'schedulerPlacementRemoved',
+  'schedulerPlacementVariantChanged',
+  'schedulerRepairUndone',
+]);
+
+export const behaviourEventFactSchema = z
+  .object({
+    taskStatus: activeTaskStatusSchema.optional(),
+    poolStatus: taskPoolItemStatusSchema.optional(),
+    placementStatus: z
+      .enum(['planned', 'moved', 'removed', 'completedFromToday', 'automatic'])
+      .optional(),
+    date: softPlacementDateSchema.optional(),
+    start: timeOfDay.optional(),
+    end: timeOfDay.optional(),
+    variantKind: z.enum(['minimum', 'normal', 'full']).optional(),
+    minimumAchieved: z.boolean().optional(),
+    bringBackAfter: activeTaskDeadlineIsoDateTimeSchema.optional(),
+  })
+  .strict();
+
+const behaviourTimezoneFormatters = new Map<string, Intl.DateTimeFormat>();
+const invalidBehaviourTimezones = new Set<string>();
+
+function behaviourTimezoneFormatter(value: string): Intl.DateTimeFormat | null {
+  const cached = behaviourTimezoneFormatters.get(value);
+  if (cached) return cached;
+  if (invalidBehaviourTimezones.has(value)) return null;
+
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      day: '2-digit',
+      month: '2-digit',
+      timeZone: value,
+      year: 'numeric',
+    });
+    behaviourTimezoneFormatters.set(value, formatter);
+    return formatter;
+  } catch {
+    invalidBehaviourTimezones.add(value);
+    return null;
+  }
+}
+
+function isIanaTimezone(value: string): boolean {
+  return behaviourTimezoneFormatter(value) !== null;
+}
+
+function localDateInTimezone(occurredAt: string, timezone: string): string | null {
+  try {
+    const formatter = behaviourTimezoneFormatter(timezone);
+    if (!formatter) return null;
+    const parts = formatter.formatToParts(new Date(occurredAt));
+    const value = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((part) => part.type === type)?.value ?? '';
+    return `${value('year')}-${value('month')}-${value('day')}`;
+  } catch {
+    return null;
+  }
+}
+
+type BehaviourEventFactShape = z.infer<typeof behaviourEventFactSchema>;
+type BehaviourEventTransitionFact = {
+  taskStatus?: readonly z.infer<typeof activeTaskStatusSchema>[] | 'absent';
+  poolStatus?: readonly z.infer<typeof taskPoolItemStatusSchema>[] | 'absent';
+  placementStatus?: readonly NonNullable<BehaviourEventFactShape['placementStatus']>[];
+  variantKind?: readonly NonNullable<BehaviourEventFactShape['variantKind']>[] | 'absent';
+  minimumAchieved?: readonly boolean[] | 'absent';
+  bringBackAfter?: 'present' | 'absent';
+};
+type BehaviourEventTransitionRule = {
+  provenance?: readonly [
+    'userAction' | 'initialPlanBuild' | 'automaticRepair' | 'undo',
+    string,
+  ];
+  before: BehaviourEventTransitionFact | null;
+  after: BehaviourEventTransitionFact | null;
+  change?: 'minimumAchieved' | 'minimumPreserved' | 'placementPosition' | 'placementVariant' | 'poolDeferral';
+};
+type BehaviourEventVariantRule = {
+  action: string;
+  source: 'user' | 'scheduler';
+  provenance: readonly (readonly [
+    'userAction' | 'initialPlanBuild' | 'automaticRepair' | 'undo',
+    string,
+  ])[];
+  ids: 'task' | 'userPlacement' | 'schedulerTarget' | 'none';
+  before: 'required' | 'optional' | 'forbidden';
+  after: 'required' | 'optional' | 'forbidden';
+  facts: 'task' | 'pool' | 'taskOrPool' | 'placement' | 'none';
+  transitions: readonly BehaviourEventTransitionRule[];
+};
+
+const behaviourEventVariantRules = {
+  taskCaptured: {
+    action: 'capture', source: 'user', provenance: [['userAction', 'taskPoolCapture']], ids: 'task', before: 'forbidden', after: 'required', facts: 'pool',
+    transitions: [{ before: null, after: { bringBackAfter: 'absent', poolStatus: ['captured'] } }],
+  },
+  taskCreated: {
+    action: 'create', source: 'user', provenance: [['userAction', 'todayCapture']], ids: 'task', before: 'forbidden', after: 'required', facts: 'task',
+    transitions: [{ before: null, after: { minimumAchieved: 'absent', taskStatus: ['active'] } }],
+  },
+  taskAddedToToday: {
+    action: 'addToToday', source: 'user', provenance: [['userAction', 'taskLifecycle'], ['userAction', 'todayCapture']], ids: 'task', before: 'optional', after: 'required', facts: 'taskOrPool',
+    transitions: [
+      {
+        provenance: ['userAction', 'taskLifecycle'],
+        before: {
+          poolStatus: ['captured', 'suggested', 'softPlaced', 'today', 'parked', 'notToday', 'deferred'],
+          taskStatus: 'absent',
+          bringBackAfter: 'absent',
+          minimumAchieved: 'absent',
+        },
+        after: {
+          bringBackAfter: 'absent',
+          minimumAchieved: 'absent',
+          poolStatus: ['today'],
+          taskStatus: ['active'],
+        },
+      },
+      {
+        provenance: ['userAction', 'todayCapture'],
+        before: null,
+        after: { minimumAchieved: 'absent', poolStatus: 'absent', taskStatus: ['active'] },
+      },
+    ],
+  },
+  taskStarted: {
+    action: 'start', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['active', 'parked', 'skipped', 'notToday'] }, after: { taskStatus: ['inProgress'] }, change: 'minimumPreserved' }],
+  },
+  taskPaused: {
+    action: 'pause', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['inProgress'] }, after: { taskStatus: ['paused'] }, change: 'minimumPreserved' }],
+  },
+  taskResumed: {
+    action: 'resume', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['paused'] }, after: { taskStatus: ['inProgress'] }, change: 'minimumPreserved' }],
+  },
+  taskContinued: {
+    action: 'continue', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [
+      { before: { taskStatus: ['minimumDone'], minimumAchieved: [true] }, after: { taskStatus: ['inProgress'], minimumAchieved: [true] }, change: 'minimumPreserved' },
+      { before: { taskStatus: ['minimumDone'], minimumAchieved: [false] }, after: { taskStatus: ['inProgress'], minimumAchieved: [true] }, change: 'minimumAchieved' },
+    ],
+  },
+  taskMinimumAchieved: {
+    action: 'minimumDone', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['active', 'inProgress', 'paused'], minimumAchieved: [false] }, after: { taskStatus: ['minimumDone'], minimumAchieved: [true] }, change: 'minimumAchieved' }],
+  },
+  taskCompleted: {
+    action: 'complete', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['active', 'inProgress', 'paused', 'minimumDone'] }, after: { taskStatus: ['done'] }, change: 'minimumPreserved' }],
+  },
+  taskParked: {
+    action: 'park', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['active', 'inProgress', 'paused', 'minimumDone', 'skipped', 'notToday'] }, after: { taskStatus: ['parked'] }, change: 'minimumPreserved' }],
+  },
+  taskNotToday: {
+    action: 'notToday', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'task',
+    transitions: [{ before: { taskStatus: ['active', 'inProgress', 'paused', 'minimumDone', 'parked'] }, after: { taskStatus: ['notToday', 'skipped'] }, change: 'minimumPreserved' }],
+  },
+  taskDeferred: {
+    action: 'defer', source: 'user', provenance: [['userAction', 'taskPoolDeferral']], ids: 'task', before: 'required', after: 'required', facts: 'pool',
+    transitions: [{
+      before: { poolStatus: ['captured', 'suggested', 'parked', 'notToday', 'deferred'] },
+      after: { poolStatus: ['deferred'], bringBackAfter: 'present' },
+      change: 'poolDeferral',
+    }],
+  },
+  taskNoLongerNeeded: {
+    action: 'noLongerNeeded', source: 'user', provenance: [['userAction', 'taskLifecycle']], ids: 'task', before: 'required', after: 'required', facts: 'pool',
+    transitions: [{
+      before: { bringBackAfter: 'absent', poolStatus: ['captured', 'suggested', 'softPlaced', 'today', 'parked', 'notToday', 'deferred'] },
+      after: { bringBackAfter: 'absent', poolStatus: ['noLongerNeeded'] },
+    }],
+  },
+  userPlacementCreated: {
+    action: 'createPlacement', source: 'user', provenance: [['userAction', 'softPlacement']], ids: 'userPlacement', before: 'forbidden', after: 'required', facts: 'placement',
+    transitions: [{ before: null, after: { placementStatus: ['planned'], variantKind: 'absent' } }],
+  },
+  userPlacementMoved: {
+    action: 'movePlacement', source: 'user', provenance: [['userAction', 'softPlacement']], ids: 'userPlacement', before: 'required', after: 'required', facts: 'placement',
+    transitions: [{
+      before: { placementStatus: ['planned', 'moved'], variantKind: 'absent' },
+      after: { placementStatus: ['moved'], variantKind: 'absent' },
+      change: 'placementPosition',
+    }],
+  },
+  userPlacementRemoved: {
+    action: 'removePlacement', source: 'user', provenance: [['userAction', 'softPlacement']], ids: 'userPlacement', before: 'required', after: 'required', facts: 'placement',
+    transitions: [{
+      before: { placementStatus: ['planned', 'moved', 'completedFromToday'], variantKind: 'absent' },
+      after: { placementStatus: ['removed'], variantKind: 'absent' },
+    }],
+  },
+  schedulerPlacementAdded: {
+    action: 'addAutomaticPlacement', source: 'scheduler', provenance: [['initialPlanBuild', 'schedulerInitialBuild'], ['automaticRepair', 'schedulerRepair']], ids: 'schedulerTarget', before: 'forbidden', after: 'required', facts: 'placement',
+    transitions: [{ before: null, after: { placementStatus: ['automatic'] } }],
+  },
+  schedulerPlacementMoved: {
+    action: 'moveAutomaticPlacement', source: 'scheduler', provenance: [['automaticRepair', 'schedulerRepair']], ids: 'schedulerTarget', before: 'required', after: 'required', facts: 'placement',
+    transitions: [{
+      before: { placementStatus: ['automatic'] },
+      after: { placementStatus: ['automatic'] },
+      change: 'placementPosition',
+    }],
+  },
+  schedulerPlacementRemoved: {
+    action: 'removeAutomaticPlacement', source: 'scheduler', provenance: [['automaticRepair', 'schedulerRepair']], ids: 'schedulerTarget', before: 'required', after: 'forbidden', facts: 'placement',
+    transitions: [{ before: { placementStatus: ['automatic'] }, after: null }],
+  },
+  schedulerPlacementVariantChanged: {
+    action: 'changeAutomaticPlacementVariant', source: 'scheduler', provenance: [['automaticRepair', 'schedulerRepair']], ids: 'schedulerTarget', before: 'required', after: 'required', facts: 'placement',
+    transitions: [{
+      before: { placementStatus: ['automatic'] },
+      after: { placementStatus: ['automatic'] },
+      change: 'placementVariant',
+    }],
+  },
+  schedulerRepairUndone: {
+    action: 'undoRepair', source: 'user', provenance: [['undo', 'schedulerRepairUndo']], ids: 'none', before: 'forbidden', after: 'forbidden', facts: 'none',
+    transitions: [{ before: null, after: null }],
+  },
+} as const satisfies Record<z.infer<typeof behaviourEventTypeSchema>, BehaviourEventVariantRule>;
+
+function snapshotMatchesTransition(
+  snapshot: BehaviourEventFactShape | undefined,
+  expected: BehaviourEventTransitionFact | null,
+) {
+  if (expected === null) return snapshot === undefined;
+  if (!snapshot) return false;
+
+  if (
+    expected.taskStatus === 'absent'
+      ? snapshot.taskStatus !== undefined
+      : expected.taskStatus && !expected.taskStatus.includes(snapshot.taskStatus as never)
+  ) return false;
+  if (
+    expected.poolStatus === 'absent'
+      ? snapshot.poolStatus !== undefined
+      : expected.poolStatus && !expected.poolStatus.includes(snapshot.poolStatus as never)
+  ) return false;
+  if (
+    expected.placementStatus &&
+    !expected.placementStatus.includes(snapshot.placementStatus as never)
+  ) return false;
+  if (
+    expected.variantKind === 'absent'
+      ? snapshot.variantKind !== undefined
+      : expected.variantKind && !expected.variantKind.includes(snapshot.variantKind as never)
+  ) return false;
+  if (
+    expected.minimumAchieved === 'absent'
+      ? snapshot.minimumAchieved !== undefined
+      : expected.minimumAchieved &&
+        !expected.minimumAchieved.includes(snapshot.minimumAchieved as never)
+  ) return false;
+  if (expected.bringBackAfter === 'present' && !snapshot.bringBackAfter) return false;
+  if (expected.bringBackAfter === 'absent' && snapshot.bringBackAfter !== undefined) return false;
+
+  return true;
+}
+
+function transitionChangeMatches(
+  before: BehaviourEventFactShape | undefined,
+  after: BehaviourEventFactShape | undefined,
+  change: BehaviourEventTransitionRule['change'],
+) {
+  if (!change) return true;
+  if (!before || !after) return false;
+
+  if (change === 'minimumAchieved') {
+    return before.minimumAchieved === false && after.minimumAchieved === true;
+  }
+  if (change === 'minimumPreserved') {
+    return typeof before.minimumAchieved === 'boolean' &&
+      before.minimumAchieved === after.minimumAchieved;
+  }
+  if (change === 'placementPosition') {
+    return before.date !== after.date || before.start !== after.start || before.end !== after.end;
+  }
+  if (change === 'placementVariant') {
+    return before.variantKind !== after.variantKind;
+  }
+
+  return before.poolStatus !== after.poolStatus || before.bringBackAfter !== after.bringBackAfter;
+}
+
+export const behaviourEventSchema = z
+  .object({
+    recordKind: z.literal('behaviourEvent'),
+    version: z.literal(1),
+    id: idSchema,
+    eventType: behaviourEventTypeSchema,
+    occurredAt: activeTaskDeadlineIsoDateTimeSchema,
+    localDate: softPlacementDateSchema,
+    timezone: z.string().min(1).refine(isIanaTimezone, 'Expected an IANA timezone'),
+    taskId: idSchema.optional(),
+    templateId: idSchema.optional(),
+    rhythmId: idSchema.optional(),
+    placementId: idSchema.optional(),
+    source: z.enum(['user', 'scheduler']),
+    action: z.enum([
+      'capture',
+      'create',
+      'addToToday',
+      'start',
+      'pause',
+      'resume',
+      'continue',
+      'minimumDone',
+      'complete',
+      'park',
+      'notToday',
+      'defer',
+      'noLongerNeeded',
+      'createPlacement',
+      'movePlacement',
+      'removePlacement',
+      'addAutomaticPlacement',
+      'moveAutomaticPlacement',
+      'removeAutomaticPlacement',
+      'changeAutomaticPlacementVariant',
+      'undoRepair',
+    ]),
+    before: behaviourEventFactSchema.optional(),
+    after: behaviourEventFactSchema.optional(),
+    actualMinutes: z.number().int().nonnegative().optional(),
+    provenance: z
+      .object({
+        origin: z.enum(['userAction', 'initialPlanBuild', 'automaticRepair', 'undo']),
+        mechanism: z.string().min(1),
+        trigger: z.string().min(1).optional(),
+      })
+      .strict(),
+  })
+  .strict()
+  .superRefine((event, context) => {
+    const expectedLocalDate = localDateInTimezone(event.occurredAt, event.timezone);
+    if (expectedLocalDate !== event.localDate) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'localDate must match occurredAt in timezone.',
+        path: ['localDate'],
+      });
+    }
+
+    const rule = behaviourEventVariantRules[event.eventType];
+    if (event.action !== rule.action) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: `Expected ${rule.action}.`, path: ['action'] });
+    }
+    if (event.source !== rule.source) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: `Expected ${rule.source}.`, path: ['source'] });
+    }
+    const provenanceMatches = rule.provenance.some(
+      ([origin, mechanism]) => event.provenance.origin === origin && event.provenance.mechanism === mechanism,
+    );
+    if (!provenanceMatches) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provenance does not match the event type.',
+        path: ['provenance'],
+      });
+    }
+    if (
+      event.provenance.trigger &&
+      event.provenance.mechanism !== 'schedulerRepair' &&
+      event.provenance.mechanism !== 'schedulerRepairUndo'
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'A trigger is not applicable to this provenance.',
+        path: ['provenance', 'trigger'],
+      });
+    }
+
+    const requireField = (field: 'taskId' | 'placementId') => {
+      if (!event[field]) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: `${field} is required.`, path: [field] });
+      }
+    };
+    const forbidField = (field: 'taskId' | 'templateId' | 'rhythmId' | 'placementId') => {
+      if (event[field]) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: `${field} is not applicable.`, path: [field] });
+      }
+    };
+
+    if (rule.ids === 'task') {
+      requireField('taskId');
+      forbidField('rhythmId');
+      forbidField('placementId');
+    } else if (rule.ids === 'userPlacement') {
+      requireField('taskId');
+      requireField('placementId');
+      forbidField('templateId');
+      forbidField('rhythmId');
+    } else if (rule.ids === 'schedulerTarget') {
+      if (Boolean(event.taskId) === Boolean(event.rhythmId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Exactly one scheduler target ID is required.',
+          path: ['taskId'],
+        });
+      }
+      forbidField('templateId');
+      const initialBuild = event.provenance.origin === 'initialPlanBuild';
+      if (initialBuild) requireField('placementId');
+      else forbidField('placementId');
+    } else {
+      forbidField('taskId');
+      forbidField('templateId');
+      forbidField('rhythmId');
+      forbidField('placementId');
+    }
+
+    const validateSnapshotPresence = (
+      field: 'before' | 'after',
+      requirement: 'required' | 'optional' | 'forbidden',
+    ) => {
+      if (requirement === 'required' && !event[field]) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: `${field} is required.`, path: [field] });
+      }
+      if (requirement === 'forbidden' && event[field]) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: `${field} is not applicable.`, path: [field] });
+      }
+    };
+    validateSnapshotPresence('before', rule.before);
+    validateSnapshotPresence('after', rule.after);
+
+    const snapshots = [event.before, event.after].filter(Boolean);
+    for (const snapshot of snapshots) {
+      if (!snapshot) continue;
+      const allowedFactFields = rule.facts === 'task'
+        ? ['taskStatus', 'minimumAchieved']
+        : rule.facts === 'pool'
+          ? ['poolStatus', 'bringBackAfter']
+          : rule.facts === 'taskOrPool'
+            ? ['taskStatus', 'poolStatus', 'minimumAchieved', 'bringBackAfter']
+            : rule.facts === 'placement'
+              ? ['placementStatus', 'date', 'start', 'end', 'variantKind']
+              : [];
+      if (Object.keys(snapshot).some((field) => !allowedFactFields.includes(field))) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Snapshot contains facts that are not applicable to this event.',
+          path: ['after'],
+        });
+      }
+      if (rule.facts === 'task' && !snapshot.taskStatus) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'Task status fact is required.', path: ['after'] });
+      }
+      if (rule.facts === 'pool' && !snapshot.poolStatus) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'Pool status fact is required.', path: ['after'] });
+      }
+      if (rule.facts === 'taskOrPool' && !snapshot.taskStatus && !snapshot.poolStatus) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'Task or pool status fact is required.', path: ['after'] });
+      }
+      if (
+        rule.facts === 'placement' &&
+        (!snapshot.placementStatus || !snapshot.date || !snapshot.start || !snapshot.end)
+      ) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'Complete placement facts are required.', path: ['after'] });
+      }
+    }
+
+    const transitionMatches = (rule.transitions as readonly BehaviourEventTransitionRule[]).some((transition) => {
+      const provenanceMatchesTransition = !transition.provenance || (
+        event.provenance.origin === transition.provenance[0] &&
+        event.provenance.mechanism === transition.provenance[1]
+      );
+
+      return provenanceMatchesTransition &&
+        snapshotMatchesTransition(event.before, transition.before) &&
+        snapshotMatchesTransition(event.after, transition.after) &&
+        transitionChangeMatches(event.before, event.after, transition.change);
+    });
+    if (!transitionMatches) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Before and after facts do not match the event transition.',
+        path: ['after'],
+      });
+    }
+
+    if (event.actualMinutes !== undefined && event.eventType !== 'taskCompleted') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'actualMinutes is only valid for task completion.',
+        path: ['actualMinutes'],
+      });
+    }
+  });
+
+export const taskHistorySchema = z.union([legacyTaskHistorySchema, behaviourEventSchema]);
 
 export const completionLogSchema = z
   .object({
@@ -961,6 +1476,8 @@ export type TaskPoolItemStatus = z.infer<typeof taskPoolItemStatusSchema>;
 export type SoftPlacement = z.infer<typeof softPlacementSchema>;
 export type SoftPlacementStatus = z.infer<typeof softPlacementStatusSchema>;
 export type TaskHistory = z.infer<typeof taskHistorySchema>;
+export type BehaviourEvent = z.infer<typeof behaviourEventSchema>;
+export type BehaviourEventFact = z.infer<typeof behaviourEventFactSchema>;
 export type CompletionLog = z.infer<typeof completionLogSchema>;
 export type ResetLog = z.infer<typeof resetLogSchema>;
 export type StartBoostLog = z.infer<typeof startBoostLogSchema>;

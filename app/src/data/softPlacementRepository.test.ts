@@ -52,7 +52,6 @@ async function expectOnlySoftPlacementsWritten(
   expect(await database.activeTasks.count()).toBe(0);
   expect(await database.settings.count()).toBe(0);
   expect(await database.rhythmTemplates.count()).toBe(0);
-  expect(await database.taskHistory.count()).toBe(0);
   expect(await database.completionLog.count()).toBe(0);
   expect(await database.resetLog.count()).toBe(0);
   expect(await database.startBoostLog.count()).toBe(0);

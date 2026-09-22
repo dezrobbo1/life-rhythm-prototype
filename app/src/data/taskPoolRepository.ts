@@ -1,4 +1,5 @@
 import type { Table } from 'dexie';
+import { LifeRhythmDatabase } from './db';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   taskPoolItemSchema,
@@ -10,6 +11,7 @@ import {
   successfulCollectionRead,
   type CollectionReadResult,
 } from './collectionReadResult';
+import { appendBehaviourEvent, createBehaviourEvent } from './behaviourEventRepository';
 
 type TaskPoolItemsTable = Pick<Table<TaskPoolItem, string>, 'get' | 'put' | 'toArray' | 'where'>;
 
@@ -79,6 +81,31 @@ export async function saveTaskPoolItem(
 
   if (!validated.ok) {
     return validated;
+  }
+
+  if (store instanceof LifeRhythmDatabase) {
+    return store.transaction('rw', store.taskPoolItems, store.taskHistory, async () => {
+      const existing = await store.taskPoolItems.get(validated.item.id);
+      if (existing) {
+        return {
+          errors: ['id: A task pool item with this ID already exists.'],
+          ok: false as const,
+        };
+      }
+
+      await store.taskPoolItems.put(validated.item);
+      await appendBehaviourEvent(createBehaviourEvent({
+        action: 'capture',
+        after: { poolStatus: validated.item.status },
+        eventType: 'taskCaptured',
+        occurredAt: validated.item.createdAt,
+        provenance: { origin: 'userAction', mechanism: 'taskPoolCapture' },
+        source: 'user',
+        taskId: validated.item.id,
+        ...(validated.item.templateId ? { templateId: validated.item.templateId } : {}),
+      }), store);
+      return validated;
+    });
   }
 
   const existing = await store.taskPoolItems.get(validated.item.id);
