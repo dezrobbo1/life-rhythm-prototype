@@ -16,9 +16,16 @@ import type {
 import { readPersistedCalendarEvents } from './calendarSourceRepository';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
+  canonicalSchedulingInputSnapshot,
+  readCanonicalSchedulingInputRows,
+  type CanonicalSchedulingInputSnapshot,
+} from './schedulerCanonicalInputSnapshot';
+import {
   type CalendarSourceSnapshot,
+  isStaleSchedulerPlanWrite,
   loadSchedulerPlanState,
   repairAndPersistSchedulerPlan,
+  type SchedulerPlanStateExpectation,
   undoPersistedSchedulerRepair,
 } from './schedulerPlanStateRepository';
 import {
@@ -47,7 +54,9 @@ type MinuteRange = {
 
 export type LiveSchedulerContext = {
   calendarSourceSnapshot?: CalendarSourceSnapshot;
+  canonicalInputSnapshot: CanonicalSchedulingInputSnapshot;
   input: SchedulingDomainModel;
+  schedulerStateSnapshot?: SchedulerPlanStateExpectation;
   titleByTargetId: Record<string, string>;
   warnings: string[];
 };
@@ -63,6 +72,7 @@ export type PrivatePlanActionResult =
     }
   | {
       ok: false;
+      conflict?: 'stale';
       errors: string[];
       warnings: string[];
     };
@@ -279,9 +289,81 @@ export async function buildCurrentLiveSchedulingContext(
   | { ok: false; errors: string[]; warnings: string[] }
 > {
   const database = getCurrentLifeRhythmDatabase();
-  const settingsResult = await loadSettingsResult(database, {
-    persistMigration: options.readOnly ? false : undefined,
-  });
+  if (!options.readOnly) {
+    const migrationResult = await loadSettingsResult(database);
+    if (
+      migrationResult.status === 'invalid' ||
+      migrationResult.status === 'readFailed' ||
+      migrationResult.status === 'migrationPersistenceFailed'
+    ) {
+      return {
+        ok: false,
+        errors: migrationResult.errors.length > 0
+          ? migrationResult.errors
+          : ['settings: Current settings are not safe to use for automatic planning.'],
+        warnings: [],
+      };
+    }
+  }
+
+  let timezone: string;
+  let now: SchedulerRepairNow;
+  let days: number;
+  try {
+    timezone = resolveTimezone(options.timezone);
+    now = localPointForDate(options.now ?? new Date(), timezone);
+    days = horizonDays(options);
+  } catch {
+    return {
+      ok: false,
+      errors: ['scheduler: Browser date, time, or timezone could not be used safely.'],
+      warnings: [],
+    };
+  }
+  const startDate = options.startDate ?? now.date;
+  const endDate = addDays(startDate, days - 1);
+
+  let consistentRead: {
+    calendarRead: Awaited<ReturnType<typeof readPersistedCalendarEvents>>;
+    canonicalRows: Awaited<ReturnType<typeof readCanonicalSchedulingInputRows>>;
+    savedPlan: Awaited<ReturnType<typeof loadSchedulerPlanState>> | null;
+    settingsResult: Awaited<ReturnType<typeof loadSettingsResult>>;
+  };
+  try {
+    consistentRead = await database.transaction(
+      'r',
+      [
+        database.settings,
+        database.activeTasks,
+        database.taskPoolItems,
+        database.rhythmTemplates,
+        database.softPlacements,
+        database.calendarSources,
+        database.schedulerPlanState,
+      ],
+      async () => {
+        const [settingsResult, canonicalRows, calendarRead, savedPlan] = await Promise.all([
+          loadSettingsResult(database, { persistMigration: false }),
+          readCanonicalSchedulingInputRows(database),
+          readPersistedCalendarEvents({
+            targetTimezone: timezone,
+            windowStartDate: startDate,
+            windowEndDate: endDate,
+          }, database),
+          options.planningPolicy ? Promise.resolve(null) : loadSchedulerPlanState(database),
+        ]);
+        return { calendarRead, canonicalRows, savedPlan, settingsResult };
+      },
+    );
+  } catch {
+    return {
+      ok: false,
+      errors: ['scheduler: Current local planning data could not be read.'],
+      warnings: [],
+    };
+  }
+
+  const { calendarRead, canonicalRows, savedPlan, settingsResult } = consistentRead;
 
   if (
     settingsResult.status === 'invalid' ||
@@ -297,23 +379,12 @@ export async function buildCurrentLiveSchedulingContext(
     };
   }
 
-  let rows: [unknown[], unknown[], unknown[], unknown[]];
-  try {
-    rows = await Promise.all([
-      database.activeTasks.toArray(),
-      database.taskPoolItems.toArray(),
-      database.rhythmTemplates.toArray(),
-      database.softPlacements.toArray(),
-    ]);
-  } catch {
-    return {
-      ok: false,
-      errors: ['scheduler: Current local planning data could not be read.'],
-      warnings: [],
-    };
-  }
-
-  const [activeTaskRows, taskPoolRows, rhythmRows, softPlacementRows] = rows;
+  const {
+    activeTasks: activeTaskRows,
+    taskPoolItems: taskPoolRows,
+    rhythmTemplates: rhythmRows,
+    softPlacements: softPlacementRows,
+  } = canonicalRows;
   const activeTasks = activeTaskSchema.array().safeParse(activeTaskRows);
   const taskPoolItems = taskPoolItemSchema.array().safeParse(taskPoolRows);
   const rhythmTemplates = rhythmTemplateSchema.array().safeParse(rhythmRows);
@@ -334,21 +405,6 @@ export async function buildCurrentLiveSchedulingContext(
     return { ok: false, errors, warnings: [] };
   }
 
-  let timezone: string;
-  let now: SchedulerRepairNow;
-  let days: number;
-  try {
-    timezone = resolveTimezone(options.timezone);
-    now = localPointForDate(options.now ?? new Date(), timezone);
-    days = horizonDays(options);
-  } catch {
-    return {
-      ok: false,
-      errors: ['scheduler: Browser date, time, or timezone could not be used safely.'],
-      warnings: [],
-    };
-  }
-
   const base = projectCurrentStateToSchedulingDomain({
     settings: settingsResult.settings,
     activeTasks: activeTasks.data,
@@ -356,17 +412,6 @@ export async function buildCurrentLiveSchedulingContext(
     rhythmTemplates: rhythmTemplates.data,
     softPlacements: softPlacements.data,
   });
-  const startDate = options.startDate ?? now.date;
-  const endDate = addDays(startDate, days - 1);
-  const calendarRead = await readPersistedCalendarEvents(
-    {
-      targetTimezone: timezone,
-      windowStartDate: startDate,
-      windowEndDate: endDate,
-    },
-    database,
-  );
-
   if (!('events' in calendarRead)) {
     return {
       ok: false,
@@ -427,7 +472,9 @@ export async function buildCurrentLiveSchedulingContext(
 
   let planningPolicy = options.planningPolicy;
   if (!planningPolicy) {
-    const savedPlan = await loadSchedulerPlanState();
+    if (!savedPlan) {
+      return { ok: false, errors: ['scheduler: Current plan mode could not be read.'], warnings };
+    }
     if (savedPlan.status === 'invalid' || savedPlan.status === 'error') {
       return { ok: false, errors: savedPlan.errors, warnings };
     }
@@ -445,7 +492,11 @@ export async function buildCurrentLiveSchedulingContext(
     ok: true,
     context: {
       calendarSourceSnapshot,
+      canonicalInputSnapshot: canonicalSchedulingInputSnapshot(canonicalRows),
       input,
+      ...(savedPlan && (savedPlan.status === 'missing' || savedPlan.status === 'ok')
+        ? { schedulerStateSnapshot: savedPlan }
+        : {}),
       titleByTargetId: titleMap(input),
       warnings: [...new Set(warnings)],
     },
@@ -465,13 +516,15 @@ export async function ensureCurrentPrivatePlan(
   const live = await buildCurrentLiveSchedulingContext(options);
   if (!live.ok) return live;
 
-  if (saved.status === 'ok') {
+  const current = live.context.schedulerStateSnapshot ?? saved;
+
+  if (current.status === 'ok') {
     return {
       ok: true,
       mode: 'loaded',
-      plan: saved.plan,
+      plan: current.plan,
       titleByTargetId: live.context.titleByTargetId,
-      updatedAt: saved.updatedAt,
+      updatedAt: current.updatedAt,
       warnings: live.context.warnings,
     };
   }
@@ -481,9 +534,51 @@ export async function ensureCurrentPrivatePlan(
     now: live.now,
     reason: 'Create the current private plan from live scheduling information.',
     trigger: 'manualReplan',
-  }, undefined, undefined, undefined, live.context.calendarSourceSnapshot);
+  }, undefined, undefined, undefined, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, current);
   if (!built.ok) {
-    return { ok: false, errors: built.errors, warnings: live.context.warnings };
+    if (!isStaleSchedulerPlanWrite(built)) {
+      return { ok: false, errors: built.errors, warnings: live.context.warnings };
+    }
+
+    const freshLive = await buildCurrentLiveSchedulingContext(options);
+    if (!freshLive.ok) return freshLive;
+    const accepted = await loadSchedulerPlanState();
+    if (accepted.status === 'invalid' || accepted.status === 'error') {
+      return { ok: false, errors: accepted.errors, warnings: freshLive.context.warnings };
+    }
+    if (accepted.status === 'ok') {
+      return {
+        ok: true,
+        mode: 'loaded',
+        plan: accepted.plan,
+        titleByTargetId: freshLive.context.titleByTargetId,
+        updatedAt: accepted.updatedAt,
+        warnings: freshLive.context.warnings,
+      };
+    }
+
+    const retried = await repairAndPersistSchedulerPlan({
+      nextInput: freshLive.context.input,
+      now: freshLive.now,
+      reason: 'Create the current private plan from live scheduling information.',
+      trigger: 'manualReplan',
+    }, undefined, undefined, undefined, freshLive.context.calendarSourceSnapshot, freshLive.context.canonicalInputSnapshot, freshLive.context.schedulerStateSnapshot);
+    if (!retried.ok) {
+      return {
+        ok: false,
+        ...(retried.conflict ? { conflict: retried.conflict } : {}),
+        errors: retried.errors,
+        warnings: freshLive.context.warnings,
+      };
+    }
+    return {
+      ok: true,
+      mode: retried.mode,
+      plan: retried.plan,
+      titleByTargetId: freshLive.context.titleByTargetId,
+      updatedAt: retried.updatedAt,
+      warnings: freshLive.context.warnings,
+    };
   }
 
   return {
@@ -499,30 +594,41 @@ export async function ensureCurrentPrivatePlan(
 export async function repairCurrentPrivatePlan(
   request: PrivatePlanRepairRequest,
 ): Promise<PrivatePlanActionResult> {
-  const live = await buildCurrentLiveSchedulingContext(request);
-  if (!live.ok) return live;
-  const repaired = await repairAndPersistSchedulerPlan({
-    nextInput: live.context.input,
-    reason: request.reason,
-    trigger: request.trigger,
-    now: live.now,
-    ...(request.releasePlacementIds ? { releasePlacementIds: request.releasePlacementIds } : {}),
-    ...(request.surfacedPlacementIds ? { surfacedPlacementIds: request.surfacedPlacementIds } : {}),
-    ...(request.pinnedPlacementIds ? { pinnedPlacementIds: request.pinnedPlacementIds } : {}),
-  }, undefined, undefined, undefined, live.context.calendarSourceSnapshot);
+  const attempt = async (): Promise<PrivatePlanActionResult> => {
+    const live = await buildCurrentLiveSchedulingContext(request);
+    if (!live.ok) return live;
+    const repaired = await repairAndPersistSchedulerPlan({
+      nextInput: live.context.input,
+      reason: request.reason,
+      trigger: request.trigger,
+      now: live.now,
+      ...(request.releasePlacementIds ? { releasePlacementIds: request.releasePlacementIds } : {}),
+      ...(request.surfacedPlacementIds ? { surfacedPlacementIds: request.surfacedPlacementIds } : {}),
+      ...(request.pinnedPlacementIds ? { pinnedPlacementIds: request.pinnedPlacementIds } : {}),
+    }, undefined, undefined, undefined, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, live.context.schedulerStateSnapshot);
 
-  if (!repaired.ok) {
-    return { ok: false, errors: repaired.errors, warnings: live.context.warnings };
-  }
+    if (!repaired.ok) {
+      return {
+        ok: false,
+        ...(repaired.conflict ? { conflict: repaired.conflict } : {}),
+        errors: repaired.errors,
+        warnings: live.context.warnings,
+      };
+    }
 
-  return {
-    ok: true,
-    mode: repaired.mode,
-    plan: repaired.plan,
-    titleByTargetId: live.context.titleByTargetId,
-    updatedAt: repaired.updatedAt,
-    warnings: live.context.warnings,
+    return {
+      ok: true,
+      mode: repaired.mode,
+      plan: repaired.plan,
+      titleByTargetId: live.context.titleByTargetId,
+      updatedAt: repaired.updatedAt,
+      warnings: live.context.warnings,
+    };
   };
+
+  const first = await attempt();
+  if (first.ok || first.conflict !== 'stale') return first;
+  return attempt();
 }
 
 export async function undoCurrentPrivatePlan(

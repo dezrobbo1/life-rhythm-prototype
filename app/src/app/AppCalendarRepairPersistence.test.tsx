@@ -49,8 +49,8 @@ const calendar = [
   'VERSION:2.0',
   'BEGIN:VEVENT',
   'UID:gate6f-meeting',
-  'DTSTART:20260920T100000Z',
-  'DTEND:20260920T110000Z',
+  'DTSTART:20260920T100000',
+  'DTEND:20260920T110000',
   'SUMMARY:Gate 6F meeting',
   'END:VEVENT',
   'END:VCALENDAR',
@@ -182,7 +182,7 @@ describe('persisted calendar repair attention', () => {
       'The flexible private plan needs repair after a calendar change.',
     );
     expect(within(later).queryByText('Stale flexible placement')).toBeNull();
-    expect(within(later).getByText('Gate 6F meeting')).toBeTruthy();
+    expect(await within(later).findByText('Gate 6F meeting')).toBeTruthy();
     expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
     expect(planPut).not.toHaveBeenCalled();
     expect(planUpdate).not.toHaveBeenCalled();

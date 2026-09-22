@@ -14,6 +14,11 @@ import {
 import { LifeRhythmDatabase } from './db';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
+  canonicalSchedulingInputSnapshot,
+  readCanonicalSchedulingInputRows,
+  type CanonicalSchedulingInputSnapshot,
+} from './schedulerCanonicalInputSnapshot';
+import {
   schedulerPlanStateRecordSchema,
   type SchedulerPlanStateRecord,
 } from './schedulerPlanStateSchema';
@@ -57,16 +62,35 @@ export type SchedulerPlanStateLoadResult =
   | { status: 'invalid'; errors: string[] }
   | { status: 'error'; errors: string[] };
 
+export type SchedulerPlanStateExpectation = Extract<
+  SchedulerPlanStateLoadResult,
+  { status: 'missing' | 'ok' }
+>;
+
 export type SchedulerPlanStateWriteResult =
   | ({ ok: true; plan: SchedulerPlan; updatedAt: string } & SchedulerStateFields)
-  | { ok: false; errors: string[] };
+  | { ok: false; errors: string[]; conflict?: 'stale' };
 
 export type SchedulerPlanPersistActionResult =
   | ({ ok: true; mode: 'built' | 'repaired' | 'undone'; plan: SchedulerPlan; updatedAt: string } & SchedulerStateFields)
-  | { ok: false; errors: string[] };
+  | { ok: false; errors: string[]; conflict?: 'stale' };
 
 const STALE_SCHEDULER_WRITE_ERROR =
   'schedulerPlanState: Scheduling inputs changed before the repaired plan could be saved.';
+
+function staleSchedulerWriteResult() {
+  return {
+    ok: false as const,
+    conflict: 'stale' as const,
+    errors: [STALE_SCHEDULER_WRITE_ERROR],
+  };
+}
+
+export function isStaleSchedulerPlanWrite(
+  result: SchedulerPlanPersistActionResult,
+): result is Extract<SchedulerPlanPersistActionResult, { ok: false }> & { conflict: 'stale' } {
+  return !result.ok && result.conflict === 'stale';
+}
 
 function issuesToMessages(issues: Array<{ message: string; path: Array<string | number> }>) {
   return issues.map((issue) => {
@@ -119,13 +143,22 @@ function loadedStateRecord(
 
 function storedStateMatchesLoaded(
   stored: unknown,
-  loaded: Extract<SchedulerPlanStateLoadResult, { status: 'missing' | 'ok' }>,
+  loaded: SchedulerPlanStateExpectation,
 ) {
   if (loaded.status === 'missing') return stored === undefined;
 
   const parsed = schedulerPlanStateRecordSchema.safeParse(stored);
   if (!parsed.success) return false;
   return JSON.stringify(parsed.data) === JSON.stringify(loadedStateRecord(loaded));
+}
+
+function loadedStateMatchesExpected(
+  loaded: SchedulerPlanStateExpectation,
+  expected: SchedulerPlanStateExpectation,
+) {
+  if (loaded.status !== expected.status) return false;
+  if (loaded.status === 'missing' || expected.status === 'missing') return true;
+  return JSON.stringify(loadedStateRecord(loaded)) === JSON.stringify(loadedStateRecord(expected));
 }
 
 function storedCalendarMatchesSnapshot(
@@ -147,6 +180,7 @@ async function saveSchedulerPlanStateIfCurrent(
   updatedAt: string,
   fields: SchedulerStateFields,
   calendarSourceSnapshot?: CalendarSourceSnapshot,
+  canonicalInputSnapshot?: CanonicalSchedulingInputSnapshot,
 ): Promise<SchedulerPlanStateWriteResult> {
   const candidate = validatedSchedulerPlanStateRecord(plan, updatedAt, fields);
   if (!candidate.success) {
@@ -160,7 +194,7 @@ async function saveSchedulerPlanStateIfCurrent(
       !fields.calendarRepairPendingAt &&
       calendarSourceSnapshot === undefined
     ) {
-      return { ok: false, errors: [STALE_SCHEDULER_WRITE_ERROR] };
+      return staleSchedulerWriteResult();
     }
     return saveSchedulerPlanState(plan, store, updatedAt, fields);
   }
@@ -168,25 +202,39 @@ async function saveSchedulerPlanStateIfCurrent(
   try {
     return await store.transaction(
       'rw',
-      store.schedulerPlanState,
-      store.calendarSources,
+      [
+        store.schedulerPlanState,
+        store.calendarSources,
+        store.settings,
+        store.activeTasks,
+        store.taskPoolItems,
+        store.rhythmTemplates,
+        store.softPlacements,
+      ],
       async () => {
         const latest = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
         if (!storedStateMatchesLoaded(latest, expected)) {
-          return { ok: false as const, errors: [STALE_SCHEDULER_WRITE_ERROR] };
+          return staleSchedulerWriteResult();
         }
 
         if (calendarSourceSnapshot !== undefined) {
           const calendar = await store.calendarSources.get(CURRENT_CALENDAR_SOURCE_ID);
           if (!storedCalendarMatchesSnapshot(calendar, calendarSourceSnapshot)) {
-            return { ok: false as const, errors: [STALE_SCHEDULER_WRITE_ERROR] };
+            return staleSchedulerWriteResult();
           }
         } else if (
           expected.status === 'ok' &&
           expected.calendarRepairPendingAt &&
           !fields.calendarRepairPendingAt
         ) {
-          return { ok: false as const, errors: [STALE_SCHEDULER_WRITE_ERROR] };
+          return staleSchedulerWriteResult();
+        }
+
+        if (canonicalInputSnapshot !== undefined) {
+          const latestCanonicalRows = await readCanonicalSchedulingInputRows(store);
+          if (canonicalSchedulingInputSnapshot(latestCanonicalRows) !== canonicalInputSnapshot) {
+            return staleSchedulerWriteResult();
+          }
         }
 
         await store.schedulerPlanState.put(candidate.data);
@@ -316,11 +364,17 @@ export async function buildAndPersistSchedulerPlan(
   updatedAt = new Date().toISOString(),
   dayModeContext?: SchedulerDayModeContext,
   calendarSourceSnapshot?: CalendarSourceSnapshot,
+  canonicalInputSnapshot?: CanonicalSchedulingInputSnapshot,
+  expectedSchedulerState?: SchedulerPlanStateExpectation,
 ): Promise<SchedulerPlanPersistActionResult> {
-  const current = await loadSchedulerPlanState(store);
-  if (current.status === 'invalid' || current.status === 'error') {
-    return { ok: false, errors: current.errors };
+  const observed = await loadSchedulerPlanState(store);
+  if (observed.status === 'invalid' || observed.status === 'error') {
+    return { ok: false, errors: observed.errors };
   }
+  if (expectedSchedulerState && !loadedStateMatchesExpected(observed, expectedSchedulerState)) {
+    return staleSchedulerWriteResult();
+  }
+  const current = expectedSchedulerState ?? observed;
 
   try {
     const plan = scheduler.buildPlan(input);
@@ -329,7 +383,7 @@ export async function buildAndPersistSchedulerPlan(
       ...(current.status === 'ok' && current.calendarRepairPendingAt
         ? { calendarRepairPendingAt: current.calendarRepairPendingAt }
         : {}),
-    }, calendarSourceSnapshot);
+    }, calendarSourceSnapshot, canonicalInputSnapshot);
 
     return saved.ok
       ? { ...saved, mode: 'built' }
@@ -348,12 +402,17 @@ export async function repairAndPersistSchedulerPlan(
   updatedAt = new Date().toISOString(),
   nextDayModeContext?: SchedulerDayModeContext | null,
   calendarSourceSnapshot?: CalendarSourceSnapshot,
+  canonicalInputSnapshot?: CanonicalSchedulingInputSnapshot,
+  expectedSchedulerState?: SchedulerPlanStateExpectation,
 ): Promise<SchedulerPlanPersistActionResult> {
-  const current = await loadSchedulerPlanState(store);
-
-  if (current.status === 'invalid' || current.status === 'error') {
-    return { ok: false, errors: current.errors };
+  const observed = await loadSchedulerPlanState(store);
+  if (observed.status === 'invalid' || observed.status === 'error') {
+    return { ok: false, errors: observed.errors };
   }
+  if (expectedSchedulerState && !loadedStateMatchesExpected(observed, expectedSchedulerState)) {
+    return staleSchedulerWriteResult();
+  }
+  const current = expectedSchedulerState ?? observed;
 
   try {
     const safeChange = change.now
@@ -372,7 +431,7 @@ export async function repairAndPersistSchedulerPlan(
     const saved = await saveSchedulerPlanStateIfCurrent(plan, current, store, updatedAt, {
       dayModeContext,
       ...(current.status === 'ok' ? { undoDayModeContext: previousContext ?? null } : {}),
-    }, calendarSourceSnapshot);
+    }, calendarSourceSnapshot, canonicalInputSnapshot);
 
     if (!saved.ok) {
       return saved;

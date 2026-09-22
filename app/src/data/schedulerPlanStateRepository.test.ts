@@ -331,6 +331,7 @@ describe('persisted Gate 4 scheduler plan state', () => {
 
       expect(repaired).toEqual({
         ok: false,
+        conflict: 'stale',
         errors: ['schedulerPlanState: Scheduling inputs changed before the repaired plan could be saved.'],
       });
       expect(await database.schedulerPlanState.get('current')).toEqual(beforeRepair);
@@ -381,6 +382,7 @@ describe('persisted Gate 4 scheduler plan state', () => {
 
       expect(built).toEqual({
         ok: false,
+        conflict: 'stale',
         errors: ['schedulerPlanState: Scheduling inputs changed before the repaired plan could be saved.'],
       });
       expect(await database.schedulerPlanState.get('current')).toBeUndefined();
@@ -429,6 +431,7 @@ describe('persisted Gate 4 scheduler plan state', () => {
 
       expect(undone).toEqual({
         ok: false,
+        conflict: 'stale',
         errors: ['schedulerPlanState: Scheduling inputs changed before the repaired plan could be saved.'],
       });
       const after = await loadSchedulerPlanState(database);

@@ -12,6 +12,7 @@ import {
 } from './schedulerPlanCoordinator';
 import {
   loadSchedulerPlanState,
+  isStaleSchedulerPlanWrite,
   repairAndPersistSchedulerPlan,
   undoPersistedSchedulerRepair,
   type SchedulerDayModeContext,
@@ -50,7 +51,7 @@ export type ReducedDayActionResult =
       updatedAt?: string;
       warnings: string[];
     }
-  | { ok: false; errors: string[]; warnings: string[] };
+  | { ok: false; conflict?: 'stale'; errors: string[]; warnings: string[] };
 
 function targetId(placement: InternalPlacement): string {
   return placement.targetKind === 'rhythm'
@@ -190,6 +191,7 @@ async function proposedReducedDay(options: ReducedDayActionOptions) {
     live,
     policy,
     preview: previewFromPlans(before, plan, live.context.titleByTargetId, live.now.date),
+    saved,
   };
 }
 
@@ -211,6 +213,14 @@ export async function previewReduceToday(
 export async function applyReduceToday(
   options: ReducedDayActionOptions = {},
 ): Promise<ReducedDayActionResult> {
+  const first = await attemptApplyReduceToday(options);
+  if (first.ok || first.conflict !== 'stale') return first;
+  return attemptApplyReduceToday(options);
+}
+
+async function attemptApplyReduceToday(
+  options: ReducedDayActionOptions,
+): Promise<ReducedDayActionResult> {
   // Rebuild everything at click time. The earlier preview is never accepted as input.
   const proposed = await proposedReducedDay(options);
   if (!proposed.ok) return proposed;
@@ -220,8 +230,15 @@ export async function applyReduceToday(
     now: proposed.live.now,
     reason: reducedDayReason,
     trigger: 'userCorrection',
-  }, undefined, undefined, context, proposed.live.context.calendarSourceSnapshot);
-  if (!saved.ok) return { ok: false, errors: saved.errors, warnings: proposed.live.context.warnings };
+  }, undefined, undefined, context, proposed.live.context.calendarSourceSnapshot, proposed.live.context.canonicalInputSnapshot, proposed.saved);
+  if (!saved.ok) {
+    return {
+      ok: false,
+      ...(isStaleSchedulerPlanWrite(saved) ? { conflict: 'stale' as const } : {}),
+      errors: saved.errors,
+      warnings: proposed.live.context.warnings,
+    };
+  }
   return {
     ok: true,
     date: proposed.live.now.date,
@@ -235,6 +252,14 @@ export async function applyReduceToday(
 
 export async function returnTodayToNormal(
   options: PrivatePlanCoordinatorOptions = {},
+): Promise<ReducedDayActionResult> {
+  const first = await attemptReturnTodayToNormal(options);
+  if (first.ok || first.conflict !== 'stale') return first;
+  return attemptReturnTodayToNormal(options);
+}
+
+async function attemptReturnTodayToNormal(
+  options: PrivatePlanCoordinatorOptions,
 ): Promise<ReducedDayActionResult> {
   const live = await buildCurrentLiveSchedulingContext({
     ...options,
@@ -260,8 +285,15 @@ export async function returnTodayToNormal(
     reason: 'Today returned to Normal using current live scheduling information.',
     trigger: 'userCorrection',
     ...(reducedPlacementsToday?.length ? { releasePlacementIds: reducedPlacementsToday } : {}),
-  }, undefined, undefined, null, live.context.calendarSourceSnapshot);
-  if (!saved.ok) return { ok: false, errors: saved.errors, warnings: live.context.warnings };
+  }, undefined, undefined, null, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, current);
+  if (!saved.ok) {
+    return {
+      ok: false,
+      ...(isStaleSchedulerPlanWrite(saved) ? { conflict: 'stale' as const } : {}),
+      errors: saved.errors,
+      warnings: live.context.warnings,
+    };
+  }
   return {
     ok: true,
     date: live.now.date,

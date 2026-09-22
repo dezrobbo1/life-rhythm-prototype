@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createAuthLocalDataNamespace,
   getCurrentLifeRhythmDatabase,
@@ -7,9 +7,10 @@ import {
   setCurrentLocalDataNamespace,
 } from './localDataNamespace';
 import { activeTaskSchema } from './schemas';
-import { ensureCurrentPrivatePlan } from './schedulerPlanCoordinator';
+import { ensureCurrentPrivatePlan, repairCurrentPrivatePlan } from './schedulerPlanCoordinator';
 import { createDefaultSettings, saveSettings } from './settingsRepository';
 import { maintainCurrentPrivatePlanForTimeDisruption } from './schedulerTimeDisruption';
+import { scheduler } from '../domain/primaryScheduler';
 
 const monday = '2026-09-07';
 const timezone = 'Australia/Perth';
@@ -28,7 +29,7 @@ function options(hour: number, minute: number) {
   };
 }
 
-function activeTask(id: string, status: 'active' | 'inProgress') {
+function activeTask(id: string, status: 'active' | 'inProgress' | 'parked') {
   return activeTaskSchema.parse({
     id,
     source: 'adhoc',
@@ -151,5 +152,48 @@ describe('live Gate 4 time disruption maintenance', () => {
 
     const check = await maintainCurrentPrivatePlanForTimeDisruption(options(9, 1));
     expect(check).toMatchObject({ ok: true, action: 'none' });
+  });
+
+  it('recomputes a stale disruption from current lifecycle truth before it can write', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    await database.activeTasks.put(activeTask('task-a', 'active'));
+    await database.activeTasks.put(activeTask('task-b', 'active'));
+    const before = await createInitialPlan();
+    expect(placementFor(before, 'task-a')).toBeTruthy();
+
+    const originalGet = database.schedulerPlanState.get.bind(database.schedulerPlanState);
+    let getCount = 0;
+    vi.spyOn(database.schedulerPlanState, 'get').mockImplementation((async (key: string) => {
+      getCount += 1;
+      const current = await originalGet(key);
+      if (getCount === 3) {
+        await database.activeTasks.put(activeTaskSchema.parse({
+          ...activeTask('task-a', 'parked'),
+          updatedAt: '2026-09-07T01:20:00.000Z',
+        }));
+      }
+      return current;
+    }) as never);
+    const repairPlan = vi.spyOn(scheduler, 'repairPlan');
+    const put = vi.spyOn(database.schedulerPlanState, 'put');
+
+    const background = await maintainCurrentPrivatePlanForTimeDisruption(options(9, 21));
+
+    expect(background).toMatchObject({ ok: true, action: 'none' });
+    expect(repairPlan).toHaveBeenCalledTimes(1);
+    expect(put).not.toHaveBeenCalled();
+    expect(await database.activeTasks.get('task-a')).toEqual(expect.objectContaining({ status: 'parked' }));
+
+    const lifecycleRepair = await repairCurrentPrivatePlan({
+      ...options(9, 21),
+      reason: 'Task was parked by the user.',
+      trigger: 'userCorrection',
+    });
+    expect(lifecycleRepair.ok).toBe(true);
+    if (!lifecycleRepair.ok) return;
+    expect(lifecycleRepair.plan.placements.filter((placement) =>
+      placement.intentionId === 'task-a' && placement.date === monday && placement.end > '09:21'
+    )).toEqual([]);
+    expect(await database.activeTasks.get('task-a')).toEqual(expect.objectContaining({ status: 'parked' }));
   });
 });

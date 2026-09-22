@@ -219,9 +219,14 @@ export default function App() {
 
         const previouslyObserved = observedCalendarRepairPendingRef.current;
         observedCalendarRepairPendingRef.current = repairPending;
-        if (previouslyObserved !== null && previouslyObserved !== repairPending) {
+        if (
+          (previouslyObserved === null && repairPending) ||
+          (previouslyObserved !== null && previouslyObserved !== repairPending)
+        ) {
           // This is a presentation refresh only. Today rereads current facts;
           // the live observer never builds, repairs or writes a private plan.
+          // An initially pending observation also reconciles a Today read that
+          // may have started just before another tab committed the marker.
           setPlanRevision((revision) => revision + 1);
         }
       },
