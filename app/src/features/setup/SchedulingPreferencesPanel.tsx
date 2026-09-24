@@ -368,7 +368,10 @@ export function SchedulingPreferencesPanel({
         <div className="setup-validation-summary" role="alert">
           <strong>Saved scheduling preferences need attention.</strong>
           <p>
-            {loadResult.errors.join(' ')} Existing bytes were not replaced. You can export them or use the confirmed clear action below.
+            {loadResult.errors.join(' ')} Existing bytes were not replaced.{' '}
+            {loadResult.status === 'invalid'
+              ? 'You can export them or use the confirmed clear action below.'
+              : 'Retry after storage becomes readable; destructive recovery is disabled while bytes cannot be read.'}
           </p>
         </div>
       ) : preferences.length === 0 ? (
@@ -528,7 +531,11 @@ export function SchedulingPreferencesPanel({
           />
         </label>
         <Button
-          disabled={busy || clearInput !== DELETE_EXPLICIT_PREFERENCES_CONFIRMATION}
+          disabled={
+            busy ||
+            loadResult.status === 'readFailed' ||
+            clearInput !== DELETE_EXPLICIT_PREFERENCES_CONFIRMATION
+          }
           onClick={() => void clearPreferences()}
         >
           Clear scheduling preferences

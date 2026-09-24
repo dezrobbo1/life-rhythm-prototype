@@ -175,6 +175,12 @@ export async function commitExplicitPreferenceReset(
       async () => {
         const store = transactionPassthroughStore(database);
         const loaded: ExplicitPreferenceLoadResult = await loadExplicitPreferencesResult(store);
+        if (loaded.status === 'readFailed') {
+          return {
+            ok: false,
+            errors: ['explicitPreferences: Saved preferences could not be read, so nothing was cleared.'],
+          };
+        }
         const plan = await database.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
         const targets = loaded.status === 'ok'
           ? dedupeTargets(loaded.preferences.map(targetForPreference))

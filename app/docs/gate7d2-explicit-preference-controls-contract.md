@@ -71,7 +71,7 @@ Prefer and Avoid matches are presented distinctly; an Avoid overlap is never des
 
 ## Failure and recovery
 
-Malformed or unreadable preference state is not presented as an empty healthy list. Ordinary create/edit/delete controls are disabled while recovery state is unhealthy, but export and confirmed clear remain reachable.
+Malformed or unreadable preference state is not presented as an empty healthy list. Ordinary create/edit/delete controls are disabled while recovery state is unhealthy. Malformed-but-readable bytes can still be exported and cleared with exact confirmation; a true read failure keeps export visible but disables destructive clear until the bytes can be read again.
 
 Stale target-version edits fail visibly and require a reread rather than silently overwriting another edit.
 

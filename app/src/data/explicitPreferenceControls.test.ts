@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   commitExplicitPreferenceReset,
   DELETE_EXPLICIT_PREFERENCES_CONFIRMATION,
@@ -150,6 +150,41 @@ describe('Gate 7D2 explicit preference controls', () => {
     expect(catalogue.warnings.join(' ')).toContain('1 skipped');
   });
 
+  it('fails closed on a preference read failure instead of attempting recovery deletion', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    await database.settings.put({
+      id: EXPLICIT_PREFERENCES_RECORD_ID,
+      recordType: 'explicitPreferenceStore',
+      formatVersion: 1,
+      appVersion: '1.4.6',
+      createdAt: first,
+      updatedAt: first,
+      preferences: [],
+    } as never);
+    const before = await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID);
+    const originalGet = database.settings.get.bind(database.settings);
+    let preferenceReads = 0;
+    const getSpy = vi.spyOn(database.settings, 'get').mockImplementation((async (key: string) => {
+      if (key === EXPLICIT_PREFERENCES_RECORD_ID) {
+        preferenceReads += 1;
+        if (preferenceReads === 1) throw new Error('synthetic read failure');
+      }
+      return originalGet(key);
+    }) as never);
+
+    const reset = await commitExplicitPreferenceReset(
+      DELETE_EXPLICIT_PREFERENCES_CONFIRMATION,
+      database,
+      later,
+    );
+
+    getSpy.mockRestore();
+    expect(reset.ok).toBe(false);
+    if (reset.ok) return;
+    expect(reset.errors.join(' ')).toContain('could not be read');
+    expect(preferenceReads).toBe(1);
+    expect(await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID)).toEqual(before);
+  });
   it('does not clear anything without the exact confirmation phrase', async () => {
     await upsertExplicitPreference({
       id: 'prefer-admin',

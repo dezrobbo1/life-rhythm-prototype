@@ -158,6 +158,28 @@ describe('Gate 7D2 SchedulingPreferencesPanel', () => {
     );
   });
 
+  it('keeps export visible but disables destructive clear while preference bytes are unreadable', async () => {
+    preferenceMocks.load.mockResolvedValue({
+      status: 'readFailed',
+      errors: ['explicitPreferences: Preferences could not be read.'],
+    });
+    controlMocks.catalogue.mockResolvedValue(healthyCatalogue());
+    backupMocks.backup.mockResolvedValue({
+      ok: false,
+      errors: ['explicitPreferences: Preferences could not be exported.'],
+    });
+    const user = userEvent.setup();
+
+    render(<SchedulingPreferencesPanel />);
+
+    const alert = await screen.findByRole('alert');
+    expect(screen.getByRole('button', { name: 'Export scheduling preferences' })).toBeTruthy();
+    const clearInput = screen.getByLabelText(/clear scheduling preferences/i);
+    await user.type(clearInput, 'DELETE EXPLICIT PREFERENCES');
+    expect((screen.getByRole('button', { name: 'Clear scheduling preferences' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(alert.textContent).toContain('destructive recovery is disabled');
+    expect(controlMocks.reset).not.toHaveBeenCalled();
+  });
   it('keeps recovery controls available when the preference record is malformed', async () => {
     preferenceMocks.load.mockResolvedValue({
       status: 'invalid',
