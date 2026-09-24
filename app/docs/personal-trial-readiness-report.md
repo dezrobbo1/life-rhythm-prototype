@@ -1,5 +1,13 @@
 # Personal Trial Readiness Report
 
+> **SUPERSEDED FOR GATE 8 — HISTORICAL PR #104-ERA TRIAL GUIDE**
+>
+> Do not use this document to start the current adaptive MVP trial. It describes the earlier manual soft-suggestion/open-capacity product and contains implementation boundaries that are no longer true, including that automatic scheduling and calendar-aware planning were not ready.
+>
+> The current delivery authority is `MVP_PLAN.md`. Gate 7 exited PASS on 2026-09-25 at main `4bde6a9fb690c0a34934914d05a52013e7e0b210`. The next bounded milestone is **Gate 8A — Personal Trial Readiness + Evidence Protocol**, which must produce a new readiness decision against the current automatic scheduler, repair, explicit-preference and duration-learning product.
+>
+> The remainder of this file is retained unchanged as historical trial evidence.
+
 Status: Conditional readiness for a private Personal Trial v1 after merged PR #104 and post-merge verification; Task Pool backup follow-up is implemented in the current working tree
 
 Scope: Local-first Life Rhythm `/app` through merged PR #104 on `main`, with the narrow Task Pool export/check follow-up in this working tree
