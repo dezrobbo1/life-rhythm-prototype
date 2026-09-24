@@ -12,7 +12,7 @@ import type {
   SchedulerRepairTrigger,
   SchedulingDomainModel,
   SchedulingInterval,
-  type InternalPlacement,
+  InternalPlacement,
 } from '../domain/schedulingModel';
 import { readPersistedCalendarEvents } from './calendarSourceRepository';
 import {
