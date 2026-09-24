@@ -209,11 +209,11 @@ Status (Gate 6F, 2026-09-22): **Complete.** Gate 6A–6F and the final owner-pro
 
 Goal: make Life Rhythm start learning without building a machine-learning platform.
 
-Status (Gate 7E): **The first bounded behavioural-learning capability is implemented through this slice.** Gate 7A records trusted observed behaviour; Gate 7B derives descriptive statistics; Gate 7C–7D provide explicit preference authority and controls; Gate 7E adds template-scoped duration learning from trusted positive completion durations, conservative scheduler projection, provenance, bounded confidence, and per-template user correction/disable/reset. Its authority and failure semantics are recorded in `app/docs/gate7e-duration-learning-contract.md`. Gate 7 remains subject to an exit review before beginning the personal-trial gate.
+Status (Gate 7 exit review, 2026-09-25): **Complete — PASS.** Gate 7A records trusted observed behaviour; Gate 7B derives transparent descriptive statistics; Gate 7C–7D establish explicit-preference authority, live scheduling integration and user controls; Gate 7E adds the first bounded scheduler-adaptive learning capability by using trusted template-linked completion history to improve Normal duration reservations. The learnt choice is explainable through persisted provenance and correctable through per-template disable, user correction and reset controls. The exit evidence and remaining follow-ups are recorded in `app/docs/gate7-exit-report.md`.
 
-Gate 7E deliberately does not infer preferred time-of-day, category-level duration, psychological cause, or other behavioural tendencies. Broader learning ideas listed below are not prerequisites unless the Gate 7 exit review finds that the duration-learning slice does not satisfy the stated exit condition.
+Gate 7E deliberately does not infer preferred time-of-day, category-level duration, psychological cause or broader behavioural tendencies. Repeated-move inference, recency/decay, subjective restoration learning and a broad learnt-about-me surface remain possible later work, but are not prerequisites for Gate 7 exit.
 
-Work:
+Broader candidate work (not all required for exit):
 
 - actual-duration statistics and uncertainty ranges;
 - repeated-move/rejection statistics;
@@ -229,6 +229,8 @@ No contextual bandits, reinforcement learning, neural network or psychological p
 Exit condition: at least a small set of scheduling choices can improve from the user's own history while remaining explainable and correctable.
 
 ### Gate 8 — MVP personal trial and evidence gate
+
+Status (2026-09-25): **Current programme.** The next bounded milestone is **Gate 8A — Personal Trial Readiness + Evidence Protocol**. Before Day 1, reconcile the obsolete PR #104-era trial guidance, make Gate 7E duration-control state portable through a bounded export/portability path, define low-burden measurement for the Gate 8 outcomes below, and perform current desktop/narrow/mobile/keyboard readiness checks. Do not add another behavioural-learning mechanism merely to expand Gate 7.
 
 Goal: decide whether the product thesis works before adding AI complexity.
 
