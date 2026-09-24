@@ -125,6 +125,8 @@ function repairAttribution(repair: SchedulerRepairMetadata) {
       return 'A planned start passing changed the private plan.';
     case 'completionChanged':
       return 'Completion changed the private plan.';
+    case 'preferenceChanged':
+      return 'A scheduling preference changed the private plan.';
     case 'userCorrection':
       return 'A private-plan choice changed the plan.';
     case 'manualReplan':

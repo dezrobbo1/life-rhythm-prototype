@@ -53,6 +53,7 @@ type SchedulerModeFields = {
 
 type SchedulerStateFields = SchedulerModeFields & {
   calendarRepairPendingAt?: string;
+  preferenceRepairPendingAt?: string;
 };
 
 export type CalendarSourceSnapshot = {
@@ -62,6 +63,8 @@ export type CalendarSourceSnapshot = {
 
 export const CALENDAR_REPAIR_PENDING_MESSAGE =
   'Calendar change was saved, but the flexible private plan could not be repaired.';
+export const PREFERENCE_REPAIR_PENDING_MESSAGE =
+  'Scheduling preference was saved, but the flexible private plan could not be repaired.';
 
 export type SchedulerPlanStateLoadResult =
   | { status: 'missing' }
@@ -114,6 +117,9 @@ function stateFields(record: SchedulerStateFields): SchedulerStateFields {
   return {
     ...(record.calendarRepairPendingAt
       ? { calendarRepairPendingAt: record.calendarRepairPendingAt }
+      : {}),
+    ...(record.preferenceRepairPendingAt
+      ? { preferenceRepairPendingAt: record.preferenceRepairPendingAt }
       : {}),
     ...(record.dayModeContext ? { dayModeContext: { ...record.dayModeContext } } : {}),
     ...(record.undoDayModeContext !== undefined
@@ -364,6 +370,39 @@ export async function markCalendarRepairPending(
   }
 }
 
+export async function markPreferenceRepairPending(
+  store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
+  detectedAt = new Date().toISOString(),
+): Promise<{ ok: true; persisted: boolean } | { ok: false; errors: string[] }> {
+  try {
+    const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
+
+    if (!stored) {
+      return { ok: true, persisted: false };
+    }
+
+    const candidate = schedulerPlanStateRecordSchema.safeParse({
+      ...stored,
+      preferenceRepairPendingAt: detectedAt,
+    });
+
+    if (!candidate.success) {
+      return { ok: false, errors: issuesToMessages(candidate.error.issues) };
+    }
+
+    const updated = await store.schedulerPlanState.update(
+      CURRENT_SCHEDULER_PLAN_STATE_ID,
+      { preferenceRepairPendingAt: candidate.data.preferenceRepairPendingAt },
+    );
+    return { ok: true, persisted: updated === 1 };
+  } catch {
+    return {
+      ok: false,
+      errors: ['schedulerPlanState: Preference repair attention could not be saved.'],
+    };
+  }
+}
+
 export async function clearSchedulerPlanState(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
 ): Promise<void> {
@@ -492,8 +531,11 @@ export async function undoPersistedSchedulerRepair(
   const reverted = scheduler.undoRepair(current.plan);
   const calendarRepairPendingAt = current.calendarRepairPendingAt ??
     (current.plan.repair?.trigger === 'calendarChanged' ? updatedAt : undefined);
+  const preferenceRepairPendingAt = current.preferenceRepairPendingAt ??
+    (current.plan.repair?.trigger === 'preferenceChanged' ? updatedAt : undefined);
   const saved = await saveSchedulerPlanStateIfCurrent(reverted, current, store, updatedAt, {
     calendarRepairPendingAt,
+    preferenceRepairPendingAt,
     dayModeContext: current.undoDayModeContext ?? undefined,
   }, undefined, undefined, [behaviourEventForSchedulerUndo(current.plan, updatedAt)]);
 

@@ -90,6 +90,7 @@ const schedulerRepairTriggerSchema = z.enum([
   'overrun',
   'missedStart',
   'completionChanged',
+  'preferenceChanged',
   'userCorrection',
   'manualReplan',
 ]);
@@ -180,6 +181,7 @@ export const schedulerPlanStateRecordSchema = z
     version: z.literal(1),
     updatedAt: strictIsoDateTimeSchema,
     calendarRepairPendingAt: strictIsoDateTimeSchema.optional(),
+    preferenceRepairPendingAt: strictIsoDateTimeSchema.optional(),
     dayModeContext: schedulerDayModeContextSchema.optional(),
     undoDayModeContext: schedulerDayModeContextSchema.nullable().optional(),
     plan: persistedSchedulerPlanSchema,

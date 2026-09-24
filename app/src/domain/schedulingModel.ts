@@ -228,6 +228,7 @@ export type SchedulerRepairTrigger =
   | 'overrun'
   | 'missedStart'
   | 'completionChanged'
+  | 'preferenceChanged'
   | 'userCorrection'
   | 'manualReplan';
 
