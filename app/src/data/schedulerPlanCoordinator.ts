@@ -506,7 +506,11 @@ export async function buildCurrentLiveSchedulingContext(
   const controlsHealthy = durationControls.status === 'missing' || durationControls.status === 'ok';
   const eventEvidence = durationEvents.status === 'readFailed'
     ? []
-    : deriveDurationLearningEvidence(durationEvents.events);
+    : deriveDurationLearningEvidence(
+        durationEvents.events.filter(
+          (event) => Date.parse(event.occurredAt) <= options.now.getTime(),
+        ),
+      );
   if (durationEvents.status === 'readFailed') {
     durationWarnings.push(...durationEvents.errors);
   } else if (durationEvents.status === 'partial') {
