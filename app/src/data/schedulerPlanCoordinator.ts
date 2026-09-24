@@ -13,8 +13,19 @@ import type {
   SchedulingDomainModel,
   SchedulingInterval,
   InternalPlacement,
+  AppliedDurationLearning,
 } from '../domain/schedulingModel';
 import { readPersistedCalendarEvents } from './calendarSourceRepository';
+import {
+  applyDurationLearningControls,
+  deriveDurationLearningEvidence,
+  durationLearningByTemplateId,
+  readDurationLearningEventsResult,
+} from './durationLearning';
+import {
+  createDurationLearningControlStore,
+  loadDurationLearningControlsResult,
+} from './durationLearningControlRepository';
 import {
   createExplicitPreferenceStore,
   explicitPreferenceRulesForScheduler,
@@ -65,6 +76,8 @@ export type LiveSchedulerContext = {
   schedulerStateSnapshot?: SchedulerPlanStateExpectation;
   titleByTargetId: Record<string, string>;
   warnings: string[];
+  durationLearningApplied: AppliedDurationLearning[];
+  durationLearningEventSnapshot?: string;
 };
 
 export type PrivatePlanActionResult =
@@ -372,6 +385,8 @@ export async function buildCurrentLiveSchedulingContext(
     calendarRead: Awaited<ReturnType<typeof readPersistedCalendarEvents>>;
     canonicalRows: Awaited<ReturnType<typeof readCanonicalSchedulingInputRows>>;
     explicitPreferences: Awaited<ReturnType<typeof loadExplicitPreferencesResult>>;
+    durationEvents: Awaited<ReturnType<typeof readDurationLearningEventsResult>>;
+    durationControls: Awaited<ReturnType<typeof loadDurationLearningControlsResult>>;
     savedPlan: Awaited<ReturnType<typeof loadSchedulerPlanState>> | null;
     settingsResult: Awaited<ReturnType<typeof loadSettingsResult>>;
   };
@@ -386,12 +401,23 @@ export async function buildCurrentLiveSchedulingContext(
         database.softPlacements,
         database.calendarSources,
         database.schedulerPlanState,
+        database.taskHistory,
       ],
       async () => {
-        const [settingsResult, canonicalRows, explicitPreferences, calendarRead, savedPlan] = await Promise.all([
+        const [
+          settingsResult,
+          canonicalRows,
+          explicitPreferences,
+          durationEvents,
+          durationControls,
+          calendarRead,
+          savedPlan,
+        ] = await Promise.all([
           loadSettingsResult(database, { persistMigration: false }),
           readCanonicalSchedulingInputRows(database),
           loadExplicitPreferencesResult(createExplicitPreferenceStore(database)),
+          readDurationLearningEventsResult(database),
+          loadDurationLearningControlsResult(createDurationLearningControlStore(database)),
           readPersistedCalendarEvents({
             targetTimezone: timezone,
             windowStartDate: startDate,
@@ -399,7 +425,15 @@ export async function buildCurrentLiveSchedulingContext(
           }, database),
           options.planningPolicy ? Promise.resolve(null) : loadSchedulerPlanState(database),
         ]);
-        return { calendarRead, canonicalRows, explicitPreferences, savedPlan, settingsResult };
+        return {
+          calendarRead,
+          canonicalRows,
+          explicitPreferences,
+          durationEvents,
+          durationControls,
+          savedPlan,
+          settingsResult,
+        };
       },
     );
   } catch {
@@ -410,7 +444,15 @@ export async function buildCurrentLiveSchedulingContext(
     };
   }
 
-  const { calendarRead, canonicalRows, explicitPreferences, savedPlan, settingsResult } = consistentRead;
+  const {
+    calendarRead,
+    canonicalRows,
+    explicitPreferences,
+    durationEvents,
+    durationControls,
+    savedPlan,
+    settingsResult,
+  } = consistentRead;
 
   if (
     settingsResult.status === 'invalid' ||
@@ -460,12 +502,31 @@ export async function buildCurrentLiveSchedulingContext(
     return { ok: false, errors, warnings: [] };
   }
 
+  const durationWarnings: string[] = [];
+  const controlsHealthy = durationControls.status === 'missing' || durationControls.status === 'ok';
+  const eventEvidence = durationEvents.status === 'readFailed'
+    ? []
+    : deriveDurationLearningEvidence(durationEvents.events);
+  if (durationEvents.status === 'readFailed') {
+    durationWarnings.push(...durationEvents.errors);
+  } else if (durationEvents.status === 'partial') {
+    durationWarnings.push(
+      `Duration learning ignored ${durationEvents.invalidRecordCount} invalid behaviour record${durationEvents.invalidRecordCount === 1 ? '' : 's'}.`,
+    );
+  }
+  if (!controlsHealthy) {
+    durationWarnings.push(...durationControls.errors);
+  }
+  const durationLearningApplied = controlsHealthy
+    ? applyDurationLearningControls(eventEvidence, durationControls.controls)
+    : [];
   const base = projectCurrentStateToSchedulingDomain({
     settings: settingsResult.settings,
     activeTasks: activeTasks.data,
     taskPoolItems: taskPoolItems.data,
     rhythmTemplates: rhythmTemplates.data,
     softPlacements: softPlacements.data,
+    durationLearningByTemplateId: durationLearningByTemplateId(durationLearningApplied),
   });
   if (!('events' in calendarRead)) {
     return {
@@ -489,7 +550,10 @@ export async function buildCurrentLiveSchedulingContext(
     preferences: explicitPreferenceRulesForScheduler(explicitPreferences.preferences),
   };
   const candidateIntervals: CandidateSchedulingInterval[] = [];
-  const warnings: string[] = [...calendarRead.warnings.map((warning) => `Calendar: ${warning}`)];
+  const warnings: string[] = [
+    ...calendarRead.warnings.map((warning) => `Calendar: ${warning}`),
+    ...durationWarnings,
+  ];
 
   if (calendarRead.status === 'ok') {
     warnings.push(
@@ -555,9 +619,24 @@ export async function buildCurrentLiveSchedulingContext(
         : {}),
       titleByTargetId: titleMap(input),
       warnings: [...new Set(warnings)],
+      durationLearningApplied,
+      ...(durationEvents.status === 'readFailed'
+        ? {}
+        : { durationLearningEventSnapshot: durationEvents.eventSnapshot }),
     },
     now,
   };
+}
+
+function changedDurationLearningTemplateIds(
+  before: readonly AppliedDurationLearning[],
+  after: readonly AppliedDurationLearning[],
+) {
+  const beforeById = new Map(before.map((item) => [item.templateId, JSON.stringify(item)]));
+  const afterById = new Map(after.map((item) => [item.templateId, JSON.stringify(item)]));
+  return [...new Set([...beforeById.keys(), ...afterById.keys()])]
+    .filter((templateId) => beforeById.get(templateId) !== afterById.get(templateId))
+    .sort();
 }
 
 export async function ensureCurrentPrivatePlan(
@@ -588,6 +667,20 @@ export async function ensureCurrentPrivatePlan(
     });
   }
 
+  if (
+    current.status === 'ok' &&
+    changedDurationLearningTemplateIds(
+      current.durationLearningApplied ?? [],
+      live.context.durationLearningApplied,
+    ).length > 0
+  ) {
+    return repairCurrentPrivatePlan({
+      ...options,
+      reason: 'Apply current duration learning to the private plan.',
+      trigger: 'durationLearningChanged',
+    });
+  }
+
   if (current.status === 'ok') {
     return {
       ok: true,
@@ -604,7 +697,12 @@ export async function ensureCurrentPrivatePlan(
     now: live.now,
     reason: 'Create the current private plan from live scheduling information.',
     trigger: 'manualReplan',
-  }, undefined, undefined, undefined, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, current);
+  }, undefined, undefined, undefined, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, current, {
+    applied: live.context.durationLearningApplied,
+    ...(live.context.durationLearningEventSnapshot
+      ? { eventSnapshot: live.context.durationLearningEventSnapshot }
+      : {}),
+  });
   if (!built.ok) {
     if (!isStaleSchedulerPlanWrite(built)) {
       return { ok: false, errors: built.errors, warnings: live.context.warnings };
@@ -632,7 +730,12 @@ export async function ensureCurrentPrivatePlan(
       now: freshLive.now,
       reason: 'Create the current private plan from live scheduling information.',
       trigger: 'manualReplan',
-    }, undefined, undefined, undefined, freshLive.context.calendarSourceSnapshot, freshLive.context.canonicalInputSnapshot, freshLive.context.schedulerStateSnapshot);
+    }, undefined, undefined, undefined, freshLive.context.calendarSourceSnapshot, freshLive.context.canonicalInputSnapshot, freshLive.context.schedulerStateSnapshot, {
+      applied: freshLive.context.durationLearningApplied,
+      ...(freshLive.context.durationLearningEventSnapshot
+        ? { eventSnapshot: freshLive.context.durationLearningEventSnapshot }
+        : {}),
+    });
     if (!retried.ok) {
       return {
         ok: false,
@@ -675,7 +778,12 @@ export async function repairCurrentPrivatePlan(
       ...(request.releasePlacementIds ? { releasePlacementIds: request.releasePlacementIds } : {}),
       ...(request.surfacedPlacementIds ? { surfacedPlacementIds: request.surfacedPlacementIds } : {}),
       ...(request.pinnedPlacementIds ? { pinnedPlacementIds: request.pinnedPlacementIds } : {}),
-    }, undefined, undefined, undefined, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, live.context.schedulerStateSnapshot);
+    }, undefined, undefined, undefined, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, live.context.schedulerStateSnapshot, {
+      applied: live.context.durationLearningApplied,
+      ...(live.context.durationLearningEventSnapshot
+        ? { eventSnapshot: live.context.durationLearningEventSnapshot }
+        : {}),
+    });
 
     if (!repaired.ok) {
       return {

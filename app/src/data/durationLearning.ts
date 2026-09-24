@@ -1,6 +1,8 @@
 import { summariseDurations } from './behaviourStatistics';
 import type { DurationLearningControl } from './durationLearningControlSchema';
-import type { BehaviourEvent } from './schemas';
+import type { Table } from 'dexie';
+import type { AppliedDurationLearning } from '../domain/schedulingModel';
+import { behaviourEventSchema, type BehaviourEvent, type TaskHistory } from './schemas';
 
 export type DurationLearningConfidence = 'insufficient' | 'low' | 'moderate';
 
@@ -14,15 +16,71 @@ export type DurationLearningEvidence = {
   confidence: DurationLearningConfidence;
 };
 
-export type AppliedDurationLearning = {
-  templateId: string;
-  source: 'learned' | 'userOverride';
-  schedulerMinutes: number;
-  sampleCount: number;
-  confidence: 'low' | 'moderate' | 'user';
-  medianActualMinutes?: number;
-  upperQuartileActualMinutes?: number;
+export type DurationLearningEventReadResult =
+  | {
+      status: 'ok' | 'partial';
+      events: BehaviourEvent[];
+      invalidRecordCount: number;
+      eventSnapshot: string;
+    }
+  | { status: 'readFailed'; errors: string[] };
+
+type DurationLearningEventStore = {
+  taskHistory: Pick<Table<TaskHistory, string>, 'toArray'>;
 };
+
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (value === null || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, stableValue(entry)]),
+  );
+}
+
+export function durationLearningEventSnapshot(rows: readonly unknown[]) {
+  const behaviourRows = rows
+    .filter((row) =>
+      typeof row === 'object' &&
+      row !== null &&
+      (row as { recordKind?: unknown }).recordKind === 'behaviourEvent')
+    .map(stableValue)
+    .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+  return JSON.stringify(behaviourRows);
+}
+
+export async function readDurationLearningEventsResult(
+  store: DurationLearningEventStore,
+): Promise<DurationLearningEventReadResult> {
+  try {
+    const rows = await store.taskHistory.toArray();
+    let invalidRecordCount = 0;
+    const events = rows.flatMap((row) => {
+      if ((row as { recordKind?: unknown }).recordKind !== 'behaviourEvent') return [];
+      const parsed = behaviourEventSchema.safeParse(row);
+      if (!parsed.success) {
+        invalidRecordCount += 1;
+        return [];
+      }
+      return [parsed.data];
+    }).sort((left, right) =>
+      Date.parse(left.occurredAt) - Date.parse(right.occurredAt) ||
+      left.id.localeCompare(right.id));
+
+    return {
+      status: invalidRecordCount > 0 ? 'partial' : 'ok',
+      events,
+      invalidRecordCount,
+      eventSnapshot: durationLearningEventSnapshot(rows),
+    };
+  } catch {
+    return {
+      status: 'readFailed',
+      errors: ['durationLearning: Behaviour history could not be read; saved durations remain authoritative.'],
+    };
+  }
+}
 
 function confidenceFor(sampleCount: number): DurationLearningConfidence {
   if (sampleCount < 3) return 'insufficient';

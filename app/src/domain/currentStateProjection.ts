@@ -12,7 +12,7 @@ import type {
   InternalIntention,
   InternalPlacement,
   RhythmRequirement,
-  DurationLearningProjection,
+  AppliedDurationLearning,
   SchedulingDomainModel,
   TaskVariant,
 } from './schedulingModel';
@@ -23,7 +23,7 @@ export type CurrentPersistedSchedulingState = {
   taskPoolItems: TaskPoolItem[];
   rhythmTemplates: RhythmTemplate[];
   softPlacements: SoftPlacement[];
-  durationLearningByTemplateId?: Record<string, Omit<DurationLearningProjection, 'savedNormalMinutes'>>;
+  durationLearningByTemplateId?: Record<string, AppliedDurationLearning>;
 };
 
 const schedulableActiveTaskStatuses: readonly ActiveTask['status'][] = [
