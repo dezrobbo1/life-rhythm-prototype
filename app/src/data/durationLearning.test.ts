@@ -3,6 +3,7 @@ import { createBehaviourEvent } from './behaviourEventRepository';
 import {
   applyDurationLearningControls,
   deriveDurationLearningEvidence,
+  durationLearningSchedulingChangedTemplateIds,
 } from './durationLearning';
 
 function completion(
@@ -80,6 +81,34 @@ describe('Gate 7E duration learning', () => {
       medianActualMinutes: 30,
       upperQuartileActualMinutes: 35,
     }]);
+  });
+
+  it('distinguishes scheduling-impact changes from evidence-only updates', () => {
+    const before = [{
+      templateId: 'paperwork',
+      source: 'learned' as const,
+      schedulerMinutes: 35,
+      sampleCount: 5,
+      confidence: 'moderate' as const,
+      medianActualMinutes: 30,
+      upperQuartileActualMinutes: 35,
+    }];
+    const evidenceOnly = [{
+      ...before[0],
+      sampleCount: 6,
+      medianActualMinutes: 31,
+    }];
+
+    expect(durationLearningSchedulingChangedTemplateIds(before, evidenceOnly)).toEqual([]);
+    expect(durationLearningSchedulingChangedTemplateIds(before, [{
+      ...evidenceOnly[0],
+      schedulerMinutes: 40,
+    }])).toEqual(['paperwork']);
+    expect(durationLearningSchedulingChangedTemplateIds(before, [{
+      ...evidenceOnly[0],
+      source: 'userOverride' as const,
+    }])).toEqual(['paperwork']);
+    expect(durationLearningSchedulingChangedTemplateIds(before, [])).toEqual(['paperwork']);
   });
 
   it('keeps a user correction applicable without behavioural evidence', () => {

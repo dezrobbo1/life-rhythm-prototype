@@ -17,6 +17,7 @@ import { LifeRhythmDatabase } from './db';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   durationLearningEventSnapshot,
+  durationLearningSchedulingChangedTemplateIds,
 } from './durationLearning';
 import {
   canonicalSchedulingInputSnapshot,
@@ -196,17 +197,6 @@ function orderedDurationLearning(
     .sort((left, right) => left.templateId.localeCompare(right.templateId));
 }
 
-function durationLearningChangedTemplateIds(
-  before: readonly AppliedDurationLearning[],
-  after: readonly AppliedDurationLearning[],
-) {
-  const beforeById = new Map(before.map((item) => [item.templateId, JSON.stringify(item)]));
-  const afterById = new Map(after.map((item) => [item.templateId, JSON.stringify(item)]));
-  return [...new Set([...beforeById.keys(), ...afterById.keys()])]
-    .filter((templateId) => beforeById.get(templateId) !== afterById.get(templateId))
-    .sort();
-}
-
 function templateIdForPlacement(
   placement: InternalPlacement,
   input: SchedulingDomainModel,
@@ -230,6 +220,7 @@ function releaseIdsForDurationLearning(
   return current.plan.placements
     .filter((placement) =>
       placement.origin === 'scheduler' &&
+      placement.variantKind === 'normal' &&
       (
         placement.date > change.now!.date ||
         (placement.date === change.now!.date && placement.start >= change.now!.time)
@@ -666,7 +657,7 @@ export async function repairAndPersistSchedulerPlan(
     const nextDurationLearning = durationLearning
       ? orderedDurationLearning(durationLearning.applied)
       : previousDurationLearning;
-    const changedDurationTemplateIds = durationLearningChangedTemplateIds(
+    const changedDurationTemplateIds = durationLearningSchedulingChangedTemplateIds(
       previousDurationLearning,
       nextDurationLearning,
     );

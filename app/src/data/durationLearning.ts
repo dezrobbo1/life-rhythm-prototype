@@ -179,6 +179,20 @@ export function applyDurationLearningControls(
   });
 }
 
+export function durationLearningSchedulingChangedTemplateIds(
+  before: readonly AppliedDurationLearning[],
+  after: readonly AppliedDurationLearning[],
+) {
+  const schedulingKey = (item: AppliedDurationLearning) =>
+    JSON.stringify({ source: item.source, schedulerMinutes: item.schedulerMinutes });
+  const beforeById = new Map(before.map((item) => [item.templateId, schedulingKey(item)]));
+  const afterById = new Map(after.map((item) => [item.templateId, schedulingKey(item)]));
+
+  return [...new Set([...beforeById.keys(), ...afterById.keys()])]
+    .filter((templateId) => beforeById.get(templateId) !== afterById.get(templateId))
+    .sort();
+}
+
 export function durationLearningByTemplateId(
   applied: readonly AppliedDurationLearning[],
 ) {
