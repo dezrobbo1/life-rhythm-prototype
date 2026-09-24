@@ -16,6 +16,7 @@ import {
 } from '../data/taskSoftPlacementRepository';
 import type { SoftPlacement, TaskPoolItem } from '../data/schemas';
 import type { SchedulerPlan, SchedulerPlanChange } from '../domain/schedulingModel';
+import { placementWhyLines } from '../features/preferences/explicitPreferencePresentation';
 import {
   buildPoolSoftSuggestions,
   type PoolSoftSuggestion,
@@ -600,6 +601,14 @@ export function PersonalPlanScreen({
                       Automatic private placement
                       {placement.variantKind ? ` · ${placement.variantKind}` : ''}
                     </p>
+                    <details className="plan-section__details">
+                      <summary>Why this time?</summary>
+                      <ul>
+                        {placementWhyLines(placement.provenance).map((reason) => (
+                          <li key={reason}>{reason}</li>
+                        ))}
+                      </ul>
+                    </details>
                   </div>
                 </li>
               );

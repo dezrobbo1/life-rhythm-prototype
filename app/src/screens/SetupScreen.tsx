@@ -43,6 +43,7 @@ import {
   safetyStateFromSettings,
 } from '../features/setup/settingsForm';
 import { buildSetupViewModel } from '../viewModels';
+import { ExplicitPreferenceManager } from '../features/preferences/ExplicitPreferenceManager';
 
 type SetupScreenProps = {
   onExportSettingsBackup?: () => Promise<SettingsBackupExport>;
@@ -51,6 +52,7 @@ type SetupScreenProps = {
   onResetSettings?: () => Promise<Settings>;
   onSaveSettings?: (settings: SettingsWriteInput) => Promise<SettingsWriteResult>;
   onThemeChange?: (theme: ThemeName) => void;
+  onPrivatePlanChanged?: () => void;
   settings?: Settings;
   theme?: ThemeName;
 };
@@ -85,6 +87,7 @@ export function SetupScreen({
   onResetSettings,
   onSaveSettings,
   onThemeChange,
+  onPrivatePlanChanged,
   settings,
   theme = 'exhale',
 }: SetupScreenProps = {}) {
@@ -731,17 +734,19 @@ export function SetupScreen({
         </div>
       </Card>
 
+      <ExplicitPreferenceManager onPlanChanged={onPrivatePlanChanged} />
+
       <Card>
         <div className="setup-section-heading">
           <h2>Save settings</h2>
-          <p>This is the only settings area here that changes saved data on this device.</p>
+          <p>These controls save appearance, Start Boost safety and Life shape. Scheduling preferences save separately above.</p>
         </div>
         <div className="setup-action-row">
           <Button onClick={saveCurrentSettings} variant="primary">Save settings</Button>
           <Button onClick={resetCurrentSettings}>Reset settings to defaults</Button>
         </div>
         <p className="setup-note">Save writes theme, Start Boost safety, and Life shape only. Reset returns those settings to defaults.</p>
-        <p className="setup-note setup-note--quiet">Tasks, rhythms, packs, imports, dev tickets, and future modules are not changed.</p>
+        <p className="setup-note setup-note--quiet">Tasks, rhythms, scheduling preferences, packs, imports, dev tickets, and future modules are not changed.</p>
       </Card>
 
       <Card>

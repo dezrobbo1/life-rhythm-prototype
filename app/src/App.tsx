@@ -33,6 +33,7 @@ import { exportSoftPlacementBackup, type SoftPlacementBackupExport } from './dat
 import { exportTaskPoolBackup, type TaskPoolBackupExport } from './data/taskPoolBackup';
 import {
   CALENDAR_REPAIR_PENDING_MESSAGE,
+  PREFERENCE_REPAIR_PENDING_MESSAGE,
   loadSchedulerPlanState,
 } from './data/schedulerPlanStateRepository';
 import {
@@ -200,12 +201,15 @@ export default function App() {
   const [preferredPlanTaskId, setPreferredPlanTaskId] = useState<string | null>(null);
   const [planRevision, setPlanRevision] = useState(0);
   const [calendarRepairIssue, setCalendarRepairIssue] = useState<string | null>(null);
+  const [preferenceRepairIssue, setPreferenceRepairIssue] = useState<string | null>(null);
   const observedCalendarRepairPendingRef = useRef<boolean | null>(null);
+  const observedPreferenceRepairPendingRef = useRef<boolean | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [captureRevision, setCaptureRevision] = useState(0);
   const [captureFeedback, setCaptureFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const handlePrivatePlanChanged = useCallback(() => {
     setCalendarRepairIssue(null);
+    setPreferenceRepairIssue(null);
     setPlanRevision((revision) => revision + 1);
   }, []);
 
@@ -214,14 +218,20 @@ export default function App() {
       next: (result) => {
         if (result.status !== 'missing' && result.status !== 'ok') return;
 
-        const repairPending = result.status === 'ok' && Boolean(result.calendarRepairPendingAt);
-        setCalendarRepairIssue(repairPending ? CALENDAR_REPAIR_PENDING_MESSAGE : null);
+        const calendarRepairPending = result.status === 'ok' && Boolean(result.calendarRepairPendingAt);
+        const preferenceRepairPending = result.status === 'ok' && Boolean(result.preferenceRepairPendingAt);
+        setCalendarRepairIssue(calendarRepairPending ? CALENDAR_REPAIR_PENDING_MESSAGE : null);
+        setPreferenceRepairIssue(preferenceRepairPending ? PREFERENCE_REPAIR_PENDING_MESSAGE : null);
 
-        const previouslyObserved = observedCalendarRepairPendingRef.current;
-        observedCalendarRepairPendingRef.current = repairPending;
+        const previousCalendar = observedCalendarRepairPendingRef.current;
+        const previousPreference = observedPreferenceRepairPendingRef.current;
+        observedCalendarRepairPendingRef.current = calendarRepairPending;
+        observedPreferenceRepairPendingRef.current = preferenceRepairPending;
         if (
-          (previouslyObserved === null && repairPending) ||
-          (previouslyObserved !== null && previouslyObserved !== repairPending)
+          (previousCalendar === null && calendarRepairPending) ||
+          (previousCalendar !== null && previousCalendar !== calendarRepairPending) ||
+          (previousPreference === null && preferenceRepairPending) ||
+          (previousPreference !== null && previousPreference !== preferenceRepairPending)
         ) {
           // This is a presentation refresh only. Today rereads current facts;
           // the live observer never builds, repairs or writes a private plan.
@@ -405,7 +415,9 @@ export default function App() {
       <>
         <PlanDayLineScreen
           calendarRepairIssue={calendarRepairIssue}
+          preferenceRepairIssue={preferenceRepairIssue}
           onCalendarRepairIssueChange={setCalendarRepairIssue}
+          onPreferenceRepairIssueChange={setPreferenceRepairIssue}
           onPlanRepaired={handlePrivatePlanChanged}
           planRevision={planRevision}
           preferredPlacementDate={preferredPlanPlacementDate}
@@ -424,6 +436,7 @@ export default function App() {
         onResetSettings={handleResetSettings}
         onSaveSettings={handleSaveSettings}
         onThemeChange={setTheme}
+        onPrivatePlanChanged={handlePrivatePlanChanged}
         settings={settings}
         theme={theme}
       />

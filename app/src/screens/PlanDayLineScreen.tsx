@@ -15,7 +15,9 @@ import { PersonalPlanScreen } from './PersonalPlanScreen';
 
 type PlanDayLineScreenProps = {
   calendarRepairIssue?: string | null;
+  preferenceRepairIssue?: string | null;
   onCalendarRepairIssueChange?: (message: string | null) => void;
+  onPreferenceRepairIssueChange?: (message: string | null) => void;
   onPlanRepaired?: () => void;
   planRevision?: number;
   preferredPlacementDate?: string | null;
@@ -43,7 +45,9 @@ function initialSelectedDate(preferredPlacementDate: string | null) {
 
 export function PlanDayLineScreen({
   calendarRepairIssue = null,
+  preferenceRepairIssue = null,
   onCalendarRepairIssueChange,
+  onPreferenceRepairIssueChange,
   onPlanRepaired,
   planRevision = 0,
   preferredPlacementDate = null,
@@ -72,6 +76,7 @@ export function PlanDayLineScreen({
 
   function handlePlanRecovered() {
     onCalendarRepairIssueChange?.(null);
+    onPreferenceRepairIssueChange?.(null);
   }
 
   useEffect(() => {
@@ -201,7 +206,13 @@ export function PlanDayLineScreen({
         </p>
       </section>
 
-      {calendarRepairIssue ? (
+      {preferenceRepairIssue ? (
+        <section className="surface-status surface-status--error plan-default-attention" role="alert">
+          <strong>Scheduling preference needs attention.</strong>
+          <p>{preferenceRepairIssue}</p>
+          <p>Open Plan details to retry the flexible plan. The saved preference remains on this device.</p>
+        </section>
+      ) : calendarRepairIssue ? (
         <section className="surface-status surface-status--error plan-default-attention" role="alert">
           <strong>Calendar change needs attention.</strong>
           <p>{calendarRepairIssue}</p>
