@@ -224,7 +224,11 @@ describe('Personal Plan read states', () => {
       warnings: [],
     });
 
-    renderEmbeddedPlan();
+    render(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen embeddedInDayLine preferredPlacementDate="2026-09-07" />
+      </AppSnapshotProvider>,
+    );
     await waitFor(() => expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(1));
     await user.click(screen.getByText('Plan details'));
     await user.click(screen.getByText('Why this time?'));
