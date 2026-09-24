@@ -739,14 +739,14 @@ export function SetupScreen({
       <Card>
         <div className="setup-section-heading">
           <h2>Save settings</h2>
-          <p>This is the only settings area here that changes saved data on this device.</p>
+          <p>This card changes theme, Start Boost safety, and Life Shape settings on this device.</p>
         </div>
         <div className="setup-action-row">
           <Button onClick={saveCurrentSettings} variant="primary">Save settings</Button>
           <Button onClick={resetCurrentSettings}>Reset settings to defaults</Button>
         </div>
         <p className="setup-note">Save writes theme, Start Boost safety, and Life shape only. Reset returns those settings to defaults.</p>
-        <p className="setup-note setup-note--quiet">Tasks, rhythms, packs, imports, dev tickets, and future modules are not changed.</p>
+        <p className="setup-note setup-note--quiet">Tasks, rhythms, scheduling preferences, packs, imports, dev tickets, and future modules are not changed by these two settings buttons.</p>
       </Card>
 
       <Card>

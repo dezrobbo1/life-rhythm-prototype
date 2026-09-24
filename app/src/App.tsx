@@ -209,6 +209,10 @@ export default function App() {
     setCalendarRepairIssue(null);
     setPlanRevision((revision) => revision + 1);
   }, []);
+  const handlePreferencePlanChanged = useCallback(() => {
+    // Preference repair must not clear independent calendar-repair attention.
+    setPlanRevision((revision) => revision + 1);
+  }, []);
 
   useEffect(() => {
     const subscription = liveQuery(() => loadSchedulerPlanState()).subscribe({
@@ -430,7 +434,7 @@ export default function App() {
         onExportTaskPoolBackup={handleExportTaskPoolBackup}
         onResetSettings={handleResetSettings}
         onSaveSettings={handleSaveSettings}
-        onPreferencePlanChanged={handlePrivatePlanChanged}
+        onPreferencePlanChanged={handlePreferencePlanChanged}
         onThemeChange={setTheme}
         settings={settings}
         theme={theme}
