@@ -8,10 +8,10 @@ import {
 } from './localDataNamespace';
 import {
   DELETE_EXPLICIT_PREFERENCES_CONFIRMATION,
-  EXPLICIT_PREFERENCES_RECORD_ID,
   loadExplicitPreferencesResult,
   upsertExplicitPreference,
 } from './explicitPreferenceRepository';
+import { EXPLICIT_PREFERENCES_RECORD_ID } from './explicitPreferenceSchema';
 import {
   commitExplicitPreferenceDelete,
   commitExplicitPreferenceReset,
@@ -189,11 +189,11 @@ describe('Gate 7D1 explicit preference mutation coordination', () => {
 
   it('recovers a malformed preference store and conservatively marks all areas', async () => {
     await seedPlan();
-    await getCurrentLifeRhythmDatabase().settings.put({
+    await getCurrentLifeRhythmDatabase().table('settings').put({
       id: EXPLICIT_PREFERENCES_RECORD_ID,
       recordType: 'explicitPreferenceStore',
       formatVersion: 99,
-    } as never);
+    });
 
     const cleared = await commitExplicitPreferenceReset(
       DELETE_EXPLICIT_PREFERENCES_CONFIRMATION,

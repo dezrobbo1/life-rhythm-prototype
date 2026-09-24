@@ -717,9 +717,9 @@ describe('Setup screen', () => {
     expect(screen.getByRole('heading', { name: 'Save settings' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Save settings' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reset settings to defaults' })).toBeTruthy();
-    expect(screen.getByText('This is the only settings area here that changes saved data on this device.')).toBeTruthy();
+    expect(screen.getByText('These controls save appearance, Start Boost safety and Life shape. Scheduling preferences save separately above.')).toBeTruthy();
     expect(screen.getByText('Save writes theme, Start Boost safety, and Life shape only. Reset returns those settings to defaults.')).toBeTruthy();
-    expect(screen.getByText('Tasks, rhythms, packs, imports, dev tickets, and future modules are not changed.')).toBeTruthy();
+    expect(screen.getByText('Tasks, rhythms, scheduling preferences, packs, imports, dev tickets, and future modules are not changed.')).toBeTruthy();
   });
 
   it('renders dev tickets as a local mock entry point', () => {
