@@ -26,6 +26,14 @@ const settingsRepositoryMocks = vi.hoisted(() => ({
   loadSettingsResult: vi.fn(),
 }));
 
+vi.mock('./SchedulingPreferencesPanel', () => ({
+  SchedulingPreferencesPanel: () => (
+    <section aria-label="Scheduling preferences test boundary">
+      <h2>Scheduling preferences</h2>
+    </section>
+  ),
+}));
+
 vi.mock('../../data/settingsRepository', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../data/settingsRepository')>();
 
@@ -715,9 +723,9 @@ describe('Setup screen', () => {
     expect(screen.getByRole('heading', { name: 'Save settings' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Save settings' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reset settings to defaults' })).toBeTruthy();
-    expect(screen.getByText('This is the only settings area here that changes saved data on this device.')).toBeTruthy();
+    expect(screen.getByText('This card changes theme, Start Boost safety, and Life Shape settings on this device.')).toBeTruthy();
     expect(screen.getByText('Save writes theme, Start Boost safety, and Life shape only. Reset returns those settings to defaults.')).toBeTruthy();
-    expect(screen.getByText('Tasks, rhythms, packs, imports, dev tickets, and future modules are not changed.')).toBeTruthy();
+    expect(screen.getByText('Tasks, rhythms, scheduling preferences, packs, imports, dev tickets, and future modules are not changed by these two settings buttons.')).toBeTruthy();
   });
 
   it('renders dev tickets as a local mock entry point', () => {
