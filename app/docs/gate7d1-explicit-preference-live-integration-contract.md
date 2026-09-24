@@ -81,7 +81,9 @@ The marker carries only the affected preference target(s), not deleted preferenc
 
 The next normal private-plan ensure operation uses current canonical inputs and current preferences, releases only future scheduler-owned placements whose task/rhythm/area/task-type matches those affected targets, and runs the existing deterministic rolling repair. Unaffected targets retain normal schedule-inertia protection.
 
-A successful preference repair clears the pending marker. If the preference mutation cannot atomically store repair attention, the preference mutation rolls back rather than leaving an accepted plan silently stale.
+The same protection applies when another repair path runs first (for example a time-disruption, Reduced Day, calendar or manual repair). The shared scheduler persistence boundary folds the pending preference targets into that repair's release set before it can clear preference-repair attention. A repair without a safe current-time boundary preserves the marker instead of claiming the preference was reconciled.
+
+A successful repair that incorporated the pending preference targets clears the pending marker. If the preference mutation cannot atomically store repair attention, the preference mutation rolls back rather than leaving an accepted plan silently stale.
 
 Undo of a preference-driven repair restores the prior plan but also restores preference-repair attention, because the explicit preference itself remains current. A later ensure can therefore reconcile the plan again rather than presenting the undone plan as preference-consistent truth.
 

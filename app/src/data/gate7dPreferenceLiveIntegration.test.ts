@@ -15,6 +15,7 @@ import {
 import {
   buildCurrentLiveSchedulingContext,
   ensureCurrentPrivatePlan,
+  repairCurrentPrivatePlan,
   undoCurrentPrivatePlan,
 } from './schedulerPlanCoordinator';
 import { loadSchedulerPlanState } from './schedulerPlanStateRepository';
@@ -137,6 +138,41 @@ describe('Gate 7D1 live explicit preference integration', () => {
     if (live.ok) return;
     expect(live.errors.join(' ')).toContain('Saved preferences are invalid');
     expect((await loadSchedulerPlanState()).status).toBe('missing');
+  });
+
+  it('cannot clear preference repair attention through an unrelated repair without applying the preference', async () => {
+    const initial = await ensureCurrentPrivatePlan(options);
+    expect(initial.ok).toBe(true);
+    if (!initial.ok) return;
+    expect(initial.plan.placements[0]).toMatchObject({ start: '09:00', end: '09:20' });
+
+    const loaded = await loadExplicitPreferencesResult();
+    const expectation = explicitPreferenceTargetExpectation(loaded, preferenceInput.id);
+    if (!expectation) throw new Error('Expected healthy preference store');
+
+    const mutation = await commitExplicitPreferenceUpsert(
+      preferenceInput,
+      expectation,
+      undefined,
+      '2026-09-07T00:00:00.001Z',
+    );
+    expect(mutation.ok).toBe(true);
+
+    const repaired = await repairCurrentPrivatePlan({
+      ...options,
+      now: new Date('2026-09-07T00:00:00.002Z'),
+      reason: 'Synthetic unrelated repair after a preference mutation.',
+      trigger: 'manualReplan',
+    });
+    expect(repaired.ok).toBe(true);
+    if (!repaired.ok) return;
+    expect(repaired.plan.placements[0]).toMatchObject({ start: '11:00', end: '11:20' });
+
+    const saved = await loadSchedulerPlanState();
+    expect(saved.status).toBe('ok');
+    if (saved.status !== 'ok') return;
+    expect(saved.preferenceRepairPendingAt).toBeUndefined();
+    expect(saved.preferenceRepairTargets).toBeUndefined();
   });
 
   it('repairs an accepted plan after a committed preference change and reopens attention after Undo', async () => {
