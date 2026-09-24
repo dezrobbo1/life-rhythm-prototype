@@ -20,6 +20,7 @@ import {
   buildPoolSoftSuggestions,
   type PoolSoftSuggestion,
 } from '../features/plan/poolSoftSuggestions';
+import { placementReasonLines } from '../features/plan/placementExplanation';
 import {
   createSoftPlacementId,
   dayNameForLocalDate,
@@ -600,6 +601,16 @@ export function PersonalPlanScreen({
                       Automatic private placement
                       {placement.variantKind ? ` · ${placement.variantKind}` : ''}
                     </p>
+                    {placementReasonLines(placement.provenance).length > 0 ? (
+                      <details className="plan-section__details">
+                        <summary>Why this time?</summary>
+                        <ul>
+                          {placementReasonLines(placement.provenance).map((reason) => (
+                            <li key={reason}>{reason}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
                   </div>
                 </li>
               );

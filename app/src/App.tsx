@@ -201,11 +201,16 @@ export default function App() {
   const [planRevision, setPlanRevision] = useState(0);
   const [calendarRepairIssue, setCalendarRepairIssue] = useState<string | null>(null);
   const observedCalendarRepairPendingRef = useRef<boolean | null>(null);
+  const observedPreferenceRepairSignatureRef = useRef<string | null | undefined>(undefined);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [captureRevision, setCaptureRevision] = useState(0);
   const [captureFeedback, setCaptureFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const handlePrivatePlanChanged = useCallback(() => {
     setCalendarRepairIssue(null);
+    setPlanRevision((revision) => revision + 1);
+  }, []);
+  const handlePreferencePlanChanged = useCallback(() => {
+    // Preference repair must not clear independent calendar-repair attention.
     setPlanRevision((revision) => revision + 1);
   }, []);
 
@@ -215,18 +220,25 @@ export default function App() {
         if (result.status !== 'missing' && result.status !== 'ok') return;
 
         const repairPending = result.status === 'ok' && Boolean(result.calendarRepairPendingAt);
+        const preferenceRepairSignature = result.status === 'ok' && result.preferenceRepairPendingAt
+          ? `${result.preferenceRepairPendingAt}:${JSON.stringify(result.preferenceRepairTargets ?? [])}`
+          : null;
         setCalendarRepairIssue(repairPending ? CALENDAR_REPAIR_PENDING_MESSAGE : null);
 
         const previouslyObserved = observedCalendarRepairPendingRef.current;
+        const previouslyObservedPreference = observedPreferenceRepairSignatureRef.current;
         observedCalendarRepairPendingRef.current = repairPending;
-        if (
+        observedPreferenceRepairSignatureRef.current = preferenceRepairSignature;
+        const calendarChanged =
           (previouslyObserved === null && repairPending) ||
-          (previouslyObserved !== null && previouslyObserved !== repairPending)
-        ) {
-          // This is a presentation refresh only. Today rereads current facts;
-          // the live observer never builds, repairs or writes a private plan.
-          // An initially pending observation also reconciles a Today read that
-          // may have started just before another tab committed the marker.
+          (previouslyObserved !== null && previouslyObserved !== repairPending);
+        const preferenceChanged =
+          (previouslyObservedPreference === undefined && preferenceRepairSignature !== null) ||
+          (previouslyObservedPreference !== undefined &&
+            previouslyObservedPreference !== preferenceRepairSignature);
+        if (calendarChanged || preferenceChanged) {
+          // Presentation refresh only. Plan/Today reread current facts; this
+          // observer never repairs or writes scheduler state itself.
           setPlanRevision((revision) => revision + 1);
         }
       },
@@ -423,6 +435,7 @@ export default function App() {
         onExportTaskPoolBackup={handleExportTaskPoolBackup}
         onResetSettings={handleResetSettings}
         onSaveSettings={handleSaveSettings}
+        onPreferencePlanChanged={handlePreferencePlanChanged}
         onThemeChange={setTheme}
         settings={settings}
         theme={theme}

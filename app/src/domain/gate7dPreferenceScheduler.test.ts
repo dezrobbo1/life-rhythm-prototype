@@ -124,6 +124,24 @@ describe('Gate 7D1 scheduler preference integration', () => {
     });
   });
 
+  it('records an Avoid overlap when no alternative slot fits', () => {
+    const scheduler = new DeterministicScheduler();
+    const plan = scheduler.buildPlan(model([
+      preference({
+        id: 'avoid-only-fit',
+        relation: 'avoid',
+        start: '09:00',
+        end: '10:00',
+        precedenceSource: 'explicitPersistent',
+      }),
+    ], candidate('09:00', '09:20')));
+
+    expect(plan.placements[0]).toMatchObject({ start: '09:00', end: '09:20' });
+    expect(plan.placements[0].provenance.join(' ')).toContain(
+      'Overlapped explicit Avoid guidance avoid-only-fit',
+    );
+  });
+
   it('lets higher-precedence explicit guidance outrank a conflicting weaker association', () => {
     const scheduler = new DeterministicScheduler();
     const plan = scheduler.buildPlan(model([

@@ -54,6 +54,9 @@ function intentionFromPoolItem(item: TaskPoolItem): InternalIntention {
     area: item.area,
     purpose: item.purpose,
     templateId: item.templateId,
+    // Pool items do not persist task classification fields. Match the
+    // canonical schema default so Task type preferences can apply.
+    taskType: 'simple',
     variants: variantsFromRecord(item),
     timing: {
       timeConstraint: item.timeConstraint,

@@ -43,6 +43,7 @@ import {
   safetyStateFromSettings,
 } from '../features/setup/settingsForm';
 import { buildSetupViewModel } from '../viewModels';
+import { SchedulingPreferencesPanel } from '../features/setup/SchedulingPreferencesPanel';
 
 type SetupScreenProps = {
   onExportSettingsBackup?: () => Promise<SettingsBackupExport>;
@@ -50,6 +51,7 @@ type SetupScreenProps = {
   onExportTaskPoolBackup?: () => Promise<TaskPoolBackupExport | null>;
   onResetSettings?: () => Promise<Settings>;
   onSaveSettings?: (settings: SettingsWriteInput) => Promise<SettingsWriteResult>;
+  onPreferencePlanChanged?: () => void;
   onThemeChange?: (theme: ThemeName) => void;
   settings?: Settings;
   theme?: ThemeName;
@@ -84,6 +86,7 @@ export function SetupScreen({
   onExportTaskPoolBackup,
   onResetSettings,
   onSaveSettings,
+  onPreferencePlanChanged,
   onThemeChange,
   settings,
   theme = 'exhale',
@@ -709,6 +712,8 @@ export function SetupScreen({
         <p className="setup-note">Settings only. Future planning can use this shape later, but this does not schedule anything.</p>
       </Card>
 
+      <SchedulingPreferencesPanel onPlanChanged={onPreferencePlanChanged} />
+
       <Card>
         <div className="setup-section-heading">
           <h2>Start Boost safety</h2>
@@ -734,14 +739,14 @@ export function SetupScreen({
       <Card>
         <div className="setup-section-heading">
           <h2>Save settings</h2>
-          <p>This is the only settings area here that changes saved data on this device.</p>
+          <p>This card changes theme, Start Boost safety, and Life Shape settings on this device.</p>
         </div>
         <div className="setup-action-row">
           <Button onClick={saveCurrentSettings} variant="primary">Save settings</Button>
           <Button onClick={resetCurrentSettings}>Reset settings to defaults</Button>
         </div>
         <p className="setup-note">Save writes theme, Start Boost safety, and Life shape only. Reset returns those settings to defaults.</p>
-        <p className="setup-note setup-note--quiet">Tasks, rhythms, packs, imports, dev tickets, and future modules are not changed.</p>
+        <p className="setup-note setup-note--quiet">Tasks, rhythms, scheduling preferences, packs, imports, dev tickets, and future modules are not changed by these two settings buttons.</p>
       </Card>
 
       <Card>

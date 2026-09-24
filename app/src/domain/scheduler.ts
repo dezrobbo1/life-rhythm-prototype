@@ -704,7 +704,11 @@ function placementProvenance(
   ];
 
   for (const preference of matchedPreferences.slice(0, 2)) {
-    provenance.push(`Matched explicit preference ${preference.id}: ${preference.provenance}`);
+    provenance.push(
+      preference.relation === 'prefer'
+        ? `Matched explicit Prefer guidance ${preference.id}: ${preference.provenance}`
+        : `Overlapped explicit Avoid guidance ${preference.id}: ${preference.provenance}`,
+    );
   }
   if (conflictingPreferenceIds.length > 0) {
     provenance.push(
