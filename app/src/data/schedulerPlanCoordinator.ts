@@ -366,10 +366,12 @@ export async function buildCurrentLiveSchedulingContext(
 
   let timezone: string;
   let now: SchedulerRepairNow;
+  let decisionInstant: Date;
   let days: number;
   try {
     timezone = resolveTimezone(options.timezone);
-    now = localPointForDate(options.now ?? new Date(), timezone);
+    decisionInstant = options.now ?? new Date();
+    now = localPointForDate(decisionInstant, timezone);
     days = horizonDays(options);
   } catch {
     return {
@@ -508,7 +510,7 @@ export async function buildCurrentLiveSchedulingContext(
     ? []
     : deriveDurationLearningEvidence(
         durationEvents.events.filter(
-          (event) => Date.parse(event.occurredAt) <= options.now.getTime(),
+          (event) => Date.parse(event.occurredAt) <= decisionInstant.getTime(),
         ),
       );
   if (durationEvents.status === 'readFailed') {
