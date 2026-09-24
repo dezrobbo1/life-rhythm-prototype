@@ -44,6 +44,7 @@ import {
 } from '../features/setup/settingsForm';
 import { buildSetupViewModel } from '../viewModels';
 import { SchedulingPreferencesPanel } from '../features/setup/SchedulingPreferencesPanel';
+import { DurationLearningPanel } from '../features/setup/DurationLearningPanel';
 
 type SetupScreenProps = {
   onExportSettingsBackup?: () => Promise<SettingsBackupExport>;
@@ -52,6 +53,7 @@ type SetupScreenProps = {
   onResetSettings?: () => Promise<Settings>;
   onSaveSettings?: (settings: SettingsWriteInput) => Promise<SettingsWriteResult>;
   onPreferencePlanChanged?: () => void;
+  onDurationLearningPlanChanged?: () => void;
   onThemeChange?: (theme: ThemeName) => void;
   settings?: Settings;
   theme?: ThemeName;
@@ -87,6 +89,7 @@ export function SetupScreen({
   onResetSettings,
   onSaveSettings,
   onPreferencePlanChanged,
+  onDurationLearningPlanChanged,
   onThemeChange,
   settings,
   theme = 'exhale',
@@ -713,6 +716,7 @@ export function SetupScreen({
       </Card>
 
       <SchedulingPreferencesPanel onPlanChanged={onPreferencePlanChanged} />
+      <DurationLearningPanel onPlanChanged={onDurationLearningPlanChanged} />
 
       <Card>
         <div className="setup-section-heading">

@@ -6,6 +6,7 @@ import type {
   LocalDate,
   SchedulerChange,
   SchedulerPlan,
+  AppliedDurationLearning,
   SchedulingDomainModel,
 } from '../domain/schedulingModel';
 import {
@@ -14,6 +15,10 @@ import {
 } from './calendarSourceSchema';
 import { LifeRhythmDatabase } from './db';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
+import {
+  durationLearningEventSnapshot,
+  durationLearningSchedulingChangedTemplateIds,
+} from './durationLearning';
 import {
   canonicalSchedulingInputSnapshot,
   readCanonicalSchedulingInputRows,
@@ -57,6 +62,7 @@ type SchedulerStateFields = SchedulerModeFields & {
   calendarRepairPendingAt?: string;
   preferenceRepairPendingAt?: string;
   preferenceRepairTargets?: PreferenceRepairTarget[];
+  durationLearningApplied?: AppliedDurationLearning[];
 };
 
 export type CalendarSourceSnapshot = {
@@ -127,6 +133,9 @@ function stateFields(record: SchedulerStateFields): SchedulerStateFields {
     ...(record.preferenceRepairTargets
       ? { preferenceRepairTargets: record.preferenceRepairTargets.map((target) => ({ ...target })) }
       : {}),
+    ...(record.durationLearningApplied
+      ? { durationLearningApplied: record.durationLearningApplied.map((item) => ({ ...item })) }
+      : {}),
     ...(record.dayModeContext ? { dayModeContext: { ...record.dayModeContext } } : {}),
     ...(record.undoDayModeContext !== undefined
       ? { undoDayModeContext: record.undoDayModeContext ? { ...record.undoDayModeContext } : null }
@@ -180,6 +189,54 @@ function loadedStateMatchesExpected(
   return JSON.stringify(loadedStateRecord(loaded)) === JSON.stringify(loadedStateRecord(expected));
 }
 
+function orderedDurationLearning(
+  items: readonly AppliedDurationLearning[],
+): AppliedDurationLearning[] {
+  return [...items]
+    .map((item) => ({ ...item }))
+    .sort((left, right) => left.templateId.localeCompare(right.templateId));
+}
+
+function templateIdForPlacement(
+  placement: InternalPlacement,
+  input: SchedulingDomainModel,
+) {
+  const placementKind = placement.targetKind ?? 'intention';
+  const targetId = placementKind === 'rhythm'
+    ? placement.rhythmId ?? placement.intentionId
+    : placement.intentionId;
+  return placementKind === 'rhythm'
+    ? input.rhythms.find((rhythm) => rhythm.id === targetId)?.templateId
+    : input.intentions.find((intention) => intention.id === targetId)?.templateId;
+}
+
+function releaseIdsForDurationLearning(
+  current: SchedulerPlanStateExpectation,
+  change: SchedulerChange,
+  changedTemplateIds: readonly string[],
+) {
+  if (current.status !== 'ok' || !change.now || changedTemplateIds.length === 0) return [];
+  const changed = new Set(changedTemplateIds);
+  return current.plan.placements
+    .filter((placement) =>
+      placement.origin === 'scheduler' &&
+      placement.variantKind === 'normal' &&
+      (
+        placement.date > change.now!.date ||
+        (placement.date === change.now!.date && placement.start >= change.now!.time)
+      ) &&
+      Boolean(templateIdForPlacement(placement, change.nextInput)) &&
+      changed.has(templateIdForPlacement(placement, change.nextInput)!),
+    )
+    .map((placement) => placement.id)
+    .sort();
+}
+
+export type DurationLearningPersistInput = {
+  applied: AppliedDurationLearning[];
+  eventSnapshot?: string;
+};
+
 function storedCalendarMatchesSnapshot(
   stored: unknown,
   snapshot: CalendarSourceSnapshot,
@@ -200,6 +257,7 @@ async function saveSchedulerPlanStateIfCurrent(
   fields: SchedulerStateFields,
   calendarSourceSnapshot?: CalendarSourceSnapshot,
   canonicalInputSnapshot?: CanonicalSchedulingInputSnapshot,
+  expectedDurationLearningEventSnapshot?: string,
   behaviourEvents: BehaviourEvent[] = [],
 ): Promise<SchedulerPlanStateWriteResult> {
   const candidate = validatedSchedulerPlanStateRecord(plan, updatedAt, fields);
@@ -254,6 +312,13 @@ async function saveSchedulerPlanStateIfCurrent(
         if (canonicalInputSnapshot !== undefined) {
           const latestCanonicalRows = await readCanonicalSchedulingInputRows(store);
           if (canonicalSchedulingInputSnapshot(latestCanonicalRows) !== canonicalInputSnapshot) {
+            return staleSchedulerWriteResult();
+          }
+        }
+
+        if (expectedDurationLearningEventSnapshot !== undefined) {
+          const latestTaskHistory = await store.taskHistory.toArray();
+          if (durationLearningEventSnapshot(latestTaskHistory) !== expectedDurationLearningEventSnapshot) {
             return staleSchedulerWriteResult();
           }
         }
@@ -528,6 +593,7 @@ export async function buildAndPersistSchedulerPlan(
   calendarSourceSnapshot?: CalendarSourceSnapshot,
   canonicalInputSnapshot?: CanonicalSchedulingInputSnapshot,
   expectedSchedulerState?: SchedulerPlanStateExpectation,
+  durationLearning?: DurationLearningPersistInput,
 ): Promise<SchedulerPlanPersistActionResult> {
   const observed = await loadSchedulerPlanState(store);
   if (observed.status === 'invalid' || observed.status === 'error') {
@@ -542,10 +608,15 @@ export async function buildAndPersistSchedulerPlan(
     const plan = scheduler.buildPlan(input);
     const saved = await saveSchedulerPlanStateIfCurrent(plan, current, store, updatedAt, {
       dayModeContext,
+      ...(durationLearning
+        ? { durationLearningApplied: orderedDurationLearning(durationLearning.applied) }
+        : current.status === 'ok' && current.durationLearningApplied
+          ? { durationLearningApplied: current.durationLearningApplied }
+          : {}),
       ...(current.status === 'ok' && current.calendarRepairPendingAt
         ? { calendarRepairPendingAt: current.calendarRepairPendingAt }
         : {}),
-    }, calendarSourceSnapshot, canonicalInputSnapshot,
+    }, calendarSourceSnapshot, canonicalInputSnapshot, durationLearning?.eventSnapshot,
     current.status === 'missing' ? behaviourEventsForInitialSchedulerPlan(plan, updatedAt) : []);
 
     return saved.ok
@@ -567,6 +638,7 @@ export async function repairAndPersistSchedulerPlan(
   calendarSourceSnapshot?: CalendarSourceSnapshot,
   canonicalInputSnapshot?: CanonicalSchedulingInputSnapshot,
   expectedSchedulerState?: SchedulerPlanStateExpectation,
+  durationLearning?: DurationLearningPersistInput,
 ): Promise<SchedulerPlanPersistActionResult> {
   const observed = await loadSchedulerPlanState(store);
   if (observed.status === 'invalid' || observed.status === 'error') {
@@ -579,27 +651,64 @@ export async function repairAndPersistSchedulerPlan(
 
   try {
     const preferenceAware = withPendingPreferenceRepair(current, change);
-    const safeChange = preferenceAware.change.now
+    const previousDurationLearning = current.status === 'ok'
+      ? orderedDurationLearning(current.durationLearningApplied ?? [])
+      : [];
+    const nextDurationLearning = durationLearning
+      ? orderedDurationLearning(durationLearning.applied)
+      : previousDurationLearning;
+    const changedDurationTemplateIds = durationLearningSchedulingChangedTemplateIds(
+      previousDurationLearning,
+      nextDurationLearning,
+    );
+    const durationReleaseIds = releaseIdsForDurationLearning(
+      current,
+      preferenceAware.change,
+      changedDurationTemplateIds,
+    );
+    const durationAwareChange: SchedulerChange = {
+      ...preferenceAware.change,
+      ...(durationReleaseIds.length > 0
+        ? {
+            releasePlacementIds: [...new Set([
+              ...(preferenceAware.change.releasePlacementIds ?? []),
+              ...durationReleaseIds,
+            ])].sort(),
+          }
+        : {}),
+    };
+    const safeChange = durationAwareChange.now
       ? {
-          ...preferenceAware.change,
+          ...durationAwareChange,
           nextInput: clipSchedulingInputToNow(
-            preferenceAware.change.nextInput,
-            preferenceAware.change.now,
+            durationAwareChange.nextInput,
+            durationAwareChange.now,
           ),
         }
-      : preferenceAware.change;
+      : durationAwareChange;
     const calculatedPlan = current.status === 'missing'
       ? scheduler.buildPlan(safeChange.nextInput)
       : scheduler.repairPlan(current.plan, safeChange);
     const appliedPreferenceRepairTargets = preferenceAware.applied && current.status === 'ok'
       ? orderedPreferenceRepairTargets(current.preferenceRepairTargets ?? [])
       : [];
-    const plan = appliedPreferenceRepairTargets.length > 0 && calculatedPlan.repair
+    const plan = calculatedPlan.repair && (
+      appliedPreferenceRepairTargets.length > 0 ||
+      changedDurationTemplateIds.length > 0
+    )
       ? {
           ...calculatedPlan,
           repair: {
             ...calculatedPlan.repair,
-            appliedPreferenceRepairTargets,
+            ...(appliedPreferenceRepairTargets.length > 0
+              ? { appliedPreferenceRepairTargets }
+              : {}),
+            ...(changedDurationTemplateIds.length > 0
+              ? {
+                  appliedDurationLearningTemplateIds: changedDurationTemplateIds,
+                  previousDurationLearningApplied: previousDurationLearning,
+                }
+              : {}),
           },
         }
       : calculatedPlan;
@@ -622,7 +731,8 @@ export async function repairAndPersistSchedulerPlan(
             preferenceRepairTargets: current.preferenceRepairTargets,
           }
         : {}),
-    }, calendarSourceSnapshot, canonicalInputSnapshot,
+      durationLearningApplied: nextDurationLearning,
+    }, calendarSourceSnapshot, canonicalInputSnapshot, durationLearning?.eventSnapshot,
     current.status === 'missing'
       ? behaviourEventsForInitialSchedulerPlan(plan, updatedAt)
       : behaviourEventsForSchedulerRepair(plan, updatedAt));
@@ -691,12 +801,16 @@ export async function undoPersistedSchedulerRepair(
     : restoredPreferenceRepairTargets.length > 0
       ? updatedAt
       : current.preferenceRepairPendingAt;
+  const undoDurationLearningApplied = current.plan.repair?.previousDurationLearningApplied
+    ? orderedDurationLearning(current.plan.repair.previousDurationLearningApplied)
+    : orderedDurationLearning(current.durationLearningApplied ?? []);
   const saved = await saveSchedulerPlanStateIfCurrent(reverted, current, store, updatedAt, {
     calendarRepairPendingAt,
     preferenceRepairPendingAt,
     ...(preferenceRepairTargets.length > 0 ? { preferenceRepairTargets } : {}),
+    durationLearningApplied: undoDurationLearningApplied,
     dayModeContext: current.undoDayModeContext ?? undefined,
-  }, undefined, undefined, [behaviourEventForSchedulerUndo(current.plan, updatedAt)]);
+  }, undefined, undefined, undefined, [behaviourEventForSchedulerUndo(current.plan, updatedAt)]);
 
   return saved.ok
     ? { ...saved, mode: 'undone' }

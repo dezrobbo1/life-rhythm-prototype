@@ -10,6 +10,16 @@ const preferenceRepairTargetSchema = z.object({
   targetKind: preferenceTargetKindSchema,
   targetValue: idSchema,
 }).strict();
+const appliedDurationLearningSchema = z.object({
+  templateId: idSchema,
+  source: z.enum(['learned', 'userOverride']),
+  schedulerMinutes: z.number().int().positive(),
+  sampleCount: z.number().int().nonnegative(),
+  confidence: z.enum(['low', 'moderate', 'user']),
+  medianActualMinutes: z.number().positive().optional(),
+  upperQuartileActualMinutes: z.number().int().positive().optional(),
+}).strict();
+
 const schedulerDayModeContextSchema = z.object({
   dayMode: z.literal('reduced'),
   date: softPlacementDateSchema,
@@ -96,6 +106,7 @@ const schedulerRepairTriggerSchema = z.enum([
   'missedStart',
   'completionChanged',
   'preferenceChanged',
+  'durationLearningChanged',
   'userCorrection',
   'manualReplan',
 ]);
@@ -173,6 +184,8 @@ const schedulerRepairMetadataSchema = z
     preservedPlacementIds: z.array(idSchema),
     changes: z.array(schedulerPlanChangeSchema),
     appliedPreferenceRepairTargets: z.array(preferenceRepairTargetSchema).optional(),
+    appliedDurationLearningTemplateIds: z.array(idSchema).optional(),
+    previousDurationLearningApplied: z.array(appliedDurationLearningSchema).optional(),
     undo: persistedSchedulerPlanSnapshotSchema,
   })
   .strict();
@@ -189,6 +202,7 @@ export const schedulerPlanStateRecordSchema = z
     calendarRepairPendingAt: strictIsoDateTimeSchema.optional(),
     preferenceRepairPendingAt: strictIsoDateTimeSchema.optional(),
     preferenceRepairTargets: z.array(preferenceRepairTargetSchema).optional(),
+    durationLearningApplied: z.array(appliedDurationLearningSchema).optional(),
     dayModeContext: schedulerDayModeContextSchema.optional(),
     undoDayModeContext: schedulerDayModeContextSchema.nullable().optional(),
     plan: persistedSchedulerPlanSchema,
@@ -196,4 +210,5 @@ export const schedulerPlanStateRecordSchema = z
   .strict();
 
 export type PreferenceRepairTarget = z.infer<typeof preferenceRepairTargetSchema>;
+export type PersistedAppliedDurationLearning = z.infer<typeof appliedDurationLearningSchema>;
 export type SchedulerPlanStateRecord = z.infer<typeof schedulerPlanStateRecordSchema>;

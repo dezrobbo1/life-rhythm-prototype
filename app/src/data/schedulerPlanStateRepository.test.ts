@@ -922,6 +922,86 @@ describe('persisted Gate 4 scheduler plan state', () => {
     }
   });
 
+  it('does not release Minimum placements when only the template Normal duration changes', async () => {
+    const database = createTestDatabase();
+    try {
+      const input = model();
+      input.intentions[0] = {
+        ...input.intentions[0],
+        templateId: 'paperwork',
+        variants: [{ kind: 'minimum', label: 'Minimum', minutes: 5 }],
+      };
+      const built = await buildAndPersistSchedulerPlan(
+        input,
+        database,
+        '2026-09-07T00:00:00.000Z',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        {
+          applied: [{
+            templateId: 'paperwork',
+            source: 'learned',
+            schedulerMinutes: 30,
+            sampleCount: 3,
+            confidence: 'low',
+            medianActualMinutes: 25,
+            upperQuartileActualMinutes: 30,
+          }],
+        },
+      );
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+      expect(built.plan.placements[0]).toMatchObject({
+        variantKind: 'minimum',
+        start: '09:00',
+        end: '09:05',
+      });
+
+      const repaired = await repairAndPersistSchedulerPlan(
+        {
+          reason: 'Duration evidence changed but Minimum is user-authored.',
+          trigger: 'durationLearningChanged',
+          now: { date: today, time: '08:00', timezone },
+          nextInput: input,
+        },
+        database,
+        '2026-09-07T00:01:00.000Z',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        {
+          applied: [{
+            templateId: 'paperwork',
+            source: 'learned',
+            schedulerMinutes: 40,
+            sampleCount: 5,
+            confidence: 'moderate',
+            medianActualMinutes: 30,
+            upperQuartileActualMinutes: 40,
+          }],
+        },
+      );
+      if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+
+      expect(repaired.plan.placements[0]).toMatchObject({
+        variantKind: 'minimum',
+        start: '09:00',
+        end: '09:05',
+      });
+      expect(repaired.plan.repair?.preservedPlacementIds).toContain(
+        built.plan.placements[0].id,
+      );
+      expect(repaired.durationLearningApplied?.[0]).toMatchObject({
+        schedulerMinutes: 40,
+        sampleCount: 5,
+      });
+    } finally {
+      await database.delete();
+    }
+  });
+
   it('fails closed on malformed saved scheduler state instead of replacing it during repair', async () => {
     const database = createTestDatabase();
 

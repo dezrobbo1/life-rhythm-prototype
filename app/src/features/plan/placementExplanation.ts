@@ -29,6 +29,18 @@ export function placementReasonLines(provenance: readonly string[]): string[] {
         continue;
       }
     }
+    const learnedDuration = /^Used learned normal duration from (\d+) trusted completions: median ([\d.]+) minutes; conservative duration (\d+) minutes; saved normal duration is (\d+) minutes\.$/.exec(item);
+    if (learnedDuration) {
+      push(
+        `Life Rhythm reserved ${learnedDuration[3]} minutes from ${learnedDuration[1]} completed instances (median ${learnedDuration[2]} minutes; saved duration ${learnedDuration[4]} minutes).`,
+      );
+      continue;
+    }
+    const correctedDuration = /^Used user-corrected normal duration: (\d+) minutes; saved normal duration is (\d+) minutes\.$/.exec(item);
+    if (correctedDuration) {
+      push(`You corrected this duration to ${correctedDuration[1]} minutes (saved duration ${correctedDuration[2]} minutes).`);
+      continue;
+    }
     if (item.startsWith('Placed inside candidate interval ')) {
       push('This sits inside time Life Rhythm can use while keeping hard and protected boundaries clear.');
       continue;
@@ -48,5 +60,5 @@ export function placementReasonLines(provenance: readonly string[]): string[] {
     }
   }
 
-  return lines.slice(0, 4);
+  return lines.slice(0, 5);
 }

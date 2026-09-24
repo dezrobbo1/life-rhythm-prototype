@@ -26,6 +26,14 @@ const settingsRepositoryMocks = vi.hoisted(() => ({
   loadSettingsResult: vi.fn(),
 }));
 
+vi.mock('./DurationLearningPanel', () => ({
+  DurationLearningPanel: () => (
+    <section aria-label="Duration learning test boundary">
+      <h2>Duration learning</h2>
+    </section>
+  ),
+}));
+
 vi.mock('./SchedulingPreferencesPanel', () => ({
   SchedulingPreferencesPanel: () => (
     <section aria-label="Scheduling preferences test boundary">

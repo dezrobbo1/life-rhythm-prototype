@@ -161,7 +161,12 @@ async function attemptTimeDisruptionMaintenance(
     trigger: disruption.trigger,
     now: live.now,
     releasePlacementIds: disruption.releasePlacementIds,
-  }, undefined, undefined, undefined, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, representedCurrent);
+  }, undefined, undefined, undefined, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, representedCurrent, {
+    applied: live.context.durationLearningApplied,
+    ...(live.context.durationLearningEventSnapshot
+      ? { eventSnapshot: live.context.durationLearningEventSnapshot }
+      : {}),
+  });
 
   if (!repaired.ok) {
     return {

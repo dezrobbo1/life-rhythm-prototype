@@ -11,10 +11,25 @@ export type SourceRecordRef = {
 
 export type TaskVariantKind = 'minimum' | 'normal' | 'full';
 
+export type AppliedDurationLearning = {
+  templateId: string;
+  source: 'learned' | 'userOverride';
+  schedulerMinutes: number;
+  sampleCount: number;
+  confidence: 'low' | 'moderate' | 'user';
+  medianActualMinutes?: number;
+  upperQuartileActualMinutes?: number;
+};
+
+export type DurationLearningProjection = AppliedDurationLearning & {
+  savedNormalMinutes: number;
+};
+
 export type TaskVariant = {
   kind: TaskVariantKind;
   label: string;
   minutes: number;
+  durationLearning?: DurationLearningProjection;
 };
 
 export type IntentionTiming = {
@@ -236,6 +251,7 @@ export type SchedulerRepairTrigger =
   | 'missedStart'
   | 'completionChanged'
   | 'preferenceChanged'
+  | 'durationLearningChanged'
   | 'userCorrection'
   | 'manualReplan';
 
@@ -275,6 +291,8 @@ export type SchedulerRepairMetadata = {
     targetKind: SchedulingPreference['targetKind'];
     targetValue: string;
   }>;
+  appliedDurationLearningTemplateIds?: string[];
+  previousDurationLearningApplied?: AppliedDurationLearning[];
   undo: SchedulerPlanSnapshot;
 };
 

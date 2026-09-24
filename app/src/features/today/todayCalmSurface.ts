@@ -127,6 +127,8 @@ function repairAttribution(repair: SchedulerRepairMetadata) {
       return 'Completion changed the private plan.';
     case 'preferenceChanged':
       return 'A scheduling preference changed the private plan.';
+    case 'durationLearningChanged':
+      return 'Duration learning changed the private plan.';
     case 'userCorrection':
       return 'A private-plan choice changed the plan.';
     case 'manualReplan':
