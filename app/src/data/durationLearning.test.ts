@@ -82,6 +82,22 @@ describe('Gate 7E duration learning', () => {
     }]);
   });
 
+  it('keeps a user correction applicable without behavioural evidence', () => {
+    expect(applyDurationLearningControls([], [{
+      templateId: 'paperwork',
+      mode: 'override',
+      overrideMinutes: 28,
+      createdAt: first,
+      updatedAt: first,
+    }])).toEqual([{
+      templateId: 'paperwork',
+      source: 'userOverride',
+      schedulerMinutes: 28,
+      sampleCount: 0,
+      confidence: 'user',
+    }]);
+  });
+
   it('lets explicit disable and correction outrank the learned estimate', () => {
     const evidence = deriveDurationLearningEvidence([
       completion('sample-1', 'paperwork', 20),

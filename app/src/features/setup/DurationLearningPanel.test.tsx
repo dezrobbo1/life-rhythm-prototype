@@ -57,7 +57,7 @@ function completion(id: string, minutes: number) {
     after: { taskStatus: 'done', minimumAchieved: false },
     eventType: 'taskCompleted',
     id,
-    occurredAt: `2026-09-2${id.at(-1)}T09:00:00.000Z`,
+    occurredAt: `2026-09-2${id[id.length - 1]}T09:00:00.000Z`,
     provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },
     source: 'user',
     taskId: `task-${id}`,
@@ -144,6 +144,22 @@ describe('Gate 7E DurationLearningPanel', () => {
     }, { templateId: 'paperwork', control: null });
     expect(planMocks.ensure).toHaveBeenCalledTimes(1);
     expect(onPlanChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows valid partial evidence descriptively but pauses automatic learning', async () => {
+    setupHealthy([20, 30, 40]);
+    learningMocks.read.mockResolvedValue({
+      status: 'partial',
+      events: [20, 30, 40].map((minutes, index) => completion(`sample-${index + 1}`, minutes)),
+      invalidRecordCount: 1,
+      eventSnapshot: 'partial-snapshot',
+    });
+
+    render(<DurationLearningPanel />);
+
+    expect(await screen.findByText(/3 trusted completed instances/)).toBeTruthy();
+    expect(screen.getByText(/Duration learning is paused/)).toBeTruthy();
+    expect(screen.queryByText(/currently reserves 40 minutes/)).toBeNull();
   });
 
   it('keeps explicit controls visible when behaviour evidence cannot be read', async () => {

@@ -101,8 +101,13 @@ export function DurationLearningPanel({
   }, [controls, evidence, templates]);
 
   const applied = useMemo(
-    () => controlsHealthy ? applyDurationLearningControls(evidence, controls) : [],
-    [controls, controlsHealthy, evidence],
+    () => controlsHealthy
+      ? applyDurationLearningControls(
+          eventsResult?.status === 'ok' ? evidence : [],
+          controls,
+        )
+      : [],
+    [controls, controlsHealthy, evidence, eventsResult?.status],
   );
   const appliedById = useMemo(
     () => new Map(applied.map((item) => [item.templateId, item])),
@@ -197,7 +202,7 @@ export function DurationLearningPanel({
   const eventWarning = eventsResult?.status === 'readFailed'
     ? eventsResult.errors.join(' ')
     : eventsResult?.status === 'partial'
-      ? `Duration learning ignored ${eventsResult.invalidRecordCount} malformed behaviour record${eventsResult.invalidRecordCount === 1 ? '' : 's'}.`
+      ? `Duration learning is paused because ${eventsResult.invalidRecordCount} behaviour record${eventsResult.invalidRecordCount === 1 ? ' is' : 's are'} malformed. Valid observations are shown descriptively but are not used automatically.`
       : null;
   const controlWarning = controlsResult.status === 'invalid' || controlsResult.status === 'readFailed'
     ? controlsResult.errors.join(' ')

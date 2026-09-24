@@ -506,25 +506,28 @@ export async function buildCurrentLiveSchedulingContext(
 
   const durationWarnings: string[] = [];
   const controlsHealthy = durationControls.status === 'missing' || durationControls.status === 'ok';
-  const eventEvidence = durationEvents.status === 'readFailed'
+  const descriptiveDurationEvidence = durationEvents.status === 'readFailed'
     ? []
     : deriveDurationLearningEvidence(
         durationEvents.events.filter(
           (event) => Date.parse(event.occurredAt) <= decisionInstant.getTime(),
         ),
       );
+  const learningEvidence = durationEvents.status === 'ok'
+    ? descriptiveDurationEvidence
+    : [];
   if (durationEvents.status === 'readFailed') {
     durationWarnings.push(...durationEvents.errors);
   } else if (durationEvents.status === 'partial') {
     durationWarnings.push(
-      `Duration learning ignored ${durationEvents.invalidRecordCount} invalid behaviour record${durationEvents.invalidRecordCount === 1 ? '' : 's'}.`,
+      `Duration learning is paused because ${durationEvents.invalidRecordCount} behaviour record${durationEvents.invalidRecordCount === 1 ? ' is' : 's are'} malformed. Valid observations remain descriptive only until the ledger is fully healthy.`,
     );
   }
   if (!controlsHealthy) {
     durationWarnings.push(...durationControls.errors);
   }
   const durationLearningApplied = controlsHealthy
-    ? applyDurationLearningControls(eventEvidence, durationControls.controls)
+    ? applyDurationLearningControls(learningEvidence, durationControls.controls)
     : [];
   const base = projectCurrentStateToSchedulingDomain({
     settings: settingsResult.settings,
