@@ -35,7 +35,7 @@ import {
   CALENDAR_REPAIR_PENDING_MESSAGE,
   loadSchedulerPlanState,
 } from './data/schedulerPlanStateRepository';
-import { ensureCurrentPrivatePlan } from './data/schedulerPlanCoordinator';
+import { reconcileExistingPrivatePlanAfterDurationEvidenceChange } from './data/durationLearningPlanReconciliation';
 import {
   emptyAppSnapshot,
   normalDayWithOneTaskSnapshot,
@@ -216,9 +216,11 @@ export default function App() {
     setPlanRevision((revision) => revision + 1);
   }, []);
   const handleBehaviourHistoryDeleted = useCallback(async () => {
-    const result = await ensureCurrentPrivatePlan();
+    const result = await reconcileExistingPrivatePlanAfterDurationEvidenceChange();
     if (!result.ok) return false;
-    setPlanRevision((revision) => revision + 1);
+    if (result.action === 'reconciled') {
+      setPlanRevision((revision) => revision + 1);
+    }
     return true;
   }, []);
 

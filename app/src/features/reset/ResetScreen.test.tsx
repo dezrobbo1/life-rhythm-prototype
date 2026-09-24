@@ -304,7 +304,7 @@ describe('Reset screen', () => {
     expect(deleteBehaviourHistoryAction).toHaveBeenCalledWith('DELETE BEHAVIOUR HISTORY');
     expect(onBehaviourHistoryDeleted).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('status').textContent).toContain(
-      'Deleted 3 behaviour events. Derived duration evidence was removed and the flexible plan is up to date.',
+      'Deleted 3 behaviour events. Derived duration evidence was removed and any existing flexible plan is up to date.',
     );
   });
 

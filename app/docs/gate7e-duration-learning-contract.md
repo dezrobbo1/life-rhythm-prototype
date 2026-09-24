@@ -101,7 +101,7 @@ Undo restores the prior applied duration-learning snapshot. Because live evidenc
 
 The behaviour ledger remains the canonical source of learnt evidence.
 
-Deleting behaviour history removes those derived duration observations. The Reset workflow immediately asks the private-plan coordinator to reconcile the current plan:
+Deleting behaviour history removes those derived duration observations. The Reset workflow immediately asks the private-plan coordinator to reconcile an existing plan; it does not create a private plan merely because history was deleted:
 
 - learnt durations fall back to persisted saved Normal durations when evidence disappears;
 - explicit user corrections remain authoritative because they are stored separately as user controls;

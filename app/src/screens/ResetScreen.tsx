@@ -241,7 +241,7 @@ export function ResetScreen({
       : `Deleted ${result.deletedCount} behaviour events.`;
     setConfirmation(
       planReconciled
-        ? `${countCopy} Derived duration evidence was removed and the flexible plan is up to date. Tasks, settings, and calendars were not changed.`
+        ? `${countCopy} Derived duration evidence was removed and any existing flexible plan is up to date. Tasks, settings, and calendars were not changed.`
         : `${countCopy} Derived duration evidence was removed, but the flexible plan still needs updating. Tasks, settings, and calendars were not changed.`,
     );
   }
