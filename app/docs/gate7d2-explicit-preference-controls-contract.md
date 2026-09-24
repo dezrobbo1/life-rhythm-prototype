@@ -20,7 +20,7 @@ Setup contains a dedicated **Scheduling preferences** section. The editor suppor
 
 The persisted ID remains internal and is not shown as ordinary UI copy.
 
-Area and task-type choices come from the existing canonical enums. Task choices are derived from current Today/Held records and rhythm choices from enabled, non-archived rhythm templates. Reading the target catalogue is independent of the explicit-preference sidecar, so corrupt preference bytes do not prevent recovery controls from rendering.
+Area and task-type choices come from the existing canonical enums. Pool-only intentions use the canonical `simple` task-type default so Task type preferences apply consistently before a task is promoted to Today. Task choices are derived from current Today/Held records and rhythm choices from enabled, non-archived rhythm templates. Reading the target catalogue is independent of the explicit-preference sidecar, so corrupt preference bytes do not prevent recovery controls from rendering.
 
 ## Mutation and plan repair
 
@@ -50,7 +50,7 @@ Clear-all requires the exact confirmation phrase:
 DELETE EXPLICIT PREFERENCES
 ```
 
-The Gate 7D2 clear coordinator performs preference reset and accepted-plan repair attention atomically. For a valid record it retains the declared affected targets before deleting content. For malformed preference bytes, where declared targets cannot be trusted, it conservatively records exact targets of current scheduler-owned placements before recovery deletion. If repair attention cannot be persisted for an existing affected plan, the clear operation rolls back.
+The Gate 7D2 clear coordinator performs preference reset and accepted-plan repair attention atomically. For a valid record it retains the declared affected targets before deleting content. For malformed preference bytes, where declared targets cannot be trusted, it conservatively records every canonical Area target before recovery deletion so all future scheduler-owned work can be reconsidered without trusting malformed content. If repair attention cannot be persisted for an existing affected plan, the clear operation rolls back.
 
 Clear-all does not delete tasks, rhythms, calendars, behaviour history, ordinary settings or user-confirmed placements.
 

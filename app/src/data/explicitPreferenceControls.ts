@@ -13,10 +13,7 @@ import {
   CURRENT_SCHEDULER_PLAN_STATE_ID,
   markPreferenceRepairPending,
 } from './schedulerPlanStateRepository';
-import type {
-  PreferenceRepairTarget,
-  SchedulerPlanStateRecord,
-} from './schedulerPlanStateSchema';
+import type { PreferenceRepairTarget } from './schedulerPlanStateSchema';
 import {
   activeTaskSchema,
   areaSchema,
@@ -77,19 +74,11 @@ function dedupeTargets(targets: readonly PreferenceRepairTarget[]) {
   );
 }
 
-function exactPlanTargets(plan: SchedulerPlanStateRecord | undefined) {
-  if (!plan) return [];
-  return dedupeTargets(plan.plan.placements
-    .filter((placement) => placement.origin === 'scheduler')
-    .map((placement): PreferenceRepairTarget => placement.targetKind === 'rhythm'
-      ? {
-          targetKind: 'rhythm',
-          targetValue: placement.rhythmId ?? placement.intentionId,
-        }
-      : {
-          targetKind: 'intention',
-          targetValue: placement.intentionId,
-        }));
+function conservativeRecoveryTargets(): PreferenceRepairTarget[] {
+  return areaSchema.options.map((targetValue) => ({
+    targetKind: 'area' as const,
+    targetValue,
+  }));
 }
 
 export async function loadPreferenceTargetCatalogue(
@@ -189,7 +178,9 @@ export async function commitExplicitPreferenceReset(
         const plan = await database.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
         const targets = loaded.status === 'ok'
           ? dedupeTargets(loaded.preferences.map(targetForPreference))
-          : exactPlanTargets(plan);
+          : loaded.status === 'invalid'
+            ? conservativeRecoveryTargets()
+            : [];
 
         const reset = await resetExplicitPreferences(confirmation, store, timestamp);
         if (!reset.ok) return reset;

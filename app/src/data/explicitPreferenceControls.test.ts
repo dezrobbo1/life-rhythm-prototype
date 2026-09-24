@@ -93,7 +93,7 @@ describe('Gate 7D2 explicit preference controls', () => {
     }));
   });
 
-  it('uses current automatic placement targets when recovering a malformed preference record', async () => {
+  it('uses conservative all-area repair targets when recovering a malformed preference record', async () => {
     await seedPlan();
     await getCurrentLifeRhythmDatabase().settings.put({
       id: EXPLICIT_PREFERENCES_RECORD_ID,
@@ -113,10 +113,16 @@ describe('Gate 7D2 explicit preference controls', () => {
     expect(reset.removed).toBe(true);
 
     const plan = await loadSchedulerPlanState();
-    expect(plan).toEqual(expect.objectContaining({
-      status: 'ok',
-      preferenceRepairTargets: [{ targetKind: 'intention', targetValue: 'task-a' }],
-    }));
+    expect(plan.status).toBe('ok');
+    if (plan.status !== 'ok') return;
+    expect(plan.preferenceRepairTargets).toEqual(
+      expect.arrayContaining([
+        { targetKind: 'area', targetValue: 'admin' },
+        { targetKind: 'area', targetValue: 'work' },
+        { targetKind: 'area', targetValue: 'other' },
+      ]),
+    );
+    expect(plan.preferenceRepairTargets?.every((target) => target.targetKind === 'area')).toBe(true);
 
     const preferences = await loadExplicitPreferencesResult();
     expect(preferences.status).toBe('ok');
