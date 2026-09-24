@@ -228,7 +228,7 @@ describe('Gate 7D2 explicit preference manager', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'Manage scheduling preferences' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Saved scheduling preferences need attention.');
+    expect((await screen.findByRole('alert')).textContent).toContain('Saved scheduling preferences need attention.');
 
     await user.click(screen.getByRole('button', { name: 'Export scheduling preferences' }));
     expect(exportPreferences).toHaveBeenCalledTimes(1);

@@ -86,10 +86,6 @@ describe('Gate 7D2 preference target catalog', () => {
       enabled: false,
       createdAt: timestamp,
       updatedAt: timestamp,
-      recurrence: { frequency: 1, period: 'day' },
-      preferredDays: [],
-      preferredTime: 'evening',
-      maxPerDay: 1,
       ...versions(),
     }));
 
