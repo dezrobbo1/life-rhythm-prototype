@@ -18,9 +18,10 @@ Only schema-valid `taskCompleted` events with an `actualMinutes` fact contribute
 - median actual minutes;
 - minimum observed minutes;
 - maximum observed minutes;
+- deterministic upper-quartile actual minutes (nearest-rank, used by later Gate 7E as a conservative observed estimate);
 - the same duration summary grouped by `taskId` and by `templateId` when that identifier exists.
 
-Incomplete lifecycle history is not converted into duration. Empty groups use a zero sample count and `null` summary values. Minimum and maximum are observed bounds, not a confidence interval.
+Incomplete lifecycle history is not converted into duration. Empty groups use a zero sample count and `null` summary values. Minimum, maximum and upper quartile are descriptive observed summaries, not a confidence interval.
 
 ### Factual event counts
 

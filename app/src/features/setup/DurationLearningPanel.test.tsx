@@ -146,6 +146,69 @@ describe('Gate 7E DurationLearningPanel', () => {
     expect(onPlanChanged).toHaveBeenCalledTimes(1);
   });
 
+  it('preserves an existing corrected value when the user re-saves it without editing the field', async () => {
+    setupHealthy();
+    const existingControl = {
+      templateId: 'paperwork',
+      mode: 'override' as const,
+      overrideMinutes: 28,
+      createdAt: '2026-09-25T00:00:00.000Z',
+      updatedAt: '2026-09-25T00:00:00.000Z',
+    };
+    controlMocks.load.mockResolvedValue({
+      status: 'ok',
+      record: {
+        id: 'learning:duration-controls:v1',
+        recordType: 'durationLearningControls',
+        formatVersion: 1,
+        appVersion: '1.4.6',
+        createdAt: existingControl.createdAt,
+        updatedAt: existingControl.updatedAt,
+        controls: [existingControl],
+      },
+      controls: [existingControl],
+    });
+    mutationMocks.expectation.mockReturnValue({
+      templateId: 'paperwork',
+      control: existingControl,
+    });
+    mutationMocks.upsert.mockResolvedValue({
+      ok: true,
+      control: existingControl,
+      controls: [existingControl],
+    });
+    planMocks.ensure.mockResolvedValue({
+      ok: true,
+      mode: 'loaded',
+      plan: {
+        placements: [],
+        rejectedExistingPlacements: [],
+        unscheduledIntentionIds: [],
+        unscheduledRhythmIds: [],
+      },
+      titleByTargetId: {},
+      updatedAt: '2026-09-25T00:00:00.000Z',
+      warnings: [],
+    });
+    const user = userEvent.setup();
+
+    render(<DurationLearningPanel />);
+
+    const input = await screen.findByLabelText('Corrected minutes for Weekly paperwork');
+    expect((input as HTMLInputElement).value).toBe('28');
+    await user.click(screen.getByRole('button', { name: 'Use corrected duration' }));
+
+    await waitFor(() => expect(mutationMocks.upsert).toHaveBeenCalledTimes(1));
+    expect(mutationMocks.upsert).toHaveBeenCalledWith({
+      templateId: 'paperwork',
+      mode: 'override',
+      overrideMinutes: 28,
+    }, {
+      templateId: 'paperwork',
+      control: existingControl,
+    });
+  });
+
   it('shows valid partial evidence descriptively but pauses automatic learning', async () => {
     setupHealthy([20, 30, 40]);
     learningMocks.read.mockResolvedValue({

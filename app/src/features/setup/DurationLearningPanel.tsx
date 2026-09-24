@@ -138,7 +138,15 @@ export function DurationLearningPanel({
 
     let overrideMinutes: number | undefined;
     if (mode === 'override') {
-      overrideMinutes = Number(corrections[item.templateId] ?? item.savedNormalMinutes ?? '');
+      const currentControl = controls.find(
+        (candidate) => candidate.templateId === item.templateId,
+      );
+      overrideMinutes = Number(
+        corrections[item.templateId] ??
+        (currentControl?.mode === 'override'
+          ? currentControl.overrideMinutes
+          : item.savedNormalMinutes ?? ''),
+      );
       if (!Number.isInteger(overrideMinutes) || overrideMinutes <= 0) {
         setStatus('Enter a whole number of minutes greater than zero.');
         return;
@@ -263,7 +271,7 @@ export function DurationLearningPanel({
                   ) : control?.mode === 'override' ? (
                     <p>Your corrected duration is {control.overrideMinutes} minutes.</p>
                   ) : item.evidence?.confidence === 'insufficient' ? (
-                    <p>At least 3 positive completed instances are neded before automatic adaptation.</p>
+                    <p>At least 3 positive completed instances are needed before automatic adaptation.</p>
                   ) : current?.source === 'learned' ? (
                     <p>
                       Life Rhythm currently reserves {current.schedulerMinutes} minutes
