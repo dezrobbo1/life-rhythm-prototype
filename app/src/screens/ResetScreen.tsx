@@ -70,6 +70,7 @@ type ResetScreenProps = {
   ) => Promise<ActiveTaskStatusUpdateResult>;
   exportBehaviourHistoryAction?: () => Promise<BehaviourHistoryExport>;
   deleteBehaviourHistoryAction?: (confirmation: string) => Promise<DeleteBehaviourHistoryResult>;
+  onBehaviourHistoryDeleted?: () => Promise<boolean>;
 };
 
 type RestartPreview = {
@@ -91,6 +92,7 @@ export function ResetScreen({
   updateTaskStatus = updateActiveTaskStatus,
   exportBehaviourHistoryAction = exportBehaviourHistory,
   deleteBehaviourHistoryAction = deleteBehaviourHistory,
+  onBehaviourHistoryDeleted,
 }: ResetScreenProps = {}) {
   const { snapshot } = useAppSnapshot();
   const resetViewModel = useMemo(
@@ -231,10 +233,16 @@ export function ResetScreen({
     }
 
     setBehaviourDeleteInput('');
+    const planReconciled = result.deletedCount === 0 || !onBehaviourHistoryDeleted
+      ? true
+      : await onBehaviourHistoryDeleted();
+    const countCopy = result.deletedCount === 1
+      ? 'Deleted 1 behaviour event.'
+      : `Deleted ${result.deletedCount} behaviour events.`;
     setConfirmation(
-      result.deletedCount === 1
-        ? 'Deleted 1 behaviour event. Tasks, plans, settings, and calendars were not changed.'
-        : `Deleted ${result.deletedCount} behaviour events. Tasks, plans, settings, and calendars were not changed.`,
+      planReconciled
+        ? `${countCopy} Derived duration evidence was removed and the flexible plan is up to date. Tasks, settings, and calendars were not changed.`
+        : `${countCopy} Derived duration evidence was removed, but the flexible plan still needs updating. Tasks, settings, and calendars were not changed.`,
     );
   }
 
@@ -302,7 +310,7 @@ export function ResetScreen({
           <p className="eyebrow">Local data control</p>
           <h2 id="behaviour-history-title">Behaviour history</h2>
           <p>Export the observed-event ledger as JSON, or delete only that ledger from this device.</p>
-          <p>Tasks, plans, settings, calendar data, and legacy task history are not changed.</p>
+          <p>Tasks, settings, calendar data, and legacy task history are not changed. Removing evidence can update flexible plan durations.</p>
         </div>
         <Button onClick={exportLocalBehaviourHistory}>Export behaviour history</Button>
         <label>

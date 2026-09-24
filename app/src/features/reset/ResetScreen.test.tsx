@@ -280,7 +280,13 @@ describe('Reset screen', () => {
   it('requires explicit confirmation before deleting only behaviour history', async () => {
     const user = userEvent.setup();
     const deleteBehaviourHistoryAction = vi.fn(async () => ({ deletedCount: 3, ok: true as const }));
-    render(<ResetScreen deleteBehaviourHistoryAction={deleteBehaviourHistoryAction} />);
+    const onBehaviourHistoryDeleted = vi.fn(async () => true);
+    render(
+      <ResetScreen
+        deleteBehaviourHistoryAction={deleteBehaviourHistoryAction}
+        onBehaviourHistoryDeleted={onBehaviourHistoryDeleted}
+      />,
+    );
 
     const button = screen.getByRole('button', { name: 'Delete behaviour history' }) as HTMLButtonElement;
     const input = screen.getByLabelText('Type DELETE BEHAVIOUR HISTORY to delete behaviour history');
@@ -296,8 +302,9 @@ describe('Reset screen', () => {
     await user.click(button);
 
     expect(deleteBehaviourHistoryAction).toHaveBeenCalledWith('DELETE BEHAVIOUR HISTORY');
+    expect(onBehaviourHistoryDeleted).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('status').textContent).toContain(
-      'Deleted 3 behaviour events. Tasks, plans, settings, and calendars were not changed.',
+      'Deleted 3 behaviour events. Derived duration evidence was removed and the flexible plan is up to date.',
     );
   });
 

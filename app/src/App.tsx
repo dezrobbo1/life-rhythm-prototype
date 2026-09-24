@@ -35,6 +35,7 @@ import {
   CALENDAR_REPAIR_PENDING_MESSAGE,
   loadSchedulerPlanState,
 } from './data/schedulerPlanStateRepository';
+import { ensureCurrentPrivatePlan } from './data/schedulerPlanCoordinator';
 import {
   emptyAppSnapshot,
   normalDayWithOneTaskSnapshot,
@@ -211,8 +212,14 @@ export default function App() {
     setPlanRevision((revision) => revision + 1);
   }, []);
   const handlePreferencePlanChanged = useCallback(() => {
-    // Preference repair must not clear independent calendar-repair attention.
+    // Personalisation repair must not clear independent calendar-repair attention.
     setPlanRevision((revision) => revision + 1);
+  }, []);
+  const handleBehaviourHistoryDeleted = useCallback(async () => {
+    const result = await ensureCurrentPrivatePlan();
+    if (!result.ok) return false;
+    setPlanRevision((revision) => revision + 1);
+    return true;
   }, []);
 
   useEffect(() => {
@@ -436,7 +443,7 @@ export default function App() {
     ),
     pool: <PoolScreen captureRevision={captureRevision} onOpenPlan={openPlanForTask} />,
     library: <LibraryScreen />,
-    reset: <ResetScreen />,
+    reset: <ResetScreen onBehaviourHistoryDeleted={handleBehaviourHistoryDeleted} />,
     setup: (
       <SetupScreen
         onExportSettingsBackup={handleExportSettingsBackup}
