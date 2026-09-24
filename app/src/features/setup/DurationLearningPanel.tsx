@@ -298,7 +298,8 @@ export function DurationLearningPanel({
                   >
                     Use corrected duration
                   </Button>
-                  {control ? (\n                    <Button
+                  {control ? (
+                    <Button
                       disabled={busy || !controlsHealthy}
                       onClick={() => void resetControl(item)}
                     >
