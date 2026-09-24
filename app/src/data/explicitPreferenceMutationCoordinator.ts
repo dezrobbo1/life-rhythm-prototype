@@ -16,6 +16,7 @@ import {
   CURRENT_SCHEDULER_PLAN_STATE_ID,
   markPreferenceRepairPending,
 } from './schedulerPlanStateRepository';
+import type { PreferenceRepairTarget } from './schedulerPlanStateSchema';
 
 const STALE_PREFERENCE_COMMAND =
   'explicitPreferences: This preference changed after the edit began. Reload the saved preference and try again.';
@@ -81,12 +82,32 @@ function transactionPassthroughStore(database: LifeRhythmDatabase): ExplicitPref
   };
 }
 
+function targetForPreference(
+  preference: Pick<ExplicitPreference, 'targetKind' | 'targetValue'>,
+): PreferenceRepairTarget {
+  return {
+    targetKind: preference.targetKind,
+    targetValue: preference.targetValue,
+  };
+}
+
+function affectedTargetsForUpsert(
+  input: ExplicitPreferenceWriteInput,
+  expectation: ExplicitPreferenceTargetExpectation,
+): PreferenceRepairTarget[] {
+  return [
+    ...(expectation.preference ? [targetForPreference(expectation.preference)] : []),
+    { targetKind: input.targetKind, targetValue: input.targetValue },
+  ];
+}
+
 async function markPlanAttentionIfNeeded(
   database: LifeRhythmDatabase,
   timestamp: string,
+  targets: readonly PreferenceRepairTarget[],
 ) {
   const existingPlan = await database.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
-  const marked = await markPreferenceRepairPending(database, timestamp);
+  const marked = await markPreferenceRepairPending(database, timestamp, targets);
 
   if (!marked.ok || (existingPlan && !marked.persisted)) {
     throw new Error(REPAIR_ATTENTION_ERROR);
@@ -129,7 +150,11 @@ export async function commitExplicitPreferenceUpsert(
         if (!saved.ok) return saved;
 
         try {
-          const repairAttentionPersisted = await markPlanAttentionIfNeeded(database, timestamp);
+          const repairAttentionPersisted = await markPlanAttentionIfNeeded(
+            database,
+            timestamp,
+            affectedTargetsForUpsert(input, expectation),
+          );
           return {
             ...saved,
             repairAttentionPersisted,
@@ -187,7 +212,11 @@ export async function commitExplicitPreferenceDelete(
         }
 
         try {
-          const repairAttentionPersisted = await markPlanAttentionIfNeeded(database, timestamp);
+          const repairAttentionPersisted = await markPlanAttentionIfNeeded(
+            database,
+            timestamp,
+            expectation.preference ? [targetForPreference(expectation.preference)] : [],
+          );
           return {
             ...deleted,
             repairAttentionPersisted,

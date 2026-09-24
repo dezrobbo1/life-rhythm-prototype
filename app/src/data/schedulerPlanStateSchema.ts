@@ -5,6 +5,11 @@ const localTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected 
 const variantKindSchema = z.enum(['minimum', 'normal', 'full']);
 const placementOriginSchema = z.enum(['existingUserConfirmed', 'scheduler']);
 const targetKindSchema = z.enum(['intention', 'rhythm']);
+const preferenceTargetKindSchema = z.enum(['intention', 'rhythm', 'area', 'taskType']);
+const preferenceRepairTargetSchema = z.object({
+  targetKind: preferenceTargetKindSchema,
+  targetValue: idSchema,
+}).strict();
 const schedulerDayModeContextSchema = z.object({
   dayMode: z.literal('reduced'),
   date: softPlacementDateSchema,
@@ -182,10 +187,12 @@ export const schedulerPlanStateRecordSchema = z
     updatedAt: strictIsoDateTimeSchema,
     calendarRepairPendingAt: strictIsoDateTimeSchema.optional(),
     preferenceRepairPendingAt: strictIsoDateTimeSchema.optional(),
+    preferenceRepairTargets: z.array(preferenceRepairTargetSchema).optional(),
     dayModeContext: schedulerDayModeContextSchema.optional(),
     undoDayModeContext: schedulerDayModeContextSchema.nullable().optional(),
     plan: persistedSchedulerPlanSchema,
   })
   .strict();
 
+export type PreferenceRepairTarget = z.infer<typeof preferenceRepairTargetSchema>;
 export type SchedulerPlanStateRecord = z.infer<typeof schedulerPlanStateRecordSchema>;

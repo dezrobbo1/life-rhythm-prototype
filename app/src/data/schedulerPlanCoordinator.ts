@@ -12,6 +12,7 @@ import type {
   SchedulerRepairTrigger,
   SchedulingDomainModel,
   SchedulingInterval,
+  type InternalPlacement,
 } from '../domain/schedulingModel';
 import { readPersistedCalendarEvents } from './calendarSourceRepository';
 import {
@@ -287,6 +288,45 @@ function titleMap(input: SchedulingDomainModel): Record<string, string> {
   };
 }
 
+function preferenceRepairTargetMatchesPlacement(
+  target: { targetKind: 'intention' | 'rhythm' | 'area' | 'taskType'; targetValue: string },
+  placement: InternalPlacement,
+  input: SchedulingDomainModel,
+) {
+  const placementKind = placement.targetKind ?? 'intention';
+  const targetId = placementKind === 'rhythm'
+    ? placement.rhythmId ?? placement.intentionId
+    : placement.intentionId;
+
+  if (target.targetKind === placementKind) return target.targetValue === targetId;
+  if (placementKind === 'rhythm') {
+    const rhythm = input.rhythms.find((candidate) => candidate.id === targetId);
+    return target.targetKind === 'area' && rhythm?.area === target.targetValue;
+  }
+
+  const intention = input.intentions.find((candidate) => candidate.id === targetId);
+  if (!intention) return false;
+  if (target.targetKind === 'area') return intention.area === target.targetValue;
+  if (target.targetKind === 'taskType') return intention.taskType === target.targetValue;
+  return false;
+}
+
+function releasePlacementIdsForPreferenceRepair(
+  plan: SchedulerPlan,
+  input: SchedulingDomainModel,
+  now: SchedulerRepairNow,
+  targets: readonly { targetKind: 'intention' | 'rhythm' | 'area' | 'taskType'; targetValue: string }[],
+) {
+  return plan.placements
+    .filter((placement) =>
+      placement.origin === 'scheduler' &&
+      (placement.date > now.date || (placement.date === now.date && placement.start >= now.time)) &&
+      targets.some((target) => preferenceRepairTargetMatchesPlacement(target, placement, input)),
+    )
+    .map((placement) => placement.id)
+    .sort();
+}
+
 export async function buildCurrentLiveSchedulingContext(
   options: PrivatePlanCoordinatorOptions = {},
 ): Promise<
@@ -539,6 +579,12 @@ export async function ensureCurrentPrivatePlan(
       ...options,
       reason: 'Apply current scheduling preferences to the private plan.',
       trigger: 'preferenceChanged',
+      releasePlacementIds: releasePlacementIdsForPreferenceRepair(
+        current.plan,
+        live.context.input,
+        live.now,
+        current.preferenceRepairTargets ?? [],
+      ),
     });
   }
 

@@ -20,6 +20,7 @@ import {
 } from './schedulerCanonicalInputSnapshot';
 import {
   schedulerPlanStateRecordSchema,
+  type PreferenceRepairTarget,
   type SchedulerPlanStateRecord,
 } from './schedulerPlanStateSchema';
 import {
@@ -54,6 +55,7 @@ type SchedulerModeFields = {
 type SchedulerStateFields = SchedulerModeFields & {
   calendarRepairPendingAt?: string;
   preferenceRepairPendingAt?: string;
+  preferenceRepairTargets?: PreferenceRepairTarget[];
 };
 
 export type CalendarSourceSnapshot = {
@@ -120,6 +122,9 @@ function stateFields(record: SchedulerStateFields): SchedulerStateFields {
       : {}),
     ...(record.preferenceRepairPendingAt
       ? { preferenceRepairPendingAt: record.preferenceRepairPendingAt }
+      : {}),
+    ...(record.preferenceRepairTargets
+      ? { preferenceRepairTargets: record.preferenceRepairTargets.map((target) => ({ ...target })) }
       : {}),
     ...(record.dayModeContext ? { dayModeContext: { ...record.dayModeContext } } : {}),
     ...(record.undoDayModeContext !== undefined
@@ -370,9 +375,23 @@ export async function markCalendarRepairPending(
   }
 }
 
+function orderedPreferenceRepairTargets(
+  targets: readonly PreferenceRepairTarget[],
+): PreferenceRepairTarget[] {
+  const byKey = new Map<string, PreferenceRepairTarget>();
+  for (const target of targets) {
+    byKey.set(`${target.targetKind}:${target.targetValue}`, { ...target });
+  }
+  return [...byKey.values()].sort((left, right) =>
+    left.targetKind.localeCompare(right.targetKind) ||
+    left.targetValue.localeCompare(right.targetValue),
+  );
+}
+
 export async function markPreferenceRepairPending(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
   detectedAt = new Date().toISOString(),
+  targets: readonly PreferenceRepairTarget[] = [],
 ): Promise<{ ok: true; persisted: boolean } | { ok: false; errors: string[] }> {
   try {
     const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
@@ -384,6 +403,10 @@ export async function markPreferenceRepairPending(
     const candidate = schedulerPlanStateRecordSchema.safeParse({
       ...stored,
       preferenceRepairPendingAt: detectedAt,
+      preferenceRepairTargets: orderedPreferenceRepairTargets([
+        ...(stored.preferenceRepairTargets ?? []),
+        ...targets,
+      ]),
     });
 
     if (!candidate.success) {
@@ -392,7 +415,10 @@ export async function markPreferenceRepairPending(
 
     const updated = await store.schedulerPlanState.update(
       CURRENT_SCHEDULER_PLAN_STATE_ID,
-      { preferenceRepairPendingAt: candidate.data.preferenceRepairPendingAt },
+      {
+        preferenceRepairPendingAt: candidate.data.preferenceRepairPendingAt,
+        preferenceRepairTargets: candidate.data.preferenceRepairTargets,
+      },
     );
     return { ok: true, persisted: updated === 1 };
   } catch {
@@ -533,9 +559,17 @@ export async function undoPersistedSchedulerRepair(
     (current.plan.repair?.trigger === 'calendarChanged' ? updatedAt : undefined);
   const preferenceRepairPendingAt = current.preferenceRepairPendingAt ??
     (current.plan.repair?.trigger === 'preferenceChanged' ? updatedAt : undefined);
+  const preferenceRepairTargets = current.preferenceRepairTargets ??
+    (current.plan.repair?.trigger === 'preferenceChanged'
+      ? orderedPreferenceRepairTargets(current.plan.repair.changes.map((change) => ({
+          targetKind: change.targetKind,
+          targetValue: change.targetId,
+        })))
+      : undefined);
   const saved = await saveSchedulerPlanStateIfCurrent(reverted, current, store, updatedAt, {
     calendarRepairPendingAt,
     preferenceRepairPendingAt,
+    preferenceRepairTargets,
     dayModeContext: current.undoDayModeContext ?? undefined,
   }, undefined, undefined, [behaviourEventForSchedulerUndo(current.plan, updatedAt)]);
 
