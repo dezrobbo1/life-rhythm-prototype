@@ -34,7 +34,7 @@ export type PreferenceTargetOption = {
 };
 
 export type PreferenceCatalogueResult =
-  | { status: 'ok'; options: PreferenceTargetOption[] }
+  | { status: 'ok'; options: PreferenceTargetOption[]; warnings: string[] }
   | { status: 'readFailed'; errors: string[] };
 
 export type ExplicitPreferenceResetCommitResult =
@@ -108,21 +108,27 @@ export async function loadPreferenceTargetCatalogue(
       ]),
     );
 
-    const active = activeTaskSchema.array().safeParse(activeRows);
-    const pool = taskPoolItemSchema.array().safeParse(poolRows);
-    const rhythms = rhythmTemplateSchema.array().safeParse(rhythmRows);
-    if (!active.success || !pool.success || !rhythms.success) {
-      return {
-        status: 'readFailed',
-        errors: ['explicitPreferences: Saved task or rhythm targets could not be read safely.'],
-      };
-    }
+    const active = activeRows
+      .map((row) => activeTaskSchema.safeParse(row))
+      .filter((result) => result.success)
+      .map((result) => result.data);
+    const pool = poolRows
+      .map((row) => taskPoolItemSchema.safeParse(row))
+      .filter((result) => result.success)
+      .map((result) => result.data);
+    const rhythms = rhythmRows
+      .map((row) => rhythmTemplateSchema.safeParse(row))
+      .filter((result) => result.success)
+      .map((result) => result.data);
+    const skipped = (activeRows.length - active.length) +
+      (poolRows.length - pool.length) +
+      (rhythmRows.length - rhythms.length);
 
     const intentions = new Map<string, string>();
-    for (const item of pool.data) {
+    for (const item of pool) {
       if (item.status !== 'noLongerNeeded') intentions.set(item.id, item.title);
     }
-    for (const task of active.data) {
+    for (const task of active) {
       if (task.status !== 'done') intentions.set(task.id, task.title);
     }
 
@@ -130,7 +136,7 @@ export async function loadPreferenceTargetCatalogue(
       ...[...intentions.entries()]
         .sort((left, right) => left[1].localeCompare(right[1]) || left[0].localeCompare(right[0]))
         .map(([value, label]) => ({ kind: 'intention' as const, value, label })),
-      ...rhythms.data
+      ...rhythms
         .filter((rhythm) => rhythm.enabled && !rhythm.archivedAt)
         .sort((left, right) => left.title.localeCompare(right.title) || left.id.localeCompare(right.id))
         .map((rhythm) => ({
@@ -150,7 +156,13 @@ export async function loadPreferenceTargetCatalogue(
       })),
     ];
 
-    return { status: 'ok', options };
+    return {
+      status: 'ok',
+      options,
+      warnings: skipped > 0
+        ? [`Some saved task or rhythm targets could not be read safely (${skipped} skipped). Area and Task type choices remain available.`]
+        : [],
+    };
   } catch {
     return {
       status: 'readFailed',

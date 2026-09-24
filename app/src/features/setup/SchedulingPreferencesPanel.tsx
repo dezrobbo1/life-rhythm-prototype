@@ -167,7 +167,7 @@ export function SchedulingPreferencesPanel({
     setLoadResult(preferences);
     if (targets.status === 'ok') {
       setCatalogue(targets.options);
-      setCatalogueError(null);
+      setCatalogueError(targets.warnings[0] ?? null);
     } else {
       setCatalogue([]);
       setCatalogueError(targets.errors.join(' '));
@@ -390,7 +390,7 @@ export function SchedulingPreferencesPanel({
         </ul>
       )}
 
-      {catalogueError ? <p role="alert">{catalogueError}</p> : null}
+      {catalogueError ? <p role="status">{catalogueError}</p> : null}
 
       {!form ? (
         <div className="setup-action-row">
