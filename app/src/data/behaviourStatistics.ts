@@ -10,6 +10,7 @@ export type DurationSummary = {
   medianActualMinutes: number | null;
   minimumObservedMinutes: number | null;
   sampleCount: number;
+  upperQuartileActualMinutes: number | null;
 };
 
 export type GroupedDurationSummary = DurationSummary & {
@@ -110,13 +111,14 @@ function emptyTimeOfDayObservation(): TimeOfDayObservation {
   };
 }
 
-function summariseDurations(minutes: readonly number[]): DurationSummary {
+export function summariseDurations(minutes: readonly number[]): DurationSummary {
   if (minutes.length === 0) {
     return {
       maximumObservedMinutes: null,
       medianActualMinutes: null,
       minimumObservedMinutes: null,
       sampleCount: 0,
+      upperQuartileActualMinutes: null,
     };
   }
 
@@ -125,12 +127,14 @@ function summariseDurations(minutes: readonly number[]): DurationSummary {
   const median = ordered.length % 2 === 0
     ? (ordered[middle - 1] + ordered[middle]) / 2
     : ordered[middle];
+  const upperQuartileIndex = Math.max(0, Math.ceil(ordered.length * 0.75) - 1);
 
   return {
     maximumObservedMinutes: ordered[ordered.length - 1],
     medianActualMinutes: median,
     minimumObservedMinutes: ordered[0],
     sampleCount: ordered.length,
+    upperQuartileActualMinutes: ordered[upperQuartileIndex],
   };
 }
 

@@ -11,10 +11,22 @@ export type SourceRecordRef = {
 
 export type TaskVariantKind = 'minimum' | 'normal' | 'full';
 
+export type DurationLearningProjection = {
+  templateId: string;
+  source: 'learned' | 'userOverride';
+  schedulerMinutes: number;
+  savedNormalMinutes: number;
+  sampleCount: number;
+  confidence: 'low' | 'moderate' | 'user';
+  medianActualMinutes?: number;
+  upperQuartileActualMinutes?: number;
+};
+
 export type TaskVariant = {
   kind: TaskVariantKind;
   label: string;
   minutes: number;
+  durationLearning?: DurationLearningProjection;
 };
 
 export type IntentionTiming = {

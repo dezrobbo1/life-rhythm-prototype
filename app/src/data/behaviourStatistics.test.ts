@@ -178,6 +178,7 @@ describe('Gate 7B descriptive behaviour statistics', () => {
           medianActualMinutes: 12.5,
           minimumObservedMinutes: 5,
           sampleCount: 2,
+          upperQuartileActualMinutes: 20,
         },
         {
           id: 'task-b',
@@ -185,6 +186,7 @@ describe('Gate 7B descriptive behaviour statistics', () => {
           medianActualMinutes: 10,
           minimumObservedMinutes: 10,
           sampleCount: 1,
+          upperQuartileActualMinutes: 10,
         },
       ],
       byTemplateId: [
@@ -194,6 +196,7 @@ describe('Gate 7B descriptive behaviour statistics', () => {
           medianActualMinutes: 12.5,
           minimumObservedMinutes: 5,
           sampleCount: 2,
+          upperQuartileActualMinutes: 20,
         },
         {
           id: 'template-b',
@@ -201,6 +204,7 @@ describe('Gate 7B descriptive behaviour statistics', () => {
           medianActualMinutes: 10,
           minimumObservedMinutes: 10,
           sampleCount: 1,
+          upperQuartileActualMinutes: 10,
         },
       ],
       completionEventCount: 4,
@@ -210,6 +214,7 @@ describe('Gate 7B descriptive behaviour statistics', () => {
         medianActualMinutes: 10,
         minimumObservedMinutes: 5,
         sampleCount: 3,
+        upperQuartileActualMinutes: 20,
       },
     });
   });
@@ -352,6 +357,7 @@ describe('Gate 7B descriptive behaviour statistics', () => {
             medianActualMinutes: null,
             minimumObservedMinutes: null,
             sampleCount: 0,
+            upperQuartileActualMinutes: null,
           },
         },
         timeOfDay: {

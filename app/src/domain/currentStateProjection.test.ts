@@ -303,4 +303,75 @@ describe('current persisted state projection', () => {
     expect(projected.dayProfiles).toHaveLength(2);
     expect(projected.dayProfiles.find((profile) => profile.kind === 'workday')?.assignedWeekdays).toContain('Monday');
   });
+
+  it('applies template-scoped duration learning only to the projected normal variant', () => {
+    const template = rhythmTemplateSchema.parse({
+      id: 'paperwork',
+      title: 'Paperwork',
+      area: 'admin',
+      enabled: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      minimum: { label: 'Open it', minutes: 5 },
+      normal: { label: 'Do it', minutes: 20 },
+      full: { label: 'Finish it', minutes: 40 },
+    });
+    const poolItem = taskPoolItemSchema.parse({
+      id: 'paperwork-instance',
+      title: 'Paperwork instance',
+      area: 'admin',
+      source: 'library',
+      status: 'captured',
+      templateId: 'paperwork',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      minimum: template.minimum,
+      normal: template.normal,
+      full: template.full,
+    });
+
+    const projected = projectCurrentStateToSchedulingDomain({
+      settings: settings(),
+      activeTasks: [],
+      taskPoolItems: [poolItem],
+      rhythmTemplates: [template],
+      softPlacements: [],
+      durationLearningByTemplateId: {
+        paperwork: {
+          templateId: 'paperwork',
+          source: 'learned',
+          schedulerMinutes: 35,
+          sampleCount: 5,
+          confidence: 'moderate',
+          medianActualMinutes: 30,
+          upperQuartileActualMinutes: 35,
+        },
+      },
+    });
+
+    expect(projected.intentions[0].variants).toEqual([
+      { kind: 'minimum', label: 'Open it', minutes: 5 },
+      {
+        kind: 'normal',
+        label: 'Do it',
+        minutes: 35,
+        durationLearning: {
+          templateId: 'paperwork',
+          source: 'learned',
+          schedulerMinutes: 35,
+          savedNormalMinutes: 20,
+          sampleCount: 5,
+          confidence: 'moderate',
+          medianActualMinutes: 30,
+          upperQuartileActualMinutes: 35,
+        },
+      },
+      { kind: 'full', label: 'Finish it', minutes: 40 },
+    ]);
+    expect(projected.rhythms[0].variants[1]).toMatchObject({
+      kind: 'normal',
+      minutes: 35,
+      durationLearning: { savedNormalMinutes: 20, schedulerMinutes: 35 },
+    });
+  });
 });

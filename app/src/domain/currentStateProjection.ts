@@ -12,6 +12,7 @@ import type {
   InternalIntention,
   InternalPlacement,
   RhythmRequirement,
+  DurationLearningProjection,
   SchedulingDomainModel,
   TaskVariant,
 } from './schedulingModel';
@@ -22,6 +23,7 @@ export type CurrentPersistedSchedulingState = {
   taskPoolItems: TaskPoolItem[];
   rhythmTemplates: RhythmTemplate[];
   softPlacements: SoftPlacement[];
+  durationLearningByTemplateId?: Record<string, Omit<DurationLearningProjection, 'savedNormalMinutes'>>;
 };
 
 const schedulableActiveTaskStatuses: readonly ActiveTask['status'][] = [
@@ -31,10 +33,27 @@ const schedulableActiveTaskStatuses: readonly ActiveTask['status'][] = [
   'minimumDone',
 ];
 
-function variantsFromRecord(record: Pick<ActiveTask | TaskPoolItem | RhythmTemplate, 'minimum' | 'normal' | 'full'>): TaskVariant[] {
+function variantsFromRecord(
+  record: Pick<ActiveTask | TaskPoolItem | RhythmTemplate, 'minimum' | 'normal' | 'full'>,
+  templateId?: string,
+  durationLearningByTemplateId?: CurrentPersistedSchedulingState['durationLearningByTemplateId'],
+): TaskVariant[] {
+  const learned = templateId ? durationLearningByTemplateId?.[templateId] : undefined;
   return [
     { kind: 'minimum', ...record.minimum },
-    { kind: 'normal', ...record.normal },
+    {
+      kind: 'normal',
+      ...record.normal,
+      ...(learned
+        ? {
+            minutes: learned.schedulerMinutes,
+            durationLearning: {
+              ...learned,
+              savedNormalMinutes: record.normal.minutes,
+            },
+          }
+        : {}),
+    },
     { kind: 'full', ...record.full },
   ];
 }
@@ -57,7 +76,7 @@ function intentionFromPoolItem(item: TaskPoolItem): InternalIntention {
     // Pool items do not persist task classification fields. Match the
     // canonical schema default so Task type preferences can apply.
     taskType: 'simple',
-    variants: variantsFromRecord(item),
+    variants: variantsFromRecord(item, item.templateId),
     timing: {
       timeConstraint: item.timeConstraint,
       dueAt: item.dueAt,
@@ -88,7 +107,7 @@ function mergeActiveTask(task: ActiveTask, existing?: InternalIntention): Intern
     taskType: task.taskType,
     priority: task.priority,
     energy: task.energy,
-    variants: variantsFromRecord(task),
+    variants: variantsFromRecord(task, task.templateId),
     timing: {
       timeConstraint: task.timeConstraint,
       dueAt: task.dueAt,
@@ -108,21 +127,32 @@ function mergeActiveTask(task: ActiveTask, existing?: InternalIntention): Intern
   };
 }
 
-function projectIntentions(activeTasks: ActiveTask[], taskPoolItems: TaskPoolItem[]): InternalIntention[] {
+function projectIntentions(
+  activeTasks: ActiveTask[],
+  taskPoolItems: TaskPoolItem[],
+  durationLearningByTemplateId?: CurrentPersistedSchedulingState['durationLearningByTemplateId'],
+): InternalIntention[] {
   const intentions = new Map<string, InternalIntention>();
 
   for (const item of taskPoolItems) {
-    intentions.set(item.id, intentionFromPoolItem(item));
+    const intention = intentionFromPoolItem(item);
+    intention.variants = variantsFromRecord(item, item.templateId, durationLearningByTemplateId);
+    intentions.set(item.id, intention);
   }
 
   for (const task of activeTasks) {
-    intentions.set(task.id, mergeActiveTask(task, intentions.get(task.id)));
+    const intention = mergeActiveTask(task, intentions.get(task.id));
+    intention.variants = variantsFromRecord(task, task.templateId, durationLearningByTemplateId);
+    intentions.set(task.id, intention);
   }
 
   return [...intentions.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
-function projectRhythms(templates: RhythmTemplate[]): RhythmRequirement[] {
+function projectRhythms(
+  templates: RhythmTemplate[],
+  durationLearningByTemplateId?: CurrentPersistedSchedulingState['durationLearningByTemplateId'],
+): RhythmRequirement[] {
   return templates
     .filter((template) => template.enabled && !template.archivedAt)
     .map((template) => ({
@@ -135,7 +165,7 @@ function projectRhythms(templates: RhythmTemplate[]): RhythmRequirement[] {
       preferredDays: [...template.schedule.preferredDays],
       preferredTime: template.schedule.bestTime,
       maxPerDay: template.schedule.maxPerDay,
-      variants: variantsFromRecord(template),
+      variants: variantsFromRecord(template, template.id, durationLearningByTemplateId),
       sourceRecords: [{ kind: 'rhythmTemplate' as const, id: template.id }],
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
@@ -202,8 +232,12 @@ export function projectCurrentStateToSchedulingDomain(
   state: CurrentPersistedSchedulingState,
 ): SchedulingDomainModel {
   return {
-    intentions: projectIntentions(state.activeTasks, state.taskPoolItems),
-    rhythms: projectRhythms(state.rhythmTemplates),
+    intentions: projectIntentions(
+      state.activeTasks,
+      state.taskPoolItems,
+      state.durationLearningByTemplateId,
+    ),
+    rhythms: projectRhythms(state.rhythmTemplates, state.durationLearningByTemplateId),
     externalCommitments: state.settings.lifeShape.fixedCommitments
       .map((commitment) => ({
         id: `commitment:${commitment.id}`,
