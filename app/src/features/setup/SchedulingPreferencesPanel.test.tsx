@@ -172,8 +172,8 @@ describe('Gate 7D2 SchedulingPreferencesPanel', () => {
     render(<SchedulingPreferencesPanel />);
 
     expect(await screen.findByRole('alert')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Add scheduling preference' })).toBeDisabled();
+    expect((screen.getByRole('button', { name: 'Add scheduling preference' }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole('button', { name: 'Export scheduling preferences' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Clear scheduling preferences' })).toBeDisabled();
+    expect((screen.getByRole('button', { name: 'Clear scheduling preferences' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
