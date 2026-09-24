@@ -682,16 +682,19 @@ export async function undoPersistedSchedulerRepair(
   const restoredPreferenceRepairTargets = appliedPreferenceRepairTargets.length > 0
     ? appliedPreferenceRepairTargets
     : legacyPreferenceRepairTargets;
-  const preferenceRepairPendingAt = current.preferenceRepairPendingAt ??
-    (restoredPreferenceRepairTargets.length > 0 ? updatedAt : undefined);
-  const preferenceRepairTargets = current.preferenceRepairTargets ??
-    (restoredPreferenceRepairTargets.length > 0
-      ? restoredPreferenceRepairTargets
-      : undefined);
+  const preferenceRepairTargets = orderedPreferenceRepairTargets([
+    ...(current.preferenceRepairTargets ?? []),
+    ...restoredPreferenceRepairTargets,
+  ]);
+  const preferenceRepairPendingAt = preferenceRepairTargets.length === 0
+    ? undefined
+    : restoredPreferenceRepairTargets.length > 0
+      ? updatedAt
+      : current.preferenceRepairPendingAt;
   const saved = await saveSchedulerPlanStateIfCurrent(reverted, current, store, updatedAt, {
     calendarRepairPendingAt,
     preferenceRepairPendingAt,
-    preferenceRepairTargets,
+    ...(preferenceRepairTargets.length > 0 ? { preferenceRepairTargets } : {}),
     dayModeContext: current.undoDayModeContext ?? undefined,
   }, undefined, undefined, [behaviourEventForSchedulerUndo(current.plan, updatedAt)]);
 

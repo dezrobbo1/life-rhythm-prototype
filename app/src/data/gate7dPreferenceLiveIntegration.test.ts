@@ -178,6 +178,31 @@ describe('Gate 7D1 live explicit preference integration', () => {
     expect(saved.preferenceRepairPendingAt).toBeUndefined();
     expect(saved.preferenceRepairTargets).toBeUndefined();
 
+    // A later independent preference can become pending before the user undoes
+    // this repair. Undo must restore the consumed admin target without dropping
+    // this newer work target.
+    const afterRepairPreferences = await loadExplicitPreferencesResult();
+    const laterExpectation = explicitPreferenceTargetExpectation(
+      afterRepairPreferences,
+      'work-later',
+    );
+    if (!laterExpectation) throw new Error('Expected healthy preference store');
+    const laterMutation = await commitExplicitPreferenceUpsert(
+      {
+        id: 'work-later',
+        targetKind: 'area',
+        targetValue: 'work',
+        relation: 'prefer',
+        days: ['Monday'],
+        start: '15:00',
+        end: '16:00',
+      },
+      laterExpectation,
+      undefined,
+      '2026-09-07T00:00:00.0025Z',
+    );
+    expect(laterMutation.ok).toBe(true);
+
     const undone = await undoCurrentPrivatePlan({
       ...options,
       now: new Date('2026-09-07T00:00:00.003Z'),
@@ -192,6 +217,7 @@ describe('Gate 7D1 live explicit preference integration', () => {
       preferenceRepairPendingAt: expect.any(String),
       preferenceRepairTargets: [
         { targetKind: 'area', targetValue: 'admin' },
+        { targetKind: 'area', targetValue: 'work' },
       ],
     }));
 
