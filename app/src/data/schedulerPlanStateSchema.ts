@@ -172,6 +172,7 @@ const schedulerRepairMetadataSchema = z
     frozenPastPlacementIds: z.array(idSchema),
     preservedPlacementIds: z.array(idSchema),
     changes: z.array(schedulerPlanChangeSchema),
+    appliedPreferenceRepairTargets: z.array(preferenceRepairTargetSchema).optional(),
     undo: persistedSchedulerPlanSnapshotSchema,
   })
   .strict();

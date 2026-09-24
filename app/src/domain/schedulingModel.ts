@@ -270,6 +270,11 @@ export type SchedulerRepairMetadata = {
   frozenPastPlacementIds: string[];
   preservedPlacementIds: string[];
   changes: SchedulerPlanChange[];
+  /** Preference targets actually incorporated into this accepted repair. */
+  appliedPreferenceRepairTargets?: Array<{
+    targetKind: SchedulingPreference['targetKind'];
+    targetValue: string;
+  }>;
   undo: SchedulerPlanSnapshot;
 };
 

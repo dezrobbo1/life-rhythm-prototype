@@ -85,7 +85,7 @@ The same protection applies when another repair path runs first (for example a t
 
 A successful repair that incorporated the pending preference targets clears the pending marker. If the preference mutation cannot atomically store repair attention, the preference mutation rolls back rather than leaving an accepted plan silently stale.
 
-Undo of a preference-driven repair restores the prior plan but also restores preference-repair attention, because the explicit preference itself remains current. A later ensure can therefore reconcile the plan again rather than presenting the undone plan as preference-consistent truth.
+Every accepted repair records the exact preference targets it actually incorporated, independently of that repair's primary trigger. Undo restores preference-repair attention from those recorded targets, because the explicit preference itself remains current. This applies equally when a preference was consumed by a manual, calendar, Reduced Day, missed-start, overrun, or dedicated preference repair. A later ensure can therefore reconcile the restored prior plan again rather than presenting it as preference-consistent truth.
 
 ## User-facing status
 

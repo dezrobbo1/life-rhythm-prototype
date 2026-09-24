@@ -140,7 +140,7 @@ describe('Gate 7D1 live explicit preference integration', () => {
     expect((await loadSchedulerPlanState()).status).toBe('missing');
   });
 
-  it('cannot clear preference repair attention through an unrelated repair without applying the preference', async () => {
+  it('restores consumed preference repair authority when an unrelated repair is undone', async () => {
     const initial = await ensureCurrentPrivatePlan(options);
     expect(initial.ok).toBe(true);
     if (!initial.ok) return;
@@ -167,12 +167,47 @@ describe('Gate 7D1 live explicit preference integration', () => {
     expect(repaired.ok).toBe(true);
     if (!repaired.ok) return;
     expect(repaired.plan.placements[0]).toMatchObject({ start: '11:00', end: '11:20' });
+    expect(repaired.plan.repair?.trigger).toBe('manualReplan');
+    expect(repaired.plan.repair?.appliedPreferenceRepairTargets).toEqual([
+      { targetKind: 'area', targetValue: 'admin' },
+    ]);
 
     const saved = await loadSchedulerPlanState();
     expect(saved.status).toBe('ok');
     if (saved.status !== 'ok') return;
     expect(saved.preferenceRepairPendingAt).toBeUndefined();
     expect(saved.preferenceRepairTargets).toBeUndefined();
+
+    const undone = await undoCurrentPrivatePlan({
+      ...options,
+      now: new Date('2026-09-07T00:00:00.003Z'),
+    });
+    expect(undone.ok).toBe(true);
+    if (!undone.ok) return;
+    expect(undone.plan.placements[0]).toMatchObject({ start: '09:00', end: '09:20' });
+
+    const afterUndo = await loadSchedulerPlanState();
+    expect(afterUndo).toEqual(expect.objectContaining({
+      status: 'ok',
+      preferenceRepairPendingAt: expect.any(String),
+      preferenceRepairTargets: [
+        { targetKind: 'area', targetValue: 'admin' },
+      ],
+    }));
+
+    const reconciled = await ensureCurrentPrivatePlan({
+      ...options,
+      now: new Date('2026-09-07T00:00:00.004Z'),
+    });
+    expect(reconciled.ok).toBe(true);
+    if (!reconciled.ok) return;
+    expect(reconciled.plan.placements[0]).toMatchObject({ start: '11:00', end: '11:20' });
+
+    const finalState = await loadSchedulerPlanState();
+    expect(finalState.status).toBe('ok');
+    if (finalState.status !== 'ok') return;
+    expect(finalState.preferenceRepairPendingAt).toBeUndefined();
+    expect(finalState.preferenceRepairTargets).toBeUndefined();
   });
 
   it('repairs an accepted plan after a committed preference change and reopens attention after Undo', async () => {

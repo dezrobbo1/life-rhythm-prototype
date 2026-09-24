@@ -588,9 +588,21 @@ export async function repairAndPersistSchedulerPlan(
           ),
         }
       : preferenceAware.change;
-    const plan = current.status === 'missing'
+    const calculatedPlan = current.status === 'missing'
       ? scheduler.buildPlan(safeChange.nextInput)
       : scheduler.repairPlan(current.plan, safeChange);
+    const appliedPreferenceRepairTargets = preferenceAware.applied && current.status === 'ok'
+      ? orderedPreferenceRepairTargets(current.preferenceRepairTargets ?? [])
+      : [];
+    const plan = appliedPreferenceRepairTargets.length > 0 && calculatedPlan.repair
+      ? {
+          ...calculatedPlan,
+          repair: {
+            ...calculatedPlan.repair,
+            appliedPreferenceRepairTargets,
+          },
+        }
+      : calculatedPlan;
     const previousContext = current.status === 'ok' ? current.dayModeContext : undefined;
     const inheritedContext = change.now && previousContext?.date === change.now.date
       ? previousContext
@@ -658,14 +670,23 @@ export async function undoPersistedSchedulerRepair(
   const reverted = scheduler.undoRepair(current.plan);
   const calendarRepairPendingAt = current.calendarRepairPendingAt ??
     (current.plan.repair?.trigger === 'calendarChanged' ? updatedAt : undefined);
+  const appliedPreferenceRepairTargets = orderedPreferenceRepairTargets(
+    current.plan.repair?.appliedPreferenceRepairTargets ?? [],
+  );
+  const legacyPreferenceRepairTargets = current.plan.repair?.trigger === 'preferenceChanged'
+    ? orderedPreferenceRepairTargets(current.plan.repair.changes.map((change) => ({
+        targetKind: change.targetKind,
+        targetValue: change.targetId,
+      })))
+    : [];
+  const restoredPreferenceRepairTargets = appliedPreferenceRepairTargets.length > 0
+    ? appliedPreferenceRepairTargets
+    : legacyPreferenceRepairTargets;
   const preferenceRepairPendingAt = current.preferenceRepairPendingAt ??
-    (current.plan.repair?.trigger === 'preferenceChanged' ? updatedAt : undefined);
+    (restoredPreferenceRepairTargets.length > 0 ? updatedAt : undefined);
   const preferenceRepairTargets = current.preferenceRepairTargets ??
-    (current.plan.repair?.trigger === 'preferenceChanged'
-      ? orderedPreferenceRepairTargets(current.plan.repair.changes.map((change) => ({
-          targetKind: change.targetKind,
-          targetValue: change.targetId,
-        })))
+    (restoredPreferenceRepairTargets.length > 0
+      ? restoredPreferenceRepairTargets
       : undefined);
   const saved = await saveSchedulerPlanStateIfCurrent(reverted, current, store, updatedAt, {
     calendarRepairPendingAt,
