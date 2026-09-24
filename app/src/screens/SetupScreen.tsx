@@ -43,6 +43,7 @@ import {
   safetyStateFromSettings,
 } from '../features/setup/settingsForm';
 import { buildSetupViewModel } from '../viewModels';
+import { SchedulingPreferencesPanel } from '../features/setup/SchedulingPreferencesPanel';
 
 type SetupScreenProps = {
   onExportSettingsBackup?: () => Promise<SettingsBackupExport>;
@@ -50,6 +51,7 @@ type SetupScreenProps = {
   onExportTaskPoolBackup?: () => Promise<TaskPoolBackupExport | null>;
   onResetSettings?: () => Promise<Settings>;
   onSaveSettings?: (settings: SettingsWriteInput) => Promise<SettingsWriteResult>;
+  onPreferencePlanChanged?: () => void;
   onThemeChange?: (theme: ThemeName) => void;
   settings?: Settings;
   theme?: ThemeName;
@@ -84,6 +86,7 @@ export function SetupScreen({
   onExportTaskPoolBackup,
   onResetSettings,
   onSaveSettings,
+  onPreferencePlanChanged,
   onThemeChange,
   settings,
   theme = 'exhale',
@@ -708,6 +711,8 @@ export function SetupScreen({
         </div>
         <p className="setup-note">Settings only. Future planning can use this shape later, but this does not schedule anything.</p>
       </Card>
+
+      <SchedulingPreferencesPanel onPlanChanged={onPreferencePlanChanged} />
 
       <Card>
         <div className="setup-section-heading">
