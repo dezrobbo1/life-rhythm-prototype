@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  commitExplicitPreferenceReset,
   commitExplicitPreferenceUpsert,
   explicitPreferenceTargetExpectation,
 } from './explicitPreferenceMutationCoordinator';
@@ -9,6 +10,7 @@ import {
   type ExplicitPreferenceWriteInput,
 } from './explicitPreferenceSchema';
 import {
+  DELETE_EXPLICIT_PREFERENCES_CONFIRMATION,
   loadExplicitPreferencesResult,
   upsertExplicitPreference,
 } from './explicitPreferenceRepository';
@@ -124,6 +126,55 @@ describe('Gate 7D1 live explicit preference integration', () => {
       start: '11:00',
       end: '11:20',
     });
+  });
+
+  it('clears an active preference and automatically reconciles the affected accepted placement', async () => {
+    expect((await upsertExplicitPreference(
+      preferenceInput,
+      undefined,
+      '2026-09-06T23:30:00.000Z',
+    )).ok).toBe(true);
+
+    const initial = await ensureCurrentPrivatePlan(options);
+    expect(initial.ok).toBe(true);
+    if (!initial.ok) return;
+    expect(initial.plan.placements[0]).toMatchObject({ start: '11:00', end: '11:20' });
+
+    const cleared = await commitExplicitPreferenceReset(
+      DELETE_EXPLICIT_PREFERENCES_CONFIRMATION,
+      undefined,
+      '2026-09-07T00:00:00.001Z',
+    );
+    expect(cleared.ok).toBe(true);
+    if (!cleared.ok) return;
+    expect(cleared.repairAttentionPersisted).toBe(true);
+
+    const pending = await loadSchedulerPlanState();
+    expect(pending).toEqual(expect.objectContaining({
+      status: 'ok',
+      preferenceRepairTargets: [
+        { targetKind: 'area', targetValue: 'admin' },
+      ],
+    }));
+
+    const reconciled = await ensureCurrentPrivatePlan({
+      ...options,
+      now: new Date('2026-09-07T00:00:00.002Z'),
+    });
+    expect(reconciled.ok).toBe(true);
+    if (!reconciled.ok) return;
+    expect(reconciled.plan.placements[0]).toMatchObject({ start: '09:00', end: '09:20' });
+
+    const preferences = await loadExplicitPreferencesResult();
+    expect(preferences.status).toBe('ok');
+    if (preferences.status !== 'ok') return;
+    expect(preferences.preferences).toEqual([]);
+
+    const healthy = await loadSchedulerPlanState();
+    expect(healthy.status).toBe('ok');
+    if (healthy.status !== 'ok') return;
+    expect(healthy.preferenceRepairPendingAt).toBeUndefined();
+    expect(healthy.preferenceRepairTargets).toBeUndefined();
   });
 
   it('fails closed on a malformed preference sidecar instead of scheduling as if no preference exists', async () => {

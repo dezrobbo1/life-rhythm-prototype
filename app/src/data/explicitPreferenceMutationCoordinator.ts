@@ -2,6 +2,7 @@ import type { LifeRhythmDatabase } from './db';
 import {
   createExplicitPreferenceStore,
   deleteExplicitPreference,
+  DELETE_EXPLICIT_PREFERENCES_CONFIRMATION,
   loadExplicitPreferencesResult,
   resetExplicitPreferences,
   upsertExplicitPreference,
@@ -273,6 +274,13 @@ export async function commitExplicitPreferenceReset(
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
   timestamp = new Date().toISOString(),
 ): Promise<PreferenceMutationCommitResult> {
+  if (confirmation !== DELETE_EXPLICIT_PREFERENCES_CONFIRMATION) {
+    return {
+      ok: false,
+      errors: ['Deletion confirmation is required.'],
+    };
+  }
+
   let failure: PreferenceMutationFailure | null = null;
 
   try {
