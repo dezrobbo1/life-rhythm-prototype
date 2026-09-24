@@ -66,6 +66,7 @@ function healthyCatalogue() {
       { kind: 'area' as const, value: 'admin', label: 'Admin' },
       { kind: 'area' as const, value: 'work', label: 'Work' },
     ],
+    warnings: [],
   };
 }
 

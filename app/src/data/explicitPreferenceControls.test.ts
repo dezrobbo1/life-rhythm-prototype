@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   commitExplicitPreferenceReset,
   DELETE_EXPLICIT_PREFERENCES_CONFIRMATION,
+  loadPreferenceTargetCatalogue,
 } from './explicitPreferenceControls';
 import {
   EXPLICIT_PREFERENCES_RECORD_ID,
@@ -122,6 +123,25 @@ describe('Gate 7D2 explicit preference controls', () => {
     if (preferences.status !== 'ok') return;
     expect(preferences.preferences).toEqual([]);
     expect(JSON.stringify(preferences.record)).not.toContain('secretMalformedField');
+  });
+
+  it('keeps static targets and valid named targets available when one saved row is malformed', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    await database.activeTasks.put({
+      id: 'broken-task',
+      title: '',
+      status: 'active',
+    } as never);
+
+    const catalogue = await loadPreferenceTargetCatalogue(database);
+
+    expect(catalogue.status).toBe('ok');
+    if (catalogue.status !== 'ok') return;
+    expect(catalogue.options).toEqual(expect.arrayContaining([
+      { kind: 'area', value: 'admin', label: 'Admin' },
+      { kind: 'taskType', value: 'work', label: 'Work' },
+    ]));
+    expect(catalogue.warnings.join(' ')).toContain('1 skipped');
   });
 
   it('does not clear anything without the exact confirmation phrase', async () => {
