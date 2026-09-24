@@ -503,40 +503,38 @@ function preferenceAppliesToRhythm(
   }
 }
 
-function preferenceIsActiveForCandidate(
-  preference: SchedulingPreference,
-  candidate: CandidateSchedulingInterval,
-): boolean {
-  const candidateStart = localKey(candidate.date, candidate.start);
-
-  if (preference.activeFrom) {
-    const activeFrom = localPointForInstant(preference.activeFrom, candidate.timezone);
-    if (!activeFrom || candidateStart < localKey(activeFrom.date, activeFrom.time)) return false;
-  }
-
-  if (preference.expiresAt) {
-    const expiresAt = localPointForInstant(preference.expiresAt, candidate.timezone);
-    if (!expiresAt || candidateStart >= localKey(expiresAt.date, expiresAt.time)) return false;
-  }
-
-  return true;
-}
-
-function preferencesForCandidate(
-  preferences: SchedulingPreference[],
-  candidate: CandidateSchedulingInterval,
-): SchedulingPreference[] {
-  const weekday = weekdayForLocalDate(candidate.date);
-  return preferences.filter((preference) =>
-    (!preference.days || preference.days.length === 0 || preference.days.includes(weekday)) &&
-    preferenceIsActiveForCandidate(preference, candidate),
-  );
-}
-
 function preferenceRange(preference: SchedulingPreference): MinuteRange | null {
   if (!preference.start || !preference.end) return null;
   const start = minutesFromTime(preference.start);
   const end = minutesFromTime(preference.end);
+  return start < end ? { start, end } : null;
+}
+
+function preferenceEffectiveRange(
+  preference: SchedulingPreference,
+  candidate: CandidateSchedulingInterval,
+): MinuteRange | null {
+  const weekday = weekdayForLocalDate(candidate.date);
+  if (preference.days && preference.days.length > 0 && !preference.days.includes(weekday)) {
+    return null;
+  }
+
+  const declared = preferenceRange(preference);
+  let start = declared?.start ?? 0;
+  let end = declared?.end ?? 24 * 60;
+
+  if (preference.activeFrom) {
+    const activeFrom = localPointForInstant(preference.activeFrom, candidate.timezone);
+    if (!activeFrom || activeFrom.date > candidate.date) return null;
+    if (activeFrom.date === candidate.date) start = Math.max(start, minutesFromTime(activeFrom.time));
+  }
+
+  if (preference.expiresAt) {
+    const expiresAt = localPointForInstant(preference.expiresAt, candidate.timezone);
+    if (!expiresAt || expiresAt.date < candidate.date) return null;
+    if (expiresAt.date === candidate.date) end = Math.min(end, minutesFromTime(expiresAt.time));
+  }
+
   return start < end ? { start, end } : null;
 }
 
@@ -581,13 +579,12 @@ function slotPreferenceScore(
   matchedPreferenceIds: string[];
   conflictingPreferenceIds: string[];
 } {
-  const matchingPreferences = preferencesForCandidate(preferences, candidate).filter((preference) => {
-    const preferredRange = preferenceRange(preference);
-    return preferredRange
-      ? preference.relation === 'prefer'
-        ? contains(preferredRange, range)
-        : overlaps(preferredRange, range)
-      : true;
+  const matchingPreferences = preferences.filter((preference) => {
+    const effectiveRange = preferenceEffectiveRange(preference, candidate);
+    if (!effectiveRange) return false;
+    return preference.relation === 'prefer'
+      ? contains(effectiveRange, range)
+      : overlaps(effectiveRange, range);
   });
 
   if (matchingPreferences.length === 0) {
@@ -648,8 +645,8 @@ function candidateStarts(
   if (fits(gap.start)) starts.add(gap.start);
   if (fixedStart !== undefined && fits(fixedStart)) starts.add(fixedStart);
 
-  for (const preference of preferencesForCandidate(preferences, gap.candidate)) {
-    const range = preferenceRange(preference);
+  for (const preference of preferences) {
+    const range = preferenceEffectiveRange(preference, gap.candidate);
     if (!range) continue;
     const start = preference.relation === 'prefer'
       ? Math.max(gap.start, range.start)
