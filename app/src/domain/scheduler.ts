@@ -689,6 +689,28 @@ function fixedStartForCandidate(
   return minutesFromTime(fixed.time);
 }
 
+function matchedPreferenceProvenance(preference: SchedulingPreference): string {
+  const target = (() => {
+    switch (preference.targetKind) {
+      case 'intention':
+        return 'this task';
+      case 'rhythm':
+        return 'this rhythm';
+      case 'area':
+        return `${preference.targetValue} area`;
+      case 'taskType':
+        return `${preference.targetValue} tasks`;
+    }
+  })();
+  const days = !preference.days || preference.days.length === 0
+    ? 'any day'
+    : preference.days.join(', ');
+  const time = preference.start && preference.end
+    ? `from ${preference.start} to ${preference.end}`
+    : 'at any time';
+  return `Matched user-declared preference: ${preference.relation} ${target} on ${days} ${time}.`;
+}
+
 function placementProvenance(
   candidate: CandidateSchedulingInterval,
   variant: TaskVariant,
@@ -704,12 +726,10 @@ function placementProvenance(
   ];
 
   for (const preference of matchedPreferences.slice(0, 2)) {
-    provenance.push(`Matched explicit preference ${preference.id}: ${preference.provenance}`);
+    provenance.push(matchedPreferenceProvenance(preference));
   }
   if (conflictingPreferenceIds.length > 0) {
-    provenance.push(
-      `Conflicting preference guidance was not used to rank this slot: ${conflictingPreferenceIds.join(', ')}.`,
-    );
+    provenance.push('Conflicting preference guidance was not used to rank this slot.');
   }
 
   return provenance;

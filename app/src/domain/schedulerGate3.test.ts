@@ -330,7 +330,10 @@ describe('Gate 3 automatic scheduler v0', () => {
     const plan = scheduler.buildPlan(input);
 
     expect(generated(plan)[0]).toMatchObject({ start: '16:00', end: '16:20' });
-    expect(generated(plan)[0].provenance.join(' ')).toContain('prefer-late-admin');
+    expect(generated(plan)[0].provenance).toContain(
+      'Matched user-declared preference: prefer admin area on any day from 16:00 to 17:00.',
+    );
+    expect(generated(plan)[0].provenance.join(' ')).not.toContain('prefer-late-admin');
   });
 
   it('uses explicit avoid preferences to move away from a period when another fit exists', () => {

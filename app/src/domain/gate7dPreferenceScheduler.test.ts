@@ -81,7 +81,10 @@ describe('Gate 7D1 scheduler preference integration', () => {
       start: '11:00',
       end: '11:20',
     });
-    expect(plan.placements[0].provenance.join(' ')).toContain('late-morning');
+    expect(plan.placements[0].provenance).toContain(
+      'Matched user-declared preference: prefer admin area on Monday from 11:00 to 12:00.',
+    );
+    expect(plan.placements[0].provenance.join(' ')).not.toContain('late-morning');
   });
 
   it('does not apply a preference after its absolute expiry in the candidate timezone', () => {
@@ -101,7 +104,7 @@ describe('Gate 7D1 scheduler preference integration', () => {
       start: '09:00',
       end: '09:20',
     });
-    expect(plan.placements[0].provenance.join(' ')).not.toContain('expired-before-window');
+    expect(plan.placements[0].provenance.join(' ')).not.toContain('Matched user-declared preference');
   });
 
   it('clips a temporary avoid preference at its expiry instead of avoiding the whole declared window', () => {

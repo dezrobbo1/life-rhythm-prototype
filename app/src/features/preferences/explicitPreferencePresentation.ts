@@ -52,6 +52,13 @@ export function placementWhyLines(provenance: readonly string[]): string[] {
       add(`The ${variant[1]} version (${variant[2]} min) fit here.`);
       continue;
     }
+    if (fact.startsWith('Matched user-declared preference: ')) {
+      const detail = fact.slice('Matched user-declared preference: '.length).replace(/\.$/, '');
+      add(`Saved preference matched: ${detail}.`);
+      continue;
+    }
+    // Older accepted plans can still contain the Gate 7D1 provenance format.
+    // Keep it readable without exposing the persisted preference ID.
     if (fact.startsWith('Matched explicit preference ')) {
       add('A saved scheduling preference matched this time.');
       continue;
