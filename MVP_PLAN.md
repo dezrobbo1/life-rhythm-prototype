@@ -213,7 +213,7 @@ Status (Gate 7 exit review, 2026-09-25): **Complete — PASS.** Gate 7A records 
 
 Gate 7E deliberately does not infer preferred time-of-day, category-level duration, psychological cause or broader behavioural tendencies. Repeated-move inference, recency/decay, subjective restoration learning and a broad learnt-about-me surface remain possible later work, but are not prerequisites for Gate 7 exit.
 
-Work:
+Broader candidate work (not all required for exit):
 
 - actual-duration statistics and uncertainty ranges;
 - repeated-move/rejection statistics;

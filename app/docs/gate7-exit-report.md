@@ -2,8 +2,10 @@
 
 Status: **GATE 7 EXIT — PASS**
 
-Reviewed main: `4bde6a9fb690c0a34934914d05a52013e7e0b210`  
-Review date: 2026-09-25  
+Reviewed main: `4bde6a9fb690c0a34934914d05a52013e7e0b210`
+
+Review date: 2026-09-25
+
 Scope: Gate 7A–7E behavioural-learning progression and the transition to Gate 8
 
 ## Purpose

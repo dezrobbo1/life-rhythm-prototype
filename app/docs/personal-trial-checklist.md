@@ -8,7 +8,7 @@
 >
 > The remainder of this file is retained unchanged as historical trial evidence.
 
-Status: Current checklist for private Personal Trial v1 after merged PR #104 and post-merge verification
+Status: **SUPERSEDED** — PR #104-era checklist retained for history only; do not use for Gate 8.
 
 Scope: Local-first Life Rhythm `/app` preview through merged PR #104 on `main`
 

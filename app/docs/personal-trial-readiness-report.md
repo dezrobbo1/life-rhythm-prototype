@@ -8,7 +8,7 @@
 >
 > The remainder of this file is retained unchanged as historical trial evidence.
 
-Status: Conditional readiness for a private Personal Trial v1 after merged PR #104 and post-merge verification; Task Pool backup follow-up is implemented in the current working tree
+Status: **SUPERSEDED** — PR #104-era trial-readiness record retained for history only; do not use for Gate 8.
 
 Scope: Local-first Life Rhythm `/app` through merged PR #104 on `main`, with the narrow Task Pool export/check follow-up in this working tree
 

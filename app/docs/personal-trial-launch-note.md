@@ -8,7 +8,7 @@
 >
 > The remainder of this file is retained unchanged as historical trial evidence.
 
-Status: Short start note for Personal Trial v1 after merged PR #104 and post-merge verification
+Status: **SUPERSEDED** — PR #104-era launch note retained for history only; do not use for Gate 8.
 
 Scope: Private, single-user trial of the current `/app` capture, holding, soft-placement and re-entry spine. This is not an external tester launch or a full repeating-rhythm trial.
 
