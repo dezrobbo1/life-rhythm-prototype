@@ -1,311 +1,254 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createLifeRhythmDatabase, type LifeRhythmDatabase } from './db';
 import {
-  createAuthLocalDataNamespace,
-  getCurrentLifeRhythmDatabase,
-  resetCurrentLocalDataNamespace,
-  setCurrentLocalDataNamespace,
+  createAuthLocalDataNamespace, getCurrentLifeRhythmDatabase,
+  resetCurrentLocalDataNamespace, setCurrentLocalDataNamespace,
 } from './localDataNamespace';
+import { legacySettingsSchema } from './schemas';
 import { loadSettingsResult, resetSettingsToDefaults } from './settingsRepository';
 import {
-  activeExplicitPreferences,
-  deleteExplicitPreference,
-  explicitPreferencesForScheduler,
-  loadExplicitPreferencesResult,
-  upsertExplicitPreference,
+  activeExplicitPreferences, createExplicitPreferenceStore, deleteExplicitPreference,
+  DELETE_EXPLICIT_PREFERENCES_CONFIRMATION, explicitPreferencesForScheduler,
+  exportExplicitPreferencesResult, loadExplicitPreferencesResult, resetExplicitPreferences,
+  upsertExplicitPreference, type ExplicitPreferenceStore,
 } from './explicitPreferenceRepository';
 import {
-  EXPLICIT_PREFERENCES_RECORD_ID,
-  explicitPreferenceStoreRecordSchema,
-  explicitPreferenceWriteInputSchema,
+  EXPLICIT_PREFERENCES_RECORD_ID, explicitPreferenceSchema, type ExplicitPreferenceWriteInput,
 } from './explicitPreferenceSchema';
 
-let namespaceIndex = 0;
-
+const time = '2026-09-23T09:00:00.000Z';
+const later = '2026-09-23T10:00:00.000Z';
+const input: ExplicitPreferenceWriteInput = {
+  id: 'admin-weekend', targetKind: 'area', targetValue: 'admin', relation: 'prefer',
+  days: ['Saturday', 'Sunday'], start: '08:00', end: '12:00',
+};
+let index = 0;
+let database: LifeRhythmDatabase;
+let secondary: LifeRhythmDatabase | undefined;
 beforeEach(() => {
   resetCurrentLocalDataNamespace();
-  namespaceIndex += 1;
-  setCurrentLocalDataNamespace(
-    createAuthLocalDataNamespace(`gate7c-preferences-${namespaceIndex}`),
-  );
+  setCurrentLocalDataNamespace(createAuthLocalDataNamespace(`gate7c-${++index}`));
+  database = getCurrentLifeRhythmDatabase();
+});
+afterEach(async () => {
+  secondary?.close();
+  secondary = undefined;
+  await database.delete();
+  resetCurrentLocalDataNamespace();
 });
 
+function unavailableStore(): ExplicitPreferenceStore {
+  return {
+    read: vi.fn().mockRejectedValue(new Error('unavailable')),
+    write: vi.fn(), remove: vi.fn(), transaction: (operation) => operation(),
+  };
+}
+
 describe('Gate 7C explicit preference persistence', () => {
-  it('persists strict user-declared preferences in a rollback-ignored settings sidecar', async () => {
+  it('persists valid local windows and provenance without changing either settings record', async () => {
     await resetSettingsToDefaults();
-
-    const saved = await upsertExplicitPreference(
-      {
-        id: 'admin-weekend-morning',
-        targetKind: 'area',
-        targetValue: 'admin',
-        relation: 'prefer',
-        days: ['Saturday', 'Sunday'],
-        start: '08:00',
-        end: '12:00',
-      },
-      undefined,
-      '2026-09-23T09:00:00.000Z',
-    );
-
-    expect(saved.ok).toBe(true);
-    if (!saved.ok) return;
-    expect(saved.preference).toMatchObject({
-      id: 'admin-weekend-morning',
-      source: 'explicitPersistent',
-      provenance: {
-        actor: 'user',
-        mechanism: 'explicitPreference',
-      },
-    });
-
+    const primary = await database.settings.get('settings');
+    const foundation = await database.settings.get('dayProfileFoundation');
+    expect((await upsertExplicitPreference(input, undefined, time)).ok).toBe(true);
     const loaded = await loadExplicitPreferencesResult();
     expect(loaded.status).toBe('ok');
-    if (loaded.status !== 'ok') return;
-    expect(loaded.record.id).toBe(EXPLICIT_PREFERENCES_RECORD_ID);
+    if (loaded.status !== 'ok') throw new Error('Expected saved preferences');
     expect(loaded.record.formatVersion).toBe(1);
-    expect(loaded.preferences.map((preference) => preference.id)).toEqual([
-      'admin-weekend-morning',
+    expect(loaded.preferences).toEqual([expect.objectContaining({
+      ...input, source: 'explicitPersistent', createdAt: time, updatedAt: time,
+      provenance: { actor: 'user', mechanism: 'explicitPreference' },
+    })]);
+    expect(await database.settings.get('settings')).toEqual(primary);
+    expect(await database.settings.get('dayProfileFoundation')).toEqual(foundation);
+    expect(legacySettingsSchema.safeParse(await database.settings.get('settings')).success).toBe(true);
+    expect((await loadSettingsResult()).status).toBe('loaded');
+    expect(database.verno).toBe(5);
+  });
+
+  it('preserves creation time when editing and returns deterministic ID order', async () => {
+    await upsertExplicitPreference({ ...input, id: 'z' }, undefined, time);
+    await upsertExplicitPreference({ ...input, id: 'A' }, undefined, time);
+    const edited = await upsertExplicitPreference({ ...input, id: 'z', relation: 'avoid' }, undefined, later);
+    expect(edited.ok).toBe(true);
+    if (!edited.ok) throw new Error('Expected edit');
+    expect(edited.preference.createdAt).toBe(time);
+    expect(edited.preference.updatedAt).toBe(later);
+    expect(edited.preference.relation).toBe('avoid');
+    expect(edited.preferences.map((item) => item.id)).toEqual(['A', 'z']);
+    await resetSettingsToDefaults();
+    expect((await loadExplicitPreferencesResult()).status).toBe('ok');
+  });
+
+  it('does not lose concurrent independent saves across two database connections', async () => {
+    await database.open();
+    secondary = createLifeRhythmDatabase(database.name);
+    await secondary.open();
+    const results = await Promise.all([
+      upsertExplicitPreference({ ...input, id: 'a' }, createExplicitPreferenceStore(database), time),
+      upsertExplicitPreference({ ...input, id: 'b' }, createExplicitPreferenceStore(secondary), time),
     ]);
-
-    const settings = await loadSettingsResult();
-    expect(settings.status).toBe('loaded');
-    expect(settings.settings.id).toBe('settings');
-
-    const database = getCurrentLifeRhythmDatabase();
-    expect(await database.settings.get('settings')).toBeDefined();
-    expect(await database.settings.get('dayProfileFoundation')).toBeDefined();
-    expect(await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID)).toBeDefined();
+    expect(results.every((result) => result.ok)).toBe(true);
+    const loaded = await loadExplicitPreferencesResult();
+    expect(loaded.status).toBe('ok');
+    if (loaded.status !== 'ok') throw new Error('Expected both saves');
+    expect(loaded.preferences.map((item) => item.id)).toEqual(['a', 'b']);
   });
 
-  it('updates an existing preference without changing its original creation time', async () => {
-    const first = await upsertExplicitPreference(
-      {
-        id: 'work-window',
-        targetKind: 'taskType',
-        targetValue: 'work',
-        relation: 'prefer',
-        days: ['Monday'],
-        start: '09:00',
-        end: '11:00',
-      },
-      undefined,
-      '2026-09-23T09:00:00.000Z',
-    );
-    expect(first.ok).toBe(true);
-
-    const second = await upsertExplicitPreference(
-      {
-        id: 'work-window',
-        targetKind: 'taskType',
-        targetValue: 'work',
-        relation: 'avoid',
-        days: ['Monday'],
-        start: '17:00',
-        end: '20:00',
-      },
-      undefined,
-      '2026-09-23T10:00:00.000Z',
-    );
-
-    expect(second.ok).toBe(true);
-    if (!second.ok) return;
-    expect(second.preference.createdAt).toBe('2026-09-23T09:00:00.000Z');
-    expect(second.preference.updatedAt).toBe('2026-09-23T10:00:00.000Z');
-    expect(second.preference.relation).toBe('avoid');
-  });
-
-  it('rejects malformed target and time-window data before persistence', async () => {
-    expect(
-      explicitPreferenceWriteInputSchema.safeParse({
-        id: 'bad-area',
-        targetKind: 'area',
-        targetValue: 'not-an-area',
-        relation: 'prefer',
-      }).success,
-    ).toBe(false);
-
-    expect(
-      explicitPreferenceWriteInputSchema.safeParse({
-        id: 'half-window',
-        targetKind: 'area',
-        targetValue: 'admin',
-        relation: 'avoid',
-        start: '18:00',
-      }).success,
-    ).toBe(false);
-
-    expect(
-      explicitPreferenceWriteInputSchema.safeParse({
-        id: 'backwards-window',
-        targetKind: 'area',
-        targetValue: 'admin',
-        relation: 'avoid',
-        start: '20:00',
-        end: '18:00',
-      }).success,
-    ).toBe(false);
-
-    expect((await loadExplicitPreferencesResult()).status).toBe('missing');
-  });
-
-  it('does not overwrite an unreadable preference record', async () => {
-    const put = vi.fn();
-    const store = {
-      settings: {
-        get: vi.fn().mockResolvedValue({
-          id: EXPLICIT_PREFERENCES_RECORD_ID,
-          recordType: 'explicitPreferenceStore',
-          formatVersion: 1,
-        }),
-        put,
-        delete: vi.fn(),
-      },
-    };
-
-    const result = await upsertExplicitPreference(
-      {
-        id: 'safe-write',
-        targetKind: 'area',
-        targetValue: 'admin',
-        relation: 'prefer',
-      },
-      store as never,
-      '2026-09-23T09:00:00.000Z',
-    );
-
-    expect(result.ok).toBe(false);
-    expect(put).not.toHaveBeenCalled();
-  });
-
-  it('deletes only the requested preference and removes the sidecar when empty', async () => {
-    await upsertExplicitPreference(
-      {
-        id: 'a',
-        targetKind: 'area',
-        targetValue: 'admin',
-        relation: 'prefer',
-      },
-      undefined,
-      '2026-09-23T09:00:00.000Z',
-    );
-    await upsertExplicitPreference(
-      {
-        id: 'b',
-        targetKind: 'area',
-        targetValue: 'work',
-        relation: 'avoid',
-      },
-      undefined,
-      '2026-09-23T09:01:00.000Z',
-    );
-
-    const firstDelete = await deleteExplicitPreference(
-      'a',
-      undefined,
-      '2026-09-23T09:02:00.000Z',
-    );
-    expect(firstDelete).toMatchObject({
-      ok: true,
-      removed: true,
-      preferences: [expect.objectContaining({ id: 'b' })],
-    });
-
-    const finalDelete = await deleteExplicitPreference(
-      'b',
-      undefined,
-      '2026-09-23T09:03:00.000Z',
-    );
-    expect(finalDelete).toEqual({
-      ok: true,
-      removed: true,
-      preferences: [],
-    });
-    expect((await loadExplicitPreferencesResult()).status).toBe('missing');
-  });
-
-  it('filters expired preferences and adapts only active explicit facts to scheduler input', async () => {
-    const active = await upsertExplicitPreference(
-      {
-        id: 'active',
-        targetKind: 'area',
-        targetValue: 'admin',
-        relation: 'prefer',
-        days: ['Saturday'],
-        start: '08:00',
-        end: '12:00',
-      },
-      undefined,
-      '2026-09-23T09:00:00.000Z',
-    );
-    expect(active.ok).toBe(true);
-
-    const expired = await upsertExplicitPreference(
-      {
-        id: 'expired',
-        targetKind: 'taskType',
-        targetValue: 'work',
-        relation: 'avoid',
-        expiresAt: '2026-09-23T09:30:00.000Z',
-      },
-      undefined,
-      '2026-09-23T09:01:00.000Z',
-    );
-    expect(expired.ok).toBe(true);
-    if (!expired.ok) return;
-
-    expect(
-      activeExplicitPreferences(
-        expired.preferences,
-        '2026-09-23T10:00:00.000Z',
-      ).map((preference) => preference.id),
-    ).toEqual(['active']);
-
-    expect(
-      explicitPreferencesForScheduler(
-        expired.preferences,
-        '2026-09-23T10:00:00.000Z',
-      ),
-    ).toEqual([
-      {
-        id: 'active',
-        targetKind: 'area',
-        targetValue: 'admin',
-        relation: 'prefer',
-        days: ['Saturday'],
-        start: '08:00',
-        end: '12:00',
-        provenance: 'Persisted explicit preference active; user-declared.',
-      },
+  it('does not resurrect a deleted item when an independent save runs concurrently', async () => {
+    await upsertExplicitPreference({ ...input, id: 'a' }, undefined, time);
+    await upsertExplicitPreference({ ...input, id: 'b' }, undefined, time);
+    const results = await Promise.all([
+      deleteExplicitPreference('a', undefined, later),
+      upsertExplicitPreference({ ...input, id: 'c' }, undefined, later),
     ]);
+    expect(results.every((result) => result.ok)).toBe(true);
+    const loaded = await loadExplicitPreferencesResult();
+    if (loaded.status !== 'ok') throw new Error('Expected saved preferences');
+    expect(loaded.preferences.map((item) => item.id)).toEqual(['b', 'c']);
   });
 
-  it('rejects duplicate IDs in the persisted sidecar contract', () => {
-    const preference = {
-      id: 'duplicate',
-      targetKind: 'area' as const,
-      targetValue: 'admin',
-      relation: 'prefer' as const,
-      days: [],
-      source: 'explicitPersistent' as const,
-      provenance: {
-        actor: 'user' as const,
-        mechanism: 'explicitPreference' as const,
-      },
-      createdAt: '2026-09-23T09:00:00.000Z',
-      updatedAt: '2026-09-23T09:00:00.000Z',
+  it('rolls back an aborted write without reporting success or replacing prior state', async () => {
+    await upsertExplicitPreference(input, undefined, time);
+    const before = await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID);
+    const base = createExplicitPreferenceStore();
+    const failing: ExplicitPreferenceStore = {
+      ...base, write: async (record) => { await base.write(record); throw new Error('abort after put'); },
     };
+    expect((await upsertExplicitPreference({ ...input, relation: 'avoid' }, failing, later)).ok).toBe(false);
+    expect(await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID)).toEqual(before);
+  });
 
-    expect(
-      explicitPreferenceStoreRecordSchema.safeParse({
-        id: EXPLICIT_PREFERENCES_RECORD_ID,
-        recordType: 'explicitPreferenceStore',
-        formatVersion: 1,
-        appVersion: '1.4.6',
-        createdAt: '2026-09-23T09:00:00.000Z',
-        updatedAt: '2026-09-23T09:00:00.000Z',
-        preferences: [preference, preference],
-      }).success,
-    ).toBe(false);
+  it('rolls back an aborted final deletion', async () => {
+    await upsertExplicitPreference(input, undefined, time);
+    const before = await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID);
+    const base = createExplicitPreferenceStore();
+    const failing: ExplicitPreferenceStore = {
+      ...base, remove: async () => { await base.remove(); throw new Error('abort after delete'); },
+    };
+    expect((await deleteExplicitPreference(input.id, failing, later)).ok).toBe(false);
+    expect(await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID)).toEqual(before);
+  });
+
+  it('distinguishes a missing record from read failure without writing', async () => {
+    expect(await loadExplicitPreferencesResult()).toEqual({ status: 'missing', preferences: [] });
+    const store = unavailableStore();
+    expect((await loadExplicitPreferencesResult(store)).status).toBe('readFailed');
+    expect((await upsertExplicitPreference(input, store, time)).ok).toBe(false);
+    expect((await deleteExplicitPreference(input.id, store, time)).ok).toBe(false);
+    expect((await exportExplicitPreferencesResult(store)).status).toBe('readFailed');
+    expect(store.write).not.toHaveBeenCalled();
+    expect(store.remove).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid inputs and timestamps before reading or writing', async () => {
+    const store = unavailableStore();
+    expect((await upsertExplicitPreference({ ...input, end: '07:00' }, store, time)).ok).toBe(false);
+    expect((await upsertExplicitPreference(input, store, 'not-a-time')).ok).toBe(false);
+    expect((await deleteExplicitPreference(input.id, store, 'not-a-time')).ok).toBe(false);
+    expect(store.read).not.toHaveBeenCalled();
+    expect(store.write).not.toHaveBeenCalled();
+    expect(store.remove).not.toHaveBeenCalled();
+  });
+
+  it('rejects backward write time and invalid expiry while retaining saved bytes', async () => {
+    await upsertExplicitPreference(input, undefined, time);
+    const before = await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID);
+    expect((await upsertExplicitPreference(input, undefined, '2026-09-23T08:00:00Z')).ok).toBe(false);
+    expect((await deleteExplicitPreference(input.id, undefined, '2026-09-23T08:00:00Z')).ok).toBe(false);
+    expect((await upsertExplicitPreference({ ...input, expiresAt: time }, undefined, later)).ok).toBe(false);
+    expect(await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID)).toEqual(before);
+  });
+
+  it('deletes only the requested preference; missing IDs are no-ops and the final delete removes the sidecar', async () => {
+    await resetSettingsToDefaults();
+    const primary = await database.settings.get('settings');
+    await upsertExplicitPreference({ ...input, id: 'a' }, undefined, time);
+    await upsertExplicitPreference({ ...input, id: 'b' }, undefined, time);
+    const before = await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID);
+    expect(await deleteExplicitPreference('missing', undefined, later)).toMatchObject({ ok: true, removed: false });
+    expect(await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID)).toEqual(before);
+    expect(await deleteExplicitPreference('a', undefined, later)).toMatchObject({
+      ok: true, removed: true, preferences: [expect.objectContaining({ id: 'b' })],
+    });
+    expect(await deleteExplicitPreference('b', undefined, later)).toEqual({ ok: true, removed: true, preferences: [] });
+    expect((await loadExplicitPreferencesResult()).status).toBe('missing');
+    expect(await database.settings.get('settings')).toEqual(primary);
+  });
+
+  it('exports corrupt sidecar data without trusting it and requires explicit recovery confirmation to delete it', async () => {
+    await resetSettingsToDefaults();
+    const primary = await database.settings.get('settings');
+    const foundation = await database.settings.get('dayProfileFoundation');
+    const corrupt = { id: EXPLICIT_PREFERENCES_RECORD_ID, formatVersion: 99, preserved: 'synthetic recovery data' };
+    await database.table<typeof corrupt, string>('settings').put(corrupt);
+    const sentinel = { id: 'sentinel', preserved: true };
+    await database.table<typeof sentinel, string>('taskHistory').put(sentinel);
+    expect((await loadExplicitPreferencesResult()).status).toBe('invalid');
+    expect((await upsertExplicitPreference(input, undefined, time)).ok).toBe(false);
+    expect((await deleteExplicitPreference(input.id, undefined, time)).ok).toBe(false);
+    expect(await exportExplicitPreferencesResult()).toEqual({ status: 'ok', rawRecord: corrupt });
+    expect((await resetExplicitPreferences('delete')).ok).toBe(false);
+    expect(await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID)).toEqual(corrupt);
+    expect(await resetExplicitPreferences(DELETE_EXPLICIT_PREFERENCES_CONFIRMATION)).toEqual({
+      ok: true, removed: true, preferences: [],
+    });
+    expect(await database.settings.get('settings')).toEqual(primary);
+    expect(await database.settings.get('dayProfileFoundation')).toEqual(foundation);
+    expect(await database.table('taskHistory').get('sentinel')).toEqual(sentinel);
+    expect(await exportExplicitPreferencesResult()).toEqual({ status: 'missing' });
+  });
+
+  it('does not read for unconfirmed bulk deletion', async () => {
+    const store = unavailableStore();
+    expect((await resetExplicitPreferences('', store)).ok).toBe(false);
+    expect(store.read).not.toHaveBeenCalled();
+    expect(store.remove).not.toHaveBeenCalled();
+  });
+
+  it('isolates namespaces and keeps an explicitly captured store bound to its original database', async () => {
+    const original = createExplicitPreferenceStore();
+    await upsertExplicitPreference(input, original, time);
+    setCurrentLocalDataNamespace(createAuthLocalDataNamespace(`gate7c-other-${index}`));
+    secondary = getCurrentLifeRhythmDatabase();
+    expect((await loadExplicitPreferencesResult()).status).toBe('missing');
+    expect((await loadExplicitPreferencesResult(original)).status).toBe('ok');
+    await secondary.delete();
+  });
+
+  it('projects only active explicit facts at the decision instant and never writes during projection', async () => {
+    await upsertExplicitPreference(input, undefined, time);
+    await upsertExplicitPreference({ ...input, id: 'temporary', expiresAt: later }, undefined, time);
+    const loaded = await loadExplicitPreferencesResult();
+    if (loaded.status !== 'ok') throw new Error('Expected saved preferences');
+    const before = await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID);
+    expect(activeExplicitPreferences(loaded.preferences, '2026-09-23T08:59:59Z')).toEqual([]);
+    expect(activeExplicitPreferences(loaded.preferences, '2026-09-23T09:59:59.999Z')).toHaveLength(2);
+    expect(activeExplicitPreferences(loaded.preferences, '2026-09-23T18:00:00+08:00').map((item) => item.id))
+      .toEqual([input.id]);
+    expect(explicitPreferencesForScheduler(loaded.preferences, later)).toEqual([{
+      ...input, provenance: `Persisted explicit preference ${input.id}; user-declared.`,
+    }]);
+    expect(() => activeExplicitPreferences(loaded.preferences, 'invalid')).toThrow(RangeError);
+    expect(() => explicitPreferencesForScheduler(loaded.preferences, '2026-02-30T00:00:00Z')).toThrow(RangeError);
+    expect(await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID)).toEqual(before);
+  });
+
+  it('uses equivalent instants for expiry independent of the host timezone', () => {
+    const preference = explicitPreferenceSchema.parse({
+      ...input, source: 'explicitPersistent', provenance: { actor: 'user', mechanism: 'explicitPreference' },
+      createdAt: time, updatedAt: time, expiresAt: later,
+    });
+    const previous = process.env.TZ;
+    try {
+      for (const timezone of ['UTC', 'Australia/Perth']) {
+        process.env.TZ = timezone;
+        expect(activeExplicitPreferences([preference], '2026-09-23T17:59:59+08:00')).toHaveLength(1);
+        expect(activeExplicitPreferences([preference], '2026-09-23T18:00:00+08:00')).toEqual([]);
+      }
+    } finally {
+      if (previous === undefined) delete process.env.TZ;
+      else process.env.TZ = previous;
+    }
   });
 });

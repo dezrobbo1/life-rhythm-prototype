@@ -1,252 +1,195 @@
-import type { Table } from 'dexie';
 import type { SchedulingPreference } from '../domain/schedulingModel';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
+import { strictIsoDateTimeSchema } from './schemas';
 import { SETTINGS_APP_VERSION } from './settingsRepository';
-import type { Settings } from './schemas';
 import {
   EXPLICIT_PREFERENCES_RECORD_ID,
+  explicitPreferenceIdSchema,
   explicitPreferenceSchema,
   explicitPreferenceStoreRecordSchema,
   explicitPreferenceWriteInputSchema,
   type ExplicitPreference,
   type ExplicitPreferenceStoreRecord,
-  type ExplicitPreferenceWriteInput,
 } from './explicitPreferenceSchema';
 
-type ExplicitPreferenceTable = Pick<
-  Table<Settings, string>,
-  'delete' | 'get' | 'put'
->;
-
+/** An ID-scoped view of the shared settings store, not a Settings record cast. */
 export type ExplicitPreferenceStore = {
-  settings: ExplicitPreferenceTable;
+  read(): Promise<unknown>;
+  write(record: ExplicitPreferenceStoreRecord): Promise<unknown>;
+  remove(): Promise<void>;
+  transaction<T>(operation: () => Promise<T>): Promise<T>;
 };
 
+export function createExplicitPreferenceStore(
+  database = getCurrentLifeRhythmDatabase(),
+): ExplicitPreferenceStore {
+  const table = database.table<ExplicitPreferenceStoreRecord, string>('settings');
+  return {
+    read: () => table.get(EXPLICIT_PREFERENCES_RECORD_ID),
+    write: (record) => table.put(explicitPreferenceStoreRecordSchema.parse(record)),
+    remove: () => table.delete(EXPLICIT_PREFERENCES_RECORD_ID),
+    transaction: (operation) => database.transaction('rw', database.settings, operation),
+  };
+}
+
+type Failure = { ok: false; errors: string[] };
 export type ExplicitPreferenceLoadResult =
   | { status: 'missing'; preferences: [] }
-  | {
-      status: 'ok';
-      record: ExplicitPreferenceStoreRecord;
-      preferences: ExplicitPreference[];
-    }
+  | { status: 'ok'; record: ExplicitPreferenceStoreRecord; preferences: ExplicitPreference[] }
   | { status: 'invalid' | 'readFailed'; errors: string[] };
+export type ExplicitPreferenceWriteResult = Failure |
+  { ok: true; preference: ExplicitPreference; preferences: ExplicitPreference[] };
+export type ExplicitPreferenceDeleteResult = Failure |
+  { ok: true; removed: boolean; preferences: ExplicitPreference[] };
+export type ExplicitPreferenceExportResult =
+  | { status: 'missing' }
+  | { status: 'ok'; rawRecord: unknown }
+  | { status: 'readFailed'; errors: string[] };
 
-export type ExplicitPreferenceWriteResult =
-  | {
-      ok: true;
-      preference: ExplicitPreference;
-      preferences: ExplicitPreference[];
-    }
-  | { ok: false; errors: string[] };
-
-export type ExplicitPreferenceDeleteResult =
-  | { ok: true; removed: boolean; preferences: ExplicitPreference[] }
-  | { ok: false; errors: string[] };
-
-function nowIso() {
-  return new Date().toISOString();
+function failure(message: string): Failure {
+  return { ok: false, errors: [`explicitPreferences: ${message}`] };
 }
-
-function issueMessages(
-  issues: Array<{ message: string; path: Array<string | number> }>,
-) {
-  return issues.map((issue) => {
-    const path = issue.path.length > 0 ? issue.path.join('.') : 'explicitPreferences';
-    return `${path}: ${issue.message}`;
-  });
-}
-
 function ordered(preferences: readonly ExplicitPreference[]) {
-  return [...preferences].sort((left, right) => left.id.localeCompare(right.id));
+  return [...preferences].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
-
 function recordForWrite(
-  preferences: readonly ExplicitPreference[],
-  timestamp: string,
-  existing?: ExplicitPreferenceStoreRecord,
+  preferences: ExplicitPreference[], timestamp: string, existing?: ExplicitPreferenceStoreRecord,
 ) {
-  return explicitPreferenceStoreRecordSchema.parse({
-    id: EXPLICIT_PREFERENCES_RECORD_ID,
-    recordType: 'explicitPreferenceStore',
-    formatVersion: 1,
-    appVersion: SETTINGS_APP_VERSION,
-    createdAt: existing?.createdAt ?? timestamp,
-    updatedAt: timestamp,
-    preferences: ordered(preferences),
+  return explicitPreferenceStoreRecordSchema.safeParse({
+    id: EXPLICIT_PREFERENCES_RECORD_ID, recordType: 'explicitPreferenceStore', formatVersion: 1,
+    appVersion: SETTINGS_APP_VERSION, createdAt: existing?.createdAt ?? timestamp,
+    updatedAt: timestamp, preferences: ordered(preferences),
   });
 }
 
+/** Reads never write, replace corrupt state, or fabricate defaults on failure. */
 export async function loadExplicitPreferencesResult(
-  store: ExplicitPreferenceStore = getCurrentLifeRhythmDatabase(),
+  store: ExplicitPreferenceStore = createExplicitPreferenceStore(),
 ): Promise<ExplicitPreferenceLoadResult> {
   let stored: unknown;
-
-  try {
-    stored = await store.settings.get(EXPLICIT_PREFERENCES_RECORD_ID);
-  } catch {
-    return {
-      status: 'readFailed',
-      errors: ['explicitPreferences: Saved explicit preferences could not be read.'],
-    };
+  try { stored = await store.read(); } catch {
+    return { status: 'readFailed', errors: ['explicitPreferences: Saved preferences could not be read.'] };
   }
-
-  if (stored === undefined) {
-    return { status: 'missing', preferences: [] };
-  }
-
+  if (stored === undefined) return { status: 'missing', preferences: [] };
   const parsed = explicitPreferenceStoreRecordSchema.safeParse(stored);
-  if (!parsed.success) {
-    return {
-      status: 'invalid',
-      errors: issueMessages(parsed.error.issues),
-    };
-  }
-
-  const record = {
-    ...parsed.data,
-    preferences: ordered(parsed.data.preferences),
+  if (!parsed.success) return {
+    status: 'invalid', errors: ['explicitPreferences: Saved preferences are invalid and were left untouched.'],
   };
-
-  return {
-    status: 'ok',
-    record,
-    preferences: record.preferences,
-  };
+  const record = { ...parsed.data, preferences: ordered(parsed.data.preferences) };
+  return { status: 'ok', record, preferences: record.preferences };
 }
 
 export async function upsertExplicitPreference(
-  input: ExplicitPreferenceWriteInput,
-  store: ExplicitPreferenceStore = getCurrentLifeRhythmDatabase(),
-  timestamp = nowIso(),
+  input: unknown,
+  store: ExplicitPreferenceStore = createExplicitPreferenceStore(),
+  timestamp = new Date().toISOString(),
 ): Promise<ExplicitPreferenceWriteResult> {
-  const parsedInput = explicitPreferenceWriteInputSchema.safeParse(input);
-  if (!parsedInput.success) {
-    return { ok: false, errors: issueMessages(parsedInput.error.issues) };
-  }
-
-  const loaded = await loadExplicitPreferencesResult(store);
-  if (loaded.status === 'invalid' || loaded.status === 'readFailed') {
-    return { ok: false, errors: loaded.errors };
-  }
-
-  const existingPreferences = loaded.status === 'ok' ? loaded.preferences : [];
-  const existing = existingPreferences.find(
-    (preference) => preference.id === parsedInput.data.id,
-  );
-
-  const parsedPreference = explicitPreferenceSchema.safeParse({
-    ...parsedInput.data,
-    source: 'explicitPersistent',
-    provenance: {
-      actor: 'user',
-      mechanism: 'explicitPreference',
-    },
-    createdAt: existing?.createdAt ?? timestamp,
-    updatedAt: timestamp,
-  });
-
-  if (!parsedPreference.success) {
-    return {
-      ok: false,
-      errors: issueMessages(parsedPreference.error.issues),
-    };
-  }
-
-  const preferences = ordered([
-    ...existingPreferences.filter(
-      (preference) => preference.id !== parsedPreference.data.id,
-    ),
-    parsedPreference.data,
-  ]);
-  const record = recordForWrite(
-    preferences,
-    timestamp,
-    loaded.status === 'ok' ? loaded.record : undefined,
-  );
-
+  const parsed = explicitPreferenceWriteInputSchema.safeParse(input);
+  if (!parsed.success) return failure('Preference target, scope, or time window is invalid.');
+  if (!strictIsoDateTimeSchema.safeParse(timestamp).success) return failure('Invalid write timestamp.');
   try {
-    await store.settings.put(record as unknown as Settings);
-  } catch {
-    return {
-      ok: false,
-      errors: ['explicitPreferences: Explicit preference could not be saved on this device.'],
-    };
-  }
-
-  return {
-    ok: true,
-    preference: parsedPreference.data,
-    preferences,
-  };
+    return await store.transaction(async (): Promise<ExplicitPreferenceWriteResult> => {
+      const loaded = await loadExplicitPreferencesResult(store);
+      if (loaded.status === 'invalid' || loaded.status === 'readFailed') return { ok: false, errors: loaded.errors };
+      const previous = loaded.status === 'ok' ? loaded.record : undefined;
+      if (previous && Date.parse(timestamp) < Date.parse(previous.updatedAt)) {
+        return failure('Write timestamp is older than the saved preferences; nothing was changed.');
+      }
+      const existing = loaded.preferences.find((item) => item.id === parsed.data.id);
+      const preference = explicitPreferenceSchema.safeParse({
+        ...parsed.data, source: 'explicitPersistent',
+        provenance: { actor: 'user', mechanism: 'explicitPreference' },
+        createdAt: existing?.createdAt ?? timestamp, updatedAt: timestamp,
+      });
+      if (!preference.success) return failure('Preference timestamps are inconsistent.');
+      const preferences = ordered([
+        ...loaded.preferences.filter((item) => item.id !== preference.data.id), preference.data,
+      ]);
+      const record = recordForWrite(preferences, timestamp, previous);
+      if (!record.success) return failure('Preference store validation failed; nothing was changed.');
+      await store.write(record.data);
+      return { ok: true, preference: preference.data, preferences };
+    });
+  } catch { return failure('Preference could not be saved on this device.'); }
 }
 
 export async function deleteExplicitPreference(
   preferenceId: string,
-  store: ExplicitPreferenceStore = getCurrentLifeRhythmDatabase(),
-  timestamp = nowIso(),
+  store: ExplicitPreferenceStore = createExplicitPreferenceStore(),
+  timestamp = new Date().toISOString(),
 ): Promise<ExplicitPreferenceDeleteResult> {
-  const loaded = await loadExplicitPreferencesResult(store);
-  if (loaded.status === 'invalid' || loaded.status === 'readFailed') {
-    return { ok: false, errors: loaded.errors };
-  }
-
-  if (loaded.status === 'missing') {
-    return { ok: true, removed: false, preferences: [] };
-  }
-
-  const preferences = loaded.preferences.filter(
-    (preference) => preference.id !== preferenceId,
-  );
-  if (preferences.length === loaded.preferences.length) {
-    return { ok: true, removed: false, preferences: loaded.preferences };
-  }
-
+  if (!explicitPreferenceIdSchema.safeParse(preferenceId).success ||
+      !strictIsoDateTimeSchema.safeParse(timestamp).success) return failure('Invalid deletion ID or timestamp.');
   try {
-    if (preferences.length === 0) {
-      await store.settings.delete(EXPLICIT_PREFERENCES_RECORD_ID);
-    } else {
-      await store.settings.put(
-        recordForWrite(preferences, timestamp, loaded.record) as unknown as Settings,
-      );
-    }
+    return await store.transaction(async (): Promise<ExplicitPreferenceDeleteResult> => {
+      const loaded = await loadExplicitPreferencesResult(store);
+      if (loaded.status === 'invalid' || loaded.status === 'readFailed') return { ok: false, errors: loaded.errors };
+      if (loaded.status === 'missing') return { ok: true, removed: false, preferences: [] };
+      const preferences = loaded.preferences.filter((item) => item.id !== preferenceId);
+      if (preferences.length === loaded.preferences.length) {
+        return { ok: true, removed: false, preferences };
+      }
+      if (Date.parse(timestamp) < Date.parse(loaded.record.updatedAt)) {
+        return failure('Deletion timestamp is older than the saved preferences; nothing was changed.');
+      }
+      if (preferences.length === 0) await store.remove();
+      else {
+        const record = recordForWrite(preferences, timestamp, loaded.record);
+        if (!record.success) return failure('Preference store validation failed; nothing was changed.');
+        await store.write(record.data);
+      }
+      return { ok: true, removed: true, preferences };
+    });
+  } catch { return failure('Preference could not be removed on this device.'); }
+}
+
+/** A raw recovery/export read includes corrupt data but never treats it as authority. */
+export async function exportExplicitPreferencesResult(
+  store: ExplicitPreferenceStore = createExplicitPreferenceStore(),
+): Promise<ExplicitPreferenceExportResult> {
+  try {
+    const rawRecord = await store.read();
+    return rawRecord === undefined ? { status: 'missing' } : { status: 'ok', rawRecord };
   } catch {
-    return {
-      ok: false,
-      errors: ['explicitPreferences: Explicit preference could not be removed on this device.'],
-    };
+    return { status: 'readFailed', errors: ['explicitPreferences: Preferences could not be exported.'] };
   }
-
-  return { ok: true, removed: true, preferences };
 }
 
+export const DELETE_EXPLICIT_PREFERENCES_CONFIRMATION = 'DELETE EXPLICIT PREFERENCES';
+/** Explicit recovery deletion is separate from ordinary, fail-closed item editing. */
+export async function resetExplicitPreferences(
+  confirmation: string,
+  store: ExplicitPreferenceStore = createExplicitPreferenceStore(),
+): Promise<ExplicitPreferenceDeleteResult> {
+  if (confirmation !== DELETE_EXPLICIT_PREFERENCES_CONFIRMATION) return failure('Deletion confirmation is required.');
+  try {
+    return await store.transaction(async (): Promise<ExplicitPreferenceDeleteResult> => {
+      const existing = await store.read();
+      if (existing !== undefined) await store.remove();
+      return { ok: true, removed: existing !== undefined, preferences: [] };
+    });
+  } catch { return failure('Preferences could not be deleted on this device.'); }
+}
+
+/** Input preferences must come from the strict reader; atIso is an explicit decision instant. */
 export function activeExplicitPreferences(
-  preferences: readonly ExplicitPreference[],
-  atIso: string,
+  preferences: readonly ExplicitPreference[], atIso: string,
 ): ExplicitPreference[] {
+  if (!strictIsoDateTimeSchema.safeParse(atIso).success) throw new RangeError('Invalid preference evaluation timestamp.');
   const at = Date.parse(atIso);
-  if (!Number.isFinite(at)) return [];
-
-  return ordered(
-    preferences.filter((preference) => {
-      if (!preference.expiresAt) return true;
-      const expiresAt = Date.parse(preference.expiresAt);
-      return Number.isFinite(expiresAt) && expiresAt > at;
-    }),
-  );
+  return ordered(preferences.filter((preference) =>
+    Date.parse(preference.updatedAt) <= at && (!preference.expiresAt || Date.parse(preference.expiresAt) > at),
+  ));
 }
 
+/** Projection for one decision instant, NOT a lifetime-safe whole-horizon preference loader. */
 export function explicitPreferencesForScheduler(
-  preferences: readonly ExplicitPreference[],
-  atIso: string,
+  preferences: readonly ExplicitPreference[], atIso: string,
 ): SchedulingPreference[] {
   return activeExplicitPreferences(preferences, atIso).map((preference) => ({
-    id: preference.id,
-    targetKind: preference.targetKind,
-    targetValue: preference.targetValue,
-    relation: preference.relation,
-    days: preference.days,
-    ...(preference.start ? { start: preference.start } : {}),
-    ...(preference.end ? { end: preference.end } : {}),
+    id: preference.id, targetKind: preference.targetKind, targetValue: preference.targetValue,
+    relation: preference.relation, days: [...preference.days],
+    ...(preference.start !== undefined ? { start: preference.start, end: preference.end } : {}),
     provenance: `Persisted explicit preference ${preference.id}; user-declared.`,
   }));
 }
