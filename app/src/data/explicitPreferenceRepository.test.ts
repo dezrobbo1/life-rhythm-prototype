@@ -239,16 +239,14 @@ describe('Gate 7C explicit preference persistence', () => {
       ...input, source: 'explicitPersistent', provenance: { actor: 'user', mechanism: 'explicitPreference' },
       createdAt: time, updatedAt: time, expiresAt: later,
     });
-    const previous = process.env.TZ;
     try {
       for (const timezone of ['UTC', 'Australia/Perth']) {
-        process.env.TZ = timezone;
+        vi.stubEnv('TZ', timezone);
         expect(activeExplicitPreferences([preference], '2026-09-23T17:59:59+08:00')).toHaveLength(1);
         expect(activeExplicitPreferences([preference], '2026-09-23T18:00:00+08:00')).toEqual([]);
       }
     } finally {
-      if (previous === undefined) delete process.env.TZ;
-      else process.env.TZ = previous;
+      vi.unstubAllEnvs();
     }
   });
 });
