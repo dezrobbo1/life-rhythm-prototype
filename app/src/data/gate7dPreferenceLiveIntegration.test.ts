@@ -199,7 +199,7 @@ describe('Gate 7D1 live explicit preference integration', () => {
       },
       laterExpectation,
       undefined,
-      '2026-09-07T00:00:00.0025Z',
+      '2026-09-07T00:00:00.002Z',
     );
     expect(laterMutation.ok).toBe(true);
 
