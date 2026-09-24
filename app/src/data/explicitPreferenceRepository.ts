@@ -36,7 +36,8 @@ type Failure = { ok: false; errors: string[] };
 export type ExplicitPreferenceLoadResult =
   | { status: 'missing'; preferences: [] }
   | { status: 'ok'; record: ExplicitPreferenceStoreRecord; preferences: ExplicitPreference[] }
-  | { status: 'invalid' | 'readFailed'; errors: string[] };
+  | { status: 'invalid'; errors: string[] }
+  | { status: 'readFailed'; errors: string[] };
 export type ExplicitPreferenceWriteResult = Failure |
   { ok: true; preference: ExplicitPreference; preferences: ExplicitPreference[] };
 export type ExplicitPreferenceDeleteResult = Failure |
