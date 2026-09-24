@@ -63,10 +63,11 @@ The presentation layer translates scheduler facts into short grounded statements
 - Life Rhythm placed this flexible item automatically.
 - The normal version fits here.
 - This sits inside usable time while hard/protected boundaries stay clear.
-- A saved scheduling preference matched this time.
+- A saved Prefer preference favored this time.
+- This time overlaps a saved Avoid preference, so that preference did not favor the placement.
 - Saved preferences conflict here, so neither side was used to choose the time.
 
-Internal candidate IDs and preference IDs are not displayed in these explanations. No LLM is involved.
+Prefer and Avoid matches are presented distinctly; an Avoid overlap is never described as support for the selected time. Internal candidate IDs and preference IDs are not displayed in these explanations. Placements persisted before relation-specific provenance use neutral legacy wording. No LLM is involved.
 
 ## Failure and recovery
 

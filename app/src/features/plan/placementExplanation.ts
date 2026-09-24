@@ -6,8 +6,16 @@ export function placementReasonLines(provenance: readonly string[]): string[] {
   };
 
   for (const item of provenance) {
+    if (item.startsWith('Matched explicit Prefer guidance ')) {
+      push('A saved Prefer preference favored this time.');
+      continue;
+    }
+    if (item.startsWith('Overlapped explicit Avoid guidance ')) {
+      push('This time overlaps a saved Avoid preference, so that preference did not favor this placement.');
+      continue;
+    }
     if (item.startsWith('Matched explicit preference ')) {
-      push('A saved scheduling preference matched this time.');
+      push('A saved scheduling preference was part of this placement decision.');
       continue;
     }
     if (item.startsWith('Conflicting preference guidance was not used')) {
