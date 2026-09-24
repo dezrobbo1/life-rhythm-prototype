@@ -126,14 +126,11 @@ describe('current persisted state projection', () => {
     },
   );
 
-  it('preserves task-type, priority and energy facts from a Pool-only intention', () => {
+  it('uses the canonical simple task-type default for a Pool-only intention', () => {
     const poolItem = taskPoolItemSchema.parse({
       id: 'pool-work-task',
       title: 'Prepare shutdown notes',
       area: 'work',
-      taskType: 'work',
-      priority: 'important',
-      energy: 'high',
       source: 'adhoc',
       status: 'captured',
       createdAt: timestamp,
@@ -151,9 +148,7 @@ describe('current persisted state projection', () => {
 
     expect(projected.intentions[0]).toMatchObject({
       id: 'pool-work-task',
-      taskType: 'work',
-      priority: 'important',
-      energy: 'high',
+      taskType: 'simple',
       eligibleForScheduling: true,
     });
   });
