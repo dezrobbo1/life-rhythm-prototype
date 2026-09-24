@@ -209,7 +209,9 @@ Status (Gate 6F, 2026-09-22): **Complete.** Gate 6A–6F and the final owner-pro
 
 Goal: make Life Rhythm start learning without building a machine-learning platform.
 
-Status (Gate 7B, 2026-09-22): **Observed behaviour event ledger and descriptive statistics complete through this milestone.** Gate 7A's local, factual, provenance-bearing event contract is recorded in `app/docs/gate7a-behaviour-event-contract.md`; Gate 7B's read-only duration summaries, factual counts, local-time observations, and read-health rules are recorded in `app/docs/gate7b-descriptive-statistics-contract.md`. Gate 7 as a whole remains in progress. Preference learning, scheduler adaptation, and the user-facing learning view have not begun.
+Status (Gate 7C): **Observed behaviour ledger, descriptive statistics, and explicit-preference persistence/precedence foundations implemented through this milestone.** Gate 7A's factual event contract is recorded in `app/docs/gate7a-behaviour-event-contract.md`; Gate 7B's read-only statistics and read-health rules are recorded in `app/docs/gate7b-descriptive-statistics-contract.md`; Gate 7C's strict local preference storage, transactional edit/delete, recovery export/deletion, scoped precedence and per-decision scheduler projection are recorded in `app/docs/gate7c-explicit-preferences-contract.md`. Gate 7 as a whole remains in progress. Gate 7C does not yet expose preference editing or load these preferences into the live scheduler. Inferred preference learning, confidence/decay, scheduler adaptation from history, and the final learning view remain deferred.
+
+Next bounded product work: connect explicit-preference editing and precedence to a usable scheduling workflow with visible reasons and inspect/correct/export/delete controls, then introduce one bounded, explainable learning capability. Keep necessary usability work alongside functionality; no visual-redesign detour is required before this progression.
 
 Work:
 
