@@ -177,9 +177,11 @@ export async function loadExplicitPreferenceTargetCatalog(
         invalidRecordCount += 1;
         continue;
       }
-      rhythms.set(parsed.data.id, {
+      if (parsed.data.archivedAt) continue;
+      const canonicalRhythmId = `rhythm:${parsed.data.id}`;
+      rhythms.set(canonicalRhythmId, {
         kind: 'rhythm',
-        value: parsed.data.id,
+        value: canonicalRhythmId,
         label: parsed.data.title,
       });
     }

@@ -97,7 +97,7 @@ describe('Gate 7D2 preference target catalog', () => {
       ['held-task', 'Send form'],
     ]);
     expect(result.rhythms).toEqual([
-      expect.objectContaining({ value: 'rhythm-evening', label: 'Evening reset' }),
+      expect.objectContaining({ value: 'rhythm:rhythm-evening', label: 'Evening reset' }),
     ]);
     expect(result.areas).toContainEqual(expect.objectContaining({ value: 'admin', label: 'Admin' }));
     expect(result.taskTypes).toContainEqual(expect.objectContaining({ value: 'work', label: 'Work task' }));

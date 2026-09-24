@@ -126,6 +126,38 @@ describe('current persisted state projection', () => {
     },
   );
 
+  it('preserves task-type, priority and energy facts from a Pool-only intention', () => {
+    const poolItem = taskPoolItemSchema.parse({
+      id: 'pool-work-task',
+      title: 'Prepare shutdown notes',
+      area: 'work',
+      taskType: 'work',
+      priority: 'important',
+      energy: 'high',
+      source: 'adhoc',
+      status: 'captured',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      ...versions(),
+    });
+
+    const projected = projectCurrentStateToSchedulingDomain({
+      settings: settings(),
+      activeTasks: [],
+      taskPoolItems: [poolItem],
+      rhythmTemplates: [],
+      softPlacements: [],
+    });
+
+    expect(projected.intentions[0]).toMatchObject({
+      id: 'pool-work-task',
+      taskType: 'work',
+      priority: 'important',
+      energy: 'high',
+      eligibleForScheduling: true,
+    });
+  });
+
   it('keeps achieved in-flight work schedulable without turning achievement into scheduler policy', () => {
     const activeTask = activeTaskSchema.parse({
       id: 'task-continuing-after-minimum',

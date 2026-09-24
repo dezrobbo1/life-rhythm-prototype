@@ -54,6 +54,9 @@ function intentionFromPoolItem(item: TaskPoolItem): InternalIntention {
     area: item.area,
     purpose: item.purpose,
     templateId: item.templateId,
+    taskType: item.taskType,
+    priority: item.priority,
+    energy: item.energy,
     variants: variantsFromRecord(item),
     timing: {
       timeConstraint: item.timeConstraint,
