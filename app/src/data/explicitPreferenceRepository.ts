@@ -16,7 +16,6 @@ import {
 export type ExplicitPreferenceStore = {
   read(): Promise<unknown>;
   write(record: ExplicitPreferenceStoreRecord): Promise<unknown>;
-  remove(): Promise<void>;
   transaction<T>(operation: () => Promise<T>): Promise<T>;
 };
 
@@ -27,7 +26,6 @@ export function createExplicitPreferenceStore(
   return {
     read: () => table.get(EXPLICIT_PREFERENCES_RECORD_ID),
     write: (record) => table.put(explicitPreferenceStoreRecordSchema.parse(record)),
-    remove: () => table.delete(EXPLICIT_PREFERENCES_RECORD_ID),
     transaction: (operation) => database.transaction('rw', database.settings, operation),
   };
 }
@@ -96,6 +94,11 @@ export async function upsertExplicitPreference(
       if (previous && Date.parse(timestamp) < Date.parse(previous.updatedAt)) {
         return failure('Write timestamp is older than the saved preferences; nothing was changed.');
       }
+      // An empty record is a durable deletion boundary, including timestamp ties.
+      if (previous && previous.preferences.length === 0 &&
+          Date.parse(timestamp) === Date.parse(previous.updatedAt)) {
+        return failure('Write timestamp must follow the last preference deletion; nothing was changed.');
+      }
       const existing = loaded.preferences.find((item) => item.id === parsed.data.id);
       const preference = explicitPreferenceSchema.safeParse({
         ...parsed.data, source: 'explicitPersistent',
@@ -133,12 +136,10 @@ export async function deleteExplicitPreference(
       if (Date.parse(timestamp) < Date.parse(loaded.record.updatedAt)) {
         return failure('Deletion timestamp is older than the saved preferences; nothing was changed.');
       }
-      if (preferences.length === 0) await store.remove();
-      else {
-        const record = recordForWrite(preferences, timestamp, loaded.record);
-        if (!record.success) return failure('Preference store validation failed; nothing was changed.');
-        await store.write(record.data);
-      }
+      // Keep ordering metadata even when no preference content remains.
+      const record = recordForWrite(preferences, timestamp, loaded.record);
+      if (!record.success) return failure('Preference store validation failed; nothing was changed.');
+      await store.write(record.data);
       return { ok: true, removed: true, preferences };
     });
   } catch { return failure('Preference could not be removed on this device.'); }
@@ -161,13 +162,27 @@ export const DELETE_EXPLICIT_PREFERENCES_CONFIRMATION = 'DELETE EXPLICIT PREFERE
 export async function resetExplicitPreferences(
   confirmation: string,
   store: ExplicitPreferenceStore = createExplicitPreferenceStore(),
+  timestamp = new Date().toISOString(),
 ): Promise<ExplicitPreferenceDeleteResult> {
   if (confirmation !== DELETE_EXPLICIT_PREFERENCES_CONFIRMATION) return failure('Deletion confirmation is required.');
+  if (!strictIsoDateTimeSchema.safeParse(timestamp).success) return failure('Invalid reset timestamp.');
   try {
     return await store.transaction(async (): Promise<ExplicitPreferenceDeleteResult> => {
       const existing = await store.read();
-      if (existing !== undefined) await store.remove();
-      return { ok: true, removed: existing !== undefined, preferences: [] };
+      const parsed = explicitPreferenceStoreRecordSchema.safeParse(existing);
+      const previous = parsed.success ? parsed.data : undefined;
+      if (previous && Date.parse(timestamp) < Date.parse(previous.updatedAt)) {
+        return failure('Reset timestamp is older than the saved preferences; nothing was changed.');
+      }
+      // Recovery discards untrusted content/metadata; even a missing store needs
+      // a boundary so a command queued before this confirmed reset cannot return.
+      const record = recordForWrite([], timestamp, previous);
+      if (!record.success) return failure('Preference store validation failed; nothing was changed.');
+      await store.write(record.data);
+      return {
+        ok: true, removed: previous ? previous.preferences.length > 0 : existing !== undefined,
+        preferences: [],
+      };
     });
   } catch { return failure('Preferences could not be deleted on this device.'); }
 }

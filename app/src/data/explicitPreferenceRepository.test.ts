@@ -6,7 +6,7 @@ import {
   resetCurrentLocalDataNamespace, setCurrentLocalDataNamespace,
 } from './localDataNamespace';
 import { legacySettingsSchema } from './schemas';
-import { loadSettingsResult, resetSettingsToDefaults } from './settingsRepository';
+import { loadSettingsResult, resetSettingsToDefaults, SETTINGS_APP_VERSION } from './settingsRepository';
 import {
   activeExplicitPreferences, createExplicitPreferenceStore, deleteExplicitPreference,
   DELETE_EXPLICIT_PREFERENCES_CONFIRMATION, explicitPreferencesForScheduler,
@@ -38,10 +38,17 @@ afterEach(async () => {
   resetCurrentLocalDataNamespace();
 });
 
+function emptyRecord(createdAt: string, updatedAt: string) {
+  return {
+    id: EXPLICIT_PREFERENCES_RECORD_ID, recordType: 'explicitPreferenceStore', formatVersion: 1,
+    appVersion: SETTINGS_APP_VERSION, createdAt, updatedAt, preferences: [],
+  };
+}
+
 function unavailableStore(): ExplicitPreferenceStore {
   return {
     read: vi.fn().mockRejectedValue(new Error('unavailable')),
-    write: vi.fn(), remove: vi.fn(), transaction: (operation) => operation(),
+    write: vi.fn(), transaction: (operation) => operation(),
   };
 }
 
@@ -124,7 +131,7 @@ describe('Gate 7C explicit preference persistence', () => {
     const before = await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID);
     const base = createExplicitPreferenceStore();
     const failing: ExplicitPreferenceStore = {
-      ...base, remove: async () => { await base.remove(); throw new Error('abort after delete'); },
+      ...base, write: async (record) => { await base.write(record); throw new Error('abort after tombstone'); },
     };
     expect((await deleteExplicitPreference(input.id, failing, later)).ok).toBe(false);
     expect(await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID)).toEqual(before);
@@ -137,8 +144,8 @@ describe('Gate 7C explicit preference persistence', () => {
     expect((await upsertExplicitPreference(input, store, time)).ok).toBe(false);
     expect((await deleteExplicitPreference(input.id, store, time)).ok).toBe(false);
     expect((await exportExplicitPreferencesResult(store)).status).toBe('readFailed');
+    expect((await resetExplicitPreferences(DELETE_EXPLICIT_PREFERENCES_CONFIRMATION, store, later)).ok).toBe(false);
     expect(store.write).not.toHaveBeenCalled();
-    expect(store.remove).not.toHaveBeenCalled();
   });
 
   it('rejects invalid inputs and timestamps before reading or writing', async () => {
@@ -146,9 +153,9 @@ describe('Gate 7C explicit preference persistence', () => {
     expect((await upsertExplicitPreference({ ...input, end: '07:00' }, store, time)).ok).toBe(false);
     expect((await upsertExplicitPreference(input, store, 'not-a-time')).ok).toBe(false);
     expect((await deleteExplicitPreference(input.id, store, 'not-a-time')).ok).toBe(false);
+    expect((await resetExplicitPreferences(DELETE_EXPLICIT_PREFERENCES_CONFIRMATION, store, 'not-a-time')).ok).toBe(false);
     expect(store.read).not.toHaveBeenCalled();
     expect(store.write).not.toHaveBeenCalled();
-    expect(store.remove).not.toHaveBeenCalled();
   });
 
   it('rejects backward write time and invalid expiry while retaining saved bytes', async () => {
@@ -160,7 +167,7 @@ describe('Gate 7C explicit preference persistence', () => {
     expect(await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID)).toEqual(before);
   });
 
-  it('deletes only the requested preference; missing IDs are no-ops and the final delete removes the sidecar', async () => {
+  it('deletes only the requested preference; missing IDs are no-ops and the final delete retains only ordering metadata', async () => {
     await resetSettingsToDefaults();
     const primary = await database.settings.get('settings');
     await upsertExplicitPreference({ ...input, id: 'a' }, undefined, time);
@@ -172,7 +179,9 @@ describe('Gate 7C explicit preference persistence', () => {
       ok: true, removed: true, preferences: [expect.objectContaining({ id: 'b' })],
     });
     expect(await deleteExplicitPreference('b', undefined, later)).toEqual({ ok: true, removed: true, preferences: [] });
-    expect((await loadExplicitPreferencesResult()).status).toBe('missing');
+    expect(await loadExplicitPreferencesResult()).toEqual({
+      status: 'ok', record: emptyRecord(time, later), preferences: [],
+    });
     expect(await database.settings.get('settings')).toEqual(primary);
   });
 
@@ -180,7 +189,8 @@ describe('Gate 7C explicit preference persistence', () => {
     await resetSettingsToDefaults();
     const primary = await database.settings.get('settings');
     const foundation = await database.settings.get('dayProfileFoundation');
-    const corrupt = { id: EXPLICIT_PREFERENCES_RECORD_ID, formatVersion: 99, preserved: 'synthetic recovery data' };
+    const corrupt = { id: EXPLICIT_PREFERENCES_RECORD_ID, formatVersion: 99,
+      updatedAt: '2099-01-01T00:00:00Z', preserved: 'synthetic recovery data' };
     await database.table<typeof corrupt, string>('settings').put(corrupt);
     const sentinel = { id: 'sentinel', preserved: true };
     await database.table<typeof sentinel, string>('taskHistory').put(sentinel);
@@ -190,20 +200,23 @@ describe('Gate 7C explicit preference persistence', () => {
     expect(await exportExplicitPreferencesResult()).toEqual({ status: 'ok', rawRecord: corrupt });
     expect((await resetExplicitPreferences('delete')).ok).toBe(false);
     expect(await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID)).toEqual(corrupt);
-    expect(await resetExplicitPreferences(DELETE_EXPLICIT_PREFERENCES_CONFIRMATION)).toEqual({
+    expect(await resetExplicitPreferences(DELETE_EXPLICIT_PREFERENCES_CONFIRMATION, undefined, later)).toEqual({
       ok: true, removed: true, preferences: [],
     });
     expect(await database.settings.get('settings')).toEqual(primary);
     expect(await database.settings.get('dayProfileFoundation')).toEqual(foundation);
     expect(await database.table('taskHistory').get('sentinel')).toEqual(sentinel);
-    expect(await exportExplicitPreferencesResult()).toEqual({ status: 'missing' });
+    const marker = emptyRecord(later, later);
+    expect(await exportExplicitPreferencesResult()).toEqual({ status: 'ok', rawRecord: marker });
+    expect((await upsertExplicitPreference(input, undefined, time)).ok).toBe(false);
+    expect(await database.settings.get(EXPLICIT_PREFERENCES_RECORD_ID)).toEqual(marker);
   });
 
   it('does not read for unconfirmed bulk deletion', async () => {
     const store = unavailableStore();
     expect((await resetExplicitPreferences('', store)).ok).toBe(false);
     expect(store.read).not.toHaveBeenCalled();
-    expect(store.remove).not.toHaveBeenCalled();
+    expect(store.write).not.toHaveBeenCalled();
   });
 
   it('isolates namespaces and keeps an explicitly captured store bound to its original database', async () => {
@@ -247,6 +260,119 @@ describe('Gate 7C explicit preference persistence', () => {
       }
     } finally {
       vi.unstubAllEnvs();
+    }
+  });
+});
+
+describe('PR #151 deletion-ordering regression', () => {
+  it.each(['final deletion', 'reset'] as const)(
+    'rejects a queued stale save after %s across connections and survives reopening', async (operation) => {
+      expect((await upsertExplicitPreference(input, undefined, time)).ok).toBe(true);
+      secondary = createLifeRhythmDatabase(database.name);
+      await secondary.open();
+      const other = createExplicitPreferenceStore(secondary);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      const delayedStore: ExplicitPreferenceStore = {
+        ...other,
+        transaction: async (work) => { await gate; return other.transaction(work); },
+      };
+      // The command exists before deletion but cannot enter its transaction yet.
+      const pendingSave = upsertExplicitPreference(input, delayedStore, '2026-09-23T09:30:00Z');
+      try {
+        const cleared = operation === 'final deletion'
+          ? await deleteExplicitPreference(input.id, undefined, later)
+          : await resetExplicitPreferences(DELETE_EXPLICIT_PREFERENCES_CONFIRMATION, undefined, later);
+        expect(cleared).toEqual({ ok: true, removed: true, preferences: [] });
+      } finally {
+        release();
+      }
+      expect((await pendingSave).ok).toBe(false);
+      const marker = emptyRecord(time, later);
+      expect(await exportExplicitPreferencesResult(other)).toEqual({ status: 'ok', rawRecord: marker });
+
+      secondary.close();
+      await secondary.open();
+      expect(await loadExplicitPreferencesResult(other)).toEqual({ status: 'ok', record: marker, preferences: [] });
+      // Equal instants with different offset encodings cannot reopen a cleared store.
+      for (const staleTime of [time, later, '2026-09-23T18:00:00+08:00']) {
+        expect((await upsertExplicitPreference(input, other, staleTime)).ok).toBe(false);
+      }
+      expect(await deleteExplicitPreference(input.id, other, '2026-09-23T11:00:00Z'))
+        .toEqual({ ok: true, removed: false, preferences: [] });
+      await resetSettingsToDefaults();
+      const empty = await loadExplicitPreferencesResult(other);
+      if (empty.status !== 'ok') throw new Error('Expected durable deletion boundary');
+      expect(explicitPreferencesForScheduler(empty.preferences, later)).toEqual([]);
+      expect(await exportExplicitPreferencesResult(other)).toEqual({ status: 'ok', rawRecord: marker });
+
+      const freshTime = '2026-09-23T10:00:00.001Z';
+      const fresh = await upsertExplicitPreference({ ...input, relation: 'avoid' }, other, freshTime);
+      expect(fresh.ok).toBe(true);
+      if (!fresh.ok) throw new Error('Expected genuinely new save');
+      expect(fresh.preference.createdAt).toBe(freshTime);
+      expect(fresh.preference.relation).toBe('avoid');
+      const accepted = await exportExplicitPreferencesResult(other);
+      expect((await upsertExplicitPreference(input, other, later)).ok).toBe(false);
+      expect(await exportExplicitPreferencesResult(other)).toEqual(accepted);
+    },
+  );
+
+  it('establishes and advances a reset boundary even when no preference content exists', async () => {
+    expect(await loadExplicitPreferencesResult()).toEqual({ status: 'missing', preferences: [] });
+    expect(await resetExplicitPreferences(DELETE_EXPLICIT_PREFERENCES_CONFIRMATION, undefined, time))
+      .toEqual({ ok: true, removed: false, preferences: [] });
+    expect(await resetExplicitPreferences(DELETE_EXPLICIT_PREFERENCES_CONFIRMATION, undefined, later))
+      .toEqual({ ok: true, removed: false, preferences: [] });
+    const marker = emptyRecord(time, later);
+    expect(await exportExplicitPreferencesResult()).toEqual({ status: 'ok', rawRecord: marker });
+    expect((await upsertExplicitPreference(input, undefined, '2026-09-23T09:30:00Z')).ok).toBe(false);
+    expect((await upsertExplicitPreference(input, undefined, later)).ok).toBe(false);
+    expect(await exportExplicitPreferencesResult()).toEqual({ status: 'ok', rawRecord: marker });
+    expect((await upsertExplicitPreference(input, undefined, '2026-09-23T11:00:00Z')).ok).toBe(true);
+  });
+
+  it.each(['populated', 'empty'] as const)('rejects a backdated reset of a %s record', async (state) => {
+    expect((await upsertExplicitPreference(input, undefined, later)).ok).toBe(true);
+    if (state === 'empty') expect((await deleteExplicitPreference(input.id, undefined, later)).ok).toBe(true);
+    const before = await exportExplicitPreferencesResult();
+    expect((await resetExplicitPreferences(DELETE_EXPLICIT_PREFERENCES_CONFIRMATION, undefined, time)).ok).toBe(false);
+    expect(await exportExplicitPreferencesResult()).toEqual(before);
+  });
+
+  it.each(['populated', 'corrupt', 'missing', 'empty'] as const)(
+    'rolls back an aborted reset marker write over %s state', async (state) => {
+      if (state === 'populated' || state === 'empty') {
+        expect((await upsertExplicitPreference(input, undefined, time)).ok).toBe(true);
+        if (state === 'empty') expect((await deleteExplicitPreference(input.id, undefined, time)).ok).toBe(true);
+      } else if (state === 'corrupt') {
+        await database.table('settings').put({ id: EXPLICIT_PREFERENCES_RECORD_ID, preserved: 'synthetic' });
+      }
+      const before = await exportExplicitPreferencesResult();
+      const base = createExplicitPreferenceStore();
+      const failing: ExplicitPreferenceStore = {
+        ...base, write: async (record) => { await base.write(record); throw new Error('abort after reset marker'); },
+      };
+      expect((await resetExplicitPreferences(DELETE_EXPLICIT_PREFERENCES_CONFIRMATION, failing, later)).ok).toBe(false);
+      expect(await exportExplicitPreferencesResult()).toEqual(before);
+    },
+  );
+
+  it('keeps reset markers and stale-command rejection inside the captured namespace', async () => {
+    const original = createExplicitPreferenceStore();
+    expect((await upsertExplicitPreference(input, original, time)).ok).toBe(true);
+    setCurrentLocalDataNamespace(createAuthLocalDataNamespace(`gate7c-reset-other-${index}`));
+    secondary = getCurrentLifeRhythmDatabase();
+    try {
+      const other = createExplicitPreferenceStore();
+      expect((await resetExplicitPreferences(DELETE_EXPLICIT_PREFERENCES_CONFIRMATION, original, later)).ok).toBe(true);
+      expect((await upsertExplicitPreference(input, original, time)).ok).toBe(false);
+      expect(await loadExplicitPreferencesResult(other)).toEqual({ status: 'missing', preferences: [] });
+      expect((await upsertExplicitPreference(input, other, time)).ok).toBe(true);
+      expect(await exportExplicitPreferencesResult(original))
+        .toEqual({ status: 'ok', rawRecord: emptyRecord(time, later) });
+    } finally {
+      await secondary.delete();
     }
   });
 });
