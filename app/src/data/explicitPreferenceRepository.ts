@@ -209,3 +209,25 @@ export function explicitPreferencesForScheduler(
     provenance: `Persisted explicit preference ${preference.id}; user-declared.`,
   }));
 }
+
+/**
+ * Whole-horizon scheduler rules retain absolute lifetime metadata.
+ * The scheduler evaluates activeFrom/expiresAt for each candidate slot instead
+ * of treating a temporary preference as active for the entire planning horizon.
+ */
+export function explicitPreferenceRulesForScheduler(
+  preferences: readonly ExplicitPreference[],
+): SchedulingPreference[] {
+  return ordered(preferences).map((preference) => ({
+    id: preference.id,
+    targetKind: preference.targetKind,
+    targetValue: preference.targetValue,
+    relation: preference.relation,
+    days: [...preference.days],
+    ...(preference.start !== undefined ? { start: preference.start, end: preference.end } : {}),
+    precedenceSource: 'explicitPersistent',
+    activeFrom: preference.updatedAt,
+    ...(preference.expiresAt ? { expiresAt: preference.expiresAt } : {}),
+    provenance: `Persisted explicit preference ${preference.id}; user-declared.`,
+  }));
+}

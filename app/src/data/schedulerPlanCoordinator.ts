@@ -14,6 +14,11 @@ import type {
   SchedulingInterval,
 } from '../domain/schedulingModel';
 import { readPersistedCalendarEvents } from './calendarSourceRepository';
+import {
+  createExplicitPreferenceStore,
+  explicitPreferenceRulesForScheduler,
+  loadExplicitPreferencesResult,
+} from './explicitPreferenceRepository';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   canonicalSchedulingInputSnapshot,
@@ -326,6 +331,7 @@ export async function buildCurrentLiveSchedulingContext(
   let consistentRead: {
     calendarRead: Awaited<ReturnType<typeof readPersistedCalendarEvents>>;
     canonicalRows: Awaited<ReturnType<typeof readCanonicalSchedulingInputRows>>;
+    explicitPreferences: Awaited<ReturnType<typeof loadExplicitPreferencesResult>>;
     savedPlan: Awaited<ReturnType<typeof loadSchedulerPlanState>> | null;
     settingsResult: Awaited<ReturnType<typeof loadSettingsResult>>;
   };
@@ -342,9 +348,10 @@ export async function buildCurrentLiveSchedulingContext(
         database.schedulerPlanState,
       ],
       async () => {
-        const [settingsResult, canonicalRows, calendarRead, savedPlan] = await Promise.all([
+        const [settingsResult, canonicalRows, explicitPreferences, calendarRead, savedPlan] = await Promise.all([
           loadSettingsResult(database, { persistMigration: false }),
           readCanonicalSchedulingInputRows(database),
+          loadExplicitPreferencesResult(createExplicitPreferenceStore(database)),
           readPersistedCalendarEvents({
             targetTimezone: timezone,
             windowStartDate: startDate,
@@ -352,7 +359,7 @@ export async function buildCurrentLiveSchedulingContext(
           }, database),
           options.planningPolicy ? Promise.resolve(null) : loadSchedulerPlanState(database),
         ]);
-        return { calendarRead, canonicalRows, savedPlan, settingsResult };
+        return { calendarRead, canonicalRows, explicitPreferences, savedPlan, settingsResult };
       },
     );
   } catch {
@@ -363,7 +370,7 @@ export async function buildCurrentLiveSchedulingContext(
     };
   }
 
-  const { calendarRead, canonicalRows, savedPlan, settingsResult } = consistentRead;
+  const { calendarRead, canonicalRows, explicitPreferences, savedPlan, settingsResult } = consistentRead;
 
   if (
     settingsResult.status === 'invalid' ||
@@ -375,6 +382,14 @@ export async function buildCurrentLiveSchedulingContext(
       errors: settingsResult.errors.length > 0
         ? settingsResult.errors
         : ['settings: Current settings are not safe to use for automatic planning.'],
+      warnings: [],
+    };
+  }
+
+  if (explicitPreferences.status === 'invalid' || explicitPreferences.status === 'readFailed') {
+    return {
+      ok: false,
+      errors: explicitPreferences.errors,
       warnings: [],
     };
   }
@@ -431,6 +446,7 @@ export async function buildCurrentLiveSchedulingContext(
   const planningBase: SchedulingDomainModel = {
     ...base,
     externalCommitments: [...base.externalCommitments, ...calendarCommitments],
+    preferences: explicitPreferenceRulesForScheduler(explicitPreferences.preferences),
   };
   const candidateIntervals: CandidateSchedulingInterval[] = [];
   const warnings: string[] = [...calendarRead.warnings.map((warning) => `Calendar: ${warning}`)];
@@ -517,6 +533,14 @@ export async function ensureCurrentPrivatePlan(
   if (!live.ok) return live;
 
   const current = live.context.schedulerStateSnapshot ?? saved;
+
+  if (current.status === 'ok' && current.preferenceRepairPendingAt) {
+    return repairCurrentPrivatePlan({
+      ...options,
+      reason: 'Apply current scheduling preferences to the private plan.',
+      trigger: 'preferenceChanged',
+    });
+  }
 
   if (current.status === 'ok') {
     return {

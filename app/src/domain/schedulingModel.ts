@@ -1,3 +1,5 @@
+import type { PreferencePrecedenceSource } from './preferencePrecedence';
+
 export type LocalDate = string;
 export type LocalTime = string;
 export type Instant = string;
@@ -114,6 +116,11 @@ export type SchedulingPreference = {
   days?: string[];
   start?: LocalTime;
   end?: LocalTime;
+  /** Authority for precedence resolution. Existing synthetic inputs default to explicitPersistent. */
+  precedenceSource?: PreferencePrecedenceSource;
+  /** Absolute lifetime boundaries for per-candidate evaluation. */
+  activeFrom?: Instant;
+  expiresAt?: Instant;
   provenance: string;
 };
 
