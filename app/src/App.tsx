@@ -202,6 +202,7 @@ export default function App() {
   const [calendarRepairIssue, setCalendarRepairIssue] = useState<string | null>(null);
   const observedCalendarRepairPendingRef = useRef<boolean | null>(null);
   const observedPreferenceRepairSignatureRef = useRef<string | null | undefined>(undefined);
+  const observedDurationLearningSignatureRef = useRef<string | null | undefined>(undefined);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [captureRevision, setCaptureRevision] = useState(0);
   const [captureFeedback, setCaptureFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
@@ -223,12 +224,17 @@ export default function App() {
         const preferenceRepairSignature = result.status === 'ok' && result.preferenceRepairPendingAt
           ? `${result.preferenceRepairPendingAt}:${JSON.stringify(result.preferenceRepairTargets ?? [])}`
           : null;
+        const durationLearningSignature = result.status === 'ok'
+          ? JSON.stringify(result.durationLearningApplied ?? [])
+          : null;
         setCalendarRepairIssue(repairPending ? CALENDAR_REPAIR_PENDING_MESSAGE : null);
 
         const previouslyObserved = observedCalendarRepairPendingRef.current;
         const previouslyObservedPreference = observedPreferenceRepairSignatureRef.current;
+        const previouslyObservedDurationLearning = observedDurationLearningSignatureRef.current;
         observedCalendarRepairPendingRef.current = repairPending;
         observedPreferenceRepairSignatureRef.current = preferenceRepairSignature;
+        observedDurationLearningSignatureRef.current = durationLearningSignature;
         const calendarChanged =
           (previouslyObserved === null && repairPending) ||
           (previouslyObserved !== null && previouslyObserved !== repairPending);
@@ -236,7 +242,10 @@ export default function App() {
           (previouslyObservedPreference === undefined && preferenceRepairSignature !== null) ||
           (previouslyObservedPreference !== undefined &&
             previouslyObservedPreference !== preferenceRepairSignature);
-        if (calendarChanged || preferenceChanged) {
+        const durationLearningChanged =
+          previouslyObservedDurationLearning !== undefined &&
+          previouslyObservedDurationLearning !== durationLearningSignature;
+        if (calendarChanged || preferenceChanged || durationLearningChanged) {
           // Presentation refresh only. Plan/Today reread current facts; this
           // observer never repairs or writes scheduler state itself.
           setPlanRevision((revision) => revision + 1);
@@ -436,6 +445,7 @@ export default function App() {
         onResetSettings={handleResetSettings}
         onSaveSettings={handleSaveSettings}
         onPreferencePlanChanged={handlePreferencePlanChanged}
+        onDurationLearningPlanChanged={handlePreferencePlanChanged}
         onThemeChange={setTheme}
         settings={settings}
         theme={theme}

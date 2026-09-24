@@ -60,5 +60,5 @@ export function placementReasonLines(provenance: readonly string[]): string[] {
     }
   }
 
-  return lines.slice(0, 4);
+  return lines.slice(0, 5);
 }
