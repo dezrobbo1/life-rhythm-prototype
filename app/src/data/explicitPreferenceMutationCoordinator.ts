@@ -3,6 +3,7 @@ import {
   createExplicitPreferenceStore,
   deleteExplicitPreference,
   loadExplicitPreferencesResult,
+  resetExplicitPreferences,
   upsertExplicitPreference,
   type ExplicitPreferenceLoadResult,
   type ExplicitPreferenceStore,
@@ -12,6 +13,7 @@ import type {
   ExplicitPreferenceWriteInput,
 } from './explicitPreferenceSchema';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
+import { areaSchema } from './schemas';
 import {
   CURRENT_SCHEDULER_PLAN_STATE_ID,
   markPreferenceRepairPending,
@@ -109,6 +111,24 @@ function affectedTargetsForUpsert(
     ...(expectation.preference ? [targetForPreference(expectation.preference)] : []),
     { targetKind: input.targetKind, targetValue: input.targetValue },
   ];
+}
+
+function orderedTargets(targets: readonly PreferenceRepairTarget[]) {
+  const byKey = new Map<string, PreferenceRepairTarget>();
+  for (const target of targets) {
+    byKey.set(`${target.targetKind}:${target.targetValue}`, { ...target });
+  }
+  return [...byKey.values()].sort((left, right) =>
+    left.targetKind.localeCompare(right.targetKind) ||
+    left.targetValue.localeCompare(right.targetValue),
+  );
+}
+
+function conservativeRecoveryTargets(): PreferenceRepairTarget[] {
+  return areaSchema.options.map((targetValue) => ({
+    targetKind: 'area' as const,
+    targetValue,
+  }));
 }
 
 async function markPlanAttentionIfNeeded(
@@ -243,6 +263,67 @@ export async function commitExplicitPreferenceDelete(
     return failure ?? {
       ok: false,
       errors: ['explicitPreferences: Preference could not be removed on this device.'],
+    };
+  }
+}
+
+
+export async function commitExplicitPreferenceReset(
+  confirmation: string,
+  database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
+  timestamp = new Date().toISOString(),
+): Promise<PreferenceMutationCommitResult> {
+  let failure: PreferenceMutationFailure | null = null;
+
+  try {
+    return await database.transaction(
+      'rw',
+      database.settings,
+      database.schedulerPlanState,
+      async () => {
+        const store = transactionPassthroughStore(database);
+        const loaded = await loadExplicitPreferencesResult(store);
+
+        if (loaded.status === 'readFailed') {
+          return { ok: false, errors: loaded.errors };
+        }
+
+        const targets = loaded.status === 'invalid'
+          ? conservativeRecoveryTargets()
+          : loaded.status === 'ok'
+            ? orderedTargets(loaded.preferences.map(targetForPreference))
+            : [];
+
+        const deleted = await resetExplicitPreferences(confirmation, store, timestamp);
+        if (!deleted.ok) return deleted;
+
+        if (!deleted.removed || targets.length === 0) {
+          return {
+            ...deleted,
+            repairAttentionPersisted: false,
+          };
+        }
+
+        try {
+          const repairAttentionPersisted = await markPlanAttentionIfNeeded(
+            database,
+            timestamp,
+            targets,
+          );
+          return {
+            ...deleted,
+            repairAttentionPersisted,
+          };
+        } catch {
+          failure = { ok: false, errors: [REPAIR_ATTENTION_ERROR] };
+          throw new Error(REPAIR_ATTENTION_ERROR);
+        }
+      },
+    );
+  } catch {
+    return failure ?? {
+      ok: false,
+      errors: ['explicitPreferences: Preferences could not be cleared on this device.'],
     };
   }
 }
