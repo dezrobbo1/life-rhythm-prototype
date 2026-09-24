@@ -16,6 +16,7 @@ import type {
   TaskVariant,
 } from './schedulingModel';
 import { canUseReducedMinimum, eligibleRhythmMinimum } from './reducedDayPolicy';
+import { resolvePreferencePrecedence } from './preferencePrecedence';
 
 export type SchedulerStatus = 'gate3-automatic-scheduler-v0';
 export const schedulerStatus: SchedulerStatus = 'gate3-automatic-scheduler-v0';
@@ -502,20 +503,38 @@ function preferenceAppliesToRhythm(
   }
 }
 
-function preferencesForDate(
-  preferences: SchedulingPreference[],
-  date: string,
-): SchedulingPreference[] {
-  const weekday = weekdayForLocalDate(date);
-  return preferences.filter((preference) =>
-    !preference.days || preference.days.length === 0 || preference.days.includes(weekday),
-  );
-}
-
 function preferenceRange(preference: SchedulingPreference): MinuteRange | null {
   if (!preference.start || !preference.end) return null;
   const start = minutesFromTime(preference.start);
   const end = minutesFromTime(preference.end);
+  return start < end ? { start, end } : null;
+}
+
+function preferenceEffectiveRange(
+  preference: SchedulingPreference,
+  candidate: CandidateSchedulingInterval,
+): MinuteRange | null {
+  const weekday = weekdayForLocalDate(candidate.date);
+  if (preference.days && preference.days.length > 0 && !preference.days.includes(weekday)) {
+    return null;
+  }
+
+  const declared = preferenceRange(preference);
+  let start = declared?.start ?? 0;
+  let end = declared?.end ?? 24 * 60;
+
+  if (preference.activeFrom) {
+    const activeFrom = localPointForInstant(preference.activeFrom, candidate.timezone);
+    if (!activeFrom || activeFrom.date > candidate.date) return null;
+    if (activeFrom.date === candidate.date) start = Math.max(start, minutesFromTime(activeFrom.time));
+  }
+
+  if (preference.expiresAt) {
+    const expiresAt = localPointForInstant(preference.expiresAt, candidate.timezone);
+    if (!expiresAt || expiresAt.date < candidate.date) return null;
+    if (expiresAt.date === candidate.date) end = Math.min(end, minutesFromTime(expiresAt.time));
+  }
+
   return start < end ? { start, end } : null;
 }
 
@@ -552,28 +571,65 @@ function rhythmPreferredRange(
 
 function slotPreferenceScore(
   range: MinuteRange,
-  date: string,
+  candidate: CandidateSchedulingInterval,
   preferences: SchedulingPreference[],
-): { preferMatches: number; avoidMatches: number; matchedPreferenceIds: string[] } {
-  let preferMatches = 0;
-  let avoidMatches = 0;
-  const matchedPreferenceIds: string[] = [];
+): {
+  preferMatches: number;
+  avoidMatches: number;
+  matchedPreferenceIds: string[];
+  conflictingPreferenceIds: string[];
+} {
+  const matchingPreferences = preferences.filter((preference) => {
+    const effectiveRange = preferenceEffectiveRange(preference, candidate);
+    if (!effectiveRange) return false;
+    return preference.relation === 'prefer'
+      ? contains(effectiveRange, range)
+      : overlaps(effectiveRange, range);
+  });
 
-  for (const preference of preferencesForDate(preferences, date)) {
-    const preferredRange = preferenceRange(preference);
-    const matches = preferredRange
-      ? preference.relation === 'prefer'
-        ? contains(preferredRange, range)
-        : overlaps(preferredRange, range)
-      : true;
-    if (!matches) continue;
-
-    matchedPreferenceIds.push(preference.id);
-    if (preference.relation === 'prefer') preferMatches += 1;
-    else avoidMatches += 1;
+  if (matchingPreferences.length === 0) {
+    return {
+      preferMatches: 0,
+      avoidMatches: 0,
+      matchedPreferenceIds: [],
+      conflictingPreferenceIds: [],
+    };
   }
 
-  return { preferMatches, avoidMatches, matchedPreferenceIds };
+  const scopeKey = [
+    candidate.id,
+    candidate.date,
+    timeFromMinutes(range.start),
+    timeFromMinutes(range.end),
+  ].join(':');
+  const resolution = resolvePreferencePrecedence(
+    matchingPreferences.map((preference) => ({
+      id: preference.id,
+      scopeKey,
+      source: preference.precedenceSource ?? 'explicitPersistent',
+      relation: preference.relation,
+    })),
+    scopeKey,
+  );
+
+  if (resolution.status === 'conflict') {
+    return {
+      preferMatches: 0,
+      avoidMatches: 0,
+      matchedPreferenceIds: [],
+      conflictingPreferenceIds: resolution.selected.map((preference) => preference.id),
+    };
+  }
+
+  const selectedIds = new Set(resolution.selected.map((preference) => preference.id));
+  const selected = matchingPreferences.filter((preference) => selectedIds.has(preference.id));
+
+  return {
+    preferMatches: selected.filter((preference) => preference.relation === 'prefer').length,
+    avoidMatches: selected.filter((preference) => preference.relation === 'avoid').length,
+    matchedPreferenceIds: selected.map((preference) => preference.id),
+    conflictingPreferenceIds: [],
+  };
 }
 
 function candidateStarts(
@@ -589,8 +645,8 @@ function candidateStarts(
   if (fits(gap.start)) starts.add(gap.start);
   if (fixedStart !== undefined && fits(fixedStart)) starts.add(fixedStart);
 
-  for (const preference of preferencesForDate(preferences, gap.candidate.date)) {
-    const range = preferenceRange(preference);
+  for (const preference of preferences) {
+    const range = preferenceEffectiveRange(preference, gap.candidate);
     if (!range) continue;
     const start = preference.relation === 'prefer'
       ? Math.max(gap.start, range.start)
@@ -637,6 +693,7 @@ function placementProvenance(
   candidate: CandidateSchedulingInterval,
   variant: TaskVariant,
   matchedPreferences: SchedulingPreference[],
+  conflictingPreferenceIds: string[],
   extra: string[],
 ): string[] {
   const provenance = [
@@ -648,6 +705,11 @@ function placementProvenance(
 
   for (const preference of matchedPreferences.slice(0, 2)) {
     provenance.push(`Matched explicit preference ${preference.id}: ${preference.provenance}`);
+  }
+  if (conflictingPreferenceIds.length > 0) {
+    provenance.push(
+      `Conflicting preference guidance was not used to rank this slot: ${conflictingPreferenceIds.join(', ')}.`,
+    );
   }
 
   return provenance;
@@ -673,7 +735,7 @@ function findPlacementForIntention(
       for (const start of candidateStarts(gap, variant.minutes, applicablePreferences, null, fixedStart)) {
         const end = start + variant.minutes;
         const range = { start, end };
-        const scoreParts = slotPreferenceScore(range, gap.candidate.date, applicablePreferences);
+        const scoreParts = slotPreferenceScore(range, gap.candidate, applicablePreferences);
         const matchedPreferences = applicablePreferences.filter((preference) =>
           scoreParts.matchedPreferenceIds.includes(preference.id),
         );
@@ -695,7 +757,13 @@ function findPlacementForIntention(
           timezone: gap.candidate.timezone,
           origin: 'scheduler',
           variantKind: variant.kind,
-          provenance: placementProvenance(gap.candidate, variant, matchedPreferences, timingExtra),
+          provenance: placementProvenance(
+            gap.candidate,
+            variant,
+            matchedPreferences,
+            scoreParts.conflictingPreferenceIds,
+            timingExtra,
+          ),
         };
 
         if (violationsForPlacement(placement, accepted, input).length > 0) continue;
@@ -810,7 +878,7 @@ function findPlacementForRhythm(
       for (const start of candidateStarts(gap, variant.minutes, applicablePreferences, preferredRange)) {
         const end = start + variant.minutes;
         const range = { start, end };
-        const scoreParts = slotPreferenceScore(range, gap.candidate.date, applicablePreferences);
+        const scoreParts = slotPreferenceScore(range, gap.candidate, applicablePreferences);
         const matchedPreferences = applicablePreferences.filter((preference) =>
           scoreParts.matchedPreferenceIds.includes(preference.id),
         );
@@ -835,7 +903,13 @@ function findPlacementForRhythm(
           timezone: gap.candidate.timezone,
           origin: 'scheduler',
           variantKind: variant.kind,
-          provenance: placementProvenance(gap.candidate, variant, matchedPreferences, extra),
+          provenance: placementProvenance(
+            gap.candidate,
+            variant,
+            matchedPreferences,
+            scoreParts.conflictingPreferenceIds,
+            extra,
+          ),
         };
 
         if (violationsForPlacement(placement, accepted, input).length > 0) continue;

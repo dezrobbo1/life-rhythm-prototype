@@ -2,6 +2,7 @@ import type { Table } from 'dexie';
 import { scheduler } from '../domain/primaryScheduler';
 import { clipSchedulingInputToNow } from '../domain/elapsedTimeCapacity';
 import type {
+  InternalPlacement,
   LocalDate,
   SchedulerChange,
   SchedulerPlan,
@@ -20,6 +21,7 @@ import {
 } from './schedulerCanonicalInputSnapshot';
 import {
   schedulerPlanStateRecordSchema,
+  type PreferenceRepairTarget,
   type SchedulerPlanStateRecord,
 } from './schedulerPlanStateSchema';
 import {
@@ -53,6 +55,8 @@ type SchedulerModeFields = {
 
 type SchedulerStateFields = SchedulerModeFields & {
   calendarRepairPendingAt?: string;
+  preferenceRepairPendingAt?: string;
+  preferenceRepairTargets?: PreferenceRepairTarget[];
 };
 
 export type CalendarSourceSnapshot = {
@@ -62,6 +66,8 @@ export type CalendarSourceSnapshot = {
 
 export const CALENDAR_REPAIR_PENDING_MESSAGE =
   'Calendar change was saved, but the flexible private plan could not be repaired.';
+export const PREFERENCE_REPAIR_PENDING_MESSAGE =
+  'Scheduling preference was saved, but the flexible private plan could not be repaired.';
 
 export type SchedulerPlanStateLoadResult =
   | { status: 'missing' }
@@ -114,6 +120,12 @@ function stateFields(record: SchedulerStateFields): SchedulerStateFields {
   return {
     ...(record.calendarRepairPendingAt
       ? { calendarRepairPendingAt: record.calendarRepairPendingAt }
+      : {}),
+    ...(record.preferenceRepairPendingAt
+      ? { preferenceRepairPendingAt: record.preferenceRepairPendingAt }
+      : {}),
+    ...(record.preferenceRepairTargets
+      ? { preferenceRepairTargets: record.preferenceRepairTargets.map((target) => ({ ...target })) }
       : {}),
     ...(record.dayModeContext ? { dayModeContext: { ...record.dayModeContext } } : {}),
     ...(record.undoDayModeContext !== undefined
@@ -364,6 +376,144 @@ export async function markCalendarRepairPending(
   }
 }
 
+function preferencePlacementTargetId(placement: InternalPlacement) {
+  return placement.targetKind === 'rhythm'
+    ? placement.rhythmId ?? placement.intentionId
+    : placement.intentionId;
+}
+
+function preferenceRepairTargetMatchesPlacement(
+  target: PreferenceRepairTarget,
+  placement: InternalPlacement,
+  input: SchedulingDomainModel,
+) {
+  const placementKind = placement.targetKind ?? 'intention';
+  const targetId = preferencePlacementTargetId(placement);
+
+  if (target.targetKind === placementKind) return target.targetValue === targetId;
+
+  if (placementKind === 'rhythm') {
+    const rhythm = input.rhythms.find((candidate) => candidate.id === targetId);
+    return target.targetKind === 'area' && rhythm?.area === target.targetValue;
+  }
+
+  const intention = input.intentions.find((candidate) => candidate.id === targetId);
+  if (!intention) return false;
+  if (target.targetKind === 'area') return intention.area === target.targetValue;
+  if (target.targetKind === 'taskType') return intention.taskType === target.targetValue;
+  return false;
+}
+
+function pendingPreferenceReleaseIds(
+  current: SchedulerPlanStateExpectation,
+  change: SchedulerChange,
+) {
+  if (
+    current.status !== 'ok' ||
+    !current.preferenceRepairPendingAt ||
+    !change.now ||
+    !current.preferenceRepairTargets ||
+    current.preferenceRepairTargets.length === 0
+  ) {
+    return [];
+  }
+
+  return current.plan.placements
+    .filter((placement) =>
+      placement.origin === 'scheduler' &&
+      (
+        placement.date > change.now!.date ||
+        (placement.date === change.now!.date && placement.start >= change.now!.time)
+      ) &&
+      current.preferenceRepairTargets!.some((target) =>
+        preferenceRepairTargetMatchesPlacement(target, placement, change.nextInput),
+      ),
+    )
+    .map((placement) => placement.id)
+    .sort();
+}
+
+function withPendingPreferenceRepair(
+  current: SchedulerPlanStateExpectation,
+  change: SchedulerChange,
+): {
+  change: SchedulerChange;
+  applied: boolean;
+} {
+  const releases = pendingPreferenceReleaseIds(current, change);
+  const canApply = current.status === 'ok' &&
+    Boolean(current.preferenceRepairPendingAt) &&
+    Boolean(change.now) &&
+    Boolean(current.preferenceRepairTargets?.length);
+
+  if (!canApply) return { change, applied: false };
+
+  return {
+    applied: true,
+    change: {
+      ...change,
+      releasePlacementIds: [...new Set([
+        ...(change.releasePlacementIds ?? []),
+        ...releases,
+      ])].sort(),
+    },
+  };
+}
+
+function orderedPreferenceRepairTargets(
+  targets: readonly PreferenceRepairTarget[],
+): PreferenceRepairTarget[] {
+  const byKey = new Map<string, PreferenceRepairTarget>();
+  for (const target of targets) {
+    byKey.set(`${target.targetKind}:${target.targetValue}`, { ...target });
+  }
+  return [...byKey.values()].sort((left, right) =>
+    left.targetKind.localeCompare(right.targetKind) ||
+    left.targetValue.localeCompare(right.targetValue),
+  );
+}
+
+export async function markPreferenceRepairPending(
+  store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
+  detectedAt = new Date().toISOString(),
+  targets: readonly PreferenceRepairTarget[] = [],
+): Promise<{ ok: true; persisted: boolean } | { ok: false; errors: string[] }> {
+  try {
+    const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
+
+    if (!stored) {
+      return { ok: true, persisted: false };
+    }
+
+    const candidate = schedulerPlanStateRecordSchema.safeParse({
+      ...stored,
+      preferenceRepairPendingAt: detectedAt,
+      preferenceRepairTargets: orderedPreferenceRepairTargets([
+        ...(stored.preferenceRepairTargets ?? []),
+        ...targets,
+      ]),
+    });
+
+    if (!candidate.success) {
+      return { ok: false, errors: issuesToMessages(candidate.error.issues) };
+    }
+
+    const updated = await store.schedulerPlanState.update(
+      CURRENT_SCHEDULER_PLAN_STATE_ID,
+      {
+        preferenceRepairPendingAt: candidate.data.preferenceRepairPendingAt,
+        preferenceRepairTargets: candidate.data.preferenceRepairTargets,
+      },
+    );
+    return { ok: true, persisted: updated === 1 };
+  } catch {
+    return {
+      ok: false,
+      errors: ['schedulerPlanState: Preference repair attention could not be saved.'],
+    };
+  }
+}
+
 export async function clearSchedulerPlanState(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
 ): Promise<void> {
@@ -428,12 +578,31 @@ export async function repairAndPersistSchedulerPlan(
   const current = expectedSchedulerState ?? observed;
 
   try {
-    const safeChange = change.now
-      ? { ...change, nextInput: clipSchedulingInputToNow(change.nextInput, change.now) }
-      : change;
-    const plan = current.status === 'missing'
+    const preferenceAware = withPendingPreferenceRepair(current, change);
+    const safeChange = preferenceAware.change.now
+      ? {
+          ...preferenceAware.change,
+          nextInput: clipSchedulingInputToNow(
+            preferenceAware.change.nextInput,
+            preferenceAware.change.now,
+          ),
+        }
+      : preferenceAware.change;
+    const calculatedPlan = current.status === 'missing'
       ? scheduler.buildPlan(safeChange.nextInput)
       : scheduler.repairPlan(current.plan, safeChange);
+    const appliedPreferenceRepairTargets = preferenceAware.applied && current.status === 'ok'
+      ? orderedPreferenceRepairTargets(current.preferenceRepairTargets ?? [])
+      : [];
+    const plan = appliedPreferenceRepairTargets.length > 0 && calculatedPlan.repair
+      ? {
+          ...calculatedPlan,
+          repair: {
+            ...calculatedPlan.repair,
+            appliedPreferenceRepairTargets,
+          },
+        }
+      : calculatedPlan;
     const previousContext = current.status === 'ok' ? current.dayModeContext : undefined;
     const inheritedContext = change.now && previousContext?.date === change.now.date
       ? previousContext
@@ -441,9 +610,18 @@ export async function repairAndPersistSchedulerPlan(
     const dayModeContext = nextDayModeContext === undefined
       ? inheritedContext
       : nextDayModeContext ?? undefined;
+    const preservePendingPreferenceRepair = current.status === 'ok' &&
+      Boolean(current.preferenceRepairPendingAt) &&
+      !preferenceAware.applied;
     const saved = await saveSchedulerPlanStateIfCurrent(plan, current, store, updatedAt, {
       dayModeContext,
       ...(current.status === 'ok' ? { undoDayModeContext: previousContext ?? null } : {}),
+      ...(preservePendingPreferenceRepair && current.status === 'ok'
+        ? {
+            preferenceRepairPendingAt: current.preferenceRepairPendingAt,
+            preferenceRepairTargets: current.preferenceRepairTargets,
+          }
+        : {}),
     }, calendarSourceSnapshot, canonicalInputSnapshot,
     current.status === 'missing'
       ? behaviourEventsForInitialSchedulerPlan(plan, updatedAt)
@@ -492,8 +670,31 @@ export async function undoPersistedSchedulerRepair(
   const reverted = scheduler.undoRepair(current.plan);
   const calendarRepairPendingAt = current.calendarRepairPendingAt ??
     (current.plan.repair?.trigger === 'calendarChanged' ? updatedAt : undefined);
+  const appliedPreferenceRepairTargets = orderedPreferenceRepairTargets(
+    current.plan.repair?.appliedPreferenceRepairTargets ?? [],
+  );
+  const legacyPreferenceRepairTargets = current.plan.repair?.trigger === 'preferenceChanged'
+    ? orderedPreferenceRepairTargets(current.plan.repair.changes.map((change) => ({
+        targetKind: change.targetKind,
+        targetValue: change.targetId,
+      })))
+    : [];
+  const restoredPreferenceRepairTargets = appliedPreferenceRepairTargets.length > 0
+    ? appliedPreferenceRepairTargets
+    : legacyPreferenceRepairTargets;
+  const preferenceRepairTargets = orderedPreferenceRepairTargets([
+    ...(current.preferenceRepairTargets ?? []),
+    ...restoredPreferenceRepairTargets,
+  ]);
+  const preferenceRepairPendingAt = preferenceRepairTargets.length === 0
+    ? undefined
+    : restoredPreferenceRepairTargets.length > 0
+      ? updatedAt
+      : current.preferenceRepairPendingAt;
   const saved = await saveSchedulerPlanStateIfCurrent(reverted, current, store, updatedAt, {
     calendarRepairPendingAt,
+    preferenceRepairPendingAt,
+    ...(preferenceRepairTargets.length > 0 ? { preferenceRepairTargets } : {}),
     dayModeContext: current.undoDayModeContext ?? undefined,
   }, undefined, undefined, [behaviourEventForSchedulerUndo(current.plan, updatedAt)]);
 

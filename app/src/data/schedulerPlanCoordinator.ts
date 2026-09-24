@@ -12,8 +12,14 @@ import type {
   SchedulerRepairTrigger,
   SchedulingDomainModel,
   SchedulingInterval,
+  InternalPlacement,
 } from '../domain/schedulingModel';
 import { readPersistedCalendarEvents } from './calendarSourceRepository';
+import {
+  createExplicitPreferenceStore,
+  explicitPreferenceRulesForScheduler,
+  loadExplicitPreferencesResult,
+} from './explicitPreferenceRepository';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   canonicalSchedulingInputSnapshot,
@@ -282,6 +288,45 @@ function titleMap(input: SchedulingDomainModel): Record<string, string> {
   };
 }
 
+function preferenceRepairTargetMatchesPlacement(
+  target: { targetKind: 'intention' | 'rhythm' | 'area' | 'taskType'; targetValue: string },
+  placement: InternalPlacement,
+  input: SchedulingDomainModel,
+) {
+  const placementKind = placement.targetKind ?? 'intention';
+  const targetId = placementKind === 'rhythm'
+    ? placement.rhythmId ?? placement.intentionId
+    : placement.intentionId;
+
+  if (target.targetKind === placementKind) return target.targetValue === targetId;
+  if (placementKind === 'rhythm') {
+    const rhythm = input.rhythms.find((candidate) => candidate.id === targetId);
+    return target.targetKind === 'area' && rhythm?.area === target.targetValue;
+  }
+
+  const intention = input.intentions.find((candidate) => candidate.id === targetId);
+  if (!intention) return false;
+  if (target.targetKind === 'area') return intention.area === target.targetValue;
+  if (target.targetKind === 'taskType') return intention.taskType === target.targetValue;
+  return false;
+}
+
+function releasePlacementIdsForPreferenceRepair(
+  plan: SchedulerPlan,
+  input: SchedulingDomainModel,
+  now: SchedulerRepairNow,
+  targets: readonly { targetKind: 'intention' | 'rhythm' | 'area' | 'taskType'; targetValue: string }[],
+) {
+  return plan.placements
+    .filter((placement) =>
+      placement.origin === 'scheduler' &&
+      (placement.date > now.date || (placement.date === now.date && placement.start >= now.time)) &&
+      targets.some((target) => preferenceRepairTargetMatchesPlacement(target, placement, input)),
+    )
+    .map((placement) => placement.id)
+    .sort();
+}
+
 export async function buildCurrentLiveSchedulingContext(
   options: PrivatePlanCoordinatorOptions = {},
 ): Promise<
@@ -326,6 +371,7 @@ export async function buildCurrentLiveSchedulingContext(
   let consistentRead: {
     calendarRead: Awaited<ReturnType<typeof readPersistedCalendarEvents>>;
     canonicalRows: Awaited<ReturnType<typeof readCanonicalSchedulingInputRows>>;
+    explicitPreferences: Awaited<ReturnType<typeof loadExplicitPreferencesResult>>;
     savedPlan: Awaited<ReturnType<typeof loadSchedulerPlanState>> | null;
     settingsResult: Awaited<ReturnType<typeof loadSettingsResult>>;
   };
@@ -342,9 +388,10 @@ export async function buildCurrentLiveSchedulingContext(
         database.schedulerPlanState,
       ],
       async () => {
-        const [settingsResult, canonicalRows, calendarRead, savedPlan] = await Promise.all([
+        const [settingsResult, canonicalRows, explicitPreferences, calendarRead, savedPlan] = await Promise.all([
           loadSettingsResult(database, { persistMigration: false }),
           readCanonicalSchedulingInputRows(database),
+          loadExplicitPreferencesResult(createExplicitPreferenceStore(database)),
           readPersistedCalendarEvents({
             targetTimezone: timezone,
             windowStartDate: startDate,
@@ -352,7 +399,7 @@ export async function buildCurrentLiveSchedulingContext(
           }, database),
           options.planningPolicy ? Promise.resolve(null) : loadSchedulerPlanState(database),
         ]);
-        return { calendarRead, canonicalRows, savedPlan, settingsResult };
+        return { calendarRead, canonicalRows, explicitPreferences, savedPlan, settingsResult };
       },
     );
   } catch {
@@ -363,7 +410,7 @@ export async function buildCurrentLiveSchedulingContext(
     };
   }
 
-  const { calendarRead, canonicalRows, savedPlan, settingsResult } = consistentRead;
+  const { calendarRead, canonicalRows, explicitPreferences, savedPlan, settingsResult } = consistentRead;
 
   if (
     settingsResult.status === 'invalid' ||
@@ -375,6 +422,14 @@ export async function buildCurrentLiveSchedulingContext(
       errors: settingsResult.errors.length > 0
         ? settingsResult.errors
         : ['settings: Current settings are not safe to use for automatic planning.'],
+      warnings: [],
+    };
+  }
+
+  if (explicitPreferences.status === 'invalid' || explicitPreferences.status === 'readFailed') {
+    return {
+      ok: false,
+      errors: explicitPreferences.errors,
       warnings: [],
     };
   }
@@ -431,6 +486,7 @@ export async function buildCurrentLiveSchedulingContext(
   const planningBase: SchedulingDomainModel = {
     ...base,
     externalCommitments: [...base.externalCommitments, ...calendarCommitments],
+    preferences: explicitPreferenceRulesForScheduler(explicitPreferences.preferences),
   };
   const candidateIntervals: CandidateSchedulingInterval[] = [];
   const warnings: string[] = [...calendarRead.warnings.map((warning) => `Calendar: ${warning}`)];
@@ -517,6 +573,20 @@ export async function ensureCurrentPrivatePlan(
   if (!live.ok) return live;
 
   const current = live.context.schedulerStateSnapshot ?? saved;
+
+  if (current.status === 'ok' && current.preferenceRepairPendingAt) {
+    return repairCurrentPrivatePlan({
+      ...options,
+      reason: 'Apply current scheduling preferences to the private plan.',
+      trigger: 'preferenceChanged',
+      releasePlacementIds: releasePlacementIdsForPreferenceRepair(
+        current.plan,
+        live.context.input,
+        live.now,
+        current.preferenceRepairTargets ?? [],
+      ),
+    });
+  }
 
   if (current.status === 'ok') {
     return {
