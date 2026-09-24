@@ -5,36 +5,44 @@ export const DURATION_LEARNING_CONTROLS_RECORD_ID = 'learning:duration-controls:
 
 export const durationLearningControlModeSchema = z.enum(['disabled', 'override']);
 
-export const durationLearningControlWriteInputSchema = z
+const durationLearningControlBaseSchema = z
   .object({
     templateId: idSchema,
     mode: durationLearningControlModeSchema,
     overrideMinutes: z.number().int().positive().optional(),
   })
-  .strict()
-  .superRefine((control, context) => {
-    if (control.mode === 'override' && control.overrideMinutes === undefined) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'overrideMinutes is required for an override.',
-        path: ['overrideMinutes'],
-      });
-    }
-    if (control.mode === 'disabled' && control.overrideMinutes !== undefined) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'overrideMinutes is not applicable while learning is disabled.',
-        path: ['overrideMinutes'],
-      });
-    }
-  });
+  .strict();
 
-export const durationLearningControlSchema = durationLearningControlWriteInputSchema
+function validateControlMode(
+  control: z.infer<typeof durationLearningControlBaseSchema>,
+  context: z.RefinementCtx,
+) {
+  if (control.mode === 'override' && control.overrideMinutes === undefined) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'overrideMinutes is required for an override.',
+      path: ['overrideMinutes'],
+    });
+  }
+  if (control.mode === 'disabled' && control.overrideMinutes !== undefined) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'overrideMinutes is not applicable while learning is disabled.',
+      path: ['overrideMinutes'],
+    });
+  }
+}
+
+export const durationLearningControlWriteInputSchema =
+  durationLearningControlBaseSchema.superRefine(validateControlMode);
+
+export const durationLearningControlSchema = durationLearningControlBaseSchema
   .extend({
     createdAt: strictIsoDateTimeSchema,
     updatedAt: strictIsoDateTimeSchema,
   })
   .superRefine((control, context) => {
+    validateControlMode(control, context);
     if (Date.parse(control.updatedAt) < Date.parse(control.createdAt)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -73,8 +81,10 @@ export const durationLearningControlStoreRecordSchema = z
         });
       }
       ids.add(control.templateId);
-      if (Date.parse(control.createdAt) < Date.parse(record.createdAt) ||
-          Date.parse(control.updatedAt) > Date.parse(record.updatedAt)) {
+      if (
+        Date.parse(control.createdAt) < Date.parse(record.createdAt) ||
+        Date.parse(control.updatedAt) > Date.parse(record.updatedAt)
+      ) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'Control timestamps must remain inside the store lifetime.',
