@@ -66,8 +66,10 @@ When an edit begins, the caller captures the exact current version of the target
 
 - if the same target has changed or been deleted, the command fails as stale;
 - unrelated preference changes do not invalidate the command;
-- independent edits to different preferences can still merge;
+- independent edits to different preferences can still merge even when their original command timestamps commit out of order;
 - a delayed same-timestamp save cannot resurrect a preference deleted after that save began.
+
+The coordinator preserves the caller's target-version expectation as the stale-command authority. When only unrelated preference state has advanced the shared sidecar timestamp, it uses the already-persisted record timestamp as the minimum write timestamp so record metadata never moves backwards. It does not use that normalization to bypass a same-target expectation mismatch.
 
 This closes the remaining Gate 7C tied-command case without persisting deleted preference content or introducing a cross-device sync/version protocol.
 

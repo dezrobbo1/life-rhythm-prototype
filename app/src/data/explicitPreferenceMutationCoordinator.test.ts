@@ -80,23 +80,26 @@ describe('Gate 7D1 explicit preference mutation coordination', () => {
     expect(loaded.preferences.map((preference) => preference.id)).toEqual(['b']);
   });
 
-  it('preserves independent edits that began from the same collection snapshot', async () => {
+  it('preserves independent edits even when their command timestamps commit out of order', async () => {
     await upsertExplicitPreference(input, undefined, firstTime);
     await upsertExplicitPreference({ ...input, id: 'b', targetValue: 'work' }, undefined, firstTime);
     const expectationA = await expectationFor('a');
     const expectationB = await expectationFor('b');
 
-    const a = await commitExplicitPreferenceUpsert(
-      { ...input, relation: 'avoid' },
-      expectationA,
-      undefined,
-      '2026-09-24T10:00:00.001Z',
-    );
+    // B has the newer command timestamp but commits first. A still targets an
+    // unchanged preference and must not be rejected merely because the shared
+    // sidecar metadata advanced for an unrelated preference.
     const b = await commitExplicitPreferenceUpsert(
       { ...input, id: 'b', targetValue: 'work', relation: 'avoid' },
       expectationB,
       undefined,
       '2026-09-24T10:00:00.002Z',
+    );
+    const a = await commitExplicitPreferenceUpsert(
+      { ...input, relation: 'avoid' },
+      expectationA,
+      undefined,
+      '2026-09-24T10:00:00.001Z',
     );
 
     expect(a.ok).toBe(true);
@@ -104,6 +107,7 @@ describe('Gate 7D1 explicit preference mutation coordination', () => {
     const loaded = await loadExplicitPreferencesResult();
     expect(loaded.status).toBe('ok');
     if (loaded.status !== 'ok') return;
+    expect(loaded.record.updatedAt).toBe('2026-09-24T10:00:00.002Z');
     expect(loaded.preferences.map((preference) => [preference.id, preference.relation])).toEqual([
       ['a', 'avoid'],
       ['b', 'avoid'],

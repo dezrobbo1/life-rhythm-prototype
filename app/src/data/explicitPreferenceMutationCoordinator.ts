@@ -74,6 +74,16 @@ function expectationMatches(
     stablePreference(expectation.preference);
 }
 
+function monotonicMutationTimestamp(
+  result: Extract<ExplicitPreferenceLoadResult, { status: 'missing' | 'ok' }>,
+  commandTimestamp: string,
+) {
+  if (result.status === 'missing') return commandTimestamp;
+  return Date.parse(commandTimestamp) < Date.parse(result.record.updatedAt)
+    ? result.record.updatedAt
+    : commandTimestamp;
+}
+
 function transactionPassthroughStore(database: LifeRhythmDatabase): ExplicitPreferenceStore {
   const store = createExplicitPreferenceStore(database);
   return {
@@ -146,13 +156,14 @@ export async function commitExplicitPreferenceUpsert(
           return { ok: false, conflict: 'stale', errors: [STALE_PREFERENCE_COMMAND] };
         }
 
-        const saved = await upsertExplicitPreference(input, store, timestamp);
+        const writeTimestamp = monotonicMutationTimestamp(loaded, timestamp);
+        const saved = await upsertExplicitPreference(input, store, writeTimestamp);
         if (!saved.ok) return saved;
 
         try {
           const repairAttentionPersisted = await markPlanAttentionIfNeeded(
             database,
-            timestamp,
+            writeTimestamp,
             affectedTargetsForUpsert(input, expectation),
           );
           return {
@@ -203,7 +214,8 @@ export async function commitExplicitPreferenceDelete(
           return { ok: false, conflict: 'stale', errors: [STALE_PREFERENCE_COMMAND] };
         }
 
-        const deleted = await deleteExplicitPreference(preferenceId, store, timestamp);
+        const writeTimestamp = monotonicMutationTimestamp(loaded, timestamp);
+        const deleted = await deleteExplicitPreference(preferenceId, store, writeTimestamp);
         if (!deleted.ok || !deleted.removed) {
           return {
             ...deleted,
@@ -214,7 +226,7 @@ export async function commitExplicitPreferenceDelete(
         try {
           const repairAttentionPersisted = await markPlanAttentionIfNeeded(
             database,
-            timestamp,
+            writeTimestamp,
             expectation.preference ? [targetForPreference(expectation.preference)] : [],
           );
           return {
