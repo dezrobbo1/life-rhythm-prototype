@@ -29,13 +29,13 @@ This report decides whether the implemented Gate 7 progression satisfies that co
 
 ## Exit-condition assessment
 
-### 1. A scheduling choice improves from personal history — PASS
+### 1. Scheduling choices improve from personal history — PASS
 
 Gate 7E derives template-scoped duration evidence from schema-valid `taskCompleted.actualMinutes` observations.
 
 When enough healthy evidence exists, the Normal scheduling variant can reserve the observed upper-quartile duration rather than the saved Normal duration. Minimum and Full remain user-authored.
 
-This is a real scheduler input derived from the person's own repeated history rather than a display-only statistic.
+Each eligible template therefore gets its own history-informed Normal-duration reservation choice. Across repeated template-linked work, this produces a small set of scheduler choices derived from the person's own history rather than a display-only statistic.
 
 ### 2. The learning remains explainable — PASS
 
@@ -98,6 +98,23 @@ The following remain deliberately deferred:
 
 Gate 7 does not require those mechanisms to satisfy its stated exit condition.
 
+## Validation basis
+
+Gate 7E was merged from PR #155 at implementation head `0cc67869602b9e0b382825313ad13f92638d398e` into main `4bde6a9fb690c0a34934914d05a52013e7e0b210`.
+
+The unchanged executable source tree already had the following Gate 7E evidence:
+
+- App CI passed;
+- 93 test files / 1036 tests passed;
+- TypeScript + Vite production build passed;
+- App Preview passed;
+- Vercel deployment succeeded;
+- the substantive pre-merge review found no unresolved merge blocker.
+
+This exit PR changes documentation only, so that executable validation is reused under the repository review policy rather than rerun for unchanged code.
+
+A fresh manual desktop/narrow/mobile/keyboard walkthrough was not claimed by PR #155 and is not invented here. It is an explicit Gate 8A readiness action before Day 1.
+
 ## Gate 8 readiness follow-ups
 
 These do not reopen Gate 7, but they should be resolved in Gate 8A before a longitudinal personal trial begins.
@@ -106,7 +123,7 @@ These do not reopen Gate 7, but they should be resolved in Gate 8A before a long
 
 Gate 7E stores explicit per-template duration controls in a versioned local sidecar. The current settings backup is intentionally settings/day-profile-only and does not include this sidecar.
 
-Gate 8A should add a bounded export/recovery path for duration controls or explicitly extend an appropriate backup contract without weakening existing data-class boundaries.
+Gate 8A should add a bounded export/portability path for duration controls or explicitly extend an appropriate backup contract without weakening existing data-class boundaries. This does not imply enabling general restore/import execution.
 
 ### B. Replace obsolete personal-trial guidance
 

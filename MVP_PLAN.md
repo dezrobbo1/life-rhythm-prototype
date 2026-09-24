@@ -230,7 +230,7 @@ Exit condition: at least a small set of scheduling choices can improve from the 
 
 ### Gate 8 — MVP personal trial and evidence gate
 
-Status (2026-09-25): **Current programme.** The next bounded milestone is **Gate 8A — Personal Trial Readiness + Evidence Protocol**. Before Day 1, reconcile the obsolete PR #104-era trial guidance, make Gate 7E duration-control state portable through a bounded export/recovery path, define low-burden measurement for the Gate 8 outcomes below, and perform current desktop/narrow/mobile/keyboard readiness checks. Do not add another behavioural-learning mechanism merely to expand Gate 7.
+Status (2026-09-25): **Current programme.** The next bounded milestone is **Gate 8A — Personal Trial Readiness + Evidence Protocol**. Before Day 1, reconcile the obsolete PR #104-era trial guidance, make Gate 7E duration-control state portable through a bounded export/portability path, define low-burden measurement for the Gate 8 outcomes below, and perform current desktop/narrow/mobile/keyboard readiness checks. Do not add another behavioural-learning mechanism merely to expand Gate 7.
 
 Goal: decide whether the product thesis works before adding AI complexity.
 
