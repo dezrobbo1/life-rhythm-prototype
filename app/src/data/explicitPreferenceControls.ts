@@ -13,7 +13,10 @@ import {
   CURRENT_SCHEDULER_PLAN_STATE_ID,
   markPreferenceRepairPending,
 } from './schedulerPlanStateRepository';
-import type { PreferenceRepairTarget } from './schedulerPlanStateSchema';
+import type {
+  PreferenceRepairTarget,
+  SchedulerPlanStateRecord,
+} from './schedulerPlanStateSchema';
 import {
   activeTaskSchema,
   areaSchema,
@@ -38,7 +41,7 @@ export type ExplicitPreferenceResetCommitResult =
   | {
       ok: true;
       removed: boolean;
-      preferences: [];
+      preferences: ExplicitPreference[];
       repairAttentionPersisted: boolean;
     }
   | { ok: false; errors: string[] };
@@ -74,7 +77,7 @@ function dedupeTargets(targets: readonly PreferenceRepairTarget[]) {
   );
 }
 
-function exactPlanTargets(database: LifeRhythmDatabase, plan: Awaited<ReturnType<typeof database.schedulerPlanState.get>>) {
+function exactPlanTargets(plan: SchedulerPlanStateRecord | undefined) {
   if (!plan) return [];
   return dedupeTargets(plan.plan.placements
     .filter((placement) => placement.origin === 'scheduler')
@@ -174,7 +177,7 @@ export async function commitExplicitPreferenceReset(
         const plan = await database.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
         const targets = loaded.status === 'ok'
           ? dedupeTargets(loaded.preferences.map(targetForPreference))
-          : exactPlanTargets(database, plan);
+          : exactPlanTargets(plan);
 
         const reset = await resetExplicitPreferences(confirmation, store, timestamp);
         if (!reset.ok) return reset;
