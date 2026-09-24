@@ -196,6 +196,45 @@ describe('Personal Plan read states', () => {
     expect(screen.getByText('Flexible private work was refreshed. External calendar events were not changed.')).toBeTruthy();
   });
 
+  it('shows a grounded Why this time disclosure without exposing scheduler IDs', async () => {
+    const user = userEvent.setup();
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: {
+        ...emptyPlan,
+        placements: [{
+          id: 'scheduler:intention:secret-task:2026-09-07:11:00',
+          intentionId: 'secret-task',
+          targetKind: 'intention',
+          date: '2026-09-07',
+          start: '11:00',
+          end: '11:20',
+          timezone: 'Australia/Perth',
+          origin: 'scheduler',
+          variantKind: 'normal',
+          provenance: [
+            'Automatically placed by the deterministic Gate 3 scheduler.',
+            'Used the normal form (20 minutes).',
+            'Placed inside candidate interval secret-candidate-id; hard and protected constraints remained authoritative.',
+            'Matched explicit preference secret-preference-id: Persisted explicit preference secret-preference-id; user-declared.',
+          ],
+        }],
+      },
+      titleByTargetId: { 'secret-task': 'Send school form' },
+      warnings: [],
+    });
+
+    renderEmbeddedPlan();
+    await waitFor(() => expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByText('Plan details'));
+    await user.click(screen.getByText('Why this time?'));
+
+    expect(screen.getByText('A saved scheduling preference matched this time.')).toBeTruthy();
+    expect(screen.getByText('The normal version (20 min) fit here.')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('secret-candidate-id');
+    expect(document.body.textContent).not.toContain('secret-preference-id');
+  });
+
   it('does not show an empty Changed section on the default Plan surface', async () => {
     renderEmbeddedPlan();
 

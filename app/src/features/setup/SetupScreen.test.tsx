@@ -166,6 +166,8 @@ describe('Setup screen', () => {
     expect(screen.getByRole('heading', { name: 'Appearance' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Life shape' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Start Boost safety' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Scheduling preferences' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Manage scheduling preferences' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Backup and recovery' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Trial limits' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Dev tickets' })).toBeTruthy();
