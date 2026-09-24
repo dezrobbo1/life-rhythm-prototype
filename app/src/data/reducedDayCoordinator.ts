@@ -230,7 +230,12 @@ async function attemptApplyReduceToday(
     now: proposed.live.now,
     reason: reducedDayReason,
     trigger: 'userCorrection',
-  }, undefined, undefined, context, proposed.live.context.calendarSourceSnapshot, proposed.live.context.canonicalInputSnapshot, proposed.saved);
+  }, undefined, undefined, context, proposed.live.context.calendarSourceSnapshot, proposed.live.context.canonicalInputSnapshot, proposed.saved, {
+    applied: proposed.live.context.durationLearningApplied,
+    ...(proposed.live.context.durationLearningEventSnapshot
+      ? { eventSnapshot: proposed.live.context.durationLearningEventSnapshot }
+      : {}),
+  });
   if (!saved.ok) {
     return {
       ok: false,
@@ -285,7 +290,12 @@ async function attemptReturnTodayToNormal(
     reason: 'Today returned to Normal using current live scheduling information.',
     trigger: 'userCorrection',
     ...(reducedPlacementsToday?.length ? { releasePlacementIds: reducedPlacementsToday } : {}),
-  }, undefined, undefined, null, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, current);
+  }, undefined, undefined, null, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, current, {
+    applied: live.context.durationLearningApplied,
+    ...(live.context.durationLearningEventSnapshot
+      ? { eventSnapshot: live.context.durationLearningEventSnapshot }
+      : {}),
+  });
   if (!saved.ok) {
     return {
       ok: false,
