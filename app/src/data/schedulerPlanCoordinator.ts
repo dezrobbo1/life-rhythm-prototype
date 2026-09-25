@@ -662,6 +662,14 @@ export async function ensureCurrentPrivatePlan(
 
   const current = live.context.schedulerStateSnapshot ?? saved;
 
+  if (current.status === 'ok' && current.taskInputRepairPendingAt) {
+    return repairCurrentPrivatePlan({
+      ...options,
+      reason: 'Apply the corrected task definition to the private plan.',
+      trigger: 'taskDefinitionChanged',
+    });
+  }
+
   if (current.status === 'ok' && current.preferenceRepairPendingAt) {
     return repairCurrentPrivatePlan({
       ...options,

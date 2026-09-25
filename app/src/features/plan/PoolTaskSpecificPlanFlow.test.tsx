@@ -54,6 +54,7 @@ async function captureTask(user: ReturnType<typeof userEvent.setup>, title: stri
   await user.type(screen.getByLabelText('Task title'), title);
   await user.selectOptions(screen.getByLabelText('Area'), 'admin');
   await user.type(screen.getByLabelText('Minimum version'), `Open ${title.toLowerCase()}`);
+  await user.type(screen.getByLabelText('Minimum minutes'), '5');
   await user.click(screen.getByRole('button', { name: 'Save captured task' }));
   expect(await screen.findByText(title)).toBeTruthy();
 }

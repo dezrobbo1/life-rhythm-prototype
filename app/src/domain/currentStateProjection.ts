@@ -73,9 +73,8 @@ function intentionFromPoolItem(item: TaskPoolItem): InternalIntention {
     area: item.area,
     purpose: item.purpose,
     templateId: item.templateId,
-    // Pool items do not persist task classification fields. Match the
-    // canonical schema default so Task type preferences can apply.
-    taskType: 'simple',
+    // Held items have no authored task type. Do not treat 'simple' as a
+    // classification and accidentally apply Task type preferences.
     variants: variantsFromRecord(item, item.templateId),
     timing: {
       timeConstraint: item.timeConstraint,
@@ -104,7 +103,8 @@ function mergeActiveTask(task: ActiveTask, existing?: InternalIntention): Intern
     area: task.area,
     purpose: task.purpose,
     templateId: task.templateId ?? existing?.templateId,
-    taskType: task.taskType,
+    // The default 'simple' on an ad-hoc ActiveTask is also not user-authored.
+    ...(task.source === 'library' ? { taskType: task.taskType } : {}),
     priority: task.priority,
     energy: task.energy,
     variants: variantsFromRecord(task, task.templateId),

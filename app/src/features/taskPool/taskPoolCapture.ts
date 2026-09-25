@@ -5,20 +5,22 @@ import {
   saveTaskPoolItem,
   type TaskPoolStore,
 } from '../../data/taskPoolRepository';
+import { resolveTaskVersions, type TaskVersionInput } from './taskVersionInput';
 
 type TaskPoolArea = TaskPoolItem['area'];
 
-export type TaskPoolCaptureInput = {
+export type TaskPoolCaptureInput = TaskVersionInput & {
   area: TaskPoolArea;
   dueAt?: string;
-  fullVersion: string;
+  fixedAt?: string;
+  expiresAfter?: string;
+  latestUsefulStartAt?: string;
+  missedPolicy?: TaskPoolItem['missedPolicy'];
   minimumStillUsefulAfterDeadline?: boolean;
-  minimumVersion: string;
-  normalVersion: string;
   notes?: string;
   notUsefulAfter?: string;
   purpose?: string;
-  timeConstraint?: 'dueBy';
+  timeConstraint?: TaskPoolItem['timeConstraint'];
   title: string;
 };
 
@@ -46,19 +48,23 @@ export async function captureTaskPoolItem(
   }
 
   const timestamp = (options.now ?? (() => new Date()))().toISOString();
-  const minimum = input.minimumVersion;
-  const normal = input.normalVersion || minimum;
-  const full = input.fullVersion || normal;
+  const resolved = resolveTaskVersions(input);
+  if (!resolved.ok) return { ok: false, errors: [resolved.error] };
 
   try {
     return await saveTaskPoolItem({
       area: input.area,
       createdAt: timestamp,
-      full: { label: full, minutes: 20 },
+      full: resolved.versions.full,
       id: (options.createId ?? (() => createTaskPoolItemId('captured')))(),
-      minimum: { label: minimum, minutes: 5 },
-      normal: { label: normal, minutes: 10 },
-      ...(input.dueAt ? { dueAt: input.dueAt, timeConstraint: 'dueBy' as const } : {}),
+      minimum: resolved.versions.minimum,
+      normal: resolved.versions.normal,
+      ...(input.timeConstraint ? { timeConstraint: input.timeConstraint } : {}),
+      ...(input.dueAt ? { dueAt: input.dueAt } : {}),
+      ...(input.fixedAt ? { fixedAt: input.fixedAt } : {}),
+      ...(input.expiresAfter ? { expiresAfter: input.expiresAfter } : {}),
+      ...(input.latestUsefulStartAt ? { latestUsefulStartAt: input.latestUsefulStartAt } : {}),
+      ...(input.missedPolicy ? { missedPolicy: input.missedPolicy } : {}),
       ...(input.minimumStillUsefulAfterDeadline ? { minimumStillUsefulAfterDeadline: true } : {}),
       ...(input.notes ? { notes: input.notes } : {}),
       ...(input.notUsefulAfter ? { notUsefulAfter: input.notUsefulAfter } : {}),

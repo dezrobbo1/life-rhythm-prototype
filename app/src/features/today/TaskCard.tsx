@@ -6,6 +6,7 @@ import type { MockTask } from './mockTodayData';
 export type TaskProgress = 'idle' | 'inProgress' | 'paused' | 'minimumDone';
 
 type TaskCardProps = {
+  onEditTask?: () => void;
   onKeepGoing: () => void;
   onMarkFullDone: () => void;
   onMarkMinimumDone: () => void;
@@ -101,10 +102,11 @@ function timeEdgeLines(task: MockTask): string[] {
     lines.push(`Re-entry choice: ${missedPolicyLabels[edge.missedPolicy]}`);
   }
 
-  return lines.length > 0 ? [...lines, 'No schedule created'] : [];
+  return lines.length > 0 ? [...lines, 'This helps guide private planning.'] : [];
 }
 
 export function TaskCard({
+  onEditTask,
   onKeepGoing,
   onMarkFullDone,
   onMarkMinimumDone,
@@ -266,15 +268,15 @@ export function TaskCard({
             <dl>
               <div>
                 <dt>Minimum</dt>
-                <dd>{task.minimumVersion}</dd>
+                <dd><span>{task.minimumVersion}</span>{task.versionMinutes ? ` · ${task.versionMinutes.minimum} min` : ''}</dd>
               </div>
               <div>
                 <dt>Normal</dt>
-                <dd>{task.normalVersion}</dd>
+                <dd><span>{task.normalVersion}</span>{task.versionMinutes ? ` · ${task.versionMinutes.normal} min` : ''}</dd>
               </div>
               <div>
                 <dt>Full</dt>
-                <dd>{task.fullVersion}</dd>
+                <dd><span>{task.fullVersion}</span>{task.versionMinutes ? ` · ${task.versionMinutes.full} min` : ''}</dd>
               </div>
             </dl>
           </section>
@@ -290,8 +292,8 @@ export function TaskCard({
               ))}
             </ul>
           </section> : null}
+          {onEditTask ? <Button onClick={onEditTask}>Edit task</Button> : null}
           <div className="task-card__quiet-actions" aria-label="Placeholder task actions">
-            <button type="button">Edit later</button>
             <button type="button">Move later</button>
             <button type="button">Hide later</button>
           </div>

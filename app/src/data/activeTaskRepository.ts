@@ -19,6 +19,7 @@ import {
   type CollectionReadResult,
 } from './collectionReadResult';
 import { appendBehaviourEvent, createBehaviourEvent } from './behaviourEventRepository';
+import { markTaskInputRepairPending } from './schedulerPlanStateRepository';
 
 type ActiveTasksTable = Pick<Table<ActiveTask, string>, 'get' | 'put' | 'toArray'>;
 type TaskPoolItemsTable = Pick<Table<TaskPoolItem, string>, 'get' | 'put'>;
@@ -272,7 +273,8 @@ export async function saveActiveTodayTask(
   }
 
   if (store instanceof LifeRhythmDatabase) {
-    return store.transaction('rw', store.activeTasks, store.taskHistory, async () => {
+    try {
+      return await store.transaction('rw', store.activeTasks, store.taskHistory, store.schedulerPlanState, async () => {
       const existingTasks = await loadActiveTodayTasks(store);
       const existingLibraryTask = findExistingLibraryTask(existingTasks, validated.task);
       if (existingLibraryTask) {
@@ -292,6 +294,8 @@ export async function saveActiveTodayTask(
       }
 
       await store.activeTasks.put(validated.task);
+      const pending = await markTaskInputRepairPending(store, validated.task.id, validated.task.updatedAt);
+      if (!pending.ok) throw new Error(pending.errors.join(' '));
       await appendBehaviourEvent(createBehaviourEvent({
         action: validated.task.source === 'library' ? 'addToToday' : 'create',
         after: { taskStatus: validated.task.status },
@@ -303,7 +307,10 @@ export async function saveActiveTodayTask(
         ...(validated.task.templateId ? { templateId: validated.task.templateId } : {}),
       }), store);
       return validated;
-    });
+      });
+    } catch {
+      return { ok: false, errors: ['Today task was not saved. Check device storage and the private plan.'] };
+    }
   }
 
   const existingTasks = await loadActiveTodayTasks(store);

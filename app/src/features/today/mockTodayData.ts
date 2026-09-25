@@ -41,6 +41,7 @@ export type MockTask = {
   minimumVersion: string;
   normalVersion: string;
   fullVersion: string;
+  versionMinutes?: { minimum: number; normal: number; full: number };
   timingReality: string;
   hiddenEdges: string[];
   timeEdge?: {

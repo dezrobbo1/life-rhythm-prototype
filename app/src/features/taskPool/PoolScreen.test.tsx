@@ -242,7 +242,7 @@ describe('Pool screen', () => {
     const dialog = screen.getByRole('dialog', { name: 'Capture task' });
     const saveButton = within(dialog).getByRole('button', { name: 'Save captured task' });
 
-    expect(within(dialog).getByText('Safely held for later. This does not add it to Today.')).toBeTruthy();
+    expect(within(dialog).getByText('Held outside Today. Life Rhythm may quietly find a private time for it.')).toBeTruthy();
     expect((saveButton as HTMLButtonElement).disabled).toBe(true);
     expect(dialog.textContent?.toLowerCase() ?? '').not.toContain('calendar');
   });
@@ -259,6 +259,7 @@ describe('Pool screen', () => {
     await user.click(screen.getByRole('button', { name: 'Capture task' }));
     await user.type(screen.getByLabelText('Task title'), 'Keep this unsaved');
     await user.type(screen.getByLabelText('Minimum version'), 'One safe step');
+    await user.type(screen.getByLabelText('Minimum minutes'), '5');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Capture task' });
@@ -286,9 +287,12 @@ describe('Pool screen', () => {
       await user.type(screen.getByLabelText('Task title'), 'Order school shirts');
       await user.selectOptions(screen.getByLabelText('Area'), 'admin');
       await user.type(screen.getByLabelText('Minimum version'), 'Write the size list');
+      await user.type(screen.getByLabelText('Minimum minutes'), '6');
       await user.click(screen.getByRole('button', { name: /Optional details/ }));
       await user.type(screen.getByLabelText('Normal version'), 'Check prices and sizes');
+      await user.type(screen.getByLabelText('Normal minutes'), '17');
       await user.type(screen.getByLabelText('Full version'), 'Order shirts and save the confirmation');
+      await user.type(screen.getByLabelText('Full minutes'), '42');
       await user.type(screen.getByLabelText('Purpose'), 'Keep the school order visible.');
       await user.type(screen.getByLabelText('Notes'), 'Use the saved size note.');
       await user.click(screen.getByRole('button', { name: /Optional useful window/ }));
@@ -297,7 +301,7 @@ describe('Pool screen', () => {
       await user.click(screen.getByLabelText('Minimum still helps'));
       await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
-      expect(await screen.findByText('Task captured. It is safely held.')).toBeTruthy();
+      expect(await screen.findByText('Task captured. Held outside Today and available for private planning.')).toBeTruthy();
       expect(screen.queryByRole('dialog', { name: 'Capture task' })).toBeNull();
 
       const taskPoolSection = sectionForHeading('Captured tasks');
@@ -318,10 +322,13 @@ describe('Pool screen', () => {
         area: 'admin',
         minimum: {
           label: 'Write the size list',
+          minutes: 6,
         },
         normal: {
           label: 'Check prices and sizes',
+          minutes: 17,
         },
+        full: { minutes: 42 },
         source: 'adhoc',
         status: 'captured',
         timeConstraint: 'dueBy',
@@ -362,9 +369,10 @@ describe('Pool screen', () => {
     await user.click(screen.getByRole('button', { name: 'Capture task' }));
     await user.type(screen.getByLabelText('Task title'), 'Task held outside Today');
     await user.type(screen.getByLabelText('Minimum version'), 'Write the first note');
+    await user.type(screen.getByLabelText('Minimum minutes'), '5');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
-    expect(await screen.findByText('Task captured. It is safely held.')).toBeTruthy();
+    expect(await screen.findByText('Task captured. Held outside Today and available for private planning.')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Today' }));
 
@@ -374,12 +382,53 @@ describe('Pool screen', () => {
     expect(await getCurrentLifeRhythmDatabase().activeTasks.count()).toBe(0);
   });
 
+  it('corrects an existing Held task in place and keeps its status and identifier', async () => {
+    const user = userEvent.setup();
+    const database = getCurrentLifeRhythmDatabase();
+    const original = validTaskPoolItem();
+    await saveTaskPoolItem(original);
+    render(<PoolScreen />);
+
+    const row = (await screen.findByText(original.title)).closest('li');
+    if (!row) throw new Error('Held task row missing.');
+    await user.click(within(row).getByText('Other choices'));
+    await user.click(within(row).getByRole('button', { name: 'Edit task' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit task' });
+    expect(within(dialog).getByText(/Older saved times may have been filled in automatically/)).toBeTruthy();
+    await user.clear(within(dialog).getByLabelText('Task title'));
+    await user.type(within(dialog).getByLabelText('Task title'), 'Corrected school form');
+    await user.clear(within(dialog).getByLabelText('Minimum minutes'));
+    await user.type(within(dialog).getByLabelText('Minimum minutes'), '14');
+    await user.clear(within(dialog).getByLabelText('Normal version'));
+    await user.clear(within(dialog).getByLabelText('Normal minutes'));
+    await user.clear(within(dialog).getByLabelText('Full version'));
+    await user.clear(within(dialog).getByLabelText('Full minutes'));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByText('Corrected school form')).toBeTruthy();
+    expect(await database.taskPoolItems.get(original.id)).toMatchObject({
+      id: original.id, status: original.status,
+      minimum: { label: original.minimum.label, minutes: 14 },
+      normal: { label: original.minimum.label, minutes: 14 },
+      full: { label: original.minimum.label, minutes: 14 },
+    });
+  });
+
   it('shows saved task pool items and hides no-longer-needed items', async () => {
     await saveTaskPoolItem(validTaskPoolItem({
-      dueAt: '2026-06-20T10:30:00.000Z',
+      fixedAt: '2026-06-20T10:30:00.000Z',
+      latestUsefulStartAt: '2026-06-20T10:00:00.000Z',
       minimumStillUsefulAfterDeadline: true,
+      missedPolicy: 'minimumOnly',
       notUsefulAfter: '2026-06-21T10:30:00.000Z',
-      timeConstraint: 'dueBy',
+      timeConstraint: 'fixedAt',
+    }));
+    await saveTaskPoolItem(validTaskPoolItem({
+      expiresAfter: '2026-06-22T10:30:00.000Z',
+      id: 'task-pool-expiring-form',
+      minimum: { label: 'Check expiry', minutes: 7 },
+      timeConstraint: 'expiresAfter',
+      title: 'Expiring form task',
     }));
     await getCurrentLifeRhythmDatabase().taskPoolItems.put(validTaskPoolItem({
       id: 'task-pool-no-longer-needed',
@@ -392,11 +441,14 @@ describe('Pool screen', () => {
     const taskPoolSection = sectionForHeading('Captured tasks');
 
     expect(await within(taskPoolSection).findByText('Captured form task')).toBeTruthy();
-    expect(within(taskPoolSection).getByText('Admin - Safely held')).toBeTruthy();
+    expect(within(taskPoolSection).getAllByText('Admin - Safely held')).toHaveLength(2);
     expect(within(taskPoolSection).getByText('Minimum: Open the form')).toBeTruthy();
-    expect(within(taskPoolSection).getByText(/Useful before/)).toBeTruthy();
+    expect(within(taskPoolSection).getByText(/Fixed at/)).toBeTruthy();
+    expect(within(taskPoolSection).getByText(/Last useful start/)).toBeTruthy();
     expect(within(taskPoolSection).getByText(/Useful until/)).toBeTruthy();
     expect(within(taskPoolSection).getByText('Minimum still helps')).toBeTruthy();
+    expect(within(taskPoolSection).getByText('If missed: Minimum only')).toBeTruthy();
+    expect(within(taskPoolSection).getByText(/Expires after/)).toBeTruthy();
     expect(within(taskPoolSection).queryByText('Hidden pool item')).toBeNull();
   });
 
@@ -450,10 +502,12 @@ describe('Pool screen', () => {
     expect(firstSummary.tagName).toBe('SUMMARY');
     expect(secondSummary.tagName).toBe('SUMMARY');
     expect(Array.from(firstDisclosure.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
+      'Edit task',
       'Bring back later',
       'No longer needed',
     ]);
     expect(Array.from(secondDisclosure.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
+      'Edit task',
       'Bring back later',
       'No longer needed',
     ]);
@@ -463,6 +517,7 @@ describe('Pool screen', () => {
     expect(firstDisclosure.open).toBe(true);
     expect(secondDisclosure.open).toBe(false);
     expect(Array.from(firstDisclosure.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
+      'Edit task',
       'Bring back later',
       'No longer needed',
     ]);
@@ -472,6 +527,7 @@ describe('Pool screen', () => {
     expect(firstDisclosure.open).toBe(true);
     expect(secondDisclosure.open).toBe(true);
     expect(Array.from(secondDisclosure.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
+      'Edit task',
       'Bring back later',
       'No longer needed',
     ]);

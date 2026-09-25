@@ -253,6 +253,7 @@ export type SchedulerRepairTrigger =
   | 'preferenceChanged'
   | 'durationLearningChanged'
   | 'userCorrection'
+  | 'taskDefinitionChanged'
   | 'manualReplan';
 
 export type SchedulerRepairNow = {
@@ -293,6 +294,8 @@ export type SchedulerRepairMetadata = {
   }>;
   appliedDurationLearningTemplateIds?: string[];
   previousDurationLearningApplied?: AppliedDurationLearning[];
+  /** The previous plan used a task definition that is no longer canonical. */
+  taskDefinitionRepairApplied?: boolean;
   undo: SchedulerPlanSnapshot;
 };
 

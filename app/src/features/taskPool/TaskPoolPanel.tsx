@@ -17,6 +17,9 @@ import {
   type TaskPoolCaptureInput,
   type TaskPoolCaptureResult,
 } from './taskPoolCapture';
+import { reconcileTaskDefinitionAfterWrite } from '../../data/taskDefinitionPlanReconciliation';
+import { updateUserTaskDefinition } from '../../data/taskDefinitionRepository';
+import { resolveTaskVersions } from './taskVersionInput';
 import { TaskPoolDeferModal } from './TaskPoolDeferModal';
 import {
   buildTaskPoolResurfacingGroups,
@@ -83,6 +86,16 @@ const taskPoolAreaLabels: Record<TaskPoolItem['area'], string> = {
   work: 'Work',
 };
 
+const taskPoolMissedPolicyLabels: Record<NonNullable<TaskPoolItem['missedPolicy']>, string> = {
+  archiveIfExpired: 'Archive if expired',
+  ask: 'Ask me',
+  followUpPrompt: 'Follow-up prompt',
+  hideUntilReview: 'Hide until review',
+  minimumOnly: 'Minimum only',
+  notToday: 'Not today',
+  park: 'Park',
+};
+
 function formatTaskPoolDateTime(timestamp: string) {
   const date = new Date(timestamp);
 
@@ -99,8 +112,13 @@ function formatTaskPoolDateTime(timestamp: string) {
 function taskPoolUsefulWindowLines(item: TaskPoolItem) {
   return [
     item.dueAt ? `Useful before ${formatTaskPoolDateTime(item.dueAt)}` : '',
+    item.fixedAt ? `Fixed at ${formatTaskPoolDateTime(item.fixedAt)}` : '',
+    item.expiresAfter ? `Expires after ${formatTaskPoolDateTime(item.expiresAfter)}` : '',
+    item.latestUsefulStartAt ? `Last useful start ${formatTaskPoolDateTime(item.latestUsefulStartAt)}` : '',
     item.notUsefulAfter ? `Useful until ${formatTaskPoolDateTime(item.notUsefulAfter)}` : '',
     item.minimumStillUsefulAfterDeadline ? 'Minimum still helps' : '',
+    item.missedPolicy && item.missedPolicy !== 'ask'
+      ? `If missed: ${taskPoolMissedPolicyLabels[item.missedPolicy]}` : '',
     item.bringBackAfter ? `Bring back after ${formatTaskPoolDateTime(item.bringBackAfter)}` : '',
   ].filter(Boolean);
 }
@@ -134,6 +152,7 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
   const [movingTaskPoolItemId, setMovingTaskPoolItemId] = useState<string | null>(null);
   const [deferringTaskPoolItemId, setDeferringTaskPoolItemId] = useState<string | null>(null);
   const [deferItem, setDeferItem] = useState<TaskPoolItem | null>(null);
+  const [editItem, setEditItem] = useState<TaskPoolItem | null>(null);
   const [clockMs, setClockMs] = useState(() => Date.now());
   const [taskPoolReadState, setTaskPoolReadState] = useState<SurfaceCollectionState<TaskPoolItem>>({ status: 'loading' });
   const [placementReadState, setPlacementReadState] = useState<SurfaceCollectionState<SoftPlacement>>({ status: 'loading' });
@@ -282,12 +301,43 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
 
     await refreshTaskPoolItems();
     setTaskPoolCaptureOpen(false);
+    const repaired = await reconcileTaskDefinitionAfterWrite('A user captured a task for quiet private planning.');
     setTaskPoolFeedback({
       kind: 'success',
-      lines: ['Task captured. It is safely held.'],
+      lines: [repaired.ok
+        ? 'Task captured. Held outside Today and available for private planning.'
+        : `Task captured. The private plan needs updating. ${repaired.message ?? ''}`],
     });
     return result;
   }, [refreshTaskPoolItems]);
+
+  const saveCorrectedTask = useCallback(async (input: TaskPoolCaptureInput): Promise<TaskPoolCaptureResult> => {
+    if (!editItem) return { ok: false, errors: ['Reopen the task before editing.'] };
+    const parsed = resolveTaskVersions(input);
+    if (!parsed.ok) return { ok: false, errors: [parsed.error] };
+    taskPoolWriteGenerationRef.current += 1;
+    const saved = await updateUserTaskDefinition(editItem.id, editItem.updatedAt, 'held', {
+      title: input.title, area: input.area, ...parsed.versions,
+      ...(input.purpose ? { purpose: input.purpose } : {}),
+      notes: input.notes ?? '',
+      ...(input.timeConstraint ? { timeConstraint: input.timeConstraint } : {}),
+      ...(input.dueAt ? { dueAt: input.dueAt } : {}),
+      ...(input.fixedAt ? { fixedAt: input.fixedAt } : {}),
+      ...(input.expiresAfter ? { expiresAfter: input.expiresAfter } : {}),
+      ...(input.latestUsefulStartAt ? { latestUsefulStartAt: input.latestUsefulStartAt } : {}),
+      ...(input.missedPolicy ? { missedPolicy: input.missedPolicy } : {}),
+      ...(input.notUsefulAfter ? { notUsefulAfter: input.notUsefulAfter } : {}),
+      ...(input.minimumStillUsefulAfterDeadline ? { minimumStillUsefulAfterDeadline: true } : {}),
+    });
+    if (!saved.ok || !saved.item) return { ok: false, errors: saved.ok ? ['Task could not be corrected.'] : saved.errors };
+    setEditItem(null);
+    await refreshTaskPoolItems();
+    const repaired = await reconcileTaskDefinitionAfterWrite('A user corrected a Held task definition.');
+    setTaskPoolFeedback({ kind: 'success', lines: [repaired.ok
+      ? 'Task corrected. The private plan is up to date.'
+      : `Task corrected. The private plan needs updating. ${repaired.message ?? ''}`] });
+    return { ok: true, item: saved.item };
+  }, [editItem, refreshTaskPoolItems]);
 
   const moveTaskToToday = useCallback(async (item: TaskPoolItem) => {
     setMovingTaskPoolItemId(item.id);
@@ -484,6 +534,7 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
                         <span>{taskPoolAreaLabels[item.area]} - {statusLabel(item, clockMs)}</span>
                       </div>
                       <p className="task-pool__item-detail">Minimum: {item.minimum.label}</p>
+                      <p className="task-pool__item-detail">Minimum time: {item.minimum.minutes} min</p>
                       {usefulWindowLines.map((line) => (
                         <p className="task-pool__item-detail" key={line}>{line}</p>
                       ))}
@@ -511,6 +562,11 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
                         <details className="task-pool__other-choices">
                           <summary>Other choices</summary>
                           <div className="task-pool__other-actions">
+                            {item.source === 'adhoc' ? (
+                              <Button className="task-pool__item-action" disabled={busy} onClick={() => setEditItem(item)}>
+                                Edit task
+                              </Button>
+                            ) : null}
                             {item.status !== 'softPlaced' ? (
                               <Button
                                 className="task-pool__defer-action"
@@ -553,10 +609,20 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
       ) : null}
 
       <TaskPoolCaptureModal
+        key="new-captured-task"
         onClose={() => setTaskPoolCaptureOpen(false)}
         onSave={saveCapturedTask}
         open={taskPoolCaptureOpen}
       />
+      {editItem ? (
+        <TaskPoolCaptureModal
+          key={editItem.id}
+          item={editItem}
+          onClose={() => setEditItem(null)}
+          onSave={saveCorrectedTask}
+          open
+        />
+      ) : null}
       <TaskPoolDeferModal
         item={deferItem}
         onClose={() => setDeferItem(null)}

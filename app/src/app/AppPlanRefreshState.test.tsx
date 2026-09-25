@@ -102,6 +102,24 @@ describe('Plan refresh presentation state', () => {
     expect(screen.getByTestId('plan-revision').textContent).toContain('Revision 1');
     expect(screen.getByText('Plan details').closest('details')?.open).toBe(true);
   });
+
+  it('refreshes the open Plan surface after global Capture', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const nav = await screen.findByRole('navigation', { name: 'Primary' });
+    await user.click(within(nav).getByRole('button', { name: 'Plan' }));
+    expect(screen.getByTestId('plan-revision').textContent).toContain('Revision 0');
+
+    await user.click(screen.getByRole('button', { name: 'Capture' }));
+    await user.type(screen.getByLabelText('Task title'), 'Refresh the open plan');
+    await user.type(screen.getByLabelText('Minimum version'), 'Read current plan');
+    await user.type(screen.getByLabelText('Minimum minutes'), '4');
+    await user.click(screen.getByRole('button', { name: 'Save captured task' }));
+
+    expect(await screen.findByText('Task captured. Held outside Today and available for private planning.')).toBeTruthy();
+    expect(screen.getByTestId('plan-revision').textContent).toContain('Revision 1');
+  });
+
   it('retains calendar repair attention across route changes and clears it after a successful plan repair', async () => {
     const user = userEvent.setup();
     render(<App />);

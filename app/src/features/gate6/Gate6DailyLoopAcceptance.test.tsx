@@ -103,12 +103,15 @@ describe('Gate 6 connected daily loop', () => {
     await user.click(screen.getByRole('button', { name: 'Capture' }));
     await user.type(screen.getByLabelText('Task title'), 'Pack the school bag');
     await user.type(screen.getByLabelText('Minimum version'), 'Put the bag by the door');
+    await user.type(screen.getByLabelText('Minimum minutes'), '5');
     await user.click(screen.getByRole('button', { name: /Optional details/ }));
     await user.type(screen.getByLabelText('Normal version'), 'Pack tomorrow’s essentials');
+    await user.type(screen.getByLabelText('Normal minutes'), '10');
     await user.type(screen.getByLabelText('Full version'), 'Pack and check the timetable');
+    await user.type(screen.getByLabelText('Full minutes'), '20');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
-    expect(await screen.findByText('Task captured. It is safely held.')).toBeTruthy();
+    expect(await screen.findByText('Task captured. Held outside Today and available for private planning.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
     expect(await getCurrentLifeRhythmDatabase().activeTasks.count()).toBe(0);
     expect(await getCurrentLifeRhythmDatabase().softPlacements.count()).toBe(0);

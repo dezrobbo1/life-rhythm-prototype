@@ -14,8 +14,11 @@ function input(overrides: Partial<TaskPoolCaptureInput> = {}): TaskPoolCaptureIn
   return {
     area: 'admin',
     fullVersion: '',
+    fullMinutes: '',
     minimumVersion: 'Write one line',
+    minimumMinutes: '7',
     normalVersion: '',
+    normalMinutes: '',
     title: 'Capture this safely',
     ...overrides,
   };
@@ -37,7 +40,12 @@ describe('shared Task Pool capture authority', () => {
       })).resolves.toMatchObject({ ok: true });
 
       expect(await database.taskPoolItems.toArray()).toEqual([
-        expect.objectContaining({ id: 'captured-once', status: 'captured', title: 'Capture this safely' }),
+        expect.objectContaining({
+          id: 'captured-once', status: 'captured', title: 'Capture this safely',
+          minimum: { label: 'Write one line', minutes: 7 },
+          normal: { label: 'Write one line', minutes: 7 },
+          full: { label: 'Write one line', minutes: 7 },
+        }),
       ]);
       expect(await database.activeTasks.count()).toBe(0);
       expect(await database.softPlacements.count()).toBe(0);

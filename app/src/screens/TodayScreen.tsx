@@ -17,6 +17,8 @@ import {
   repairCurrentPrivatePlan,
 } from '../data/schedulerPlanCoordinator';
 import { loadSchedulerPlanState } from '../data/schedulerPlanStateRepository';
+import { updateUserTaskDefinition } from '../data/taskDefinitionRepository';
+import { reconcileTaskDefinitionAfterWrite } from '../data/taskDefinitionPlanReconciliation';
 import { undoTodayPlanChange } from '../data/reducedDayCoordinator';
 import {
   loadLinkedTaskPoolItemIds,
@@ -27,6 +29,7 @@ import { currentLocalDate } from '../features/plan/softPlacementDate';
 import { activeTaskSchema, type ActiveTask, type ActiveTaskStatus } from '../data/schemas';
 import { type MockTask } from '../features/today/mockTodayData';
 import { AddTaskModal, type MockAddTaskInput } from '../features/today/AddTaskModal';
+import { resolveTaskVersions } from '../features/taskPool/taskVersionInput';
 import { StartBoost } from '../features/today/StartBoost';
 import { TaskCard, type TaskProgress } from '../features/today/TaskCard';
 import {
@@ -63,6 +66,7 @@ type TodayPlanReadState =
   | {
       status: 'ready';
       calendarRepairPending: boolean;
+      taskInputRepairPending: boolean;
       readDate: string;
       refreshAt: number;
       surface: TodayCalmSurface;
@@ -106,20 +110,8 @@ const areaLabels: Record<ActiveTaskArea, string> = {
 
 function areaFromInput(value: string): ActiveTaskArea {
   const normalized = value.trim().toLowerCase();
-
-  if (normalized.includes('money') || normalized.includes('bill')) return 'money';
-  if (normalized.includes('food') || normalized.includes('meal') || normalized.includes('breakfast')) return 'food';
-  if (normalized.includes('move') || normalized.includes('exercise')) return 'movement';
-  if (normalized.includes('work')) return 'work';
-  if (normalized.includes('admin') || normalized.includes('paper')) return 'admin';
-  if (normalized.includes('home') || normalized.includes('house')) return 'house';
-  if (normalized.includes('social') || normalized.includes('message')) return 'social';
-  if (normalized.includes('sensory') || normalized.includes('quiet')) return 'sensory';
-  if (normalized.includes('emotion') || normalized.includes('reset')) return 'emotion';
-  if (normalized.includes('health') || normalized.includes('sleep')) return 'health';
-  if (normalized.includes('scroll') || normalized.includes('phone')) return 'antidrift';
-
-  return 'other';
+  if (normalized in areaLabels) return normalized as ActiveTaskArea;
+  throw new Error('Choose a listed area.');
 }
 
 function neutralTaskDetails(): Pick<MockTask, 'timingReality' | 'hiddenEdges' | 'startBarriers' | 'boostSupports'> {
@@ -214,6 +206,7 @@ function taskFromActiveTask(task: ActiveTask): MockTask {
     id: task.id,
     minimumVersion: task.minimum.label,
     normalVersion: task.normal.label,
+    versionMinutes: { minimum: task.minimum.minutes, normal: task.normal.minutes, full: task.full.minutes },
     purpose: task.purpose ?? 'One Today task saved on this device.',
     recommendedSize: `${task.minimum.minutes} min minimum`,
     timeEdge: {
@@ -305,9 +298,8 @@ async function repairPrivatePlanAfterTodayChange(
 
 function createOneOffActiveTask(input: MockAddTaskInput): ActiveTask {
   const timestamp = new Date().toISOString();
-  const minimum = input.minimumVersion;
-  const normal = input.normalVersion || minimum;
-  const full = input.fullVersion || normal;
+  const resolved = resolveTaskVersions(input);
+  if (!resolved.ok) throw new Error(resolved.error);
   const timeEdgeFields = {
     ...(input.timeConstraint ? { timeConstraint: input.timeConstraint } : {}),
     ...(input.dueAt ? { dueAt: input.dueAt } : {}),
@@ -322,20 +314,10 @@ function createOneOffActiveTask(input: MockAddTaskInput): ActiveTask {
   return activeTaskSchema.parse({
     area: areaFromInput(input.area),
     createdAt: timestamp,
-    full: {
-      label: full,
-      minutes: 20,
-    },
+    full: resolved.versions.full,
     id: createActiveTaskId('adhoc'),
-    minimum: {
-      label: minimum,
-      minutes: 5,
-    },
-    normal: {
-      label: normal,
-      minutes: 10,
-    },
-    purpose: 'Today-only task added by you.',
+    minimum: resolved.versions.minimum,
+    normal: resolved.versions.normal,
     showToday: true,
     source: 'adhoc',
     status: 'active',
@@ -449,6 +431,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   const hasInitialTodayTask = Boolean(initialTodayViewModel.nextUsefulAction);
   const [boostOpen, setBoostOpen] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [editTask, setEditTask] = useState<ActiveTask | null>(null);
   const [nextTask, setNextTask] = useState<MockTask | null>(() =>
     taskFromViewModel(initialTodayViewModel.nextUsefulAction),
   );
@@ -523,6 +506,23 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       }
     } catch {
       setCalendarRepairRetryError('The flexible private plan could not be repaired.');
+    } finally {
+      setCalendarRepairRetryBusy(false);
+      refreshTodayPlanFacts();
+    }
+  }
+
+  async function retryPendingTaskInputRepair() {
+    setCalendarRepairRetryBusy(true);
+    setCalendarRepairRetryError('');
+    try {
+      const repaired = await repairCurrentPrivatePlan({
+        reason: 'Retry the corrected task definition using current scheduling information.',
+        trigger: 'taskDefinitionChanged',
+      });
+      if (!repaired.ok) setCalendarRepairRetryError(repaired.errors.join(' '));
+    } catch {
+      setCalendarRepairRetryError('The flexible private plan could not be updated.');
     } finally {
       setCalendarRepairRetryBusy(false);
       refreshTodayPlanFacts();
@@ -752,15 +752,16 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       }
 
       const calendarRepairPending = saved.status === 'ok' && Boolean(saved.calendarRepairPendingAt);
+      const taskInputRepairPending = saved.status === 'ok' && Boolean(saved.taskInputRepairPendingAt);
       const planStatus = saved.status === 'ok'
-        ? calendarRepairPending ? 'error' as const : 'available' as const
+        ? calendarRepairPending || taskInputRepairPending ? 'error' as const : 'available' as const
         : saved.status;
       const surface = buildTodayCalmSurface({
         date: live.now.date,
         nowTime: live.now.time,
         input: live.context.input,
         planStatus,
-        plan: saved.status === 'ok' && !calendarRepairPending ? saved.plan : null,
+        plan: saved.status === 'ok' && !calendarRepairPending && !taskInputRepairPending ? saved.plan : null,
         titleByTargetId: live.context.titleByTargetId,
         currentTaskTargetId: nextActiveTask?.id ?? nextTask?.id,
       });
@@ -774,6 +775,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       setTodayPlanReadState({
         status: 'ready',
         calendarRepairPending,
+        taskInputRepairPending,
         readDate,
         refreshAt,
         surface,
@@ -832,7 +834,13 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
     }
 
     taskWriteGenerationRef.current += 1;
-    const result = await saveActiveTodayTask(candidate);
+    let result;
+    try {
+      result = await saveActiveTodayTask(candidate);
+    } catch {
+      setCompletionFeedback('One-off was not saved. Check device storage.');
+      return false;
+    }
 
     if (!result.ok) {
       setCompletionFeedback('One-off was not saved. Check the required fields.');
@@ -847,11 +855,53 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
     setAddTaskOpen(false);
     setBoostOpen(false);
 
-    await repairAndRefreshPrivatePlanAfterTodayChange(
-      'userCorrection',
-      'A private one-off task was added from Today.',
-    );
+    try {
+      const repaired = await repairCurrentPrivatePlan({
+        trigger: 'taskDefinitionChanged',
+        reason: 'A private one-off task was added from Today.',
+      });
+      if (!repaired.ok) setCompletionFeedback('One-off saved. The private plan needs updating.');
+    } catch {
+      setCompletionFeedback('One-off saved. The private plan needs updating.');
+    }
+    refreshTodayPlanFacts();
 
+    return true;
+  }
+
+  async function saveCorrectedOneOff(input: MockAddTaskInput): Promise<boolean | string> {
+    if (!editTask) return 'Reopen the task before editing.';
+    const parsed = resolveTaskVersions(input);
+    if (!parsed.ok) {
+      setCompletionFeedback(parsed.error);
+      return parsed.error;
+    }
+    taskWriteGenerationRef.current += 1;
+    const saved = await updateUserTaskDefinition(editTask.id, editTask.updatedAt, 'today', {
+      title: input.title,
+      area: areaFromInput(input.area),
+      ...parsed.versions,
+      ...(editTask.purpose ? { purpose: editTask.purpose } : {}),
+      ...(input.timeConstraint ? { timeConstraint: input.timeConstraint } : {}),
+      ...(input.dueAt ? { dueAt: input.dueAt } : {}),
+      ...(input.fixedAt ? { fixedAt: input.fixedAt } : {}),
+      ...(input.expiresAfter ? { expiresAfter: input.expiresAfter } : {}),
+      ...(input.latestUsefulStartAt ? { latestUsefulStartAt: input.latestUsefulStartAt } : {}),
+      ...(input.notUsefulAfter ? { notUsefulAfter: input.notUsefulAfter } : {}),
+      ...(input.minimumStillUsefulAfterDeadline ? { minimumStillUsefulAfterDeadline: true } : {}),
+      ...(input.missedPolicy ? { missedPolicy: input.missedPolicy } : {}),
+    });
+    if (!saved.ok || !saved.task) return saved.ok
+      ? 'Task correction could not be saved.'
+      : saved.errors.join(' ');
+    setEditTask(null);
+    setActiveTasks((current) => current.map((task) => task.id === saved.task!.id ? saved.task! : task));
+    if (nextActiveTask?.id === saved.task.id) showPersistedTask(saved.task);
+    const repaired = await reconcileTaskDefinitionAfterWrite('A user corrected a Today task definition.');
+    setCompletionFeedback(repaired.ok
+      ? 'Task corrected. The private plan is up to date.'
+      : `Task corrected. The private plan needs updating. ${repaired.message ?? ''}`);
+    refreshTodayPlanFacts();
     return true;
   }
 
@@ -1149,6 +1199,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         ) : nextTask ? (
           <>
             <TaskCard
+              onEditTask={nextActiveTask?.source === 'adhoc' ? () => setEditTask(nextActiveTask) : undefined}
               minimumChoiceActive={minimumChoiceTaskId === nextTask.id}
               minimumAchieved={nextActiveTask
                 ? Boolean(nextActiveTask.minimumAchievedAt || nextActiveTask.status === 'minimumDone')
@@ -1167,6 +1218,20 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
               progress={taskProgress}
               task={nextTask}
             />
+            {activeTasks.some((task) => isVisibleActiveTask(task) && task.source === 'adhoc' && task.id !== nextActiveTask?.id) ? (
+              <section aria-label="Other saved Today tasks" className="today-other-tasks">
+                <h3>Other saved Today tasks</h3>
+                <ul>
+                  {activeTasks.filter((task) => isVisibleActiveTask(task) && task.source === 'adhoc' && task.id !== nextActiveTask?.id)
+                    .map((task) => (
+                      <li key={task.id}>
+                        <span>{task.title} · Minimum {task.minimum.minutes} min</span>
+                        <Button onClick={() => setEditTask(task)}>Edit task</Button>
+                      </li>
+                    ))}
+                </ul>
+              </section>
+            ) : null}
             <div className="today-now__secondary surface-actions">
               <Button onClick={() => setAddTaskOpen(true)} variant="quiet">Add one-off</Button>
               <span>Add one today-only task. It will not go into Library.</span>
@@ -1242,6 +1307,16 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
                 </Button>
               </div>
             ) : todayPlanSurface?.later.planStatus === 'invalid' || todayPlanSurface?.later.planStatus === 'error' ? (
+              todayPlanReadState.taskInputRepairPending ? (
+                <div className="surface-read-state surface-read-state--error" role="alert">
+                  <h3>The flexible private plan needs updating after a task change.</h3>
+                  <p>Today tasks remain available. Automatic placements are hidden until the plan is repaired.</p>
+                  {calendarRepairRetryError ? <p>{calendarRepairRetryError}</p> : null}
+                  <Button disabled={calendarRepairRetryBusy} onClick={() => { void retryPendingTaskInputRepair(); }}>
+                    {calendarRepairRetryBusy ? 'Updating...' : 'Retry repair'}
+                  </Button>
+                </div>
+              ) :
               <div className="surface-read-state surface-read-state--error" role="alert">
                 <h3>The saved private plan could not be read.</h3>
                 <p>Fixed and user-confirmed facts can still appear. Flexible Later items and Changed are unavailable.</p>
@@ -1383,6 +1458,13 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
 
       {nextTask ? <StartBoost open={boostOpen} task={nextTask} onClose={() => setBoostOpen(false)} /> : null}
       <AddTaskModal onClose={() => setAddTaskOpen(false)} onSave={saveOneOffTask} open={addTaskOpen} />
+      {editTask ? <AddTaskModal
+        key={editTask.id}
+        task={editTask}
+        onClose={() => setEditTask(null)}
+        onSave={saveCorrectedOneOff}
+        open
+      /> : null}
     </div>
   );
 }

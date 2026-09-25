@@ -36,6 +36,7 @@ describe('personal task lifecycle flow', () => {
     await user.type(screen.getByLabelText('Task title'), 'Send school form');
     await user.selectOptions(screen.getByLabelText('Area'), 'admin');
     await user.type(screen.getByLabelText('Minimum version'), 'Open the form');
+    await user.type(screen.getByLabelText('Minimum minutes'), '5');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
     const taskPool = screen.getByRole('heading', { name: 'Captured tasks' }).closest('section');

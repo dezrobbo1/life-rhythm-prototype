@@ -138,9 +138,10 @@ function persistedReducedDayRepairPlan(): SchedulerPlan {
 async function openFilledOneOffModal(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Add one-off' }));
   await user.type(screen.getByLabelText('Task title'), 'Pay water bill');
-  await user.clear(screen.getByLabelText('Area'));
-  await user.type(screen.getByLabelText('Area'), 'Money');
+  await user.selectOptions(screen.getByLabelText('Area'), 'money');
   await user.type(screen.getByLabelText('Minimum version'), 'Open the bill and note the due date.');
+  await user.type(screen.getByLabelText('Minimum minutes'), '5');
+  await user.click(screen.getByRole('button', { name: /Optional useful window/ }));
 }
 
 function savedOneOffTask(): ActiveTask {
@@ -248,6 +249,21 @@ afterEach(() => {
 });
 
 describe('Today screen', () => {
+  it('offers correction for another saved one-off without changing the current focus', async () => {
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([
+      persistedOneOffTask(),
+      persistedOneOffTask({ id: 'adhoc-second', title: 'Read the post' }),
+    ]);
+    const user = userEvent.setup();
+    renderEmptyPersonalToday();
+
+    expect(await screen.findByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+    const others = screen.getByRole('region', { name: 'Other saved Today tasks' });
+    expect(within(others).getByText('Read the post · Minimum 5 min')).toBeTruthy();
+    await user.click(within(others).getByRole('button', { name: 'Edit task' }));
+    expect(within(screen.getByRole('dialog', { name: 'Edit one-off' })).getByLabelText('Task title')).toHaveProperty('value', 'Read the post');
+  });
+
   it('shows the ordinary empty state only after a successful empty personal read', async () => {
     renderEmptyPersonalToday();
 
@@ -2139,12 +2155,12 @@ describe('Today screen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add one-off' }));
     expect(screen.getByText('For today only. Saved on this device. It will not go into Library.')).toBeTruthy();
-    expect(screen.getByRole('combobox', { name: 'Time edge type' })).toBeTruthy();
-    expect(screen.getByRole('combobox', { name: 'If it stops being useful' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Optional useful window/ }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('combobox', { name: 'Time edge type' })).toBeNull();
     await user.type(screen.getByLabelText('Task title'), 'Pay water bill');
-    await user.clear(screen.getByLabelText('Area'));
-    await user.type(screen.getByLabelText('Area'), 'Money');
+    await user.selectOptions(screen.getByLabelText('Area'), 'money');
     await user.type(screen.getByLabelText('Minimum version'), 'Open the bill and note the due date.');
+    await user.type(screen.getByLabelText('Minimum minutes'), '7');
     await user.click(screen.getByRole('button', { name: 'Save one-off' }));
 
     expect(screen.queryByRole('dialog', { name: 'Add one-off' })).toBeNull();
@@ -2153,6 +2169,9 @@ describe('Today screen', () => {
     expect(activeTaskRepositoryMocks.saveActiveTodayTask).toHaveBeenCalledTimes(1);
     expect(activeTaskRepositoryMocks.saveActiveTodayTask.mock.calls[0][0]).toMatchObject({
       area: 'money',
+      minimum: { label: 'Open the bill and note the due date.', minutes: 7 },
+      normal: { label: 'Open the bill and note the due date.', minutes: 7 },
+      full: { label: 'Open the bill and note the due date.', minutes: 7 },
       showToday: true,
       source: 'adhoc',
       status: 'active',
@@ -2164,6 +2183,26 @@ describe('Today screen', () => {
     expect(activeTaskRepositoryMocks.saveActiveTodayTask.mock.calls[0][0]).not.toHaveProperty('expiresAfter');
     expect(setItemSpy).not.toHaveBeenCalled();
     expect(clearSpy).not.toHaveBeenCalled();
+  });
+
+  it('sends three distinctly entered action durations to the canonical Today write', async () => {
+    const user = userEvent.setup();
+    render(<TodayScreen />);
+    await user.click(screen.getByRole('button', { name: 'Add one-off' }));
+    await user.type(screen.getByLabelText('Task title'), 'Sort files');
+    await user.type(screen.getByLabelText('Minimum version'), 'Open folder');
+    await user.type(screen.getByLabelText('Minimum minutes'), '13');
+    await user.click(screen.getByRole('button', { name: /Optional normal\/full versions/ }));
+    await user.type(screen.getByLabelText('Normal version'), 'Sort papers');
+    await user.type(screen.getByLabelText('Normal minutes'), '29');
+    await user.type(screen.getByLabelText('Full version'), 'File everything');
+    await user.type(screen.getByLabelText('Full minutes'), '61');
+    await user.click(screen.getByRole('button', { name: 'Save one-off' }));
+    expect(activeTaskRepositoryMocks.saveActiveTodayTask.mock.calls.slice(-1)[0]?.[0]).toMatchObject({
+      minimum: { label: 'Open folder', minutes: 13 },
+      normal: { label: 'Sort papers', minutes: 29 },
+      full: { label: 'File everything', minutes: 61 },
+    });
   });
 
   it('persists a due-by time edge for an Add one-off task', async () => {
@@ -2194,7 +2233,7 @@ describe('Today screen', () => {
     expect(saved).not.toHaveProperty('schedulerOutput');
     expect(screen.getByLabelText('Time edge').textContent).toContain('Useful before');
     expect(screen.getByLabelText('Time edge').textContent).toContain('Minimum still helps');
-    expect(screen.getByLabelText('Time edge').textContent).toContain('No schedule created');
+    expect(screen.getByLabelText('Time edge').textContent).toContain('This helps guide private planning.');
   });
 
   it('persists a fixed-at time edge for an Add one-off task', async () => {
@@ -2213,7 +2252,7 @@ describe('Today screen', () => {
       timeConstraint: 'fixedAt',
     });
     expect(screen.getByLabelText('Time edge').textContent).toContain('Tied to');
-    expect(screen.getByLabelText('Time edge').textContent).toContain('No schedule created');
+    expect(screen.getByLabelText('Time edge').textContent).toContain('This helps guide private planning.');
   });
 
   it('persists an expires-after time edge for an Add one-off task', async () => {
@@ -2232,7 +2271,7 @@ describe('Today screen', () => {
       timeConstraint: 'expiresAfter',
     });
     expect(screen.getByLabelText('Time edge').textContent).toContain('Useful until');
-    expect(screen.getByLabelText('Time edge').textContent).toContain('No schedule created');
+    expect(screen.getByLabelText('Time edge').textContent).toContain('This helps guide private planning.');
   });
 
   it('does not save a due-by one-off without a due-by time', async () => {
@@ -2305,7 +2344,7 @@ describe('Today screen', () => {
     const cardText = taskCard.textContent?.toLowerCase() ?? '';
 
     expect(within(taskCard).getByLabelText('Time edge').textContent).toContain('Useful before');
-    expect(within(taskCard).getByLabelText('Time edge').textContent).toContain('No schedule created');
+    expect(within(taskCard).getByLabelText('Time edge').textContent).toContain('This helps guide private planning.');
     expect(cardText).not.toMatch(/overdue|late|failed|urgent|behind/);
   });
 
@@ -2683,9 +2722,9 @@ describe('Today screen', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Add one-off' }));
     await user.type(screen.getByLabelText('Task title'), 'Pay water bill');
-    await user.clear(screen.getByLabelText('Area'));
-    await user.type(screen.getByLabelText('Area'), 'Money');
+    await user.selectOptions(screen.getByLabelText('Area'), 'money');
     await user.type(screen.getByLabelText('Minimum version'), 'Open the bill and note the due date.');
+    await user.type(screen.getByLabelText('Minimum minutes'), '5');
     await user.click(screen.getByRole('button', { name: 'Save one-off' }));
 
     expect(screen.getByRole('article', { name: 'Pay water bill' })).toBeTruthy();

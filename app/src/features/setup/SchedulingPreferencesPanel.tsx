@@ -442,6 +442,9 @@ export function SchedulingPreferencesPanel({
               ))}
             </select>
           </label>
+          {form.targetKind === 'taskType' ? (
+            <p>Task type guidance applies to classified Library tasks. For a one-off, choose Task or Area.</p>
+          ) : null}
           <fieldset>
             <legend>Days</legend>
             <label>
