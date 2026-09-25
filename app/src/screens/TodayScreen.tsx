@@ -14,8 +14,10 @@ import {
 } from '../data/activeTaskBackup';
 import {
   buildCurrentLiveSchedulingContext,
+  ensureCurrentPrivatePlan,
   repairCurrentPrivatePlan,
 } from '../data/schedulerPlanCoordinator';
+import { syncScheduledRhythmOccurrencesToToday } from '../data/rhythmTodayRepository';
 import { loadSchedulerPlanState } from '../data/schedulerPlanStateRepository';
 import { updateUserTaskDefinition } from '../data/taskDefinitionRepository';
 import { reconcileTaskDefinitionAfterWrite } from '../data/taskDefinitionPlanReconciliation';
@@ -67,6 +69,7 @@ type TodayPlanReadState =
       status: 'ready';
       calendarRepairPending: boolean;
       taskInputRepairPending: boolean;
+      rhythmInputRepairPending: boolean;
       readDate: string;
       refreshAt: number;
       surface: TodayCalmSurface;
@@ -197,18 +200,28 @@ function taskFromViewModel(task: TaskViewModel | null): MockTask | null {
 }
 
 function taskFromActiveTask(task: ActiveTask): MockTask {
+  const rhythmOccurrence = Boolean(task.sourceRhythmInstanceId);
+  const plannedVariantKind = task.plannedVariantKind ?? 'normal';
+  const plannedVariant = task[plannedVariantKind];
+  const plannedVariantLabel = `${plannedVariantKind[0].toUpperCase()}${plannedVariantKind.slice(1)}`;
   return {
     ...neutralTaskDetails(),
     area: areaLabels[task.area],
     areaIcon: 'Task',
-    chips: ['Minimum counts', 'Start small'],
+    chips: rhythmOccurrence
+      ? ['Rhythm occurrence', `${plannedVariantLabel} planned`]
+      : ['Minimum counts', 'Start small'],
     fullVersion: task.full.label,
     id: task.id,
     minimumVersion: task.minimum.label,
     normalVersion: task.normal.label,
     versionMinutes: { minimum: task.minimum.minutes, normal: task.normal.minutes, full: task.full.minutes },
-    purpose: task.purpose ?? 'One Today task saved on this device.',
-    recommendedSize: `${task.minimum.minutes} min minimum`,
+    purpose: task.purpose ?? (rhythmOccurrence
+      ? 'One occurrence of a rhythm saved on this device.'
+      : 'One Today task saved on this device.'),
+    recommendedSize: rhythmOccurrence
+      ? `${plannedVariantLabel} planned · ${plannedVariant.minutes} min`
+      : `${task.minimum.minutes} min minimum`,
     timeEdge: {
       dueAt: task.dueAt,
       expiresAfter: task.expiresAfter,
@@ -220,7 +233,9 @@ function taskFromActiveTask(task: ActiveTask): MockTask {
       timeConstraint: task.timeConstraint,
     },
     title: task.title,
-    whyThis: taskSourceDescription(task.source),
+    whyThis: rhythmOccurrence
+      ? 'This is one planned occurrence. Completing it leaves the recurring rhythm intact.'
+      : taskSourceDescription(task.source),
   };
 }
 
@@ -529,6 +544,23 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
     }
   }
 
+  async function retryPendingRhythmInputRepair() {
+    setCalendarRepairRetryBusy(true);
+    setCalendarRepairRetryError('');
+    try {
+      const repaired = await repairCurrentPrivatePlan({
+        reason: 'Retry the saved rhythm change using current scheduling information.',
+        trigger: 'rhythmDefinitionChanged',
+      });
+      if (!repaired.ok) setCalendarRepairRetryError(repaired.errors.join(' '));
+    } catch {
+      setCalendarRepairRetryError('The flexible private plan could not be updated.');
+    } finally {
+      setCalendarRepairRetryBusy(false);
+      refreshTodayPlanFacts();
+    }
+  }
+
   async function repairAndRefreshPrivatePlanAfterTodayChange(
     trigger: 'completionChanged' | 'userCorrection',
     reason: string,
@@ -600,6 +632,12 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
     if (status === 'minimumDone') {
       setBoostOpen(false);
       setMinimumChoiceTaskId(null);
+    }
+    if (result.task.sourceRhythmInstanceId) {
+      await repairAndRefreshPrivatePlanAfterTodayChange(
+        'userCorrection',
+        'A rhythm occurrence changed its current execution state.',
+      );
     }
   }
 
@@ -735,8 +773,22 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         readOnly: true,
       }),
       loadSchedulerPlanState(),
-    ]).then(([live, saved]) => {
+    ]).then(async ([live, saved]) => {
       if (!active || planReadGenerationRef.current !== generation) return;
+
+      let currentSaved = saved;
+      if (saved.status === 'ok' && saved.plan.placements.some((placement) =>
+        placement.targetKind === 'rhythm' && placement.rhythmInstanceId && placement.date === readDate,
+      )) {
+        const synced = await syncScheduledRhythmOccurrencesToToday(saved.plan, readDate);
+        if (!synced.ok) throw new Error(synced.errors.join(' '));
+        if (synced.tasks.length > 0) setTodayTasksReadAttempt((attempt) => attempt + 1);
+        if (synced.mutated) {
+          const reconciled = await ensureCurrentPrivatePlan();
+          if (!reconciled.ok) throw new Error(reconciled.errors.join(' '));
+          currentSaved = await loadSchedulerPlanState();
+        }
+      }
 
       // A suspended read may finish on another local date. Do not install
       // yesterday's snapshot and then wait until tomorrow to refresh it.
@@ -751,17 +803,22 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         return;
       }
 
-      const calendarRepairPending = saved.status === 'ok' && Boolean(saved.calendarRepairPendingAt);
-      const taskInputRepairPending = saved.status === 'ok' && Boolean(saved.taskInputRepairPendingAt);
-      const planStatus = saved.status === 'ok'
-        ? calendarRepairPending || taskInputRepairPending ? 'error' as const : 'available' as const
-        : saved.status;
+      const calendarRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.calendarRepairPendingAt);
+      const taskInputRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.taskInputRepairPendingAt);
+      const rhythmInputRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.rhythmInputRepairPendingAt);
+      const planStatus = currentSaved.status === 'ok'
+        ? calendarRepairPending || taskInputRepairPending || rhythmInputRepairPending
+          ? 'error' as const
+          : 'available' as const
+        : currentSaved.status;
       const surface = buildTodayCalmSurface({
         date: live.now.date,
         nowTime: live.now.time,
         input: live.context.input,
         planStatus,
-        plan: saved.status === 'ok' && !calendarRepairPending && !taskInputRepairPending ? saved.plan : null,
+        plan: currentSaved.status === 'ok' && !calendarRepairPending && !taskInputRepairPending && !rhythmInputRepairPending
+          ? currentSaved.plan
+          : null,
         titleByTargetId: live.context.titleByTargetId,
         currentTaskTargetId: nextActiveTask?.id ?? nextTask?.id,
       });
@@ -776,6 +833,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         status: 'ready',
         calendarRepairPending,
         taskInputRepairPending,
+        rhythmInputRepairPending,
         readDate,
         refreshAt,
         surface,
@@ -1307,7 +1365,16 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
                 </Button>
               </div>
             ) : todayPlanSurface?.later.planStatus === 'invalid' || todayPlanSurface?.later.planStatus === 'error' ? (
-              todayPlanReadState.taskInputRepairPending ? (
+              todayPlanReadState.rhythmInputRepairPending ? (
+                <div className="surface-read-state surface-read-state--error" role="alert">
+                  <h3>The flexible private plan needs updating after a rhythm change.</h3>
+                  <p>Today work remains available. Automatic placements are hidden until the plan is repaired.</p>
+                  {calendarRepairRetryError ? <p>{calendarRepairRetryError}</p> : null}
+                  <Button disabled={calendarRepairRetryBusy} onClick={() => { void retryPendingRhythmInputRepair(); }}>
+                    {calendarRepairRetryBusy ? 'Updating...' : 'Retry repair'}
+                  </Button>
+                </div>
+              ) : todayPlanReadState.taskInputRepairPending ? (
                 <div className="surface-read-state surface-read-state--error" role="alert">
                   <h3>The flexible private plan needs updating after a task change.</h3>
                   <p>Today tasks remain available. Automatic placements are hidden until the plan is repaired.</p>

@@ -42,6 +42,10 @@ export const persistedSchedulerPlacementSchema = z
     sourcePlacementId: idSchema.optional(),
     targetKind: targetKindSchema.optional(),
     rhythmId: idSchema.optional(),
+    rhythmTemplateId: idSchema.optional(),
+    rhythmPlanId: idSchema.optional(),
+    rhythmRecurrenceRevisionId: idSchema.optional(),
+    rhythmInstanceId: idSchema.optional(),
     variantKind: variantKindSchema.optional(),
     provenance: z.array(z.string().min(1)),
   })
@@ -61,6 +65,30 @@ export const persistedSchedulerPlacementSchema = z
         message: 'Rhythm placements must include rhythmId.',
         path: ['rhythmId'],
       });
+    }
+
+    if (placement.targetKind === 'rhythm') {
+      const occurrenceIdentity = [
+        placement.rhythmPlanId,
+        placement.rhythmRecurrenceRevisionId,
+        placement.rhythmInstanceId,
+      ];
+      const suppliedIdentityParts = occurrenceIdentity.filter(Boolean).length;
+      if (suppliedIdentityParts > 0 &&
+          (suppliedIdentityParts !== occurrenceIdentity.length || !placement.rhythmTemplateId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Concrete rhythm placements must retain template, plan, revision, and instance identity together.',
+          path: ['rhythmInstanceId'],
+        });
+      }
+      if (placement.rhythmInstanceId && placement.rhythmId !== placement.rhythmInstanceId) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Concrete rhythm placement target must be its instance identity.',
+          path: ['rhythmId'],
+        });
+      }
     }
   });
 
@@ -109,6 +137,7 @@ const schedulerRepairTriggerSchema = z.enum([
   'durationLearningChanged',
   'userCorrection',
   'taskDefinitionChanged',
+  'rhythmDefinitionChanged',
   'manualReplan',
 ]);
 
@@ -145,6 +174,10 @@ const schedulerPlanChangeSchema = z
     kind: schedulerPlanChangeKindSchema,
     targetKind: targetKindSchema,
     targetId: idSchema,
+    rhythmTemplateId: idSchema.optional(),
+    rhythmPlanId: idSchema.optional(),
+    rhythmRecurrenceRevisionId: idSchema.optional(),
+    rhythmInstanceId: idSchema.optional(),
     from: schedulerPlacementPointSchema.optional(),
     to: schedulerPlacementPointSchema.optional(),
     reason: z.string().min(1),
@@ -174,6 +207,20 @@ const schedulerPlanChangeSchema = z
         path: ['to'],
       });
     }
+    const occurrenceIdentity = [
+      change.rhythmTemplateId,
+      change.rhythmPlanId,
+      change.rhythmRecurrenceRevisionId,
+      change.rhythmInstanceId,
+    ];
+    const suppliedIdentityParts = occurrenceIdentity.filter(Boolean).length;
+    if (suppliedIdentityParts > 0 && (change.targetKind !== 'rhythm' || suppliedIdentityParts !== 4)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Concrete rhythm change identity must remain complete.',
+        path: ['rhythmInstanceId'],
+      });
+    }
   });
 
 const schedulerRepairMetadataSchema = z
@@ -188,6 +235,7 @@ const schedulerRepairMetadataSchema = z
     appliedDurationLearningTemplateIds: z.array(idSchema).optional(),
     previousDurationLearningApplied: z.array(appliedDurationLearningSchema).optional(),
     taskDefinitionRepairApplied: z.boolean().optional(),
+    rhythmDefinitionRepairApplied: z.boolean().optional(),
     undo: persistedSchedulerPlanSnapshotSchema,
   })
   .strict();
@@ -206,6 +254,8 @@ export const schedulerPlanStateRecordSchema = z
     preferenceRepairTargets: z.array(preferenceRepairTargetSchema).optional(),
     taskInputRepairPendingAt: strictIsoDateTimeSchema.optional(),
     taskInputRepairTargetIds: z.array(idSchema).optional(),
+    rhythmInputRepairPendingAt: strictIsoDateTimeSchema.optional(),
+    rhythmInputRepairTargetIds: z.array(idSchema).optional(),
     durationLearningApplied: z.array(appliedDurationLearningSchema).optional(),
     dayModeContext: schedulerDayModeContextSchema.optional(),
     undoDayModeContext: schedulerDayModeContextSchema.nullable().optional(),

@@ -1,8 +1,8 @@
 # Rhythm Recurrence and Instance Contract
 
-Status: Approved product contract; no runtime behaviour is implemented by this document
+Status: Current contract; Gate 8A2 implements the bounded flexible-quota subset described below
 
-Scope: Future persistent rhythm enablement, recurrence rules, generated rhythm instances, planning modes, missed-occurrence handling, data separation, migration, backup, and testing for the `/app` architecture
+Scope: Persistent rhythm enablement, recurrence rules, generated rhythm instances, automatic private planning, missed-occurrence handling, data separation, migration, backup, and future recurrence extensions for the `/app` architecture
 
 ## 1. Purpose
 
@@ -19,33 +19,34 @@ This contract defines:
 - future integration with Plan and Today;
 - migration and backup requirements.
 
-This approved contract defines product direction only. It does not change schemas, repositories, Library actions, enablement, Today, Pool, Plan, backup formats, or the protected root 1.4.6 runtime.
+Gate 8A2 makes the template/plan/revision/instance separation operative for a bounded flexible-quota subset. Later recurrence forms remain product direction only. The protected root 1.4.6 runtime remains historical evidence, not current `/app` authority.
 
 ### Implementation authority
 
-- The locked product direction in this contract may now be implemented through separately reviewed, bounded pull requests.
-- Unresolved decisions in Section 21 gate only the implementation scopes that depend on them.
-- Approval of this contract does not itself create schemas, repositories, plans, recurrence revisions, instances, suggestions, placements, Today tasks, or background generation.
+- `PRODUCT.md`, `MVP_PLAN.md` and `ARCHITECTURE.md` govern the automatic private scheduler. Older suggestion-only language here is superseded where it conflicts with that current authority.
+- Gate 8A2 implements only the explicitly stated initial subset. Section 21 distinguishes decisions resolved for that subset from still-deferred extensions.
+- External calendar writes remain prohibited.
 
 ## 2. Current and Future Boundaries
 
-The current `/app` implementation remains unchanged:
+The current `/app` implementation now provides:
 
-- built-in Library rhythms are code-backed catalogue entries;
-- user-created custom rhythm templates can be persisted locally;
-- Library enable/disable and Quick Pack state are session-only preview behavior;
-- current custom rhythm persistence does not persist the form’s enablement choice;
-- `Add to Today now` creates one active Today task and does not persist recurrence;
-- no rhythm-instance schema, repository, generator, or backup exists;
-- current Pool suggestions operate on eligible held Pool items and explicit `openCapacity` blocks.
+- code-backed built-in catalogue suggestions which become personal authority only after explicit configuration;
+- persisted user-confirmed built-in and custom templates with exact authored variants;
+- one durable `RhythmPlan` per configured template and separately persisted prospective recurrence revisions;
+- deterministic, idempotent flexible-quota instances for day, Monday-start week and month periods;
+- automatic private scheduler placements carrying template, plan, revision and instance identity;
+- atomic Today projection and occurrence lifecycle with exact instance-linked factual history;
+- a versioned rhythm-authority export/check format; and
+- preview-only Quick Packs, with no session flag presented as durable enablement.
 
-The existing schema fields `frequency`, `period`, `preferredDays`, `enabled`, and `catchupAllowed` are not a complete recurrence or instance model. This contract does not reinterpret them at runtime.
+The legacy `RhythmTemplate.enabled` and schedule-hint fields do not own personal recurrence authority. Confirmed writes keep the legacy enabled field false; plans and revisions govern generation. Existing session flags and old hints are not migrated into plans.
 
 ### Relationship to current Pool and scheduling contracts
 
-Current runtime behavior remains governed by [`soft-scheduling-loop-contract.md`](soft-scheduling-loop-contract.md), [`soft-scheduling-protected-time-contract.md`](soft-scheduling-protected-time-contract.md), [`navigation-redesign-contract.md`](navigation-redesign-contract.md), and the current design spec.
+Current runtime behavior remains governed by `PRODUCT.md`, `MVP_PLAN.md`, `ARCHITECTURE.md`, [`soft-scheduling-loop-contract.md`](soft-scheduling-loop-contract.md), [`soft-scheduling-protected-time-contract.md`](soft-scheduling-protected-time-contract.md), and the current design spec, in that authority order.
 
-Under this approved contract, the template/plan/instance separation replaces older future-facing language that treats rhythm instances as ordinary Task Pool items. That replacement becomes operative at runtime only through separately reviewed schema, repository, migration, backup, and surface work. It does not retroactively change current Pool ownership or authorize instance generation.
+The template/plan/revision/instance separation replaces older future-facing language that treats rhythm instances as ordinary Task Pool items. Gate 8A2 makes that replacement operative without retroactively converting existing Today tasks or Pool rows.
 
 ## 3. Locked Product Definitions
 
@@ -79,7 +80,7 @@ Within one local user namespace there is at most one durable rhythm plan for a t
 
 ### Rhythm instance
 
-A rhythm instance is one concrete occurrence generated from an enabled rhythm plan. Once recurrence implementation is separately approved and activated, every valid enabled plan generates deterministic instances within the bounded horizon; paused and disabled plans do not. Each instance retains stable links to its template and recurrence context.
+A rhythm instance is one concrete occurrence generated from an enabled rhythm plan. Every valid enabled plan generates deterministic instances within the bounded horizon; paused and disabled plans do not. Each instance retains stable links to its template and recurrence context.
 
 Completing, skipping, holding, or removing one instance must not complete, disable, delete, or rewrite the template.
 
@@ -96,9 +97,9 @@ Task Pool is primarily for one-off tasks such as:
 
 A rhythm template never moves into Task Pool.
 
-## 4. Proposed Object Model
+## 4. Object Model
 
-The following objects and fields are conceptual. They are not schema changes in this task.
+The following ownership boundaries are current. Fields needed only by deferred recurrence extensions remain conceptual.
 
 ### 4.1 `RhythmTemplate`
 
@@ -126,11 +127,11 @@ Persistent user intent for one template:
 | `id` | Stable plan identity. |
 | `rhythmTemplateId` | The template being turned on. |
 | `state` | `enabled`, `paused`, or `disabled`; deletion is not a pause or disable action. |
-| `recurrence` | Validated user-facing rule for the latest authored recurrence revision, including preferred days and applicable profiles where configured. |
-| `effectiveFromLocalDate` | Prospective local date from which the initial enabled plan may generate occurrences. |
+| `initialEffectiveFromLocalDate` | Prospective local date before which the plan may never generate occurrences. |
 | `latestRecurrenceRevisionId` | Most recently authored recurrence revision, whether already active or future-dated; historical revisions remain traceable. |
-| `bestTimePreference` | Broad timing preference, not a placement. |
-| `planningMode` | `suggestWindow` or, only after separate approval, `placeSoftly`. |
+| `preferredTime` | Broad timing preference, not a placement. |
+| `timezone` | IANA timezone used to interpret local recurrence dates. |
+| `planningMode` | `automaticPrivate` for deterministic, local, reversible scheduler authority. |
 | `missedOccurrencePolicy` | Calm handling choice. |
 | `createdAt` / `updatedAt` | Persistence metadata. |
 | `pausedAt` | Optional pause metadata. |
@@ -153,7 +154,7 @@ Conceptual fields:
 | `applicableProfileIds` | Profiles on which generation is allowed. |
 | `localTimeZone` | Zone context used for local-date generation and audit. |
 
-The final schema may normalize some fields into variants. It must preserve these meanings and reject contradictory combinations.
+Gate 8A2 persists the `flexibleQuota` meaning as positive `frequency`, `period` (`day`, `week`, `month`), unique optional `preferredDays`, and positive `maxPerDay`. Fixed cadence, interval, anchor and profile fields remain deferred and must not be inferred into this schema.
 
 ### 4.4 `RhythmRecurrenceRevision`
 
@@ -211,7 +212,7 @@ The primary conceptual Library action becomes:
 
 > Turn on rhythm
 
-Turning on a rhythm must eventually persist:
+Turning on a rhythm persists:
 
 - enabled, paused, or disabled state;
 - recurrence rule;
@@ -225,7 +226,7 @@ The secondary override may remain:
 
 > Add to Today once
 
-`Add to Today once` is an explicit secondary action. It does not require a `RhythmPlan` and may be used when the template has no plan, a disabled plan, a paused plan, or an enabled plan. It:
+`Add to Today once` is an explicit secondary action. It requires a user-confirmed saved template but does not require a `RhythmPlan`; it may be used when the template has no plan, a disabled plan, a paused plan, or an enabled plan. It:
 
 - creates or surfaces one occurrence for Today after explicit user action;
 - retains the template identity;
@@ -238,7 +239,9 @@ The secondary override may remain:
 
 When no enabled plan or matching generated occurrence applies, the action may create one template-linked manual Today task. That task is not automatically a generated `RhythmInstance` and must retain explicit manual one-occurrence identity. Any collision context needed for later deduplication must be represented without fabricating a `rhythmPlanId` on the manual task or overloading generated-instance identity.
 
-When an enabled plan exists:
+When a live generated occurrence exists for the configured template and Today is inside its eligibility window, Gate 8A2 reuses or surfaces the earliest stable quota-slot instance. Otherwise it creates one deterministic manual template/date Today task. Repeated actions reuse that same logical object. This collision identity is durable, never changes enablement or recurrence, and a manual task never consumes quota.
+
+The following general rules continue to apply:
 
 - the implementation must check for an existing or prospectively matching generated occurrence for the same logical rhythm occurrence;
 - it must not silently create both a manual Today task and a generated instance for that logical occurrence;
@@ -246,11 +249,20 @@ When an enabled plan exists:
 - a manual override must not silently consume a recurrence quota slot unless an approved matching or reuse rule explicitly does so;
 - the collision outcome must remain durable enough that later background generation does not create a duplicate after the manual Today action.
 
-Repeated use must follow the same collision rule and must not silently create a duplicate logical occurrence. The exact reuse, linking, or explicit-choice behavior remains unresolved implementation work; it must not alter enablement or recurrence.
+Repeated use must follow the same collision rule and must not silently create a duplicate logical occurrence.
 
 ## 6. Supported Recurrence Forms
 
-The recurrence model must support:
+Gate 8A2 implements flexible quota for:
+
+- a positive whole-number frequency per local day;
+- a positive whole-number frequency per Monday-start local week;
+- a positive whole-number frequency per local month;
+- optional preferred weekdays as soft scheduling preferences;
+- broad preferred time and positive max per day; and
+- an explicit prospective local effective date and IANA timezone.
+
+The fuller recurrence model may later support:
 
 - every day;
 - selected weekdays;
@@ -264,6 +276,8 @@ The recurrence model must support:
 - preferred days;
 - applicable day profiles;
 - an anchor date where interval calculation requires one.
+
+Every-N-day/week/month, fortnightly, fixed weekday, anchored day-of-month and other calendar-style cadence are deferred. Gate 8A2 never approximates them with flexible quota.
 
 ### Fixed cadence
 
@@ -304,13 +318,13 @@ Daily, weekly, and monthly are recurrence units, not labels that can approximate
 
 ## 8. Generation and Deduplication
 
-When a separately reviewed recurrence implementation is activated, an enabled rhythm plan generates instances within a bounded generation horizon.
+An enabled rhythm plan generates instances when its recurrence period intersects the current seven-local-date private-plan horizon. The horizon opens a period; each new instance retains the full remaining local-period eligibility window so it can remain useful when the horizon advances.
 
 Generation rules:
 
 - generation is local-first and deterministic for the same validated inputs;
 - no instance is generated before the plan or governing revision's `effectiveFromLocalDate`;
-- current and historical periods are never backfilled automatically;
+- dates before the initial/revision effective date or the first observed horizon are never backfilled automatically;
 - one logical occurrence produces at most one instance record;
 - generation must honor durable manual one-occurrence collision outcomes so that a later run does not create another representation of the same logical occurrence; a manual action may reserve a quota slot only under an approved matching or reuse rule;
 - fixed cadence uses a canonical local occurrence date or anchored interval position;
@@ -327,7 +341,7 @@ Generation rules:
 - disabling and re-enabling must not regenerate closed occurrences inside the same key;
 - deleting and recreating a plan must not resurrect historical occurrences unless a separately approved future policy explicitly defines safe lineage and identity behavior.
 
-Exact generation horizon and cleanup policy require approval before implementation. The horizon must be small enough to avoid a future-occurrence pile.
+Generated occurrences are retained as canonical factual history; Gate 8A2 does not introduce cleanup or destructive plan deletion. A future retention policy must preserve deduplication and history before removing anything.
 
 ## 9. Instance and Completion State
 
@@ -388,40 +402,31 @@ Missed-occurrence handling must not create:
 
 A flexible weekly quota may use remaining room in the current period only while it is still useful and within the original quota. It must not roll unmet occurrences into the next period.
 
-## 11. Planning Modes
+## 11. Automatic Private Planning
 
-### 11.1 Suggest a window — intended default
+Gates 3–7 superseded the older suggestion-only boundary by establishing a deterministic automatic private scheduler with accepted-plan authority, rolling repair, schedule inertia, protected constraints and one-step Undo. Gate 8A2 uses that same `automaticPrivate` mode for generated rhythm instances.
 
-- The app proposes a suitable window.
-- The user may confirm, change, reject, or ignore it.
-- A suggestion remains separate from persisted placement state.
-- Current candidate-window and placement boundaries remain in force until the day-profile contract is implemented.
+- A scheduler placement remains local, reversible and separate from any external calendar event.
+- Every rhythm placement carries template, plan, recurrence-revision and instance identity.
+- One instance cannot receive duplicate automatic placements, and different quota slots cannot collapse into one target.
+- Hard and protected constraints remain authoritative; preferred weekdays and broad time affect scoring without becoming compliance debt.
+- A current-date accepted placement may be atomically projected into Today for normal execution. The instance remains canonical occurrence authority.
+- `Add to Today once` remains a separate explicit action and does not turn on recurrence.
 
-### 11.2 Place softly — future explicit per-rhythm opt-in
-
-- May create a reversible local soft placement under a separately approved write path.
-- Must be easy to remove, reject, or move.
-- Must never create an external calendar event.
-- Must preserve instance identity and explain why the placement exists.
-
-`Place softly` would change the current user-confirmed-write boundary because the current app writes a placement only after an immediate confirmation. It requires separate product approval, schema/repository review, migration/backup design, and tests before implementation.
-
-Neither planning mode is implemented by this document.
-
-A soft placement remains optional and separate from Today. Confirming a suggestion creates only the approved local placement and never routes the instance into Today. Add to Today remains a separate explicit user action that may occur with or without a soft placement.
+External calendar writes remain prohibited. General individual Move/Protect convergence remains Gate 8A5.
 
 ## 12. Relationship to Day Profiles and Plan
 
 An instance may be eligible only when its rhythm plan matches the selected local date and, where configured, the date’s assigned day profile.
 
-Future Plan integration must preserve:
+Plan integration preserves:
 
 - candidate windows are not placements;
 - blank time is not automatically available;
 - work-related instances are explicitly classified before `Work rhythms only` can admit them;
 - profile-derived windows remain possibilities rather than commitments;
 - suggestions are capped and explainable;
-- current user-confirmed placement remains unchanged unless a later contract explicitly approves another write path.
+- accepted automatic private-plan authority remains local, reversible and protected by stale-write checks.
 
 ## 13. Task Pool Boundary
 
@@ -456,7 +461,7 @@ Packs are activation helpers, not separate recurrence engines. Removing a pack l
 
 ## 15. Editing, Pausing, and Disabling
 
-Future behavior must distinguish:
+Current behavior distinguishes:
 
 - editing reusable template content;
 - editing a rhythm plan’s recurrence;
@@ -473,13 +478,13 @@ Minimum requirements:
 - no recurrence edit generates occurrences before that effective date or backfills an earlier period;
 - completed and closed instances retain the recurrence snapshot under which they were generated;
 - already generated logical occurrences are not silently duplicated or rewritten across revisions;
-- the treatment of untouched future instances on or after the effective date must follow a separately approved transition policy;
+- already generated future instances keep their identity and snapshots; only ungenerated capacity after the effective date uses the new revision;
 - template archive is blocked or clearly explained while active plans still reference it;
 - no action creates catch-up debt.
 
 ## 16. Migration Requirements
 
-Migration must be separately approved and tested.
+Gate 8A2 database v6 adds separate plan, recurrence-revision and instance stores and preserves all v5 records.
 
 ### Current `/app` templates
 
@@ -490,7 +495,7 @@ Migration must be separately approved and tested.
 
 ### Existing schedule hints
 
-- `frequency` plus `period` may be proposed as a flexible-quota rule only when the combination is valid and user-reviewable.
+- Old `frequency` plus `period` values are not activated or promoted without explicit user review and configuration.
 - `preferredDays` may be preserved as preferences, not silently upgraded to hard cadence.
 - interval recurrence requires a new anchor date and must not be invented from `updatedAt`.
 - any migrated plan requires an explicitly reviewed prospective `effectiveFromLocalDate`; migration must not infer a historical activation date or backfill earlier periods.
@@ -504,7 +509,7 @@ The root 1.4.6 runtime is historical evidence only. Its enabled templates, packs
 
 ## 17. Persistence and Backup Requirements
 
-Future persistence must keep separate validated data classes for:
+Persistence keeps separate validated data classes for:
 
 1. rhythm template content;
 2. rhythm plans and recurrence configuration;
@@ -515,44 +520,32 @@ Future persistence must keep separate validated data classes for:
 
 Any manual Today task created through `Add to Today once` must preserve its explicit manual one-occurrence identity and any separately approved collision or reuse link needed for deduplication. Backup and validation rules must preserve and check that identity without fabricating a rhythm-plan link.
 
-Backup design must define:
-
-- a versioned template format when recurrence-related template fields change;
-- a rhythm-plan backup containing enablement, recurrence, planning mode, and missed policy;
-- a rhythm-instance backup containing occurrence identity, snapshots, states, and deduplication keys;
-- whether completed instance history is exported separately from current/live instances;
-- duplicate-ID and duplicate-occurrence rejection;
-- referential validation across template, plan, instance, Today, and placement IDs;
-- safe behavior when one data class is missing;
-- local namespace boundaries;
-- read-only validation before restore/import execution is considered.
+The versioned rhythm-authority v1 export/check artifact includes configured templates, plans, recurrence revisions, current and closed instances, linked Today projections and exact instance-linked factual events. It rejects malformed or duplicate included identities and inconsistent included references. When companion classes are absent, validation reports dependencies as unverified rather than claiming a complete restorable backup. Restore/import execution remains unavailable.
 
 Task Pool backup must not absorb rhythm templates or rhythm plans. If future held instances are included in a backup, their class and identity must remain explicit rather than masquerading as ad hoc Pool tasks.
 
-Each data-class export remains a separate artifact. At export time, the app must validate cross-class references against the local repositories and include a non-content dependency summary of referenced IDs and format versions. A standalone read-only checker can verify format, internal uniqueness, and reference shape, but must report external references as unverified when their companion class is not supplied; it must not call such an artifact fully restorable. A future coordinated restore would need explicit dependency ordering and transactional policy before it could materialize any referenced record.
-
-This contract does not approve restore/import execution or a combined whole-app backup.
+A future coordinated restore still needs explicit dependency ordering and transactional policy before it may materialize any referenced record. Task Pool backup remains separate.
 
 ## 18. Timezone and Calendar-Date Rules
 
 Recurrence must use local calendar dates, not UTC-midnight assumptions.
 
-Future implementation must:
+Current flexible-quota generation:
 
 - store or deterministically resolve the local timezone used for generation;
 - keep anchor dates as validated local dates;
 - interpret plan and recurrence-revision effective dates as local calendar dates in the plan's resolved timezone;
-- define week boundaries explicitly;
-- define how monthly rules behave when a target day does not exist;
+- uses Monday as the start of a weekly period;
+- identifies monthly quota by local calendar month, without an anchored day-of-month rule;
 - avoid duplicate generation across daylight-saving changes;
 - distinguish a timezone change from a new occurrence;
-- make travel/timezone behavior reviewable rather than silently rebuilding history.
+- never rewrites generated history after a timezone change. A fuller travel/timezone policy remains deferred.
 
 No external calendar read or write is approved.
 
-## 19. Testing Requirements for Future Implementation
+## 19. Testing Requirements
 
-Tests must cover:
+Tests for the implemented flexible-quota subset cover its applicable items below. The remaining items become mandatory only when their recurrence extension is implemented:
 
 - every day and selected-weekday cadence;
 - every N days;
@@ -595,41 +588,47 @@ Tests must cover:
 
 ## 20. Explicit Non-goals
 
-This contract does not approve or implement:
+Gate 8A2 does not implement:
 
-- schemas, repositories, migrations, or generation jobs;
-- persistent enablement or recurrence in the current UI;
-- automatic Today insertion;
+- fixed or interval recurrence outside the bounded flexible-quota subset;
 - automatic catch-up or quota carry-over;
-- scheduler-owned placement;
-- `Place softly` writes;
-- calendar reads or writes;
+- destructive plan deletion;
+- external calendar writes or live calendar providers;
 - AI scheduling or AI-written state;
 - backend storage or cloud sync;
 - notifications or analytics;
 - streaks, scores, adherence, or completion pressure;
 - import/restore execution;
 - mixed template/instance/ad hoc Pool backlogs;
+- full pack activation ownership;
+- general individual Move/Protect convergence;
+- completion-variant learning semantics; or
 - copying the protected root runtime into `/app`.
 
-## 21. Decisions Still Requiring Approval
+## 21. Gate 8A2 Decisions and Deferred Questions
 
-The following decisions must be resolved before their affected implementation:
+Gate 8A2 resolves the implementation-critical decisions for its bounded subset:
 
-- the bounded generation horizon and cleanup policy;
-- week start and weekly-period identity;
-- monthly rules for the 29th, 30th, or 31st when a month is shorter;
-- timezone-change and travel behavior for future instances;
-- the default user-facing choice of prospective effective date when turning on or editing a rhythm;
-- whether already generated but untouched instances follow an edited rule;
-- the exact feasible-slot allocation policy for a partial first quota period;
-- how pause differs from disable in user-facing copy and generation cutoff;
-- the exact reuse, linking, or explicit-choice behavior when `Add to Today once` collides with an existing or prospectively matching generated occurrence;
-- the lineage or tombstone policy that prevents deletion and later recreation of a rhythm plan from resurrecting historical occurrences;
-- the first set of lifecycle and completion enum values;
-- retention and backup scope for completed instances;
-- the artifact-set and dependency policy for validating or eventually restoring cross-class references;
-- the exact separate surface for deferred or held rhythm instances;
-- whether and when `Place softly` receives separate approval;
-- ownership behavior when a pack is removed or its membership changes;
-- how built-in catalogue updates preserve customized recurrence plans.
+- generation uses the existing seven-local-date private-plan horizon;
+- weeks start Monday and months use calendar-month identity;
+- effective date is explicit and visible, defaults to the current local date, and may not be in the past;
+- partial first periods generate at most the quota feasible in their prospective remaining days under max per day;
+- generated instances retain identity and snapshots across later recurrence edits;
+- pause and disable both stop new generation; neither deletes data; re-enable reuses the stable plan;
+- plan deletion is not exposed;
+- a matching live occurrence is reused by Add to Today once, otherwise a deterministic manual template/date task is reused without consuming quota;
+- lifecycle is eligible, Today, in progress, paused or closed; completion is not started, Minimum Done, done or skipped;
+- completed instances and their exact factual events are included in the rhythm-authority export; and
+- built-in catalogue updates never overwrite a persisted user-confirmed configuration.
+
+The following remain deferred and must be decided before their affected extension:
+
+- monthly day-of-month behavior for the 29th, 30th or 31st;
+- every-N and anchored cadence, including fortnightly rules;
+- timezone-change and travel behavior for ungenerated future instances;
+- safe retention/cleanup beyond the current preserve-history rule;
+- lineage/tombstones if destructive plan deletion is ever introduced;
+- a separate deferred/held occurrence surface;
+- pack removal and changing-membership ownership;
+- coordinated restore ordering and transaction policy; and
+- broader scheduling correction and completion-variant learning semantics owned by Gates 8A5 and 8A6.

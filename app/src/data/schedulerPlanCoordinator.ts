@@ -52,6 +52,15 @@ import {
   taskPoolItemSchema,
 } from './schemas';
 import { loadSettingsResult } from './settingsRepository';
+import {
+  rhythmInstanceSchema,
+  rhythmPlanSchema,
+  rhythmRecurrenceRevisionSchema,
+} from './rhythmAuthoritySchemas';
+import {
+  generateRhythmInstancesForHorizon,
+  validateRhythmAuthorityRelationships,
+} from './rhythmAuthorityRepository';
 
 const DEFAULT_HORIZON_DAYS = 7;
 const weekdayNames = [
@@ -383,6 +392,16 @@ export async function buildCurrentLiveSchedulingContext(
   const startDate = options.startDate ?? now.date;
   const endDate = addDays(startDate, days - 1);
 
+  if (!options.readOnly) {
+    const generated = await generateRhythmInstancesForHorizon(
+      startDate,
+      endDate,
+      database,
+      decisionInstant.toISOString(),
+    );
+    if (!generated.ok) return { ok: false, errors: generated.errors, warnings: [] };
+  }
+
   let consistentRead: {
     calendarRead: Awaited<ReturnType<typeof readPersistedCalendarEvents>>;
     canonicalRows: Awaited<ReturnType<typeof readCanonicalSchedulingInputRows>>;
@@ -400,6 +419,9 @@ export async function buildCurrentLiveSchedulingContext(
         database.activeTasks,
         database.taskPoolItems,
         database.rhythmTemplates,
+        database.rhythmPlans,
+        database.rhythmRecurrenceRevisions,
+        database.rhythmInstances,
         database.softPlacements,
         database.calendarSources,
         database.schedulerPlanState,
@@ -482,23 +504,45 @@ export async function buildCurrentLiveSchedulingContext(
     activeTasks: activeTaskRows,
     taskPoolItems: taskPoolRows,
     rhythmTemplates: rhythmRows,
+    rhythmPlans: rhythmPlanRows,
+    rhythmRecurrenceRevisions: rhythmRevisionRows,
+    rhythmInstances: rhythmInstanceRows,
     softPlacements: softPlacementRows,
   } = canonicalRows;
   const activeTasks = activeTaskSchema.array().safeParse(activeTaskRows);
   const taskPoolItems = taskPoolItemSchema.array().safeParse(taskPoolRows);
   const rhythmTemplates = rhythmTemplateSchema.array().safeParse(rhythmRows);
+  const rhythmPlans = rhythmPlanSchema.array().safeParse(rhythmPlanRows);
+  const rhythmRevisions = rhythmRecurrenceRevisionSchema.array().safeParse(rhythmRevisionRows);
+  const rhythmInstances = rhythmInstanceSchema.array().safeParse(rhythmInstanceRows);
   const softPlacements = softPlacementSchema.array().safeParse(softPlacementRows);
   const errors = [
     ...(activeTasks.success ? [] : issueMessages('activeTasks', activeTasks.error.issues)),
     ...(taskPoolItems.success ? [] : issueMessages('taskPoolItems', taskPoolItems.error.issues)),
     ...(rhythmTemplates.success ? [] : issueMessages('rhythmTemplates', rhythmTemplates.error.issues)),
+    ...(rhythmPlans.success ? [] : issueMessages('rhythmPlans', rhythmPlans.error.issues)),
+    ...(rhythmRevisions.success ? [] : issueMessages('rhythmRecurrenceRevisions', rhythmRevisions.error.issues)),
+    ...(rhythmInstances.success ? [] : issueMessages('rhythmInstances', rhythmInstances.error.issues)),
     ...(softPlacements.success ? [] : issueMessages('softPlacements', softPlacements.error.issues)),
   ];
+
+  if (rhythmTemplates.success && rhythmPlans.success && rhythmRevisions.success && rhythmInstances.success) {
+    errors.push(...validateRhythmAuthorityRelationships(
+      rhythmTemplates.data,
+      rhythmPlans.data,
+      rhythmRevisions.data,
+      rhythmInstances.data,
+    ));
+  }
 
   if (
     !activeTasks.success ||
     !taskPoolItems.success ||
     !rhythmTemplates.success ||
+    !rhythmPlans.success ||
+    !rhythmRevisions.success ||
+    !rhythmInstances.success ||
+    errors.length > 0 ||
     !softPlacements.success
   ) {
     return { ok: false, errors, warnings: [] };
@@ -534,6 +578,9 @@ export async function buildCurrentLiveSchedulingContext(
     activeTasks: activeTasks.data,
     taskPoolItems: taskPoolItems.data,
     rhythmTemplates: rhythmTemplates.data,
+    rhythmPlans: rhythmPlans.data,
+    rhythmRecurrenceRevisions: rhythmRevisions.data,
+    rhythmInstances: rhythmInstances.data,
     softPlacements: softPlacements.data,
     durationLearningByTemplateId: durationLearningByTemplateId(durationLearningApplied),
   });
@@ -667,6 +714,14 @@ export async function ensureCurrentPrivatePlan(
       ...options,
       reason: 'Apply the corrected task definition to the private plan.',
       trigger: 'taskDefinitionChanged',
+    });
+  }
+
+  if (current.status === 'ok' && current.rhythmInputRepairPendingAt) {
+    return repairCurrentPrivatePlan({
+      ...options,
+      reason: 'Apply the current rhythm definition and occurrences to the private plan.',
+      trigger: 'rhythmDefinitionChanged',
     });
   }
 

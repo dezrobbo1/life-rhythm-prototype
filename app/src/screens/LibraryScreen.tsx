@@ -1,30 +1,21 @@
-import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { Button, Card, EmptyState, ScreenHero } from '../components';
-import type { CollectionReadResult } from '../data/collectionReadResult';
+import { rhythmTemplateSchema, type RhythmTemplate } from '../data/schemas';
+import type { RhythmPlan, RhythmRecurrenceRevision } from '../data/rhythmAuthoritySchemas';
 import {
-  createActiveTaskId,
-  saveActiveTodayTask,
-} from '../data/activeTaskRepository';
-import { useAppSnapshot } from '../data/AppSnapshotProvider';
+  loadRhythmAuthorityResult,
+  saveRhythmConfiguration,
+  setRhythmPlanState,
+} from '../data/rhythmAuthorityRepository';
+import { ensureCurrentPrivatePlan } from '../data/schedulerPlanCoordinator';
+import { addRhythmToTodayOnce } from '../data/rhythmTodayRepository';
 import {
-  parseLibraryRhythmBackupJson,
-  type LibraryRhythmBackupPreview,
-} from '../data/libraryRhythmBackup';
-import {
-  exportLibraryRhythmBackup,
-  type LibraryRhythmBackupExport,
-} from '../data/libraryRhythmExport';
-import {
-  loadCustomLibraryRhythms,
-  saveCustomLibraryRhythm,
-} from '../data/libraryRhythmRepository';
-import { reconcileTaskDefinitionAfterWrite } from '../data/taskDefinitionPlanReconciliation';
-import { activeTaskSchema, rhythmTemplateSchema, type ActiveTask, type RhythmTemplate } from '../data/schemas';
-import {
-  CreateRhythmModal,
-  type CreateRhythmInput,
-} from '../features/library/CreateRhythmModal';
-import { LibraryRhythmCard } from '../features/library/LibraryRhythmCard';
+  exportRhythmAuthorityBackup,
+  parseRhythmAuthorityBackupJson,
+  type RhythmAuthorityBackupPreview,
+} from '../data/rhythmAuthorityBackup';
+import { CreateRhythmModal, type CreateRhythmInput, type RhythmFormInitial } from '../features/library/CreateRhythmModal';
+import { LibraryRhythmCard, type LibraryRhythmConfigurationView } from '../features/library/LibraryRhythmCard';
 import { QuickPackCard } from '../features/library/QuickPackCard';
 import {
   libraryCategories,
@@ -32,734 +23,314 @@ import {
   mockQuickPacks,
   type LibraryCategory,
   type LibraryRhythm,
-  type QuickPack,
 } from '../features/library/mockLibraryData';
-import {
-  buildLibraryViewModel,
-  type AppDataSnapshot,
-  type LibraryRhythmViewModel,
-  type SnapshotRhythmTemplate,
-} from '../viewModels';
 
 type RhythmArea = RhythmTemplate['area'];
-type RhythmTaskType = RhythmTemplate['taskType'];
-type CustomRhythmReadState =
+type AuthorityState =
   | { status: 'loading' }
-  | CollectionReadResult<RhythmTemplate>;
+  | { status: 'error'; errors: string[] }
+  | {
+      status: 'ok';
+      templates: RhythmTemplate[];
+      plans: RhythmPlan[];
+      revisions: RhythmRecurrenceRevision[];
+    };
+type ConfigTarget = { mode: 'create' } | { mode: 'configure' | 'edit'; rhythm: LibraryRhythm };
 
 const categoryToArea: Record<LibraryRhythm['category'], RhythmArea> = {
-  'Anti-scroll': 'antidrift',
-  'Emotional recovery': 'emotion',
-  Food: 'food',
-  Household: 'house',
-  Money: 'money',
-  Motivation: 'other',
-  Movement: 'movement',
-  'Sensory load': 'sensory',
-  Sleep: 'health',
-  'Social support': 'social',
-  'Start Boost': 'other',
-  'Work focus': 'work',
+  'Anti-scroll': 'antidrift', 'Emotional recovery': 'emotion', Food: 'food', Household: 'house',
+  Money: 'money', Motivation: 'other', Movement: 'movement', 'Sensory load': 'sensory', Sleep: 'health',
+  'Social support': 'social', 'Start Boost': 'other', 'Work focus': 'work',
 };
-
 const areaToCategory: Record<RhythmArea, LibraryRhythm['category']> = {
-  admin: 'Household',
-  antidrift: 'Anti-scroll',
-  emotion: 'Emotional recovery',
-  food: 'Food',
-  health: 'Sleep',
-  house: 'Household',
-  money: 'Money',
-  movement: 'Movement',
-  other: 'Motivation',
-  sensory: 'Sensory load',
-  social: 'Social support',
-  work: 'Work focus',
+  admin: 'Household', antidrift: 'Anti-scroll', emotion: 'Emotional recovery', food: 'Food', health: 'Sleep',
+  house: 'Household', money: 'Money', movement: 'Movement', other: 'Motivation', sensory: 'Sensory load',
+  social: 'Social support', work: 'Work focus',
 };
-
-const areaToTaskType: Record<RhythmArea, RhythmTaskType> = {
-  admin: 'admin',
-  antidrift: 'simple',
-  emotion: 'emotion',
-  food: 'food',
-  health: 'simple',
-  house: 'house',
-  money: 'admin',
-  movement: 'exercise',
-  other: 'simple',
-  sensory: 'sensory',
-  social: 'social',
-  work: 'work',
+const areaToTaskType: Record<RhythmArea, RhythmTemplate['taskType']> = {
+  admin: 'admin', antidrift: 'simple', emotion: 'emotion', food: 'food', health: 'simple', house: 'house',
+  money: 'admin', movement: 'exercise', other: 'simple', sensory: 'sensory', social: 'social', work: 'work',
 };
-
-function toSnapshotRhythm(rhythm: LibraryRhythm): SnapshotRhythmTemplate {
-  return {
-    category: rhythm.category,
-    chips: rhythm.chips,
-    enabled: rhythm.enabled,
-    full: { label: rhythm.fullVersion },
-    id: rhythm.id,
-    minimum: { label: rhythm.minimumVersion },
-    normal: { label: rhythm.normalVersion },
-    purpose: rhythm.purpose,
-    title: rhythm.title,
-  };
-}
-
-const libraryScreenSnapshot: AppDataSnapshot = {
-  quickPacks: mockQuickPacks,
-  rhythmTemplates: mockLibraryRhythms.map(toSnapshotRhythm),
-};
-
-function rhythmFromViewModel(rhythm: LibraryRhythmViewModel): LibraryRhythm {
-  const source = mockLibraryRhythms.find((item) => item.id === rhythm.id);
-
-  return {
-    boundaryNote: source?.boundaryNote ?? 'Reusable rhythm support stays optional and user-led.',
-    category: rhythm.category as LibraryRhythm['category'],
-    categoryNote: source?.categoryNote ?? 'Keep this calm, visible, and easy to stop.',
-    chips: rhythm.chips,
-    enabled: rhythm.enabled,
-    fullVersion: rhythm.fullVersion,
-    id: rhythm.id,
-    minimumVersion: rhythm.minimumVersion,
-    normalVersion: rhythm.normalVersion,
-    packIds: source?.packIds ?? [],
-    purpose: rhythm.purpose,
-    recommendedSize: source?.recommendedSize ?? rhythm.recommendedSize,
-    title: rhythm.title,
-    whyThisExists: source?.whyThisExists ?? 'This rhythm can be turned on when it is useful.',
-  };
-}
 
 function safeSlug(value: string) {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 32);
-
-  return slug || 'rhythm';
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32) || 'rhythm';
 }
 
-function randomIdSegment() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now()}`;
+function newCustomId(title: string) {
+  const suffix = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : Date.now().toString();
+  return `custom-${safeSlug(title)}-${suffix}`;
 }
 
-function templateFromCreatedRhythm(input: CreateRhythmInput): RhythmTemplate {
-  const timestamp = new Date().toISOString();
-  const area = categoryToArea[input.category];
-
-  return rhythmTemplateSchema.parse({
-    area,
-    createdAt: timestamp,
-    enabled: false,
-    full: {
-      label: input.fullVersion || input.normalVersion || input.minimumVersion,
-      minutes: 20,
-    },
-    id: `custom-${safeSlug(input.title)}-${randomIdSegment()}`,
-    kind: 'repeating',
-    minimum: {
-      label: input.minimumVersion,
-      minutes: 5,
-    },
-    normal: {
-      label: input.normalVersion || input.minimumVersion,
-      minutes: 10,
-    },
-    purpose: input.purpose,
-    source: 'custom',
-    taskType: areaToTaskType[area],
-    title: input.title,
-    updatedAt: timestamp,
-  });
+function localDate() {
+  const date = new Date();
+  return `${date.getFullYear().toString().padStart(4, '0')}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
 }
 
-function rhythmFromTemplate(template: RhythmTemplate, sessionEnabled = false): LibraryRhythm {
-  const category = areaToCategory[template.area] ?? 'Motivation';
-
+function rhythmFromTemplate(template: RhythmTemplate): LibraryRhythm {
+  const builtIn = mockLibraryRhythms.find((rhythm) => rhythm.id === template.id);
   return {
-    boundaryNote: 'Saved custom rhythms stay reusable. Enablement and Add to Today are preview-only for now.',
-    category,
-    categoryNote: 'Keep this rhythm optional, reusable, and small enough to return to.',
-    chips: ['Custom', 'Saved'],
-    enabled: sessionEnabled,
+    boundaryNote: builtIn?.boundaryNote ?? 'This reusable rhythm remains under your control.',
+    category: areaToCategory[template.area],
+    categoryNote: builtIn?.categoryNote ?? 'Keep it optional, inspectable, and easy to pause.',
+    chips: builtIn?.chips ?? ['Custom', 'Configured'],
     fullVersion: template.full.label,
     id: template.id,
     minimumVersion: template.minimum.label,
     normalVersion: template.normal.label,
-    packIds: [],
-    purpose: template.purpose ?? 'Reusable support for later planning.',
-    recommendedSize: `${template.minimum.minutes}-${template.normal.minutes} min`,
+    packIds: builtIn?.packIds ?? [],
+    purpose: template.purpose ?? builtIn?.purpose ?? 'Reusable support configured by you.',
+    recommendedSize: `${template.minimum.minutes}/${template.normal.minutes}/${template.full.minutes} min`,
     title: template.title,
-    whyThisExists: 'This custom rhythm was created by you and saved on this device.',
+    whyThisExists: builtIn?.whyThisExists ?? 'This custom rhythm was created by you.',
   };
 }
 
-function mergeRhythms(current: LibraryRhythm[], additions: LibraryRhythm[]) {
-  const existingIds = new Set(current.map((rhythm) => rhythm.id));
-
-  return [
-    ...additions.filter((rhythm) => !existingIds.has(rhythm.id)),
-    ...current,
-  ];
-}
-
-function activeTaskFromLibraryRhythm(rhythm: LibraryRhythm): ActiveTask {
-  const timestamp = new Date().toISOString();
-  const area = categoryToArea[rhythm.category];
-
-  return activeTaskSchema.parse({
+function templateFromInput(
+  input: CreateRhythmInput,
+  rhythm: LibraryRhythm | undefined,
+  existing: RhythmTemplate | undefined,
+) {
+  const now = new Date().toISOString();
+  const area = categoryToArea[input.category];
+  return rhythmTemplateSchema.parse({
+    ...(existing ?? {}),
+    id: existing?.id ?? rhythm?.id ?? newCustomId(input.title),
+    source: existing?.source ?? (rhythm ? 'built-in' : 'custom'),
+    title: input.title,
     area,
-    createdAt: timestamp,
-    full: {
-      label: rhythm.fullVersion,
-      minutes: 20,
+    taskType: existing?.taskType ?? areaToTaskType[area],
+    kind: 'repeating',
+    completionStyle: existing?.completionStyle ?? 'flexible',
+    priority: existing?.priority ?? 'normal',
+    energy: existing?.energy ?? 'medium',
+    startBarrier: existing?.startBarrier ?? 'unclear',
+    purpose: input.purpose || undefined,
+    minimum: { label: input.minimumAction, minutes: input.minimumMinutes },
+    normal: { label: input.normalAction, minutes: input.normalMinutes },
+    full: { label: input.fullAction, minutes: input.fullMinutes },
+    schedule: {
+      ...(existing?.schedule ?? {}),
+      frequency: input.frequency,
+      period: input.period,
+      preferredDays: input.preferredDays,
+      bestTime: input.preferredTime,
+      maxPerDay: input.maxPerDay,
+      catchupAllowed: false,
     },
-    id: createActiveTaskId(`library-${rhythm.id}`),
-    minimum: {
-      label: rhythm.minimumVersion,
-      minutes: 5,
-    },
-    normal: {
-      label: rhythm.normalVersion,
-      minutes: 10,
-    },
-    purpose: rhythm.purpose,
-    showToday: true,
-    source: 'library',
-    status: 'active',
-    taskType: areaToTaskType[area],
-    templateId: rhythm.id,
-    title: rhythm.title,
-    updatedAt: timestamp,
+    enabled: false,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
   });
 }
 
-function downloadLibraryRhythmBackup(backup: LibraryRhythmBackupExport) {
-  if (
-    typeof document === 'undefined' ||
-    typeof Blob === 'undefined' ||
-    typeof URL === 'undefined' ||
-    typeof URL.createObjectURL !== 'function'
-  ) {
-    return;
-  }
-
-  const blob = new Blob([backup.json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
+function downloadJson(fileName: string, json: string) {
+  const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
   const link = document.createElement('a');
-
   link.href = url;
-  link.download = backup.fileName;
+  link.download = fileName;
   link.click();
   URL.revokeObjectURL(url);
 }
 
 export function LibraryScreen() {
-  const { snapshot } = useAppSnapshot();
-  const initialLibraryViewModel = useMemo(
-    () =>
-      buildLibraryViewModel({
-        ...snapshot,
-        ...libraryScreenSnapshot,
-      }),
-    [snapshot],
-  );
-  const catalogueRhythms = useMemo(() =>
-    initialLibraryViewModel.reusableRhythms.map(rhythmFromViewModel),
-  [initialLibraryViewModel]);
-  const [customRhythms, setCustomRhythms] = useState<LibraryRhythm[]>([]);
-  const libraryRhythms = useMemo(
-    () => mergeRhythms(catalogueRhythms, customRhythms),
-    [catalogueRhythms, customRhythms],
-  );
+  const [authority, setAuthority] = useState<AuthorityState>({ status: 'loading' });
   const [activeCategory, setActiveCategory] = useState<LibraryCategory>('All');
-  const [enabledById, setEnabledById] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(initialLibraryViewModel.reusableRhythms.map((rhythm) => [rhythm.id, rhythm.enabled])),
-  );
   const [searchTerm, setSearchTerm] = useState('');
   const [confirmation, setConfirmation] = useState('');
-  const [createRhythmOpen, setCreateRhythmOpen] = useState(false);
+  const [configTarget, setConfigTarget] = useState<ConfigTarget | null>(null);
   const [previewPackId, setPreviewPackId] = useState<string | null>(null);
   const [backupJson, setBackupJson] = useState('');
-  const [backupPreview, setBackupPreview] = useState<LibraryRhythmBackupPreview | null>(null);
+  const [backupPreview, setBackupPreview] = useState<RhythmAuthorityBackupPreview | null>(null);
   const [backupErrors, setBackupErrors] = useState<string[]>([]);
-  const [customRhythmReadState, setCustomRhythmReadState] = useState<CustomRhythmReadState>({ status: 'loading' });
-  const customRhythmReadRequestRef = useRef(0);
-  const customRhythmWriteGenerationRef = useRef(0);
-  const restoreReadActionFocusRef = useRef(false);
-  const libraryScreenRef = useRef<HTMLDivElement | null>(null);
 
-  const applyCustomRhythmRead = useCallback((result: CollectionReadResult<RhythmTemplate>) => {
-    setCustomRhythmReadState(result);
-
-    if (result.status === 'readFailed') return;
-
-    const loadedRhythms = result.items.map((rhythm) => rhythmFromTemplate(rhythm, false));
-    setCustomRhythms(loadedRhythms);
-    setEnabledById((current) => ({
-      ...Object.fromEntries(loadedRhythms.map((rhythm) => [rhythm.id, false])),
-      ...current,
-    }));
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    const readRequest = customRhythmReadRequestRef.current + 1;
-    customRhythmReadRequestRef.current = readRequest;
-    const writeGenerationAtReadStart = customRhythmWriteGenerationRef.current;
-
-    loadCustomLibraryRhythms()
-      .then((result) => {
-        if (
-          active &&
-          customRhythmReadRequestRef.current === readRequest &&
-          customRhythmWriteGenerationRef.current === writeGenerationAtReadStart
-        ) {
-          applyCustomRhythmRead(result);
-        }
-      })
-      .catch(() => {
-        if (
-          active &&
-          customRhythmReadRequestRef.current === readRequest &&
-          customRhythmWriteGenerationRef.current === writeGenerationAtReadStart
-        ) {
-          applyCustomRhythmRead({
-            errors: ['rhythmTemplates: Saved custom Library rhythms could not be read.'],
-            status: 'readFailed',
-          });
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [applyCustomRhythmRead]);
-
-  useEffect(() => {
-    if (!restoreReadActionFocusRef.current || customRhythmReadState.status === 'loading') return;
-
-    restoreReadActionFocusRef.current = false;
-    const selector = customRhythmReadState.status === 'readFailed'
-      ? '[data-library-read-retry]'
-      : '[data-library-create]';
-    libraryScreenRef.current?.querySelector<HTMLButtonElement>(selector)?.focus();
-  }, [customRhythmReadState.status]);
-
-  const retryCustomRhythms = useCallback(async () => {
-    const readRequest = customRhythmReadRequestRef.current + 1;
-    customRhythmReadRequestRef.current = readRequest;
-    const writeGenerationAtReadStart = customRhythmWriteGenerationRef.current;
-    restoreReadActionFocusRef.current = true;
-    setCustomRhythmReadState({ status: 'loading' });
-
-    let result: CollectionReadResult<RhythmTemplate>;
-    try {
-      result = await loadCustomLibraryRhythms();
-    } catch {
-      result = {
-        errors: ['rhythmTemplates: Saved custom Library rhythms could not be read.'],
-        status: 'readFailed',
-      };
-    }
-
-    if (
-      customRhythmReadRequestRef.current === readRequest &&
-      customRhythmWriteGenerationRef.current === writeGenerationAtReadStart
-    ) {
-      applyCustomRhythmRead(result);
-    }
-  }, [applyCustomRhythmRead]);
-
-  const filteredRhythms = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-
-    return libraryRhythms.filter((rhythm) => {
-      const matchesCategory = activeCategory === 'All' || rhythm.category === activeCategory;
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        `${rhythm.title} ${rhythm.category} ${rhythm.purpose}`.toLowerCase().includes(normalizedSearch);
-
-      return matchesCategory && matchesSearch;
-    });
-  }, [activeCategory, libraryRhythms, searchTerm]);
-
-  const groupedRhythms = useMemo(() => {
-    return filteredRhythms.reduce<Record<string, LibraryRhythm[]>>((groups, rhythm) => {
-      groups[rhythm.category] = [...(groups[rhythm.category] ?? []), rhythm];
-      return groups;
-    }, {});
-  }, [filteredRhythms]);
-
-  function clearFilters() {
-    setActiveCategory('All');
-    setSearchTerm('');
-  }
-
-  function toggleEnabled(rhythmId: string) {
-    setEnabledById((current) => ({ ...current, [rhythmId]: !current[rhythmId] }));
-  }
-
-  async function addToToday(rhythm: LibraryRhythm) {
-    const result = await saveActiveTodayTask(activeTaskFromLibraryRhythm(rhythm));
-
-    if (!result.ok) {
-      setConfirmation(`${rhythm.title} was not added to Today. Check the rhythm details.`);
-      return;
-    }
-
-    if (result.alreadyExists) {
-      setConfirmation(`${rhythm.title} is already in Today on this device.`);
-      return;
-    }
-
-    const repaired = await reconcileTaskDefinitionAfterWrite(
-      'A Library task was added to Today.',
-    );
-    setConfirmation(repaired.ok
-      ? `${rhythm.title} saved to Today on this device. Library enablement did not change.`
-      : `${rhythm.title} saved to Today. The private plan needs updating. ${repaired.message ?? ''}`);
-  }
-
-  function enablePack(pack: QuickPack) {
-    setEnabledById((current) => ({
-      ...current,
-      ...Object.fromEntries(pack.rhythmIds.map((rhythmId) => [rhythmId, true])),
-    }));
-    setConfirmation(`${pack.rhythmIds.length} rhythms enabled. Today only shows what fits.`);
-  }
-
-  async function exportSavedLibraryRhythms() {
-    let backup: LibraryRhythmBackupExport | null;
-
-    try {
-      backup = await exportLibraryRhythmBackup();
-    } catch {
-      setConfirmation('Library rhythms backup was not created because saved rhythms could not be read. Nothing changed on this device.');
-      return;
-    }
-
-    if (!backup) {
-      setConfirmation('No saved custom rhythms to export yet.');
-      return;
-    }
-
-    downloadLibraryRhythmBackup(backup);
-    setConfirmation('Library rhythms backup created on this device.');
-  }
-
-  function checkLibraryRhythmBackup() {
-    const result = parseLibraryRhythmBackupJson(backupJson);
-
-    if (result.ok) {
-      setBackupErrors([]);
-      setBackupPreview(result.preview);
-      setConfirmation('Library rhythms backup looks valid. Restore is not connected yet.');
-      return;
-    }
-
-    setBackupErrors(result.errors);
-    setBackupPreview(null);
-    setConfirmation('This Library rhythms backup could not be used. Nothing changed on this device.');
-  }
-
-  async function readLibraryRhythmBackupFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
-
-    if (!file) return;
-
-    try {
-      setBackupJson(await file.text());
-      setBackupErrors([]);
-      setBackupPreview(null);
-      setConfirmation('Library rhythms backup loaded. Choose Check Library rhythms backup.');
-    } catch {
-      setBackupErrors(['backup: Library rhythms backup file could not be read.']);
-      setBackupPreview(null);
-      setConfirmation('This Library rhythms backup could not be used. Nothing changed on this device.');
-    }
-  }
-
-  async function saveCreatedRhythm(input: CreateRhythmInput): Promise<boolean> {
-    if (customRhythmReadState.status === 'loading' || customRhythmReadState.status === 'readFailed') {
-      setConfirmation('Rhythm was not saved. Retry the saved Library rhythm read first.');
+  async function reloadAuthority() {
+    const result = await loadRhythmAuthorityResult();
+    if (result.status !== 'ok') {
+      setAuthority({ status: 'error', errors: result.errors });
       return false;
     }
-    const readableStateAtSaveStart = customRhythmReadState;
-
-    let result;
-
-    try {
-      const candidate = templateFromCreatedRhythm(input);
-      result = await saveCustomLibraryRhythm(candidate);
-    } catch {
-      setConfirmation('Rhythm was not saved. Check the required fields.');
-      return false;
-    }
-
-    if (!result.ok) {
-      setConfirmation('Rhythm was not saved. Check the required fields.');
-      return false;
-    }
-
-    customRhythmWriteGenerationRef.current += 1;
-    const savedRhythm = result.rhythm;
-    const rhythm = rhythmFromTemplate(savedRhythm, input.enabled);
-
-    setCustomRhythms((current) => mergeRhythms(current, [rhythm]));
-    setCustomRhythmReadState((current) => {
-      if (current.status === 'readFailed') return current;
-
-      const settledState = current.status === 'loading' ? readableStateAtSaveStart : current;
-      return {
-        ...settledState,
-        items: [
-          ...settledState.items.filter((item) => item.id !== savedRhythm.id),
-          savedRhythm,
-        ],
-      };
-    });
-    setEnabledById((current) => ({ ...current, [rhythm.id]: input.enabled }));
-    setActiveCategory(rhythm.category);
-    setSearchTerm('');
-    setConfirmation('Rhythm saved to Library on this device. Enablement and Add to Today are still preview-only.');
-    setCreateRhythmOpen(false);
+    setAuthority({ status: 'ok', templates: result.templates, plans: result.plans, revisions: result.revisions });
     return true;
   }
 
-  return (
-    <div className="screen-stack library-screen" ref={libraryScreenRef}>
-      <ScreenHero
-        className="library-hero"
-        eyebrow="Rhythm catalogue"
-        tagline="Turn on rhythms when they are useful. Today only shows what fits."
-        title="Library"
-        titleId="library-title"
-      />
+  useEffect(() => { void reloadAuthority(); }, []);
 
-      <Card>
-        <section aria-labelledby="library-create-title" className="library-create-card">
-          <div>
-            <h2 id="library-create-title">Create reusable support</h2>
-            <p>Create rhythm makes a reusable template. Add to Today now is only for a one-off today action.</p>
-            <p>Export creates a local backup file for saved custom Library rhythms only.</p>
-            <p>It does not include Today tasks, settings, enablement, or packs.</p>
-          </div>
-          <div className="library-create-card__actions">
-            <Button
-              data-library-create
-              disabled={customRhythmReadState.status === 'loading' || customRhythmReadState.status === 'readFailed'}
-              onClick={() => setCreateRhythmOpen(true)}
-              variant="primary"
-            >
-              Create rhythm
-            </Button>
-            <Button
-              disabled={customRhythmReadState.status !== 'ok'}
-              onClick={exportSavedLibraryRhythms}
-            >
-              Export Library rhythms backup
-            </Button>
-            <Button disabled>Create pack later</Button>
-          </div>
-        </section>
-      </Card>
+  const templateById = useMemo(() => new Map(
+    authority.status === 'ok' ? authority.templates.map((template) => [template.id, template]) : [],
+  ), [authority]);
+  const planByTemplateId = useMemo(() => new Map(
+    authority.status === 'ok' ? authority.plans.map((plan) => [plan.rhythmTemplateId, plan]) : [],
+  ), [authority]);
+  const revisionById = useMemo(() => new Map(
+    authority.status === 'ok' ? authority.revisions.map((revision) => [revision.id, revision]) : [],
+  ), [authority]);
+  const libraryRhythms = useMemo(() => {
+    const builtInIds = new Set(mockLibraryRhythms.map((rhythm) => rhythm.id));
+    const builtIns = mockLibraryRhythms.map((rhythm) => {
+      const configured = templateById.get(rhythm.id);
+      return configured ? rhythmFromTemplate(configured) : rhythm;
+    });
+    const custom = authority.status === 'ok'
+      ? authority.templates.filter((template) => !builtInIds.has(template.id)).map(rhythmFromTemplate)
+      : [];
+    return [...custom, ...builtIns];
+  }, [authority, templateById]);
 
-      {customRhythmReadState.status === 'loading' ? (
-        <div
-          aria-busy="true"
-          aria-label="Saved Library rhythm loading"
-          className="surface-read-state"
-          role="status"
-        >
-          <h2>Reading saved custom rhythms...</h2>
-          <p>The built-in catalogue remains available while this read finishes.</p>
-          <Button data-library-read-retry onClick={() => void retryCustomRhythms()}>Retry saved rhythms</Button>
-        </div>
-      ) : customRhythmReadState.status === 'readFailed' ? (
-        <div
-          aria-label="Saved Library rhythm read failure"
-          className="surface-read-state surface-read-state--error"
-          role="alert"
-        >
-          <h2>Saved custom rhythms could not be loaded.</h2>
-          <p>The built-in catalogue remains available. Nothing stored on this device was changed.</p>
-          <Button data-library-read-retry onClick={() => void retryCustomRhythms()}>Retry saved rhythms</Button>
-        </div>
-      ) : customRhythmReadState.status === 'partial' ? (
-        <div
-          aria-label="Saved Library rhythm warning"
-          className="surface-read-state surface-read-state--warning"
-          role="status"
-        >
-          <h2>Some saved Library rhythm data could not be read.</h2>
-          <p>
-            {customRhythmReadState.invalidRecordCount} saved Library rhythm{' '}
-            {customRhythmReadState.invalidRecordCount === 1 ? 'record was' : 'records were'} left unchanged.
-          </p>
-          <p>Readable saved rhythms and the built-in catalogue remain available. Nothing stored on this device was changed.</p>
-          <p>Backup export stays unavailable until every saved rhythm record can be read.</p>
-          <Button data-library-read-retry onClick={() => void retryCustomRhythms()}>Retry saved rhythms</Button>
-        </div>
-      ) : customRhythms.length === 0 ? (
-        <section aria-label="Saved Library rhythms empty" className="surface-read-state">
-          <h2>No saved custom rhythms yet.</h2>
-          <p>The built-in catalogue remains available.</p>
-        </section>
-      ) : null}
+  function configurationFor(rhythmId: string): LibraryRhythmConfigurationView {
+    const template = templateById.get(rhythmId);
+    const plan = planByTemplateId.get(rhythmId);
+    const revision = plan ? revisionById.get(plan.latestRecurrenceRevisionId) : undefined;
+    if (!template || !plan || !revision) return { state: 'unconfigured' };
+    return {
+      state: plan.state,
+      frequency: revision.rule.frequency,
+      period: revision.rule.period,
+      minimumMinutes: template.minimum.minutes,
+      normalMinutes: template.normal.minutes,
+      fullMinutes: template.full.minutes,
+      preferredDays: revision.rule.preferredDays,
+      preferredTime: plan.preferredTime,
+    };
+  }
 
-      <Card>
-        <section aria-labelledby="library-backup-check-title" className="library-backup-checker">
-          <div className="library-subheading">
-            <h2 id="library-backup-check-title">Check Library rhythms backup</h2>
-            <p>Check only. Paste or select a Library rhythms backup.</p>
-            <p>Restore is not connected yet.</p>
-          </div>
-          <label className="library-backup-field">
-            <span>Paste backup text</span>
-            <textarea
-              aria-label="Library rhythm backup text"
-              onChange={(event) => {
-                setBackupJson(event.target.value);
-                setBackupErrors([]);
-                setBackupPreview(null);
-              }}
-              placeholder="Paste a Library rhythms backup file here."
-              rows={6}
-              value={backupJson}
-            />
-            <small>Checking does not restore rhythms or change this device.</small>
-          </label>
-          <div className="library-backup-actions">
-            <label className="library-file-picker">
-              <span>Select Library backup file</span>
-              <input
-                accept="application/json,.json"
-                aria-label="Select Library backup file"
-                onChange={readLibraryRhythmBackupFile}
-                type="file"
-              />
-            </label>
-            <Button onClick={checkLibraryRhythmBackup}>Check Library rhythms backup</Button>
-          </div>
-          {backupPreview ? (
-            <dl aria-label="Library rhythm backup preview" className="library-backup-preview">
-              <div>
-                <dt>Rhythms</dt>
-                <dd>{backupPreview.rhythmCount}</dd>
-              </div>
-              <div>
-                <dt>Created</dt>
-                <dd>{backupPreview.exportedAt}</dd>
-              </div>
-              <div>
-                <dt>Titles</dt>
-                <dd>{backupPreview.rhythmTitles.join(', ') || 'No rhythm titles in backup.'}</dd>
-              </div>
-            </dl>
-          ) : null}
-          {backupErrors.length > 0 ? (
-            <div className="library-validation-summary">
-              <strong>Backup check notes</strong>
-              <p>Nothing changed on this device. The first items to review are below.</p>
-              <ul aria-label="Library rhythm backup errors" className="library-validation-list">
-                {backupErrors.slice(0, 3).map((error) => (
-                  <li key={error}>{error}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </section>
-      </Card>
+  function openConfiguration(rhythm: LibraryRhythm) {
+    setConfigTarget({ mode: planByTemplateId.has(rhythm.id) ? 'edit' : 'configure', rhythm });
+  }
 
-      <Card>
-        <div className="library-filters">
-          <label>
-            <span>Search rhythms</span>
-            <input
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search by rhythm, category, or purpose"
-              type="search"
-              value={searchTerm}
-            />
-          </label>
-          <div aria-label="Library categories" className="library-category-row" role="list">
-            {libraryCategories.map((category) => (
-              <button
-                aria-pressed={activeCategory === category}
-                key={category}
-                onClick={() => setActiveCategory(category)}
-                type="button"
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </div>
-      </Card>
+  function formInitial(): RhythmFormInitial {
+    if (!configTarget || configTarget.mode === 'create') return {};
+    const rhythm = configTarget.rhythm;
+    const template = templateById.get(rhythm.id);
+    const plan = planByTemplateId.get(rhythm.id);
+    const revision = plan ? revisionById.get(plan.latestRecurrenceRevisionId) : undefined;
+    return {
+      title: template?.title ?? rhythm.title,
+      category: template ? areaToCategory[template.area] : rhythm.category,
+      purpose: template?.purpose ?? rhythm.purpose,
+      minimumAction: template?.minimum.label ?? rhythm.minimumVersion,
+      minimumMinutes: template?.minimum.minutes,
+      normalAction: template?.normal.label,
+      normalMinutes: template?.normal.minutes,
+      fullAction: template?.full.label,
+      fullMinutes: template?.full.minutes,
+      frequency: revision?.rule.frequency ?? 1,
+      period: revision?.rule.period ?? 'week',
+      preferredDays: revision?.rule.preferredDays ?? [],
+      preferredTime: plan?.preferredTime ?? 'anytime',
+      maxPerDay: revision?.rule.maxPerDay ?? 1,
+      effectiveFromLocalDate: localDate(),
+      turnOn: plan ? plan.state !== 'disabled' : true,
+    };
+  }
 
-      {confirmation ? <p className="library-confirmation" role="status">{confirmation}</p> : null}
+  async function saveConfiguration(input: CreateRhythmInput) {
+    const rhythm = configTarget && configTarget.mode !== 'create' ? configTarget.rhythm : undefined;
+    const existing = rhythm ? templateById.get(rhythm.id) : undefined;
+    const currentPlan = rhythm ? planByTemplateId.get(rhythm.id) : undefined;
+    const template = templateFromInput(input, rhythm, existing);
+    const result = await saveRhythmConfiguration({
+      template,
+      state: input.turnOn ? (currentPlan?.state === 'paused' ? 'paused' : 'enabled') : 'disabled',
+      frequency: input.frequency,
+      period: input.period,
+      preferredDays: input.preferredDays,
+      preferredTime: input.preferredTime,
+      maxPerDay: input.maxPerDay,
+      timezone: input.timezone,
+      effectiveFromLocalDate: input.effectiveFromLocalDate,
+    });
+    if (!result.ok) {
+      setConfirmation(`Rhythm was not saved. ${result.errors.join(' ')}`);
+      return false;
+    }
+    const reconciled = await ensureCurrentPrivatePlan();
+    await reloadAuthority();
+    setConfigTarget(null);
+    setActiveCategory(input.category);
+    setSearchTerm('');
+    setConfirmation(reconciled.ok
+      ? `${input.title} saved. ${result.plan.state === 'enabled' ? 'The rhythm is on.' : result.plan.state === 'paused' ? 'The rhythm remains paused.' : 'The rhythm is off.'}`
+      : `${input.title} saved. The private plan still needs repair.`);
+    return true;
+  }
 
-      <section className="quick-packs" aria-labelledby="quick-packs-title">
-        <div className="section-heading">
-          <h2 id="quick-packs-title">Quick packs</h2>
-          <p>Preview first. Packs enable rhythms, not task piles.</p>
-        </div>
-        <div className="quick-pack-grid">
-          {initialLibraryViewModel.quickPacks.map((pack) => (
-            <QuickPackCard
-              key={pack.id}
-              onEnablePack={enablePack}
-              onPreviewPack={(packId) => setPreviewPackId((current) => (current === packId ? null : packId))}
-              pack={pack}
-              previewOpen={previewPackId === pack.id}
-              rhythms={libraryRhythms.filter((rhythm) => pack.rhythmIds.includes(rhythm.id))}
-            />
-          ))}
-        </div>
-      </section>
+  async function changeState(rhythmId: string, state: 'enabled' | 'paused' | 'disabled') {
+    const result = await setRhythmPlanState(rhythmId, state);
+    if (!result.ok) {
+      setConfirmation(result.errors.join(' '));
+      return;
+    }
+    const reconciled = await ensureCurrentPrivatePlan();
+    await reloadAuthority();
+    setConfirmation(reconciled.ok
+      ? `Rhythm ${state === 'enabled' ? 'turned on' : state === 'paused' ? 'paused' : 'turned off'}.`
+      : `Rhythm state saved. The private plan still needs repair.`);
+  }
 
-      {filteredRhythms.length > 0 ? (
-        <div className="library-groups">
-          {Object.entries(groupedRhythms).map(([category, rhythms]) => (
-            <section aria-labelledby={`${category}-library-heading`} className="library-group" key={category}>
-              <div className="section-heading">
-                <h2 id={`${category}-library-heading`}>{category}</h2>
-                <p>{rhythms.length} rhythm{rhythms.length === 1 ? '' : 's'} in this view.</p>
-              </div>
-              <div className="library-card-grid">
-                {rhythms.map((rhythm) => (
-                  <LibraryRhythmCard
-                    enabled={Boolean(enabledById[rhythm.id])}
-                    key={rhythm.id}
-                    onAddToday={addToToday}
-                    onToggleEnabled={toggleEnabled}
-                    rhythm={rhythm}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          action={<Button onClick={clearFilters} variant="primary">Clear filters</Button>}
-          message="Try another category or clear the search."
-          title="No rhythms match this filter"
-        />
-      )}
-      <CreateRhythmModal
-        onClose={() => setCreateRhythmOpen(false)}
-        onSave={saveCreatedRhythm}
-        open={createRhythmOpen}
-      />
-    </div>
-  );
+  async function addToToday(rhythm: LibraryRhythm) {
+    if (!templateById.has(rhythm.id) || !planByTemplateId.has(rhythm.id)) {
+      setConfirmation('Choose truthful action minutes before adding this rhythm to Today.');
+      openConfiguration(rhythm);
+      return;
+    }
+    const result = await addRhythmToTodayOnce(rhythm.id, localDate());
+    if (!result.ok) {
+      setConfirmation(result.errors.join(' '));
+      return;
+    }
+    await ensureCurrentPrivatePlan();
+    setConfirmation(result.alreadyExists
+      ? `${rhythm.title} is already in Today.`
+      : result.reusedGeneratedOccurrence
+        ? `${rhythm.title} is in Today as the current rhythm occurrence.`
+        : `${rhythm.title} was added once. Recurrence did not change.`);
+  }
+
+  async function exportBackup() {
+    try {
+      const backup = await exportRhythmAuthorityBackup();
+      downloadJson(backup.fileName, backup.json);
+      setConfirmation('Rhythm authority backup created. Restore remains unavailable.');
+    } catch {
+      setConfirmation('Rhythm authority backup could not be created because saved rhythm data are not fully readable.');
+    }
+  }
+
+  function checkBackup() {
+    const result = parseRhythmAuthorityBackupJson(backupJson);
+    if (!result.ok) {
+      setBackupErrors(result.errors);
+      setBackupPreview(null);
+      return;
+    }
+    setBackupErrors([]);
+    setBackupPreview(result.preview);
+  }
+
+  async function readBackupFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    if (file) setBackupJson(await file.text());
+  }
+
+  const filtered = libraryRhythms.filter((rhythm) => {
+    const search = searchTerm.trim().toLowerCase();
+    return (activeCategory === 'All' || rhythm.category === activeCategory) &&
+      (!search || `${rhythm.title} ${rhythm.category} ${rhythm.purpose}`.toLowerCase().includes(search));
+  });
+  const grouped = filtered.reduce<Partial<Record<LibraryRhythm['category'], LibraryRhythm[]>>>((groups, rhythm) => {
+    groups[rhythm.category] = [...(groups[rhythm.category] ?? []), rhythm];
+    return groups;
+  }, {});
+
+  return <div className="screen-stack library-screen">
+    <ScreenHero className="library-hero" eyebrow="Rhythm catalogue" tagline="Configure real minutes and a flexible frequency, then keep the rhythm under your control." title="Library" titleId="library-title" />
+    <Card><section aria-labelledby="library-create-title" className="library-create-card"><div><h2 id="library-create-title">Reusable support</h2><p>Catalogue rhythms are suggestions. They become personal scheduling input only after you configure them.</p></div><div className="library-create-card__actions"><Button disabled={authority.status !== 'ok'} onClick={() => setConfigTarget({ mode: 'create' })} variant="primary">Create rhythm</Button><Button disabled={authority.status !== 'ok'} onClick={() => { void exportBackup(); }}>Export rhythm backup</Button></div></section></Card>
+    {authority.status === 'loading' ? <div aria-busy="true" className="surface-read-state" role="status"><h2>Reading saved rhythm configuration...</h2></div> : authority.status === 'error' ? <div className="surface-read-state surface-read-state--error" role="alert"><h2>Saved rhythm configuration could not be read.</h2><p>Catalogue suggestions remain visible, but configuration and scheduling are unavailable until the saved data can be read safely.</p><Button onClick={() => { setAuthority({ status: 'loading' }); void reloadAuthority(); }}>Retry</Button></div> : null}
+    <Card><section aria-labelledby="rhythm-backup-check-title" className="library-backup-checker"><div className="library-subheading"><h2 id="rhythm-backup-check-title">Check rhythm backup</h2><p>Validation only. Restore is not connected.</p></div><label className="library-backup-field"><span>Paste backup text</span><textarea onChange={(event) => { setBackupJson(event.target.value); setBackupPreview(null); setBackupErrors([]); }} rows={5} value={backupJson} /></label><div className="library-backup-actions"><label className="library-file-picker"><span>Select backup file</span><input accept="application/json,.json" onChange={(event) => { void readBackupFile(event); }} type="file" /></label><Button onClick={checkBackup}>Check rhythm backup</Button></div>{backupPreview ? <p role="status">Valid backup: {backupPreview.templateCount} templates, {backupPreview.planCount} plans, {backupPreview.instanceCount} occurrences. Dependencies: {backupPreview.dependencyState}.</p> : null}{backupErrors.length ? <div role="alert"><ul>{backupErrors.slice(0, 4).map((error) => <li key={error}>{error}</li>)}</ul></div> : null}</section></Card>
+    <Card><div className="library-filters"><label><span>Search rhythms</span><input onChange={(event) => setSearchTerm(event.target.value)} type="search" value={searchTerm} /></label><div aria-label="Library categories" className="library-category-row" role="list">{libraryCategories.map((category) => <button aria-pressed={activeCategory === category} key={category} onClick={() => setActiveCategory(category)} type="button">{category}</button>)}</div></div></Card>
+    {confirmation ? <p className="library-confirmation" role="status">{confirmation}</p> : null}
+    <section className="quick-packs" aria-labelledby="quick-packs-title"><div className="section-heading"><h2 id="quick-packs-title">Quick packs</h2><p>Preview-only collections. Configure rhythms individually.</p></div><div className="quick-pack-grid">{mockQuickPacks.map((pack) => <QuickPackCard key={pack.id} onPreviewPack={(id) => setPreviewPackId((current) => current === id ? null : id)} pack={pack} previewOpen={previewPackId === pack.id} rhythms={libraryRhythms.filter((rhythm) => pack.rhythmIds.includes(rhythm.id))} />)}</div></section>
+    {filtered.length ? <div className="library-groups">{Object.entries(grouped).map(([category, rhythms]) => rhythms ? <section aria-labelledby={`${category}-library-heading`} className="library-group" key={category}><div className="section-heading"><h2 id={`${category}-library-heading`}>{category}</h2><p>{rhythms.length} rhythm{rhythms.length === 1 ? '' : 's'} in this view.</p></div><div className="library-card-grid">{rhythms.map((rhythm) => <LibraryRhythmCard configuration={configurationFor(rhythm.id)} key={rhythm.id} onAddToday={(item) => { void addToToday(item); }} onConfigure={openConfiguration} onSetState={(id, state) => { void changeState(id, state); }} rhythm={rhythm} />)}</div></section> : null)}</div> : <EmptyState action={<Button onClick={() => { setActiveCategory('All'); setSearchTerm(''); }}>Clear filters</Button>} message="Try another category or clear the search." title="No rhythms match this filter" />}
+    {configTarget ? <CreateRhythmModal initial={formInitial()} key={`${configTarget.mode}:${configTarget.mode === 'create' ? 'new' : configTarget.rhythm.id}`} mode={configTarget.mode} onClose={() => setConfigTarget(null)} onSave={saveConfiguration} open /> : null}
+  </div>;
 }

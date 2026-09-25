@@ -2972,6 +2972,46 @@ textarea:focus-visible {
   gap: var(--space-3);
 }
 
+.rhythm-config-form fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+}
+
+.rhythm-config-form .form-notice {
+  background: color-mix(in srgb, var(--color-chip) 60%, transparent);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.rhythm-config-form__frequency {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: var(--space-3);
+}
+
+.rhythm-config-form__days {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
+  gap: var(--space-2);
+  margin-block: var(--space-3) !important;
+}
+
+.rhythm-config-form__days label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
+.rhythm-config-form__days input {
+  width: auto;
+}
+
 .add-task-form__section {
   background: color-mix(in srgb, var(--color-chip) 34%, transparent);
   border: 1px solid var(--color-line);

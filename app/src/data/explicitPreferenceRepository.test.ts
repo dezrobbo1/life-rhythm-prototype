@@ -70,7 +70,7 @@ describe('Gate 7C explicit preference persistence', () => {
     expect(await database.settings.get('dayProfileFoundation')).toEqual(foundation);
     expect(legacySettingsSchema.safeParse(await database.settings.get('settings')).success).toBe(true);
     expect((await loadSettingsResult()).status).toBe('loaded');
-    expect(database.verno).toBe(5);
+    expect(database.verno).toBe(6);
   });
 
   it('preserves creation time when editing and returns deterministic ID order', async () => {

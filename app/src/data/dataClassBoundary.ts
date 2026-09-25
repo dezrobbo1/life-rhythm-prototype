@@ -33,6 +33,7 @@ export const blockedDataClassKeys = new Set([
   'rhythmTemplates',
   'rhythmInstances',
   'rhythmPlans',
+  'rhythmRecurrenceRevisions',
   'rhythms',
   'schedulerOutput',
   'schedulerPlan',

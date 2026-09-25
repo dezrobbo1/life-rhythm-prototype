@@ -65,6 +65,8 @@ type SchedulerStateFields = SchedulerModeFields & {
   durationLearningApplied?: AppliedDurationLearning[];
   taskInputRepairPendingAt?: string;
   taskInputRepairTargetIds?: string[];
+  rhythmInputRepairPendingAt?: string;
+  rhythmInputRepairTargetIds?: string[];
 };
 
 export type CalendarSourceSnapshot = {
@@ -143,6 +145,12 @@ function stateFields(record: SchedulerStateFields): SchedulerStateFields {
       : {}),
     ...(record.taskInputRepairTargetIds
       ? { taskInputRepairTargetIds: [...record.taskInputRepairTargetIds] }
+      : {}),
+    ...(record.rhythmInputRepairPendingAt
+      ? { rhythmInputRepairPendingAt: record.rhythmInputRepairPendingAt }
+      : {}),
+    ...(record.rhythmInputRepairTargetIds
+      ? { rhythmInputRepairTargetIds: [...record.rhythmInputRepairTargetIds] }
       : {}),
     ...(record.dayModeContext ? { dayModeContext: { ...record.dayModeContext } } : {}),
     ...(record.undoDayModeContext !== undefined
@@ -286,6 +294,10 @@ async function saveSchedulerPlanStateIfCurrent(
         !fields.taskInputRepairPendingAt && canonicalInputSnapshot === undefined) {
       return staleSchedulerWriteResult();
     }
+    if (expected.status === 'ok' && expected.rhythmInputRepairPendingAt &&
+        !fields.rhythmInputRepairPendingAt && canonicalInputSnapshot === undefined) {
+      return staleSchedulerWriteResult();
+    }
     return saveSchedulerPlanState(plan, store, updatedAt, fields);
   }
 
@@ -299,6 +311,9 @@ async function saveSchedulerPlanStateIfCurrent(
         store.activeTasks,
         store.taskPoolItems,
         store.rhythmTemplates,
+        store.rhythmPlans,
+        store.rhythmRecurrenceRevisions,
+        store.rhythmInstances,
         store.softPlacements,
         store.taskHistory,
       ],
@@ -323,6 +338,10 @@ async function saveSchedulerPlanStateIfCurrent(
 
         if (expected.status === 'ok' && expected.taskInputRepairPendingAt &&
             !fields.taskInputRepairPendingAt && canonicalInputSnapshot === undefined) {
+          return staleSchedulerWriteResult();
+        }
+        if (expected.status === 'ok' && expected.rhythmInputRepairPendingAt &&
+            !fields.rhythmInputRepairPendingAt && canonicalInputSnapshot === undefined) {
           return staleSchedulerWriteResult();
         }
 
@@ -628,6 +647,39 @@ export async function markTaskInputRepairPending(
   }
 }
 
+/** Call in the same Dexie transaction as a rhythm authority write. */
+export async function markRhythmInputRepairPending(
+  store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
+  targetId: string,
+  detectedAt = new Date().toISOString(),
+): Promise<{ ok: true } | { ok: false; errors: string[] }> {
+  try {
+    const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
+    if (!stored) return { ok: true };
+    const parsedStored = schedulerPlanStateRecordSchema.safeParse(stored);
+    // Malformed derived state is never allowed to block correction of canonical
+    // rhythm authority. The existing plan recovery surface retains those bytes.
+    if (!parsedStored.success) return { ok: true };
+    const candidate = schedulerPlanStateRecordSchema.safeParse({
+      ...parsedStored.data,
+      rhythmInputRepairPendingAt: detectedAt,
+      rhythmInputRepairTargetIds: [
+        ...new Set([...(parsedStored.data.rhythmInputRepairTargetIds ?? []), targetId]),
+      ].sort(),
+    });
+    if (!candidate.success) return { ok: false, errors: issuesToMessages(candidate.error.issues) };
+    const updated = await store.schedulerPlanState.update(CURRENT_SCHEDULER_PLAN_STATE_ID, {
+      rhythmInputRepairPendingAt: candidate.data.rhythmInputRepairPendingAt,
+      rhythmInputRepairTargetIds: candidate.data.rhythmInputRepairTargetIds,
+    });
+    return updated === 1
+      ? { ok: true }
+      : { ok: false, errors: ['schedulerPlanState: Rhythm change could not mark the plan for repair.'] };
+  } catch {
+    return { ok: false, errors: ['schedulerPlanState: Rhythm change could not mark the plan for repair.'] };
+  }
+}
+
 export async function clearSchedulerPlanState(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
 ): Promise<void> {
@@ -668,6 +720,10 @@ export async function buildAndPersistSchedulerPlan(
       ...(current.status === 'ok' && current.taskInputRepairPendingAt
         ? { taskInputRepairPendingAt: current.taskInputRepairPendingAt,
             taskInputRepairTargetIds: current.taskInputRepairTargetIds }
+        : {}),
+      ...(current.status === 'ok' && current.rhythmInputRepairPendingAt
+        ? { rhythmInputRepairPendingAt: current.rhythmInputRepairPendingAt,
+            rhythmInputRepairTargetIds: current.rhythmInputRepairTargetIds }
         : {}),
     }, calendarSourceSnapshot, canonicalInputSnapshot, durationLearning?.eventSnapshot,
     current.status === 'missing' ? behaviourEventsForInitialSchedulerPlan(plan, updatedAt) : []);
@@ -723,7 +779,34 @@ export async function repairAndPersistSchedulerPlan(
           ...(change.releasePlacementIds ?? []), ...releasedTaskPlacements,
         ])].sort() }
       : change;
-    const preferenceAware = withPendingPreferenceRepair(current, taskAwareChange);
+    const pendingRhythmTargets = current.status === 'ok'
+      ? new Set(current.rhythmInputRepairTargetIds ?? []) : new Set<string>();
+    const releasedRhythmPlacements = current.status === 'ok' && change.now
+      ? current.plan.placements.filter((placement) => {
+          if (placement.origin !== 'scheduler' || placement.targetKind !== 'rhythm') return false;
+          const targetMatches =
+            (placement.rhythmTemplateId && pendingRhythmTargets.has(`template:${placement.rhythmTemplateId}`)) ||
+            (placement.rhythmInstanceId && pendingRhythmTargets.has(`instance:${placement.rhythmInstanceId}`)) ||
+            pendingRhythmTargets.has(`legacy:${placement.rhythmId ?? placement.intentionId}`);
+          if (!targetMatches) return false;
+          // Generated instance snapshots are immutable. If the exact instance
+          // remains live after a template or recurrence edit, its accepted
+          // placement remains valid and preserves schedule inertia. Pause,
+          // disable, completion, or skip removes it from nextInput and releases
+          // only that occurrence. Legacy template-level placements have no
+          // concrete owner and are always released for v6 repair.
+          if (!placement.rhythmInstanceId) return true;
+          return !change.nextInput.rhythms.some((item) =>
+            item.rhythmInstanceId === placement.rhythmInstanceId,
+          );
+        }).map((placement) => placement.id)
+      : [];
+    const rhythmAwareChange: SchedulerChange = releasedRhythmPlacements.length > 0
+      ? { ...taskAwareChange, releasePlacementIds: [...new Set([
+          ...(taskAwareChange.releasePlacementIds ?? []), ...releasedRhythmPlacements,
+        ])].sort() }
+      : taskAwareChange;
+    const preferenceAware = withPendingPreferenceRepair(current, rhythmAwareChange);
     const previousDurationLearning = current.status === 'ok'
       ? orderedDurationLearning(current.durationLearningApplied ?? [])
       : [];
@@ -769,6 +852,7 @@ export async function repairAndPersistSchedulerPlan(
       appliedPreferenceRepairTargets.length > 0 ||
       changedDurationTemplateIds.length > 0 ||
       (current.status === 'ok' && Boolean(current.taskInputRepairPendingAt))
+      || (current.status === 'ok' && Boolean(current.rhythmInputRepairPendingAt))
     )
       ? {
           ...calculatedPlan,
@@ -776,6 +860,9 @@ export async function repairAndPersistSchedulerPlan(
             ...calculatedPlan.repair,
             ...(current.status === 'ok' && current.taskInputRepairPendingAt
               ? { taskDefinitionRepairApplied: true }
+              : {}),
+            ...(current.status === 'ok' && current.rhythmInputRepairPendingAt
+              ? { rhythmDefinitionRepairApplied: true }
               : {}),
             ...(appliedPreferenceRepairTargets.length > 0
               ? { appliedPreferenceRepairTargets }
@@ -857,6 +944,10 @@ export async function undoPersistedSchedulerRepair(
   if (current.taskInputRepairPendingAt || current.plan.repair.trigger === 'taskDefinitionChanged' ||
       current.plan.repair.taskDefinitionRepairApplied) {
     return { ok: false, errors: ['schedulerPlanState: Edit the task again to correct its definition. Earlier task times cannot be restored as a valid plan.'] };
+  }
+  if (current.rhythmInputRepairPendingAt || current.plan.repair.trigger === 'rhythmDefinitionChanged' ||
+      current.plan.repair.rhythmDefinitionRepairApplied) {
+    return { ok: false, errors: ['schedulerPlanState: Change the rhythm again to correct it. Earlier recurrence assumptions cannot be restored as a valid plan.'] };
   }
 
   const reverted = scheduler.undoRepair(current.plan);

@@ -1098,14 +1098,15 @@ describe('persisted Gate 4 scheduler plan state', () => {
       try {
         await upgraded.open();
 
-        expect(DATABASE_VERSION).toBe(5);
-        expect(upgraded.verno).toBe(5);
+        expect(DATABASE_VERSION).toBe(6);
+        expect(upgraded.verno).toBe(6);
         expect(await upgraded.taskPoolItems.get('legacy-row')).toMatchObject({
           id: 'legacy-row',
           status: 'captured',
         });
         expect(upgraded.tables.map((table) => table.name)).toContain('schedulerPlanState');
         expect(upgraded.tables.map((table) => table.name)).toContain('calendarSources');
+        expect(upgraded.tables.map((table) => table.name)).toContain('rhythmInstances');
         expect(await upgraded.schedulerPlanState.count()).toBe(0);
         expect(await upgraded.calendarSources.count()).toBe(0);
       } finally {
@@ -1141,7 +1142,7 @@ describe('persisted Gate 4 scheduler plan state', () => {
       try {
         await upgraded.open();
 
-        expect(upgraded.verno).toBe(5);
+        expect(upgraded.verno).toBe(6);
         expect(upgraded.tables.map((table) => table.name)).toContain('calendarSources');
         expect(await upgraded.schedulerPlanState.get('current')).toEqual(storedPlan);
         expect(await upgraded.calendarSources.count()).toBe(0);

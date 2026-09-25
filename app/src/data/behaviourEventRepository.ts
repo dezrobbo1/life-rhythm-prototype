@@ -189,6 +189,7 @@ export async function behaviourEventForTaskTransition(
     source: 'user' as const,
     taskId: after.id,
     ...(after.templateId ? { templateId: after.templateId } : {}),
+    ...(after.sourceRhythmInstanceId ? { rhythmInstanceId: after.sourceRhythmInstanceId } : {}),
   };
 
   if (after.status === 'inProgress') {
@@ -338,7 +339,13 @@ export function behaviourEventsForInitialSchedulerPlan(
           mechanism: 'schedulerInitialBuild',
         },
         source: 'scheduler',
-        ...(rhythmTarget ? { rhythmId: targetId } : { taskId: targetId }),
+        ...(rhythmTarget
+          ? {
+              rhythmId: targetId,
+              ...(placement.rhythmTemplateId ? { templateId: placement.rhythmTemplateId } : {}),
+              ...(placement.rhythmInstanceId ? { rhythmInstanceId: placement.rhythmInstanceId } : {}),
+            }
+          : { taskId: targetId }),
       });
     });
 }
@@ -374,7 +381,11 @@ export function behaviourEventsForSchedulerRepair(
       source: 'scheduler',
       ...(change.targetKind === 'intention'
         ? { taskId: change.targetId }
-        : { rhythmId: change.targetId }),
+        : {
+            rhythmId: change.targetId,
+            ...(change.rhythmTemplateId ? { templateId: change.rhythmTemplateId } : {}),
+            ...(change.rhythmInstanceId ? { rhythmInstanceId: change.rhythmInstanceId } : {}),
+          }),
     });
   });
 }

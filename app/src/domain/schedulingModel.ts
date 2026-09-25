@@ -5,7 +5,15 @@ export type LocalTime = string;
 export type Instant = string;
 
 export type SourceRecordRef = {
-  kind: 'activeTask' | 'taskPoolItem' | 'rhythmTemplate' | 'settings' | 'softPlacement';
+  kind:
+    | 'activeTask'
+    | 'taskPoolItem'
+    | 'rhythmTemplate'
+    | 'rhythmPlan'
+    | 'rhythmRecurrenceRevision'
+    | 'rhythmInstance'
+    | 'settings'
+    | 'softPlacement';
   id: string;
 };
 
@@ -65,6 +73,9 @@ export type InternalIntention = {
 export type RhythmRequirement = {
   id: string;
   templateId: string;
+  planId?: string;
+  recurrenceRevisionId?: string;
+  rhythmInstanceId?: string;
   title: string;
   area: string;
   frequency: number;
@@ -72,6 +83,9 @@ export type RhythmRequirement = {
   preferredDays: string[];
   preferredTime: string;
   maxPerDay: number;
+  eligibilityStartDate?: LocalDate;
+  eligibilityEndDate?: LocalDate;
+  lifecycleState?: 'eligible' | 'today' | 'inProgress' | 'paused';
   variants: TaskVariant[];
   sourceRecords: SourceRecordRef[];
 };
@@ -183,6 +197,10 @@ export type InternalPlacement = {
   sourcePlacementId?: string;
   targetKind?: 'intention' | 'rhythm';
   rhythmId?: string;
+  rhythmTemplateId?: string;
+  rhythmPlanId?: string;
+  rhythmRecurrenceRevisionId?: string;
+  rhythmInstanceId?: string;
   variantKind?: TaskVariantKind;
   provenance: string[];
 };
@@ -254,6 +272,7 @@ export type SchedulerRepairTrigger =
   | 'durationLearningChanged'
   | 'userCorrection'
   | 'taskDefinitionChanged'
+  | 'rhythmDefinitionChanged'
   | 'manualReplan';
 
 export type SchedulerRepairNow = {
@@ -275,6 +294,10 @@ export type SchedulerPlanChange = {
   kind: SchedulerPlanChangeKind;
   targetKind: 'intention' | 'rhythm';
   targetId: string;
+  rhythmTemplateId?: string;
+  rhythmPlanId?: string;
+  rhythmRecurrenceRevisionId?: string;
+  rhythmInstanceId?: string;
   from?: SchedulerPlacementPoint;
   to?: SchedulerPlacementPoint;
   reason: string;
@@ -296,6 +319,8 @@ export type SchedulerRepairMetadata = {
   previousDurationLearningApplied?: AppliedDurationLearning[];
   /** The previous plan used a task definition that is no longer canonical. */
   taskDefinitionRepairApplied?: boolean;
+  /** Rhythm configuration or occurrence eligibility changed after the prior plan. */
+  rhythmDefinitionRepairApplied?: boolean;
   undo: SchedulerPlanSnapshot;
 };
 

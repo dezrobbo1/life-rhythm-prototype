@@ -43,6 +43,7 @@ const taskLifecycleRepositoryMocks = vi.hoisted(() => ({
 
 const schedulerPlanCoordinatorMocks = vi.hoisted(() => ({
   buildCurrentLiveSchedulingContext: vi.fn(),
+  ensureCurrentPrivatePlan: vi.fn(),
   repairCurrentPrivatePlan: vi.fn(),
 }));
 
@@ -238,6 +239,7 @@ beforeEach(() => {
     now: { date: '2026-09-15', time: '09:00', timezone: 'Australia/Perth' },
   });
   schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan.mockResolvedValue({ ok: true });
+  schedulerPlanCoordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({ ok: true });
   schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({ status: 'missing' });
 });
 

@@ -7,6 +7,11 @@ import type {
   TaskPoolItem,
 } from '../data/schemas';
 import type {
+  RhythmInstance,
+  RhythmPlan,
+  RhythmRecurrenceRevision,
+} from '../data/rhythmAuthoritySchemas';
+import type {
   CapacityWindow,
   DayProfileContext,
   InternalIntention,
@@ -22,6 +27,9 @@ export type CurrentPersistedSchedulingState = {
   activeTasks: ActiveTask[];
   taskPoolItems: TaskPoolItem[];
   rhythmTemplates: RhythmTemplate[];
+  rhythmPlans?: RhythmPlan[];
+  rhythmRecurrenceRevisions?: RhythmRecurrenceRevision[];
+  rhythmInstances?: RhythmInstance[];
   softPlacements: SoftPlacement[];
   durationLearningByTemplateId?: Record<string, AppliedDurationLearning>;
 };
@@ -141,6 +149,9 @@ function projectIntentions(
   }
 
   for (const task of activeTasks) {
+    // A generated rhythm ActiveTask is an executable projection of its
+    // canonical RhythmInstance, never a second schedulable intention.
+    if (task.sourceRhythmInstanceId) continue;
     const intention = mergeActiveTask(task, intentions.get(task.id));
     intention.variants = variantsFromRecord(task, task.templateId, durationLearningByTemplateId);
     intentions.set(task.id, intention);
@@ -151,23 +162,82 @@ function projectIntentions(
 
 function projectRhythms(
   templates: RhythmTemplate[],
+  plans?: RhythmPlan[],
+  revisions?: RhythmRecurrenceRevision[],
+  instances?: RhythmInstance[],
   durationLearningByTemplateId?: CurrentPersistedSchedulingState['durationLearningByTemplateId'],
 ): RhythmRequirement[] {
-  return templates
-    .filter((template) => template.enabled && !template.archivedAt)
-    .map((template) => ({
-      id: `rhythm:${template.id}`,
+  // The compatibility path keeps pure Gate 3 fixture tests meaningful. Live
+  // projection always supplies the three authority collections below.
+  if (!plans || !revisions || !instances) {
+    return templates
+      .filter((template) => template.enabled && !template.archivedAt)
+      .map((template) => ({
+        id: `rhythm:${template.id}`,
+        templateId: template.id,
+        title: template.title,
+        area: template.area,
+        frequency: template.schedule.frequency,
+        period: template.schedule.period,
+        preferredDays: [...template.schedule.preferredDays],
+        preferredTime: template.schedule.bestTime,
+        maxPerDay: template.schedule.maxPerDay,
+        variants: variantsFromRecord(template, template.id, durationLearningByTemplateId),
+        sourceRecords: [{ kind: 'rhythmTemplate' as const, id: template.id }],
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+  }
+  const templateById = new Map(templates.map((template) => [template.id, template]));
+  const planById = new Map(plans.map((plan) => [plan.id, plan]));
+  const revisionById = new Map(revisions.map((revision) => [revision.id, revision]));
+
+  return instances
+    .filter((instance) => {
+      if (instance.lifecycleState === 'closed') return false;
+      const plan = planById.get(instance.rhythmPlanId);
+      return plan?.state === 'enabled' || instance.lifecycleState !== 'eligible';
+    })
+    .flatMap((instance): RhythmRequirement[] => {
+      const template = templateById.get(instance.rhythmTemplateId);
+      const plan = planById.get(instance.rhythmPlanId);
+      const revision = revisionById.get(instance.recurrenceRevisionId);
+      if (
+        !template ||
+        template.archivedAt ||
+        !plan ||
+        plan.rhythmTemplateId !== instance.rhythmTemplateId ||
+        !revision ||
+        revision.rhythmPlanId !== plan.id
+      ) return [];
+      return [{
+      id: instance.id,
       templateId: template.id,
+      planId: plan.id,
+      recurrenceRevisionId: revision.id,
+      rhythmInstanceId: instance.id,
       title: template.title,
       area: template.area,
-      frequency: template.schedule.frequency,
-      period: template.schedule.period,
-      preferredDays: [...template.schedule.preferredDays],
-      preferredTime: template.schedule.bestTime,
-      maxPerDay: template.schedule.maxPerDay,
-      variants: variantsFromRecord(template, template.id, durationLearningByTemplateId),
-      sourceRecords: [{ kind: 'rhythmTemplate' as const, id: template.id }],
-    }))
+      frequency: 1,
+      period: revision.rule.period,
+      preferredDays: [...revision.rule.preferredDays],
+      preferredTime: instance.preferredTime,
+      maxPerDay: revision.rule.maxPerDay,
+      eligibilityStartDate: instance.eligibilityStartDate,
+      eligibilityEndDate: instance.eligibilityEndDate,
+      lifecycleState: instance.lifecycleState as 'eligible' | 'today' | 'inProgress' | 'paused',
+      variants: [
+        { kind: 'minimum', ...instance.minimum },
+        { kind: 'normal', ...instance.normal },
+        { kind: 'full', ...instance.full },
+      ],
+      sourceRecords: [
+        { kind: 'rhythmTemplate' as const, id: template.id },
+        { kind: 'rhythmPlan' as const, id: plan.id },
+        { kind: 'rhythmRecurrenceRevision' as const, id: revision.id },
+        { kind: 'rhythmInstance' as const, id: instance.id },
+      ],
+    }];
+    })
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
@@ -237,7 +307,13 @@ export function projectCurrentStateToSchedulingDomain(
       state.taskPoolItems,
       state.durationLearningByTemplateId,
     ),
-    rhythms: projectRhythms(state.rhythmTemplates, state.durationLearningByTemplateId),
+    rhythms: projectRhythms(
+      state.rhythmTemplates,
+      state.rhythmPlans,
+      state.rhythmRecurrenceRevisions,
+      state.rhythmInstances,
+      state.durationLearningByTemplateId,
+    ),
     externalCommitments: state.settings.lifeShape.fixedCommitments
       .map((commitment) => ({
         id: `commitment:${commitment.id}`,
