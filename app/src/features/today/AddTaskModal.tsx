@@ -55,6 +55,7 @@ export function AddTaskModal({ task, onClose, onSave, open }: AddTaskModalProps)
   const [minimumStillUsefulAfterDeadline, setMinimumStillUsefulAfterDeadline] = useState(Boolean(task?.minimumStillUsefulAfterDeadline));
   const [missedPolicy, setMissedPolicy] = useState<NonNullable<MockAddTaskInput['missedPolicy']>>(task?.missedPolicy ?? 'ask');
   const [versionsOpen, setVersionsOpen] = useState(Boolean(task));
+  const [timeEdgeOpen, setTimeEdgeOpen] = useState(Boolean(task?.timeConstraint && task.timeConstraint !== 'flexible' || task?.dueAt || task?.fixedAt || task?.expiresAfter || task?.latestUsefulStartAt || task?.notUsefulAfter || task?.minimumStillUsefulAfterDeadline || task?.missedPolicy));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const savingRef = useRef(false);
@@ -128,6 +129,7 @@ export function AddTaskModal({ task, onClose, onSave, open }: AddTaskModalProps)
     setMinimumStillUsefulAfterDeadline(false);
     setMissedPolicy('ask');
     setVersionsOpen(false);
+    setTimeEdgeOpen(false);
     setSaveError('');
   }
 
@@ -232,7 +234,16 @@ export function AddTaskModal({ task, onClose, onSave, open }: AddTaskModalProps)
             </div>
           </div>
         ) : null}
-        <section className="add-task-form__section" aria-labelledby="one-off-time-edge-title">
+        <button
+          aria-expanded={timeEdgeOpen}
+          className="add-task-form__toggle"
+          onClick={() => setTimeEdgeOpen((openTimeEdge) => !openTimeEdge)}
+          type="button"
+        >
+          Optional useful window
+          <span>{timeEdgeOpen ? 'Hide' : 'Show'}</span>
+        </button>
+        {timeEdgeOpen ? <section className="add-task-form__section" aria-labelledby="one-off-time-edge-title">
           <div>
             <h3 id="one-off-time-edge-title">Time edge</h3>
             <p>Optional. This describes when the task is useful.</p>
@@ -311,7 +322,7 @@ export function AddTaskModal({ task, onClose, onSave, open }: AddTaskModalProps)
               </select>
             </label>
           </div>
-        </section>
+        </section> : null}
         {saveError ? <p className="form-feedback" role="alert">{saveError}</p> : null}
         <div className="modal-actions">
           <Button disabled={!canSave || saving} onClick={saveTask} variant="primary">

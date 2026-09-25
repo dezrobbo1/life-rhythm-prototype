@@ -141,6 +141,7 @@ async function openFilledOneOffModal(user: ReturnType<typeof userEvent.setup>) {
   await user.selectOptions(screen.getByLabelText('Area'), 'money');
   await user.type(screen.getByLabelText('Minimum version'), 'Open the bill and note the due date.');
   await user.type(screen.getByLabelText('Minimum minutes'), '5');
+  await user.click(screen.getByRole('button', { name: /Optional useful window/ }));
 }
 
 function savedOneOffTask(): ActiveTask {
@@ -2154,8 +2155,8 @@ describe('Today screen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add one-off' }));
     expect(screen.getByText('For today only. Saved on this device. It will not go into Library.')).toBeTruthy();
-    expect(screen.getByRole('combobox', { name: 'Time edge type' })).toBeTruthy();
-    expect(screen.getByRole('combobox', { name: 'If it stops being useful' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Optional useful window/ }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('combobox', { name: 'Time edge type' })).toBeNull();
     await user.type(screen.getByLabelText('Task title'), 'Pay water bill');
     await user.selectOptions(screen.getByLabelText('Area'), 'money');
     await user.type(screen.getByLabelText('Minimum version'), 'Open the bill and note the due date.');
