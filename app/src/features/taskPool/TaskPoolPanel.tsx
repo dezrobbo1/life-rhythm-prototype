@@ -86,6 +86,16 @@ const taskPoolAreaLabels: Record<TaskPoolItem['area'], string> = {
   work: 'Work',
 };
 
+const taskPoolMissedPolicyLabels: Record<NonNullable<TaskPoolItem['missedPolicy']>, string> = {
+  archiveIfExpired: 'Archive if expired',
+  ask: 'Ask me',
+  followUpPrompt: 'Follow-up prompt',
+  hideUntilReview: 'Hide until review',
+  minimumOnly: 'Minimum only',
+  notToday: 'Not today',
+  park: 'Park',
+};
+
 function formatTaskPoolDateTime(timestamp: string) {
   const date = new Date(timestamp);
 
@@ -102,8 +112,13 @@ function formatTaskPoolDateTime(timestamp: string) {
 function taskPoolUsefulWindowLines(item: TaskPoolItem) {
   return [
     item.dueAt ? `Useful before ${formatTaskPoolDateTime(item.dueAt)}` : '',
+    item.fixedAt ? `Fixed at ${formatTaskPoolDateTime(item.fixedAt)}` : '',
+    item.expiresAfter ? `Expires after ${formatTaskPoolDateTime(item.expiresAfter)}` : '',
+    item.latestUsefulStartAt ? `Last useful start ${formatTaskPoolDateTime(item.latestUsefulStartAt)}` : '',
     item.notUsefulAfter ? `Useful until ${formatTaskPoolDateTime(item.notUsefulAfter)}` : '',
     item.minimumStillUsefulAfterDeadline ? 'Minimum still helps' : '',
+    item.missedPolicy && item.missedPolicy !== 'ask'
+      ? `If missed: ${taskPoolMissedPolicyLabels[item.missedPolicy]}` : '',
     item.bringBackAfter ? `Bring back after ${formatTaskPoolDateTime(item.bringBackAfter)}` : '',
   ].filter(Boolean);
 }

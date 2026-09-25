@@ -605,8 +605,13 @@ export async function markTaskInputRepairPending(
   try {
     const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
     if (!stored) return { ok: true };
+    const parsedStored = schedulerPlanStateRecordSchema.safeParse(stored);
+    // An unreadable derived plan is not accepted scheduling authority. Leave
+    // its bytes untouched for the existing recovery surface, while allowing
+    // the independent canonical task write to proceed.
+    if (!parsedStored.success) return { ok: true };
     const candidate = schedulerPlanStateRecordSchema.safeParse({
-      ...stored,
+      ...parsedStored.data,
       taskInputRepairPendingAt: detectedAt,
       taskInputRepairTargetIds: [...new Set([...(stored.taskInputRepairTargetIds ?? []), taskId])].sort(),
     });
@@ -706,7 +711,11 @@ export async function repairAndPersistSchedulerPlan(
           (placement.targetKind ?? 'intention') === 'intention' &&
           pendingTaskIds.has(placement.intentionId) &&
           (placement.date > change.now!.date ||
-            (placement.date === change.now!.date && placement.start >= change.now!.time)),
+            (placement.date === change.now!.date && (
+              placement.start >= change.now!.time ||
+              change.nextInput.intentions.find((item) => item.id === placement.intentionId)
+                ?.lifecycle.activeTaskStatus !== 'inProgress'
+            ))),
         ).map((placement) => placement.id)
       : [];
     const taskAwareChange: SchedulerChange = releasedTaskPlacements.length > 0

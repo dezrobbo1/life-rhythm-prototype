@@ -28,9 +28,13 @@ const libraryRepositoryMocks = vi.hoisted(() => ({
 const settingsRepositoryMocks = vi.hoisted(() => ({
   loadSettingsResult: vi.fn(),
 }));
+const taskDefinitionReconciliationMocks = vi.hoisted(() => ({
+  reconcileTaskDefinitionAfterWrite: vi.fn(),
+}));
 
 vi.mock('../../data/activeTaskRepository', () => activeTaskRepositoryMocks);
 vi.mock('../../data/libraryRhythmRepository', () => libraryRepositoryMocks);
+vi.mock('../../data/taskDefinitionPlanReconciliation', () => taskDefinitionReconciliationMocks);
 vi.mock('../../data/settingsRepository', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../data/settingsRepository')>();
 
@@ -146,6 +150,7 @@ beforeEach(() => {
     ok: true,
     rhythm: rhythmTemplateSchema.parse(rhythm),
   }));
+  taskDefinitionReconciliationMocks.reconcileTaskDefinitionAfterWrite.mockResolvedValue({ ok: true });
   settingsRepositoryMocks.loadSettingsResult.mockImplementation(async () => ({
     conflicts: [],
     errors: [],
@@ -390,8 +395,26 @@ describe('Library screen', () => {
       status: 'active',
       title: 'Breakfast reset',
     });
+    expect(taskDefinitionReconciliationMocks.reconcileTaskDefinitionAfterWrite).toHaveBeenCalledWith(
+      'A Library task was added to Today.',
+    );
     expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
     expect(setItemSpy).not.toHaveBeenCalled();
+  });
+
+  it('reports a saved Library Today task when its private plan still needs repair', async () => {
+    taskDefinitionReconciliationMocks.reconcileTaskDefinitionAfterWrite.mockResolvedValueOnce({
+      ok: false, message: 'Retry from Today.',
+    });
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+
+    await user.click(within(screen.getByRole('article', { name: 'Breakfast reset' }))
+      .getByRole('button', { name: 'Add to Today now' }));
+
+    expect(screen.getByRole('status').textContent).toContain(
+      'Breakfast reset saved to Today. The private plan needs updating. Retry from Today.',
+    );
   });
 
   it('does not duplicate Add to Today when the active task already exists', async () => {

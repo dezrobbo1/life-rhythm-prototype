@@ -382,6 +382,9 @@ export default function App() {
     setCaptureOpen(false);
     setCaptureRevision((revision) => revision + 1);
     const repaired = await reconcileTaskDefinitionAfterWrite('A user captured a task for quiet private planning.');
+    // The accepted plan changed, or its automatic placements are now pending
+    // repair. Refresh Today/Plan immediately while keeping their UI state.
+    setPlanRevision((revision) => revision + 1);
     setCaptureFeedback({ kind: 'success', message: repaired.ok
       ? 'Task captured. Held outside Today and available for private planning.'
       : `Task captured. The private plan needs updating. ${repaired.message ?? ''}` });

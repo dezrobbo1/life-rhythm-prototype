@@ -416,10 +416,19 @@ describe('Pool screen', () => {
 
   it('shows saved task pool items and hides no-longer-needed items', async () => {
     await saveTaskPoolItem(validTaskPoolItem({
-      dueAt: '2026-06-20T10:30:00.000Z',
+      fixedAt: '2026-06-20T10:30:00.000Z',
+      latestUsefulStartAt: '2026-06-20T10:00:00.000Z',
       minimumStillUsefulAfterDeadline: true,
+      missedPolicy: 'minimumOnly',
       notUsefulAfter: '2026-06-21T10:30:00.000Z',
-      timeConstraint: 'dueBy',
+      timeConstraint: 'fixedAt',
+    }));
+    await saveTaskPoolItem(validTaskPoolItem({
+      expiresAfter: '2026-06-22T10:30:00.000Z',
+      id: 'task-pool-expiring-form',
+      minimum: { label: 'Check expiry', minutes: 7 },
+      timeConstraint: 'expiresAfter',
+      title: 'Expiring form task',
     }));
     await getCurrentLifeRhythmDatabase().taskPoolItems.put(validTaskPoolItem({
       id: 'task-pool-no-longer-needed',
@@ -432,11 +441,14 @@ describe('Pool screen', () => {
     const taskPoolSection = sectionForHeading('Captured tasks');
 
     expect(await within(taskPoolSection).findByText('Captured form task')).toBeTruthy();
-    expect(within(taskPoolSection).getByText('Admin - Safely held')).toBeTruthy();
+    expect(within(taskPoolSection).getAllByText('Admin - Safely held')).toHaveLength(2);
     expect(within(taskPoolSection).getByText('Minimum: Open the form')).toBeTruthy();
-    expect(within(taskPoolSection).getByText(/Useful before/)).toBeTruthy();
+    expect(within(taskPoolSection).getByText(/Fixed at/)).toBeTruthy();
+    expect(within(taskPoolSection).getByText(/Last useful start/)).toBeTruthy();
     expect(within(taskPoolSection).getByText(/Useful until/)).toBeTruthy();
     expect(within(taskPoolSection).getByText('Minimum still helps')).toBeTruthy();
+    expect(within(taskPoolSection).getByText('If missed: Minimum only')).toBeTruthy();
+    expect(within(taskPoolSection).getByText(/Expires after/)).toBeTruthy();
     expect(within(taskPoolSection).queryByText('Hidden pool item')).toBeNull();
   });
 

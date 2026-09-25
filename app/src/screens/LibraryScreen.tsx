@@ -18,6 +18,7 @@ import {
   loadCustomLibraryRhythms,
   saveCustomLibraryRhythm,
 } from '../data/libraryRhythmRepository';
+import { reconcileTaskDefinitionAfterWrite } from '../data/taskDefinitionPlanReconciliation';
 import { activeTaskSchema, rhythmTemplateSchema, type ActiveTask, type RhythmTemplate } from '../data/schemas';
 import {
   CreateRhythmModal,
@@ -419,7 +420,12 @@ export function LibraryScreen() {
       return;
     }
 
-    setConfirmation(`${rhythm.title} saved to Today on this device. Library enablement did not change.`);
+    const repaired = await reconcileTaskDefinitionAfterWrite(
+      'A Library task was added to Today.',
+    );
+    setConfirmation(repaired.ok
+      ? `${rhythm.title} saved to Today on this device. Library enablement did not change.`
+      : `${rhythm.title} saved to Today. The private plan needs updating. ${repaired.message ?? ''}`);
   }
 
   function enablePack(pack: QuickPack) {
