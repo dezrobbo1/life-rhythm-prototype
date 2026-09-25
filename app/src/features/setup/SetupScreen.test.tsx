@@ -183,7 +183,7 @@ describe('Setup screen', () => {
     expect(screen.getByRole('heading', { name: 'Life shape' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Start Boost safety' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Backup and recovery' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Trial limits' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Current limits' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Dev tickets' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'About Life Rhythm' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Future modules' })).toBeTruthy();
@@ -438,13 +438,13 @@ describe('Setup screen', () => {
   it('renders calm personal trial limits without adding feature controls', () => {
     render(<SetupScreen />);
 
-    expect(screen.getByRole('heading', { name: 'Trial limits' })).toBeTruthy();
-    expect(screen.getByText('Use one browser, one device, and one stable URL for the trial.')).toBeTruthy();
-    expect(screen.getByText('Life Rhythm is local-first. This browser and device store the live trial data.')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Current limits' })).toBeTruthy();
+    expect(screen.getByText('Use one browser, one device, and one stable URL for early testing. The longitudinal trial has not started.')).toBeTruthy();
+    expect(screen.getByText('Life Rhythm is local-first. This browser and device store the live data.')).toBeTruthy();
     expect(screen.getByText('Login is not cloud sync. Backups can be exported and checked, but import/restore is not enabled.')).toBeTruthy();
     expect(
       screen.getByText(
-        'Calendar, AI, cloud sync, notifications, askFirst placement, and move/edit placement are not part of this trial.',
+        'Plan accepts a read-only calendar file; recurring events are not accepted. Live calendar connection, AI, cloud sync, notifications, and individual Move/Protect for automatic times are not available yet.',
       ),
     ).toBeTruthy();
     expect(screen.queryByRole('button', { name: /restore/i })).toBeNull();

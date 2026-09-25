@@ -12,6 +12,7 @@ import {
   type CollectionReadResult,
 } from './collectionReadResult';
 import { appendBehaviourEvent, createBehaviourEvent } from './behaviourEventRepository';
+import { markTaskInputRepairPending } from './schedulerPlanStateRepository';
 
 type TaskPoolItemsTable = Pick<Table<TaskPoolItem, string>, 'get' | 'put' | 'toArray' | 'where'>;
 
@@ -84,7 +85,7 @@ export async function saveTaskPoolItem(
   }
 
   if (store instanceof LifeRhythmDatabase) {
-    return store.transaction('rw', store.taskPoolItems, store.taskHistory, async () => {
+    return store.transaction('rw', store.taskPoolItems, store.taskHistory, store.schedulerPlanState, async () => {
       const existing = await store.taskPoolItems.get(validated.item.id);
       if (existing) {
         return {
@@ -94,6 +95,8 @@ export async function saveTaskPoolItem(
       }
 
       await store.taskPoolItems.put(validated.item);
+      const pending = await markTaskInputRepairPending(store, validated.item.id, validated.item.updatedAt);
+      if (!pending.ok) throw new Error(pending.errors.join(' '));
       await appendBehaviourEvent(createBehaviourEvent({
         action: 'capture',
         after: { poolStatus: validated.item.status },

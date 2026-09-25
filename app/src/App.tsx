@@ -36,6 +36,7 @@ import {
   loadSchedulerPlanState,
 } from './data/schedulerPlanStateRepository';
 import { reconcileExistingPrivatePlanAfterDurationEvidenceChange } from './data/durationLearningPlanReconciliation';
+import { reconcileTaskDefinitionAfterWrite } from './data/taskDefinitionPlanReconciliation';
 import {
   emptyAppSnapshot,
   normalDayWithOneTaskSnapshot,
@@ -153,7 +154,7 @@ function ExamplePreview({ onReturnToPersonalTrial, theme }: ExamplePreviewProps)
             <p className="section-label">Holding Tray</p>
             <h2 id="trial-example-pool-title">Held</h2>
             <p>Capture something without turning it into an immediate demand.</p>
-            <p className="trial-example__quiet">Safely held · No schedule created</p>
+            <p className="trial-example__quiet">Held outside Today · Quiet private planning may follow</p>
           </section>
 
           <section aria-labelledby="trial-example-plan-title">
@@ -380,7 +381,10 @@ export default function App() {
 
     setCaptureOpen(false);
     setCaptureRevision((revision) => revision + 1);
-    setCaptureFeedback({ kind: 'success', message: 'Task captured. It is safely held.' });
+    const repaired = await reconcileTaskDefinitionAfterWrite('A user captured a task for quiet private planning.');
+    setCaptureFeedback({ kind: 'success', message: repaired.ok
+      ? 'Task captured. Held outside Today and available for private planning.'
+      : `Task captured. The private plan needs updating. ${repaired.message ?? ''}` });
     return result;
   }
 

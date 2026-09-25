@@ -108,6 +108,7 @@ const schedulerRepairTriggerSchema = z.enum([
   'preferenceChanged',
   'durationLearningChanged',
   'userCorrection',
+  'taskDefinitionChanged',
   'manualReplan',
 ]);
 
@@ -186,6 +187,7 @@ const schedulerRepairMetadataSchema = z
     appliedPreferenceRepairTargets: z.array(preferenceRepairTargetSchema).optional(),
     appliedDurationLearningTemplateIds: z.array(idSchema).optional(),
     previousDurationLearningApplied: z.array(appliedDurationLearningSchema).optional(),
+    taskDefinitionRepairApplied: z.boolean().optional(),
     undo: persistedSchedulerPlanSnapshotSchema,
   })
   .strict();
@@ -202,6 +204,8 @@ export const schedulerPlanStateRecordSchema = z
     calendarRepairPendingAt: strictIsoDateTimeSchema.optional(),
     preferenceRepairPendingAt: strictIsoDateTimeSchema.optional(),
     preferenceRepairTargets: z.array(preferenceRepairTargetSchema).optional(),
+    taskInputRepairPendingAt: strictIsoDateTimeSchema.optional(),
+    taskInputRepairTargetIds: z.array(idSchema).optional(),
     durationLearningApplied: z.array(appliedDurationLearningSchema).optional(),
     dayModeContext: schedulerDayModeContextSchema.optional(),
     undoDayModeContext: schedulerDayModeContextSchema.nullable().optional(),

@@ -126,7 +126,7 @@ describe('current persisted state projection', () => {
     },
   );
 
-  it('uses the canonical simple task-type default for a Pool-only intention', () => {
+  it('does not invent a task type for a Pool-only intention', () => {
     const poolItem = taskPoolItemSchema.parse({
       id: 'pool-simple-task',
       title: 'Prepare shutdown notes',
@@ -148,9 +148,9 @@ describe('current persisted state projection', () => {
 
     expect(projected.intentions[0]).toMatchObject({
       id: 'pool-simple-task',
-      taskType: 'simple',
       eligibleForScheduling: true,
     });
+    expect(projected.intentions[0].taskType).toBeUndefined();
   });
 
   it('keeps achieved in-flight work schedulable without turning achievement into scheduler policy', () => {

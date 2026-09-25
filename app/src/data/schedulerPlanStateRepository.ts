@@ -63,6 +63,8 @@ type SchedulerStateFields = SchedulerModeFields & {
   preferenceRepairPendingAt?: string;
   preferenceRepairTargets?: PreferenceRepairTarget[];
   durationLearningApplied?: AppliedDurationLearning[];
+  taskInputRepairPendingAt?: string;
+  taskInputRepairTargetIds?: string[];
 };
 
 export type CalendarSourceSnapshot = {
@@ -135,6 +137,12 @@ function stateFields(record: SchedulerStateFields): SchedulerStateFields {
       : {}),
     ...(record.durationLearningApplied
       ? { durationLearningApplied: record.durationLearningApplied.map((item) => ({ ...item })) }
+      : {}),
+    ...(record.taskInputRepairPendingAt
+      ? { taskInputRepairPendingAt: record.taskInputRepairPendingAt }
+      : {}),
+    ...(record.taskInputRepairTargetIds
+      ? { taskInputRepairTargetIds: [...record.taskInputRepairTargetIds] }
       : {}),
     ...(record.dayModeContext ? { dayModeContext: { ...record.dayModeContext } } : {}),
     ...(record.undoDayModeContext !== undefined
@@ -274,6 +282,10 @@ async function saveSchedulerPlanStateIfCurrent(
     ) {
       return staleSchedulerWriteResult();
     }
+    if (expected.status === 'ok' && expected.taskInputRepairPendingAt &&
+        !fields.taskInputRepairPendingAt && canonicalInputSnapshot === undefined) {
+      return staleSchedulerWriteResult();
+    }
     return saveSchedulerPlanState(plan, store, updatedAt, fields);
   }
 
@@ -306,6 +318,11 @@ async function saveSchedulerPlanStateIfCurrent(
           expected.calendarRepairPendingAt &&
           !fields.calendarRepairPendingAt
         ) {
+          return staleSchedulerWriteResult();
+        }
+
+        if (expected.status === 'ok' && expected.taskInputRepairPendingAt &&
+            !fields.taskInputRepairPendingAt && canonicalInputSnapshot === undefined) {
           return staleSchedulerWriteResult();
         }
 
@@ -579,6 +596,33 @@ export async function markPreferenceRepairPending(
   }
 }
 
+/** Call in the same Dexie transaction as a task definition write. */
+export async function markTaskInputRepairPending(
+  store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
+  taskId: string,
+  detectedAt = new Date().toISOString(),
+): Promise<{ ok: true } | { ok: false; errors: string[] }> {
+  try {
+    const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
+    if (!stored) return { ok: true };
+    const candidate = schedulerPlanStateRecordSchema.safeParse({
+      ...stored,
+      taskInputRepairPendingAt: detectedAt,
+      taskInputRepairTargetIds: [...new Set([...(stored.taskInputRepairTargetIds ?? []), taskId])].sort(),
+    });
+    if (!candidate.success) return { ok: false, errors: issuesToMessages(candidate.error.issues) };
+    const updated = await store.schedulerPlanState.update(CURRENT_SCHEDULER_PLAN_STATE_ID, {
+      taskInputRepairPendingAt: candidate.data.taskInputRepairPendingAt,
+      taskInputRepairTargetIds: candidate.data.taskInputRepairTargetIds,
+    });
+    return updated === 1
+      ? { ok: true }
+      : { ok: false, errors: ['schedulerPlanState: Task change could not mark the plan for repair.'] };
+  } catch {
+    return { ok: false, errors: ['schedulerPlanState: Task change could not mark the plan for repair.'] };
+  }
+}
+
 export async function clearSchedulerPlanState(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
 ): Promise<void> {
@@ -616,6 +660,10 @@ export async function buildAndPersistSchedulerPlan(
       ...(current.status === 'ok' && current.calendarRepairPendingAt
         ? { calendarRepairPendingAt: current.calendarRepairPendingAt }
         : {}),
+      ...(current.status === 'ok' && current.taskInputRepairPendingAt
+        ? { taskInputRepairPendingAt: current.taskInputRepairPendingAt,
+            taskInputRepairTargetIds: current.taskInputRepairTargetIds }
+        : {}),
     }, calendarSourceSnapshot, canonicalInputSnapshot, durationLearning?.eventSnapshot,
     current.status === 'missing' ? behaviourEventsForInitialSchedulerPlan(plan, updatedAt) : []);
 
@@ -650,7 +698,23 @@ export async function repairAndPersistSchedulerPlan(
   const current = expectedSchedulerState ?? observed;
 
   try {
-    const preferenceAware = withPendingPreferenceRepair(current, change);
+    const pendingTaskIds = current.status === 'ok'
+      ? new Set(current.taskInputRepairTargetIds ?? []) : new Set<string>();
+    const releasedTaskPlacements = current.status === 'ok' && change.now
+      ? current.plan.placements.filter((placement) =>
+          placement.origin === 'scheduler' &&
+          (placement.targetKind ?? 'intention') === 'intention' &&
+          pendingTaskIds.has(placement.intentionId) &&
+          (placement.date > change.now!.date ||
+            (placement.date === change.now!.date && placement.start >= change.now!.time)),
+        ).map((placement) => placement.id)
+      : [];
+    const taskAwareChange: SchedulerChange = releasedTaskPlacements.length > 0
+      ? { ...change, releasePlacementIds: [...new Set([
+          ...(change.releasePlacementIds ?? []), ...releasedTaskPlacements,
+        ])].sort() }
+      : change;
+    const preferenceAware = withPendingPreferenceRepair(current, taskAwareChange);
     const previousDurationLearning = current.status === 'ok'
       ? orderedDurationLearning(current.durationLearningApplied ?? [])
       : [];
@@ -694,12 +758,16 @@ export async function repairAndPersistSchedulerPlan(
       : [];
     const plan = calculatedPlan.repair && (
       appliedPreferenceRepairTargets.length > 0 ||
-      changedDurationTemplateIds.length > 0
+      changedDurationTemplateIds.length > 0 ||
+      (current.status === 'ok' && Boolean(current.taskInputRepairPendingAt))
     )
       ? {
           ...calculatedPlan,
           repair: {
             ...calculatedPlan.repair,
+            ...(current.status === 'ok' && current.taskInputRepairPendingAt
+              ? { taskDefinitionRepairApplied: true }
+              : {}),
             ...(appliedPreferenceRepairTargets.length > 0
               ? { appliedPreferenceRepairTargets }
               : {}),
@@ -775,6 +843,11 @@ export async function undoPersistedSchedulerRepair(
       ok: false,
       errors: ['schedulerPlanState: There is no saved repair to undo.'],
     };
+  }
+
+  if (current.taskInputRepairPendingAt || current.plan.repair.trigger === 'taskDefinitionChanged' ||
+      current.plan.repair.taskDefinitionRepairApplied) {
+    return { ok: false, errors: ['schedulerPlanState: Edit the task again to correct its definition. Earlier task times cannot be restored as a valid plan.'] };
   }
 
   const reverted = scheduler.undoRepair(current.plan);

@@ -510,7 +510,9 @@ export function PersonalPlanScreen({
             ))}
           </ul>
 
-          {privatePlanState.plan.repair?.undo ? (
+          {privatePlanState.plan.repair?.undo &&
+            privatePlanState.plan.repair.trigger !== 'taskDefinitionChanged' &&
+            !privatePlanState.plan.repair.taskDefinitionRepairApplied ? (
             <Button
               disabled={privatePlanBusy !== null}
               onClick={() => void undoPrivatePlan()}

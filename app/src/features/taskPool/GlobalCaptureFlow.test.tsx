@@ -71,9 +71,10 @@ describe('persistent shell Capture', () => {
     await user.click(captureButton);
     await user.type(screen.getByLabelText('Task title'), 'Pack spare charger');
     await user.type(screen.getByLabelText('Minimum version'), 'Put charger by the bag');
+    await user.type(screen.getByLabelText('Minimum minutes'), '5');
     await user.dblClick(screen.getByRole('button', { name: 'Save captured task' }));
 
-    expect(await screen.findByText('Task captured. It is safely held.')).toBeTruthy();
+    expect(await screen.findByText('Task captured. Held outside Today and available for private planning.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: 'Capture task' })).toBeNull();
     expect(document.activeElement).toBe(captureButton);
@@ -115,12 +116,13 @@ describe('persistent shell Capture', () => {
     await user.click(screen.getByRole('button', { name: 'Capture' }));
     await user.type(screen.getByLabelText('Task title'), 'Should remain unsaved');
     await user.type(screen.getByLabelText('Minimum version'), 'One safe step');
+    await user.type(screen.getByLabelText('Minimum minutes'), '5');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Capture task' });
     expect(await within(dialog).findByText(/Saved Held tasks could not be read, so nothing was captured/)).toBeTruthy();
     expect(within(dialog).queryByText('Task was not captured. Check the required fields.')).toBeNull();
-    expect(screen.queryByText('Task captured. It is safely held.')).toBeNull();
+    expect(screen.queryByText('Task captured. Held outside Today and available for private planning.')).toBeNull();
     expect(putSpy).not.toHaveBeenCalled();
   });
 });

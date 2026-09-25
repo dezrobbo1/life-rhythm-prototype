@@ -228,9 +228,26 @@ No contextual bandits, reinforcement learning, neural network or psychological p
 
 Exit condition: at least a small set of scheduling choices can improve from the user's own history while remaining explainable and correctable.
 
-### Gate 8 — MVP personal trial and evidence gate
+### Gate 8A — Personal-Trial Platform Readiness
 
-Status (2026-09-25): **Current programme.** The next bounded milestone is **Gate 8A — Personal Trial Readiness + Evidence Protocol**. Before Day 1, reconcile the obsolete PR #104-era trial guidance, make Gate 7E duration-control state portable through a bounded export/portability path, define low-burden measurement for the Gate 8 outcomes below, and perform current desktop/narrow/mobile/keyboard readiness checks. Do not add another behavioural-learning mechanism merely to expand Gate 7.
+Status (2026-09-25): **Current programme; Gate 8A1 is the next bounded implementation.** Gate 7 exit does not authorise Day 1 of the longitudinal trial. The verified blocker inventory, slice ownership and trial start gate are in `app/docs/gate8a-personal-trial-platform-readiness.md`. Earlier PR #104-era personal-trial guidance is historical.
+
+Deliver the following bounded slices in order, reviewing each before starting the next:
+
+1. **8A1 — Canonical Input Truth:** user-entered task variant minutes, truthful fallback, correction of existing user-created tasks, and honest scheduling authority/classification. Preserve historical duration uncertainty.
+2. **8A2 — Rhythm End-to-End:** configured personal rhythm, durable enabled state, frequency/window, scheduler placement, concrete occurrence, Today/Now execution and linked behaviour history.
+3. **8A3 — Availability + Calendar:** usable-day setup and reliable calendar input, including a bounded recurrence/provider decision; never infer usable capacity from blank calendar gaps.
+4. **8A4 — Durable Personal Data:** preserve canonical data beyond one device/browser with an explicit recovery, portability and conflict policy. Include Gate 7E duration-control portability.
+5. **8A5 — Scheduling Mutation Integrity + Corrections:** reconcile every scheduling input write, plus individual move/protect, explanations and safe undo.
+6. **8A6 — Learning Evidence Integrity:** distinguish completed variants and other trusted lifecycle facts before treating them as learning evidence.
+7. **8A7 — UI/UX Product Convergence:** honest surface copy and coherent mobile, desktop and keyboard daily flow.
+8. **8A8 — Trial Evidence + Final Acceptance:** current protocol, low-burden evidence, end-to-end device review and explicit readiness decision.
+
+Exit condition: the 8A8 acceptance decision confirms that tasks and rhythms can be authored, scheduled, executed and corrected; capacity and calendar constraints are trustworthy; canonical data can be recovered; learning evidence has the claimed meaning; and the daily UI is usable on the owner's actual devices. Limited Perth-only owner testing may proceed earlier as prototype feedback, without counting it as longitudinal trial evidence.
+
+### Gate 8B — Longitudinal Personal Trial
+
+Status: **Not started.** Begin only after Gate 8A8 records a pass. The small beta follows trial evidence and a separate release decision.
 
 Goal: decide whether the product thesis works before adding AI complexity.
 
