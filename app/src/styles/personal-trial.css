@@ -33,8 +33,6 @@
 .app-shell[data-trial-mode='personal'] .reset-screen section[aria-labelledby='secondary-reset-title'],
 .app-shell[data-trial-mode='personal'] .reset-danger-zone,
 .app-shell[data-trial-mode='personal'] .setup-later-actions,
-.app-shell[data-trial-mode='personal'] .library-card__state,
-.app-shell[data-trial-mode='personal'] .library-card__actions > .button:first-child,
 .app-shell[data-trial-mode='personal'] .library-create-card__actions > .button:nth-child(2),
 .app-shell[data-trial-mode='personal'] .library-create-card__actions > .button:disabled,
 .app-shell[data-trial-mode='personal'] .library-create-card > div:first-child > p:not(:first-of-type),
