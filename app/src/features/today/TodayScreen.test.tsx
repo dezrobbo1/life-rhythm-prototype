@@ -1293,6 +1293,18 @@ describe('Today screen', () => {
     expect(reducedDayMocks.undoTodayPlanChange).not.toHaveBeenCalled();
   });
 
+  it('does not offer Today Undo when a user correction also incorporated pending settings authority', async () => {
+    const repairedPlan = persistedReducedDayRepairPlan();
+    repairedPlan.repair = { ...repairedPlan.repair!, trigger: 'userCorrection', settingsDefinitionRepairApplied: true };
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok', plan: repairedPlan, updatedAt: '2026-09-15T01:00:00.000Z',
+    });
+    render(<TodayScreen />);
+    const changed = await screen.findByRole('region', { name: 'Changed' });
+    expect(within(changed).queryByRole('button', { name: 'Undo last change' })).toBeNull();
+    expect(reducedDayMocks.undoTodayPlanChange).not.toHaveBeenCalled();
+  });
+
   it('refreshes Later and Changed after a successful Today lifecycle repair', async () => {
     const user = userEvent.setup();
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([

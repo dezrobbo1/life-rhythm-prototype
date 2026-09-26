@@ -8,6 +8,53 @@ const calendar = (...events: string[]) => ['BEGIN:VCALENDAR', 'VERSION:2.0', ...
 const base = ['DTSTART;TZID=Australia/Sydney:20261002T090000', 'DTEND;TZID=Australia/Sydney:20261002T093000'];
 
 describe('bounded recurring calendar authority', () => {
+  it('uses the first repeated Sydney instant for a recurring master and for both ends', () => {
+    const source = calendar(event([
+      'DTSTART;TZID=Australia/Sydney:20260405T023000', 'DTEND;TZID=Australia/Sydney:20260405T024500',
+      'RRULE:FREQ=DAILY;COUNT=1',
+    ]));
+    const read = { targetTimezone: 'UTC', windowStartDate: '2026-04-04', windowEndDate: '2026-04-05' };
+    const first = adapter.read(source, read).events;
+    expect(first).toEqual([expect.objectContaining({
+      sourceEventId: 'work@example.com::2026-04-05T02:30:00',
+      start: { date: '2026-04-04', time: '15:30' }, end: { date: '2026-04-04', time: '15:45' },
+    })]);
+    expect(adapter.read(source, read).events).toEqual(first);
+  });
+
+  it('uses the first repeated Sydney instant for an explicitly zoned RDATE', () => {
+    const source = calendar(event([
+      'DTSTART;TZID=Australia/Sydney:20260404T090000', 'DTEND;TZID=Australia/Sydney:20260404T091500',
+      'RRULE:FREQ=DAILY;COUNT=1', 'RDATE;TZID=Australia/Sydney:20260405T023000',
+    ]));
+    const rows = adapter.read(source, { targetTimezone: 'UTC', windowStartDate: '2026-04-03', windowEndDate: '2026-04-05' }).events;
+    expect(rows[1]).toMatchObject({ sourceEventId: 'work@example.com::2026-04-05T02:30:00',
+      start: { date: '2026-04-04', time: '15:30' }, end: { date: '2026-04-04', time: '15:45' } });
+  });
+
+  it('uses the first repeated target-local instant for a floating RDATE', () => {
+    const source = calendar(event([
+      'DTSTART;TZID=Australia/Perth:20260404T090000', 'DTEND;TZID=Australia/Perth:20260404T091500',
+      'RRULE:FREQ=DAILY;COUNT=1', 'RDATE:20260405T023000',
+    ]));
+    const rows = adapter.read(source, { targetTimezone: 'Australia/Sydney', windowStartDate: '2026-04-04', windowEndDate: '2026-04-05' }).events;
+    expect(rows[1]).toMatchObject({ sourceEventId: 'work@example.com::2026-04-05T02:30:00',
+      start: { date: '2026-04-05', time: '02:30' }, end: { date: '2026-04-05', time: '02:45' } });
+    expect(rows[1].sourceTimezone).toBeUndefined();
+    expect(adapter.read(source, { targetTimezone: 'UTC', windowStartDate: '2026-04-04', windowEndDate: '2026-04-05' }).events[1].sourceEventId).toBe(rows[1].sourceEventId);
+  });
+
+  it('resolves a moved recurrence exception in the repeated Sydney hour only once', () => {
+    const source = calendar(
+      event(['DTSTART;TZID=Australia/Sydney:20260404T090000', 'DTEND;TZID=Australia/Sydney:20260404T091500', 'RRULE:FREQ=DAILY;COUNT=2']),
+      event(['RECURRENCE-ID;TZID=Australia/Sydney:20260405T090000',
+        'DTSTART;TZID=Australia/Sydney:20260405T023000', 'DTEND;TZID=Australia/Sydney:20260405T024500']),
+    );
+    const rows = adapter.read(source, { targetTimezone: 'UTC', windowStartDate: '2026-04-03', windowEndDate: '2026-04-05' }).events;
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toMatchObject({ sourceEventId: 'work@example.com::2026-04-05T09:00:00',
+      start: { date: '2026-04-04', time: '15:30' }, end: { date: '2026-04-04', time: '15:45' } });
+  });
   it('keeps weekly local 09:00 across Sydney DST with stable IDs and skips excluded dates', () => {
     const source = calendar(event([...base, 'RRULE:FREQ=WEEKLY;COUNT=5;BYDAY=FR', 'EXDATE;TZID=Australia/Sydney:20261009T090000']));
     const first = adapter.read(source, options).events;

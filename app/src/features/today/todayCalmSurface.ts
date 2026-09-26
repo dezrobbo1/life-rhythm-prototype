@@ -140,7 +140,8 @@ function repairAttribution(repair: SchedulerRepairMetadata) {
 
 function canUndoFromToday(repair: SchedulerRepairMetadata) {
   return Boolean(
-    repair.undo && !repair.taskDefinitionRepairApplied &&
+    repair.undo && !repair.taskDefinitionRepairApplied && !repair.rhythmDefinitionRepairApplied &&
+    !repair.settingsDefinitionRepairApplied &&
     repair.trigger === 'userCorrection' &&
     undoableTodayRepairReasons.has(repair.reason),
   );

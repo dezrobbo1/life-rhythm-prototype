@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createAuthLocalDataNamespace, getCurrentLifeRhythmDatabase, resetCurrentLocalDataNamespace, setCurrentLocalDataNamespace } from './localDataNamespace';
-import { buildCurrentLiveSchedulingContext, ensureCurrentPrivatePlan, undoCurrentPrivatePlan } from './schedulerPlanCoordinator';
+import { buildCurrentLiveSchedulingContext, ensureCurrentPrivatePlan, repairCurrentPrivatePlan, undoCurrentPrivatePlan } from './schedulerPlanCoordinator';
 import { createDefaultSettings, loadSettings, resetSettingsToDefaults, saveSettings } from './settingsRepository';
 import { loadSchedulerPlanState } from './schedulerPlanStateRepository';
 import { WORKDAY_PROFILE_ID, taskPoolItemSchema } from './schemas';
@@ -14,6 +14,38 @@ beforeEach(() => {
 });
 
 describe('reviewed planning day persistence and repair', () => {
+  it('keeps narrowed canonical settings authoritative when a user correction repairs before settings retry', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const defaults = createDefaultSettings();
+    const withDay = (start: string, end: string) => defaults.dayProfiles.map((profile) =>
+      profile.kind === 'workday' ? { ...profile, usableDay: { start, end } } : profile);
+    const baseInput = { lifeShape: defaults.lifeShape, theme: defaults.theme, startBoostSafety: defaults.startBoostSafety };
+    expect((await saveSettings({ ...baseInput, dayProfiles: withDay('18:00', '22:00'), activatePlanningDay: true })).ok).toBe(true);
+    await database.taskPoolItems.put(taskPoolItemSchema.parse({
+      id: 'pending-evening-task', source: 'adhoc', title: 'Evening task', area: 'admin', status: 'captured',
+      minimum: { label: 'Start', minutes: 20 }, normal: { label: 'Continue', minutes: 20 }, full: { label: 'Finish', minutes: 20 },
+      createdAt: '2026-09-06T00:00:00.000Z', updatedAt: '2026-09-06T00:00:00.000Z',
+    }));
+    const old = await ensureCurrentPrivatePlan(planOptions);
+    expect(old.ok).toBe(true);
+    if (!old.ok) return;
+    expect(old.plan.placements).toEqual([expect.objectContaining({ start: '18:00' })]);
+    const narrowed = await saveSettings({ ...baseInput, dayProfiles: withDay('06:30', '17:00'), activatePlanningDay: true });
+    expect(narrowed.ok).toBe(true);
+    expect((await loadSchedulerPlanState()).status).toBe('ok');
+    const repaired = await repairCurrentPrivatePlan({ ...planOptions, trigger: 'userCorrection', reason: 'Reduced Day uses current planning settings.' });
+    expect(repaired.ok).toBe(true);
+    if (!repaired.ok) return;
+    expect(repaired.plan.repair).toMatchObject({ trigger: 'userCorrection', settingsDefinitionRepairApplied: true });
+    expect(repaired.plan.placements.every((placement) => placement.end <= '17:00')).toBe(true);
+    const accepted = await loadSchedulerPlanState();
+    expect(accepted.status === 'ok' && accepted.settingsRepairPendingAt).toBeFalsy();
+    const events = await database.taskHistory.toArray();
+    expect((await undoCurrentPrivatePlan(planOptions)).ok).toBe(false);
+    expect((await loadSettings()).dayProfiles).toEqual(narrowed.settings.dayProfiles);
+    expect(await loadSchedulerPlanState()).toEqual(accepted);
+    expect(await database.taskHistory.toArray()).toEqual(events);
+  });
   it('persists an absent core work period across reload and repairs the accepted plan without a legacy fallback', async () => {
     const defaults = createDefaultSettings();
     const workBoundaryMinutes = { beforeTravel: 10, afterTravel: 5, beforeTransition: 5, afterTransition: 5 };

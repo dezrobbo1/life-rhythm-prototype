@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { IcsCalendarAdapter } from './calendarAdapter';
+import { externalCommitmentsFromCalendarEvents } from './calendarAvailability';
 
 const options = {
   targetTimezone: 'Australia/Perth',
@@ -21,6 +22,41 @@ function event(lines: string[]) {
 }
 
 describe('ICS calendar adapter', () => {
+  it('selects the first occurrence of repeated Sydney 02:30 and retains its actual duration', () => {
+    const adapter = new IcsCalendarAdapter();
+    const result = adapter.read(calendar(event([
+      'UID:repeated-wall-time',
+      'SUMMARY:Repeated time',
+      'DTSTART;TZID=Australia/Sydney:20260405T023000',
+      'DTEND;TZID=Australia/Sydney:20260405T024500',
+    ])), { targetTimezone: 'UTC', windowStartDate: '2026-04-04', windowEndDate: '2026-04-05' });
+    expect(result.events[0]).toMatchObject({
+      start: { date: '2026-04-04', time: '15:30' }, end: { date: '2026-04-04', time: '15:45' },
+    });
+    const [commitment] = externalCommitmentsFromCalendarEvents(result.events, 10, 5);
+    expect(commitment).toMatchObject({ interval: { start: '15:30', end: '15:45' }, travelBeforeMinutes: 10, transitionAfterMinutes: 5 });
+  });
+
+  it('handles a repeated half-hour offset and a quarter-hour IANA offset without host-local time', () => {
+    const adapter = new IcsCalendarAdapter();
+    const options = { targetTimezone: 'UTC', windowStartDate: '2026-04-04', windowEndDate: '2026-04-05' };
+    const lordHowe = adapter.read(calendar(event([
+      'UID:lord-howe-fallback', 'SUMMARY:Repeated half-hour',
+      'DTSTART;TZID=Australia/Lord_Howe:20260405T014500',
+      'DTEND;TZID=Australia/Lord_Howe:20260405T015000',
+    ])), options).events;
+    expect(lordHowe[0]).toMatchObject({
+      start: { date: '2026-04-04', time: '14:45' }, end: { date: '2026-04-04', time: '14:50' },
+    });
+    const kathmandu = adapter.read(calendar(event([
+      'UID:kathmandu-offset', 'SUMMARY:Quarter-hour zone',
+      'DTSTART;TZID=Asia/Kathmandu:20260405T090030',
+      'DTEND;TZID=Asia/Kathmandu:20260405T093030',
+    ])), options).events;
+    expect(kathmandu[0]).toMatchObject({
+      start: { date: '2026-04-05', time: '03:15' }, end: { date: '2026-04-05', time: '03:45' },
+    });
+  });
   it('imports a UTC event into the requested local timezone', () => {
     const adapter = new IcsCalendarAdapter();
     const result = adapter.read(calendar(event([

@@ -512,6 +512,7 @@ export function PersonalPlanScreen({
 
           {privatePlanState.plan.repair?.undo &&
             privatePlanState.plan.repair.trigger !== 'settingsChanged' &&
+            !privatePlanState.plan.repair.settingsDefinitionRepairApplied &&
             privatePlanState.plan.repair.trigger !== 'taskDefinitionChanged' &&
             !privatePlanState.plan.repair.taskDefinitionRepairApplied &&
             privatePlanState.plan.repair.trigger !== 'rhythmDefinitionChanged' &&

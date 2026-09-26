@@ -880,6 +880,7 @@ export async function repairAndPersistSchedulerPlan(
     const plan = calculatedPlan.repair && (
       appliedPreferenceRepairTargets.length > 0 ||
       changedDurationTemplateIds.length > 0 ||
+      (current.status === 'ok' && Boolean(current.settingsRepairPendingAt)) ||
       (current.status === 'ok' && Boolean(current.taskInputRepairPendingAt))
       || (current.status === 'ok' && Boolean(current.rhythmInputRepairPendingAt))
     )
@@ -892,6 +893,9 @@ export async function repairAndPersistSchedulerPlan(
               : {}),
             ...(current.status === 'ok' && current.rhythmInputRepairPendingAt
               ? { rhythmDefinitionRepairApplied: true }
+              : {}),
+            ...(current.status === 'ok' && current.settingsRepairPendingAt
+              ? { settingsDefinitionRepairApplied: true }
               : {}),
             ...(appliedPreferenceRepairTargets.length > 0
               ? { appliedPreferenceRepairTargets }
@@ -970,7 +974,8 @@ export async function undoPersistedSchedulerRepair(
     };
   }
 
-  if (current.settingsRepairPendingAt || current.plan.repair.trigger === 'settingsChanged') {
+  if (current.settingsRepairPendingAt || current.plan.repair.trigger === 'settingsChanged' ||
+      current.plan.repair.settingsDefinitionRepairApplied) {
     return { ok: false, errors: ['schedulerPlanState: Change the planning settings again to correct them. Earlier plan times cannot be restored under the current boundaries.'] };
   }
 

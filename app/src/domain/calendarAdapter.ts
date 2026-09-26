@@ -105,17 +105,23 @@ function formatTime(hour: number, minute: number): string {
   return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
 
+const zoneFormatters = new Map<string, Intl.DateTimeFormat>();
+
 function partsInZone(epochMs: number, timezone: string): LocalDateTimeComponents {
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  });
+  let formatter = zoneFormatters.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    });
+    zoneFormatters.set(timezone, formatter);
+  }
   const parts = formatter.formatToParts(new Date(epochMs));
   const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
 
@@ -142,7 +148,7 @@ function zonedLocalToEpoch(
   components: LocalDateTimeComponents,
   timezone: string,
 ): number {
-  let guess = Date.UTC(
+  const nominalUtc = Date.UTC(
     components.year,
     components.month - 1,
     components.day,
@@ -150,36 +156,24 @@ function zonedLocalToEpoch(
     components.minute,
     components.second,
   );
-
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const represented = partsInZone(guess, timezone);
-    const representedAsUtc = Date.UTC(
-      represented.year,
-      represented.month - 1,
-      represented.day,
-      represented.hour,
-      represented.minute,
-      represented.second,
-    );
-    const intendedAsUtc = Date.UTC(
-      components.year,
-      components.month - 1,
-      components.day,
-      components.hour,
-      components.minute,
-      components.second,
-    );
-    const delta = representedAsUtc - intendedAsUtc;
-    if (delta === 0) break;
-    guess -= delta;
+  // Inspect the bounded range of possible IANA offsets independently of the
+  // machine timezone. Both sides of a fallback transition can represent the
+  // same wall time; RFC 5545 uses the earlier of those two instants.
+  const offsets = new Set<number>();
+  for (let hours = -24; hours <= 24; hours += 1) {
+    const probe = nominalUtc + hours * 60 * 60_000;
+    const represented = partsInZone(probe, timezone);
+    offsets.add(Date.UTC(
+      represented.year, represented.month - 1, represented.day,
+      represented.hour, represented.minute, represented.second,
+    ) - probe);
   }
-
-  const represented = partsInZone(guess, timezone);
-  if (!localComponentsMatch(represented, components)) {
+  const matching = [...offsets].map((offset) => nominalUtc - offset)
+    .filter((candidate) => localComponentsMatch(partsInZone(candidate, timezone), components));
+  if (matching.length === 0) {
     throw new RangeError(`Local calendar time cannot be represented in timezone ${timezone}.`);
   }
-
-  return guess;
+  return Math.min(...matching);
 }
 
 function pointFromEpoch(epochMs: number, targetTimezone: string): ParsedDateValue {

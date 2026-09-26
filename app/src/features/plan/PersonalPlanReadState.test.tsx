@@ -240,6 +240,18 @@ describe('Personal Plan read states', () => {
     expect(screen.queryByText('The previous private plan was restored.')).toBeNull();
   });
 
+  it('does not offer Undo for a user correction that incorporated pending settings authority', async () => {
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: { ...changedPlan, repair: { ...changedPlan.repair, trigger: 'userCorrection', settingsDefinitionRepairApplied: true } },
+      titleByTargetId: { 'task-moved': 'Move the form' }, warnings: [],
+    });
+    renderEmbeddedPlan();
+    expect(await screen.findByRole('heading', { name: 'Changed' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Undo last repair' })).toBeNull();
+    expect(screen.queryByText('The previous private plan was restored.')).toBeNull();
+  });
+
   it('never reports a successful restoration when an otherwise visible Undo is rejected', async () => {
     coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({ ok: true, plan: changedPlan,
       titleByTargetId: { 'task-moved': 'Move the form' }, warnings: [] });

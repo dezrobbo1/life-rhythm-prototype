@@ -237,6 +237,7 @@ const schedulerRepairMetadataSchema = z
     previousDurationLearningApplied: z.array(appliedDurationLearningSchema).optional(),
     taskDefinitionRepairApplied: z.boolean().optional(),
     rhythmDefinitionRepairApplied: z.boolean().optional(),
+    settingsDefinitionRepairApplied: z.boolean().optional(),
     undo: persistedSchedulerPlanSnapshotSchema,
   })
   .strict();
