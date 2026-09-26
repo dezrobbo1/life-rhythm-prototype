@@ -3,7 +3,7 @@
 import 'fake-indexeddb/auto';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LibraryScreen } from '../../screens/LibraryScreen';
 import {
   createAuthLocalDataNamespace,
@@ -13,6 +13,9 @@ import {
 } from '../../data/localDataNamespace';
 import { parseRhythmAuthorityBackupJson } from '../../data/rhythmAuthorityBackup';
 import { rhythmTemplateSchema } from '../../data/schemas';
+import * as authorityRepository from '../../data/rhythmAuthorityRepository';
+import { LibraryRhythmCard, type LibraryRhythmConfigurationView } from './LibraryRhythmCard';
+import { mockLibraryRhythms } from './mockLibraryData';
 
 let testIndex = 0;
 
@@ -23,6 +26,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   cleanup();
+  vi.restoreAllMocks();
   const database = getCurrentLifeRhythmDatabase();
   database.close();
   await database.delete();
@@ -31,8 +35,9 @@ afterEach(async () => {
 
 async function openBreakfastConfiguration(user: ReturnType<typeof userEvent.setup>) {
   render(<LibraryScreen />);
-  await screen.findByRole('button', { name: 'Create rhythm' });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Create rhythm' })).toHaveProperty('disabled', false));
   const card = screen.getByRole('article', { name: 'Breakfast reset' });
+  await waitFor(() => expect(within(card).getByRole('button', { name: 'Configure and turn on' })).toHaveProperty('disabled', false));
   await user.click(within(card).getByRole('button', { name: 'Configure and turn on' }));
   return card;
 }
@@ -44,11 +49,101 @@ async function saveMinimumOnly(user: ReturnType<typeof userEvent.setup>, minutes
 }
 
 describe('Gate 8A2 Library rhythm authority', () => {
+  it.each(['enabled', 'paused', 'disabled', 'unconfigured'] as const)('disables %s card mutations while authority is unreadable', (state) => {
+    const onConfigure = vi.fn();
+    const onSetState = vi.fn();
+    const onAddToday = vi.fn();
+    const configuration: LibraryRhythmConfigurationView = { state, frequency: 2, period: 'week', minimumMinutes: 3 };
+    render(<LibraryRhythmCard actionsDisabled configuration={configuration} onConfigure={onConfigure} onSetState={onSetState} onAddToday={onAddToday} rhythm={mockLibraryRhythms[0]} />);
+    const card = screen.getByRole('article');
+    const actions = within(card).getAllByRole('button');
+    for (const button of actions) {
+      if (button.textContent === 'Details') expect(button).toHaveProperty('disabled', false);
+      else expect(button).toHaveProperty('disabled', true);
+    }
+  });
+  it('keeps catalogue details readable but every write unavailable until saved authority loads', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const originalRead = authorityRepository.loadRhythmAuthorityResult;
+    const createdAt = '2026-01-01T01:00:00.000Z';
+    const savedTemplate = rhythmTemplateSchema.parse({
+      id: 'food-breakfast-reset', source: 'built-in', title: 'Breakfast reset', area: 'food',
+      minimum: { label: 'Saved minimum', minutes: 3 },
+      normal: { label: 'Saved normal', minutes: 17 },
+      full: { label: 'Saved full', minutes: 29 },
+      enabled: false, createdAt, updatedAt: createdAt,
+    });
+    await database.rhythmTemplates.put(savedTemplate);
+    let finishRead!: (value: Awaited<ReturnType<typeof originalRead>>) => void;
+    vi.spyOn(authorityRepository, 'loadRhythmAuthorityResult').mockImplementationOnce(() =>
+      new Promise((resolve) => { finishRead = resolve; }));
+    const save = vi.spyOn(authorityRepository, 'saveRhythmConfiguration');
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+    const card = screen.getByRole('article', { name: 'Breakfast reset' });
+    expect(within(card).getByText('Saved state unavailable')).toBeTruthy();
+    expect(within(card).queryByText('Needs configuration')).toBeNull();
+    const add = within(card).getByRole('button', { name: 'Configure to add once' });
+    expect(add).toHaveProperty('disabled', true);
+    expect(within(card).queryByRole('button', { name: 'Configure and turn on' })).toBeNull();
+    await user.click(within(card).getByRole('button', { name: 'Details' }));
+    expect(within(card).getByText('Why this rhythm exists')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(save).not.toHaveBeenCalled();
+    await database.rhythmTemplates.get(savedTemplate.id).then((row) => expect(row).toEqual(savedTemplate));
+
+    const result = await originalRead();
+    await waitFor(() => expect(typeof finishRead).toBe('function'));
+    finishRead(result);
+    await waitFor(() => expect(within(card).getByText('Needs configuration')).toBeTruthy());
+    expect(within(card).getByRole('button', { name: 'Configure and turn on' })).toHaveProperty('disabled', false);
+    expect(within(card).getByRole('button', { name: 'Configure to add once' })).toHaveProperty('disabled', false);
+    expect(await database.rhythmTemplates.get(savedTemplate.id)).toEqual(savedTemplate);
+  });
+
+  it('keeps all mutations disabled after an authority read error, while Details remains readable', async () => {
+    vi.spyOn(authorityRepository, 'loadRhythmAuthorityResult').mockResolvedValueOnce({
+      status: 'readFailed', errors: ['Saved data could not be read.'],
+    });
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+    await screen.findByText('Saved rhythm configuration could not be read.');
+    const card = screen.getByRole('article', { name: 'Breakfast reset' });
+    expect(within(card).getByText('Saved state unavailable')).toBeTruthy();
+    expect(within(card).getByRole('button', { name: 'Configure to add once' })).toHaveProperty('disabled', true);
+    expect(within(card).queryByRole('button', { name: 'Configure and turn on' })).toBeNull();
+    await user.click(within(card).getByRole('button', { name: 'Details' }));
+    expect(within(card).getByText('Catalogue action ideas')).toBeTruthy();
+    expect(await getCurrentLifeRhythmDatabase().rhythmTemplates.count()).toBe(0);
+  });
+
+  it('clears previous backup check results on selection and reports file-read failures', async () => {
+    render(<LibraryScreen />);
+    const editor = screen.getByRole('textbox', { name: 'Paste backup text' });
+    const picker = screen.getByLabelText('Select backup file');
+    const check = screen.getByRole('button', { name: 'Check rhythm backup' });
+    fireEvent.change(editor, { target: { value: JSON.stringify({ format: 'life-rhythm-rhythm-authority-backup', version: 1, exportedAt: '2026-09-25T00:00:00.000Z', templates: [] }) } });
+    fireEvent.click(check);
+    expect(screen.getByText(/Valid backup:/)).toBeTruthy();
+    fireEvent.change(picker, { target: { files: [{ text: async () => '{ bad' }] } });
+    await waitFor(() => expect(editor).toHaveProperty('value', '{ bad'));
+    expect(screen.queryByText(/Valid backup:/)).toBeNull();
+    fireEvent.click(check);
+    expect(screen.getByText(/Backup JSON is malformed/)).toBeTruthy();
+    fireEvent.change(picker, { target: { files: [{ text: async () => '{}' }] } });
+    await waitFor(() => expect(editor).toHaveProperty('value', '{}'));
+    expect(screen.queryByText(/Backup JSON is malformed/)).toBeNull();
+    fireEvent.change(picker, { target: { files: [{ text: async () => { throw new Error('read failed'); } }] } });
+    expect(await screen.findByText('The selected backup file could not be read.')).toBeTruthy();
+    fireEvent.change(picker, { target: { files: [] } });
+    expect(screen.getByText('The selected backup file could not be read.')).toBeTruthy();
+    expect(editor).toHaveProperty('value', '{}');
+  });
   it('presents fixture rhythms as unconfigured suggestions and packs as preview-only', async () => {
     const user = userEvent.setup();
     render(<LibraryScreen />);
     const card = await screen.findByRole('article', { name: 'Breakfast reset' });
-    expect(within(card).getByText('Needs configuration')).toBeTruthy();
+    await waitFor(() => expect(within(card).getByText('Needs configuration')).toBeTruthy());
     expect(within(card).queryByText('Enabled')).toBeNull();
     await user.click(within(screen.getByRole('article', { name: 'Morning basics' }))
       .getByRole('button', { name: 'Preview pack' }));

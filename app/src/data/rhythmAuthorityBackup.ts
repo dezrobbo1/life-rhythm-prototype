@@ -87,7 +87,8 @@ export const rhythmAuthorityBackupSchema = z.object({
   });
   if (backup.behaviourEvents && backup.instances) backup.behaviourEvents.forEach((event, index) => {
     if (event.rhythmInstanceId && !backup.instances!.some((instance) =>
-      instance.id === event.rhythmInstanceId && instance.rhythmTemplateId === event.templateId,
+      instance.id === event.rhythmInstanceId &&
+        (event.templateId === undefined || instance.rhythmTemplateId === event.templateId),
     )) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: 'Referenced rhythm occurrence is missing.', path: ['behaviourEvents', index, 'rhythmInstanceId'] });
     }

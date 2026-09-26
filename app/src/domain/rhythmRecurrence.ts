@@ -158,9 +158,22 @@ export function buildMissingRhythmInstances(
       if (eligibilityStartDate > eligibilityEndDate) continue;
 
       const existingOrGenerated = alreadyInPeriod.length + generatedCount;
-      const remainingQuota = Math.max(0, revision.rule.frequency - existingOrGenerated);
-      const remainingDates = datesBetween(eligibilityStartDate, eligibilityEndDate).length;
-      const feasibleSlots = Math.min(remainingQuota, remainingDates * revision.rule.maxPerDay);
+      // The first generated window fixes this period's feasible entitlement.
+      // A moving horizon must not turn yesterday's unused quota into debt.
+      const observedStart = alreadyInPeriod.length > 0
+        ? alreadyInPeriod.reduce((earliest, instance) =>
+          instance.eligibilityStartDate < earliest ? instance.eligibilityStartDate : earliest,
+        alreadyInPeriod[0].eligibilityStartDate)
+        : input.horizonStartDate;
+      const capacityStart = latestDate([
+        bounds.start, observedStart, input.plan.initialEffectiveFromLocalDate,
+        revision.effectiveFromLocalDate,
+      ]);
+      const capacityDates = capacityStart <= eligibilityEndDate
+        ? datesBetween(capacityStart, eligibilityEndDate).length
+        : 0;
+      const feasibleTotal = Math.min(revision.rule.frequency, capacityDates * revision.rule.maxPerDay);
+      const feasibleSlots = Math.max(0, feasibleTotal - existingOrGenerated);
 
       for (let count = 0; count < feasibleSlots; count += 1) {
         let slotNumber = 1;

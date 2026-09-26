@@ -782,8 +782,8 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       )) {
         const synced = await syncScheduledRhythmOccurrencesToToday(saved.plan, readDate);
         if (!synced.ok) throw new Error(synced.errors.join(' '));
-        if (synced.tasks.length > 0) setTodayTasksReadAttempt((attempt) => attempt + 1);
         if (synced.mutated) {
+          setTodayTasksReadAttempt((attempt) => attempt + 1);
           const reconciled = await ensureCurrentPrivatePlan();
           if (!reconciled.ok) throw new Error(reconciled.errors.join(' '));
           currentSaved = await loadSchedulerPlanState();

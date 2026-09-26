@@ -177,6 +177,7 @@ export function LibraryScreen() {
   }, [authority, templateById]);
 
   function configurationFor(rhythmId: string): LibraryRhythmConfigurationView {
+    if (authority.status !== 'ok') return { state: 'unavailable' };
     const template = templateById.get(rhythmId);
     const plan = planByTemplateId.get(rhythmId);
     const revision = plan ? revisionById.get(plan.latestRecurrenceRevisionId) : undefined;
@@ -194,6 +195,7 @@ export function LibraryScreen() {
   }
 
   function openConfiguration(rhythm: LibraryRhythm) {
+    if (authority.status !== 'ok') return;
     setConfigTarget({ mode: planByTemplateId.has(rhythm.id) ? 'edit' : 'configure', rhythm });
   }
 
@@ -224,6 +226,10 @@ export function LibraryScreen() {
   }
 
   async function saveConfiguration(input: CreateRhythmInput) {
+    if (authority.status !== 'ok') {
+      setConfirmation('Saved rhythm configuration is unavailable. Please retry reading it before saving.');
+      return false;
+    }
     const rhythm = configTarget && configTarget.mode !== 'create' ? configTarget.rhythm : undefined;
     const existing = rhythm ? templateById.get(rhythm.id) : undefined;
     const currentPlan = rhythm ? planByTemplateId.get(rhythm.id) : undefined;
@@ -255,6 +261,7 @@ export function LibraryScreen() {
   }
 
   async function changeState(rhythmId: string, state: 'enabled' | 'paused' | 'disabled') {
+    if (authority.status !== 'ok') return;
     const result = await setRhythmPlanState(rhythmId, state);
     if (!result.ok) {
       setConfirmation(result.errors.join(' '));
@@ -268,6 +275,7 @@ export function LibraryScreen() {
   }
 
   async function addToToday(rhythm: LibraryRhythm) {
+    if (authority.status !== 'ok') return;
     if (!templateById.has(rhythm.id) || !planByTemplateId.has(rhythm.id)) {
       setConfirmation('Choose truthful action minutes before adding this rhythm to Today.');
       openConfiguration(rhythm);
@@ -309,7 +317,14 @@ export function LibraryScreen() {
 
   async function readBackupFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
-    if (file) setBackupJson(await file.text());
+    if (!file) return;
+    setBackupPreview(null);
+    setBackupErrors([]);
+    try {
+      setBackupJson(await file.text());
+    } catch {
+      setBackupErrors(['The selected backup file could not be read.']);
+    }
   }
 
   const filtered = libraryRhythms.filter((rhythm) => {
@@ -330,7 +345,7 @@ export function LibraryScreen() {
     <Card><div className="library-filters"><label><span>Search rhythms</span><input onChange={(event) => setSearchTerm(event.target.value)} type="search" value={searchTerm} /></label><div aria-label="Library categories" className="library-category-row" role="list">{libraryCategories.map((category) => <button aria-pressed={activeCategory === category} key={category} onClick={() => setActiveCategory(category)} type="button">{category}</button>)}</div></div></Card>
     {confirmation ? <p className="library-confirmation" role="status">{confirmation}</p> : null}
     <section className="quick-packs" aria-labelledby="quick-packs-title"><div className="section-heading"><h2 id="quick-packs-title">Quick packs</h2><p>Preview-only collections. Configure rhythms individually.</p></div><div className="quick-pack-grid">{mockQuickPacks.map((pack) => <QuickPackCard key={pack.id} onPreviewPack={(id) => setPreviewPackId((current) => current === id ? null : id)} pack={pack} previewOpen={previewPackId === pack.id} rhythms={libraryRhythms.filter((rhythm) => pack.rhythmIds.includes(rhythm.id))} />)}</div></section>
-    {filtered.length ? <div className="library-groups">{Object.entries(grouped).map(([category, rhythms]) => rhythms ? <section aria-labelledby={`${category}-library-heading`} className="library-group" key={category}><div className="section-heading"><h2 id={`${category}-library-heading`}>{category}</h2><p>{rhythms.length} rhythm{rhythms.length === 1 ? '' : 's'} in this view.</p></div><div className="library-card-grid">{rhythms.map((rhythm) => <LibraryRhythmCard configuration={configurationFor(rhythm.id)} key={rhythm.id} onAddToday={(item) => { void addToToday(item); }} onConfigure={openConfiguration} onSetState={(id, state) => { void changeState(id, state); }} rhythm={rhythm} />)}</div></section> : null)}</div> : <EmptyState action={<Button onClick={() => { setActiveCategory('All'); setSearchTerm(''); }}>Clear filters</Button>} message="Try another category or clear the search." title="No rhythms match this filter" />}
+    {filtered.length ? <div className="library-groups">{Object.entries(grouped).map(([category, rhythms]) => rhythms ? <section aria-labelledby={`${category}-library-heading`} className="library-group" key={category}><div className="section-heading"><h2 id={`${category}-library-heading`}>{category}</h2><p>{rhythms.length} rhythm{rhythms.length === 1 ? '' : 's'} in this view.</p></div><div className="library-card-grid">{rhythms.map((rhythm) => <LibraryRhythmCard actionsDisabled={authority.status !== 'ok'} configuration={configurationFor(rhythm.id)} key={rhythm.id} onAddToday={(item) => { void addToToday(item); }} onConfigure={openConfiguration} onSetState={(id, state) => { void changeState(id, state); }} rhythm={rhythm} />)}</div></section> : null)}</div> : <EmptyState action={<Button onClick={() => { setActiveCategory('All'); setSearchTerm(''); }}>Clear filters</Button>} message="Try another category or clear the search." title="No rhythms match this filter" />}
     {configTarget ? <CreateRhythmModal initial={formInitial()} key={`${configTarget.mode}:${configTarget.mode === 'create' ? 'new' : configTarget.rhythm.id}`} mode={configTarget.mode} onClose={() => setConfigTarget(null)} onSave={saveConfiguration} open /> : null}
   </div>;
 }

@@ -110,6 +110,47 @@ describe('flexible-quota rhythm recurrence', () => {
     expect(instances[0].eligibilityStartDate).toBe('2026-09-13');
   });
 
+  it('does not top up a partial weekly period as the rolling horizon moves', () => {
+    const saturday = generate({
+      plan: plan({ initialEffectiveFromLocalDate: '2026-09-12' }),
+      revisions: [revision({ effectiveFromLocalDate: '2026-09-12' })],
+      start: '2026-09-12', end: '2026-09-13',
+    });
+    expect(saturday).toHaveLength(2);
+    expect(generate({
+      plan: plan({ initialEffectiveFromLocalDate: '2026-09-12' }),
+      revisions: [revision({ effectiveFromLocalDate: '2026-09-12' })],
+      existing: saturday, start: '2026-09-13', end: '2026-09-14',
+    }).map((instance) => instance.periodKey)).toEqual(['week:2026-09-14', 'week:2026-09-14', 'week:2026-09-14']);
+    expect(generate({
+      plan: plan({ initialEffectiveFromLocalDate: '2026-09-12' }),
+      revisions: [revision({ effectiveFromLocalDate: '2026-09-12' })],
+      existing: saturday, start: '2026-09-13', end: '2026-09-13',
+    })).toEqual([]);
+  });
+
+  it('does not top up a partial month after reload but gives the next full month its quota', () => {
+    const monthly = revision({ rule: { frequency: 5, period: 'month', preferredDays: [], maxPerDay: 1 } });
+    const first = generate({ revisions: [monthly], start: '2026-09-29', end: '2026-09-30' });
+    expect(first).toHaveLength(2);
+    expect(generate({ revisions: [monthly], existing: first, start: '2026-09-30', end: '2026-09-30' })).toEqual([]);
+    const october = generate({ revisions: [monthly], existing: first, start: '2026-10-01', end: '2026-10-02' });
+    expect(october).toHaveLength(5);
+    expect(generate({ revisions: [monthly], existing: [...first, ...october], start: '2026-10-02', end: '2026-10-02' })).toEqual([]);
+  });
+
+  it('caps revised periods against the revision start and respects max per day on rerun', () => {
+    const revised = revision({
+      id: 'revision-2', revisionNumber: 2, effectiveFromLocalDate: '2026-09-12',
+      rule: { frequency: 6, period: 'week', preferredDays: [], maxPerDay: 2 },
+    });
+    const initial = generate({ revisions: [revision(), revised], start: '2026-09-12', end: '2026-09-13' });
+    expect(initial).toHaveLength(4);
+    expect(initial.every((instance) => instance.recurrenceRevisionId === revised.id)).toBe(true);
+    expect(generate({ revisions: [revision(), revised], existing: initial, start: '2026-09-13', end: '2026-09-13' })).toEqual([]);
+    expect(new Set(initial.map((instance) => instance.deduplicationKey)).size).toBe(4);
+  });
+
   it('does not carry an unmet quota into the next period', () => {
     const firstWeek = generate().slice(0, 1).map((instance) => rhythmInstanceSchema.parse({
       ...instance, lifecycleState: 'closed', completionState: 'skipped', planningState: 'closed',
