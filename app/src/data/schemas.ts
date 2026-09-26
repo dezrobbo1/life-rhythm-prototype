@@ -440,6 +440,12 @@ export const dayProfileSchema = z
     usableDay: dayProfileTimeRangeSchema.optional(),
     workPeriod: dayProfileTimeRangeSchema.optional(),
     workPlanningUse: dayProfileWorkPlanningUseSchema,
+    workBoundaryMinutes: z.object({
+      beforeTravel: transitionBufferMinutesSchema,
+      afterTravel: transitionBufferMinutesSchema,
+      beforeTransition: transitionBufferMinutesSchema,
+      afterTransition: transitionBufferMinutesSchema,
+    }).strict().optional(),
   })
   .passthrough();
 

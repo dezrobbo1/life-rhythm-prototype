@@ -8,6 +8,7 @@ const calendarMocks = vi.hoisted(() => ({
   loadCalendarSource: vi.fn(),
   commitCalendarSourceImport: vi.fn(),
   commitCalendarSourceRemoval: vi.fn(),
+  commitCalendarSourceBuffers: vi.fn(),
 }));
 
 const coordinatorMocks = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ vi.mock('../../data/calendarSourceRepository', () => ({
 vi.mock('../../data/calendarSourceMutationCoordinator', () => ({
   commitCalendarSourceImport: calendarMocks.commitCalendarSourceImport,
   commitCalendarSourceRemoval: calendarMocks.commitCalendarSourceRemoval,
+  commitCalendarSourceBuffers: calendarMocks.commitCalendarSourceBuffers,
 }));
 vi.mock('../../data/schedulerPlanCoordinator', () => coordinatorMocks);
 
@@ -41,6 +43,8 @@ beforeEach(() => {
       label: 'replacement.ics',
       source: 'BEGIN:VCALENDAR\nEND:VCALENDAR',
       updatedAt: '2026-09-20T08:00:00.000Z',
+      beforeBusyMinutes: 5,
+      afterBusyMinutes: 7,
     },
     warnings: [],
   });
@@ -48,6 +52,21 @@ beforeEach(() => {
     ok: true,
     removed: true,
     repairAttentionPersisted: false,
+  });
+  calendarMocks.commitCalendarSourceBuffers.mockResolvedValue({
+    ok: true,
+    repairAttentionPersisted: false,
+    record: {
+      id: 'primary',
+      version: 2,
+      adapterId: 'ics',
+      importedAt: '2026-09-20T08:00:00.000Z',
+      label: 'replacement.ics',
+      source: 'BEGIN:VCALENDAR\nEND:VCALENDAR',
+      updatedAt: '2026-09-20T08:00:00.000Z',
+      beforeBusyMinutes: 5,
+      afterBusyMinutes: 7,
+    },
   });
   coordinatorMocks.repairCurrentPrivatePlan.mockResolvedValue({
     ok: true,
@@ -321,5 +340,43 @@ describe('CalendarSourceControl Plan health reporting', () => {
 
     await waitFor(() => expect(onRepairIssueChange).toHaveBeenCalledWith(null));
     expect(await screen.findByText(/Calendar saved on this device/)).toBeTruthy();
+  });
+
+  it('synchronizes spacing inputs to the persisted values returned by a successful replacement import', async () => {
+    const user = userEvent.setup();
+    calendarMocks.loadCalendarSource.mockResolvedValue({
+      status: 'ok',
+      record: {
+        id: 'primary',
+        version: 2,
+        adapterId: 'ics',
+        importedAt: '2026-09-20T07:00:00.000Z',
+        label: 'saved.ics',
+        source: 'BEGIN:VCALENDAR\nEND:VCALENDAR',
+        updatedAt: '2026-09-20T07:00:00.000Z',
+        beforeBusyMinutes: 5,
+        afterBusyMinutes: 7,
+      },
+    });
+    render(<CalendarSourceControl />);
+
+    const before = await screen.findByLabelText('Minutes before busy events') as HTMLInputElement;
+    const after = screen.getByLabelText('Minutes after busy events') as HTMLInputElement;
+    await user.clear(before);
+    await user.type(before, '99');
+    await user.clear(after);
+    await user.type(after, '88');
+
+    const file = new File(['BEGIN:VCALENDAR\nEND:VCALENDAR'], 'replacement.ics', { type: 'text/calendar' });
+    Object.defineProperty(file, 'text', {
+      value: vi.fn().mockResolvedValue('BEGIN:VCALENDAR\nEND:VCALENDAR'),
+    });
+    await user.upload(screen.getByLabelText('Select read-only calendar file'), file);
+
+    await waitFor(() => {
+      expect(before.value).toBe('5');
+      expect(after.value).toBe('7');
+    });
+    expect(screen.getByRole('button', { name: 'Save event spacing' }).hasAttribute('disabled')).toBe(true);
   });
 });

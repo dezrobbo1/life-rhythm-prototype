@@ -134,6 +134,7 @@ export type CandidateSchedulingInterval = {
   end: LocalTime;
   timezone: string;
   capacityMeaning: 'candidate-not-capacity';
+  workOnly?: boolean;
   provenance: string[];
 };
 
@@ -265,6 +266,7 @@ export type SchedulerPlanSnapshot = {
 
 export type SchedulerRepairTrigger =
   | 'calendarChanged'
+  | 'settingsChanged'
   | 'overrun'
   | 'missedStart'
   | 'completionChanged'
@@ -321,6 +323,8 @@ export type SchedulerRepairMetadata = {
   taskDefinitionRepairApplied?: boolean;
   /** Rhythm configuration or occurrence eligibility changed after the prior plan. */
   rhythmDefinitionRepairApplied?: boolean;
+  /** This repair incorporated pending reviewed settings authority. */
+  settingsDefinitionRepairApplied?: boolean;
   undo: SchedulerPlanSnapshot;
 };
 

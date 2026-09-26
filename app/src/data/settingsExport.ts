@@ -51,6 +51,21 @@ export const settingsBackupDayProfileSchema = z
   })
   .strict();
 
+export const settingsBackupDayProfileV3Schema = z.object({
+  id: idSchema,
+  kind: dayProfileKindSchema,
+  name: z.string().min(1),
+  usableDay: backupDayProfileTimeRangeSchema.optional(),
+  workPeriod: backupDayProfileTimeRangeSchema.optional(),
+  workPlanningUse: dayProfileWorkPlanningUseSchema,
+  workBoundaryMinutes: z.object({
+    beforeTravel: z.number().int().min(0).max(180),
+    afterTravel: z.number().int().min(0).max(180),
+    beforeTransition: z.number().int().min(0).max(180),
+    afterTransition: z.number().int().min(0).max(180),
+  }).strict().optional(),
+}).strict();
+
 export const settingsBackupSettingsSchema = z
   .object({
     appVersion: semanticAppVersionSchema,
@@ -83,7 +98,7 @@ export const settingsBackupSettingsSchema = z
     }
   });
 
-export const settingsBackupSchema = z
+export const settingsBackupV2Schema = z
   .object({
     appVersion: semanticAppVersionSchema,
     exportedAt: strictIsoDateTimeSchema,
@@ -92,6 +107,32 @@ export const settingsBackupSchema = z
     settings: settingsBackupSettingsSchema,
   })
   .strict();
+
+export const settingsBackupSchema = z.object({
+  appVersion: semanticAppVersionSchema,
+  exportedAt: strictIsoDateTimeSchema,
+  format: z.literal('life-rhythm-settings-backup'),
+  formatVersion: z.literal(3),
+  settings: z.object({
+    appVersion: semanticAppVersionSchema,
+    createdAt: strictIsoDateTimeSchema,
+    dayProfileMigrationState: dayProfileMigrationStateSchema,
+    dayProfiles: z.array(settingsBackupDayProfileV3Schema).length(2),
+    id: z.literal('settings'),
+    lifeShape: lifeShapeSettingsSchema,
+    startBoostSafety: startBoostSafetySettingsSchema,
+    theme: themeNameSchema,
+    updatedAt: strictIsoDateTimeSchema,
+    weekdayProfileAssignments: z.array(weekdayProfileAssignmentSchema).length(7),
+  }).strict().superRefine((settings, context) => {
+    const foundation = dayProfileFoundationSchema.safeParse({
+      dayProfileMigrationState: settings.dayProfileMigrationState,
+      dayProfiles: settings.dayProfiles,
+      weekdayProfileAssignments: settings.weekdayProfileAssignments,
+    });
+    if (!foundation.success) for (const issue of foundation.error.issues) context.addIssue({ ...issue, path: issue.path });
+  }),
+}).strict();
 
 export type SettingsBackup = z.infer<typeof settingsBackupSchema>;
 
@@ -125,7 +166,7 @@ export function buildSettingsBackupPayload(settings: unknown, exportedAt = nowIs
     appVersion: backupAppVersion,
     exportedAt,
     format: 'life-rhythm-settings-backup',
-    formatVersion: 2,
+    formatVersion: 3,
     settings: {
       appVersion: backupAppVersion,
       createdAt: parsedSettings.createdAt,
@@ -141,6 +182,7 @@ export function buildSettingsBackupPayload(settings: unknown, exportedAt = nowIs
           ? { end: profile.workPeriod.end, start: profile.workPeriod.start }
           : undefined,
         workPlanningUse: profile.workPlanningUse,
+        ...(profile.workBoundaryMinutes ? { workBoundaryMinutes: profile.workBoundaryMinutes } : {}),
       })),
       id: parsedSettings.id,
       lifeShape: parsedSettings.lifeShape,

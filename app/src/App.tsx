@@ -37,6 +37,7 @@ import {
 } from './data/schedulerPlanStateRepository';
 import { reconcileExistingPrivatePlanAfterDurationEvidenceChange } from './data/durationLearningPlanReconciliation';
 import { reconcileTaskDefinitionAfterWrite } from './data/taskDefinitionPlanReconciliation';
+import { repairCurrentPrivatePlan } from './data/schedulerPlanCoordinator';
 import {
   emptyAppSnapshot,
   normalDayWithOneTaskSnapshot,
@@ -230,14 +231,18 @@ export default function App() {
       next: (result) => {
         if (result.status !== 'missing' && result.status !== 'ok') return;
 
-        const repairPending = result.status === 'ok' && Boolean(result.calendarRepairPendingAt);
+        const repairPending = result.status === 'ok' && Boolean(result.calendarRepairPendingAt || result.settingsRepairPendingAt);
         const preferenceRepairSignature = result.status === 'ok' && result.preferenceRepairPendingAt
           ? `${result.preferenceRepairPendingAt}:${JSON.stringify(result.preferenceRepairTargets ?? [])}`
           : null;
         const durationLearningSignature = result.status === 'ok'
           ? JSON.stringify(result.durationLearningApplied ?? [])
           : null;
-        setCalendarRepairIssue(repairPending ? CALENDAR_REPAIR_PENDING_MESSAGE : null);
+        setCalendarRepairIssue(repairPending
+          ? result.status === 'ok' && result.settingsRepairPendingAt
+            ? 'Planning hours were saved, but the flexible private plan still needs repair. Open Plan to retry.'
+            : CALENDAR_REPAIR_PENDING_MESSAGE
+          : null);
 
         const previouslyObserved = observedCalendarRepairPendingRef.current;
         const previouslyObservedPreference = observedPreferenceRepairSignatureRef.current;
@@ -314,6 +319,11 @@ export default function App() {
       setTheme(result.settings.theme);
       setSettingsConflicts([]);
       setSettingsLoadStatus('loaded');
+      const savedPlan = await loadSchedulerPlanState();
+      if (savedPlan.status === 'ok' && savedPlan.settingsRepairPendingAt) {
+        await repairCurrentPrivatePlan({ trigger: 'settingsChanged', reason: 'Reviewed planning-day settings changed.' });
+        setPlanRevision((revision) => revision + 1);
+      }
     }
 
     return result;
@@ -321,6 +331,11 @@ export default function App() {
 
   async function handleResetSettings(): Promise<Settings> {
     const resetSettings = await resetSettingsToDefaults();
+    const savedPlan = await loadSchedulerPlanState();
+    if (savedPlan.status === 'ok' && savedPlan.settingsRepairPendingAt) {
+      await repairCurrentPrivatePlan({ trigger: 'settingsChanged', reason: 'Planning-day settings reset.' });
+      setPlanRevision((revision) => revision + 1);
+    }
 
     setSettings(resetSettings);
     setTheme(resetSettings.theme);
@@ -462,6 +477,8 @@ export default function App() {
         onSaveSettings={handleSaveSettings}
         onPreferencePlanChanged={handlePreferencePlanChanged}
         onDurationLearningPlanChanged={handlePreferencePlanChanged}
+        onCalendarPlanRepaired={handlePrivatePlanChanged}
+        onCalendarRepairIssueChange={setCalendarRepairIssue}
         onThemeChange={setTheme}
         settings={settings}
         theme={theme}

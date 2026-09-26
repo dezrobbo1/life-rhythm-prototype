@@ -8,6 +8,7 @@ import {
 } from './db';
 import { importIcsCalendarSource } from './calendarSourceRepository';
 import { commitCalendarSourceImport } from './calendarSourceMutationCoordinator';
+import { canonicalSchedulingInputSnapshot, readCanonicalSchedulingInputRows } from './schedulerCanonicalInputSnapshot';
 import { findBlockedDataClassKey } from './dataClassBoundary';
 import {
   createAuthLocalDataNamespace,
@@ -19,6 +20,9 @@ import {
   buildAndPersistSchedulerPlan,
   loadSchedulerPlanState,
   markCalendarRepairPending,
+  markSettingsRepairPending,
+  markTaskInputRepairPending,
+  markRhythmInputRepairPending,
   repairAndPersistSchedulerPlan,
   undoPersistedSchedulerRepair,
 } from './schedulerPlanStateRepository';
@@ -164,6 +168,126 @@ afterEach(() => {
 });
 
 describe('persisted Gate 4 scheduler plan state', () => {
+  it('keeps simultaneous settings, task and rhythm authority provenance independently', async () => {
+    const database = createTestDatabase();
+    try {
+      const old = await buildAndPersistSchedulerPlan(model(), database, '2026-09-07T00:00:00.000Z');
+      if (!old.ok) throw new Error(old.errors.join('\n'));
+      expect(await markSettingsRepairPending(database, '2026-09-07T00:01:00.000Z')).toMatchObject({ ok: true });
+      expect(await markTaskInputRepairPending(database, 'task-a', '2026-09-07T00:01:00.000Z')).toMatchObject({ ok: true });
+      expect(await markRhythmInputRepairPending(database, 'template:rhythm-a', '2026-09-07T00:01:00.000Z')).toMatchObject({ ok: true });
+      const snapshot = canonicalSchedulingInputSnapshot(await readCanonicalSchedulingInputRows(database));
+      const repaired = await repairAndPersistSchedulerPlan({
+        nextInput: model([candidate('later', '10:00', '11:00')]), trigger: 'userCorrection',
+        reason: 'Current task, rhythm and reviewed settings were used.', now: { date: today, time: '08:00', timezone },
+      }, database, '2026-09-07T00:02:00.000Z', undefined, undefined, snapshot);
+      if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+      expect(repaired.plan.repair).toMatchObject({ trigger: 'userCorrection',
+        settingsDefinitionRepairApplied: true, taskDefinitionRepairApplied: true, rhythmDefinitionRepairApplied: true });
+      const loaded = await loadSchedulerPlanState(database);
+      expect(loaded.status).toBe('ok');
+      if (loaded.status !== 'ok') return;
+      expect(loaded.plan.repair).toMatchObject({ settingsDefinitionRepairApplied: true,
+        taskDefinitionRepairApplied: true, rhythmDefinitionRepairApplied: true });
+      expect(loaded.settingsRepairPendingAt).toBeUndefined();
+      expect(loaded.taskInputRepairPendingAt).toBeUndefined();
+      expect(loaded.rhythmInputRepairPendingAt).toBeUndefined();
+      expect((await undoPersistedSchedulerRepair(database)).ok).toBe(false);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('still loads older accepted repair records without optional settings provenance', async () => {
+    const database = createTestDatabase();
+    try {
+      const old = await buildAndPersistSchedulerPlan(model(), database, '2026-09-07T00:00:00.000Z');
+      if (!old.ok) throw new Error(old.errors.join('\n'));
+      const repaired = await repairAndPersistSchedulerPlan({
+        nextInput: model([candidate('later', '10:00', '11:00')]), trigger: 'userCorrection',
+        reason: 'An ordinary correction.', now: { date: today, time: '08:00', timezone },
+      }, database, '2026-09-07T00:01:00.000Z');
+      if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+      expect(repaired.plan.repair?.settingsDefinitionRepairApplied).toBeUndefined();
+      const saved = await loadSchedulerPlanState(database);
+      expect(saved.status).toBe('ok');
+      expect(saved.status === 'ok' && saved.plan.repair?.settingsDefinitionRepairApplied).toBeUndefined();
+      expect((await undoPersistedSchedulerRepair(database, '2026-09-07T00:02:00.000Z')).ok).toBe(true);
+    } finally {
+      await database.delete();
+    }
+  });
+  it.each(['userCorrection', 'missedStart', 'overrun'] as const)(
+    'does not undo a %s repair that consumed pending settings authority', async (trigger) => {
+      const database = createTestDatabase();
+      try {
+        const old = await buildAndPersistSchedulerPlan(model([candidate('old-evening', '18:00', '19:00')]), database, '2026-09-07T00:00:00.000Z');
+        if (!old.ok) throw new Error(old.errors.join('\n'));
+        expect(old.plan.placements).toEqual([expect.objectContaining({ start: '18:00' })]);
+        expect(await markSettingsRepairPending(database, '2026-09-07T00:01:00.000Z')).toEqual({ ok: true, persisted: true });
+        const canonicalSnapshot = canonicalSchedulingInputSnapshot(await readCanonicalSchedulingInputRows(database));
+        const repaired = await repairAndPersistSchedulerPlan({
+          nextInput: model([candidate('new-morning', '09:00', '10:00')]), trigger,
+          reason: 'Current reviewed settings and another change.', now: { date: today, time: '08:00', timezone },
+        }, database, '2026-09-07T00:02:00.000Z', undefined, undefined, canonicalSnapshot);
+        if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+        expect(repaired.plan.repair).toMatchObject({ trigger, settingsDefinitionRepairApplied: true });
+        const accepted = await loadSchedulerPlanState(database);
+        expect(accepted.status === 'ok' && accepted.settingsRepairPendingAt).toBeFalsy();
+        const events = await database.taskHistory.toArray();
+        expect((await undoPersistedSchedulerRepair(database, '2026-09-07T00:03:00.000Z')).ok).toBe(false);
+        expect(await loadSchedulerPlanState(database)).toEqual(accepted);
+        expect(await database.taskHistory.toArray()).toEqual(events);
+      } finally {
+        await database.delete();
+      }
+    },
+  );
+  it('rejects undo of a different repair while settings authority is pending without writing a plan or event', async () => {
+    const database = createTestDatabase();
+    try {
+      const built = await buildAndPersistSchedulerPlan(model(), database, '2026-09-07T00:00:00.000Z');
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+      const repaired = await repairAndPersistSchedulerPlan({
+        nextInput: model([candidate('later', '10:00', '11:00')]),
+        trigger: 'calendarChanged', reason: 'Calendar changed', now: { date: today, time: '08:00', timezone },
+      }, database, '2026-09-07T00:01:00.000Z');
+      if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+      expect(await markSettingsRepairPending(database, '2026-09-07T00:02:00.000Z')).toEqual({ ok: true, persisted: true });
+      const before = await loadSchedulerPlanState(database);
+      const history = await database.taskHistory.toArray();
+      const undo = await undoPersistedSchedulerRepair(database, '2026-09-07T00:03:00.000Z');
+      expect(undo.ok).toBe(false);
+      expect(await loadSchedulerPlanState(database)).toEqual(before);
+      expect(await database.taskHistory.toArray()).toEqual(history);
+      expect(history.filter((event) => event.eventType === 'schedulerRepairUndone')).toHaveLength(0);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it.each(['taskDefinitionChanged', 'rhythmDefinitionChanged'] as const)(
+    'retains the existing %s definition-repair undo rejection', async (trigger) => {
+      const database = createTestDatabase();
+      try {
+        const built = await buildAndPersistSchedulerPlan(model(), database, '2026-09-07T00:00:00.000Z');
+        if (!built.ok) throw new Error(built.errors.join('\n'));
+        const repaired = await repairAndPersistSchedulerPlan({
+          nextInput: model([candidate('later', '10:00', '11:00')]), trigger,
+          reason: 'Definition changed', now: { date: today, time: '08:00', timezone },
+        }, database, '2026-09-07T00:01:00.000Z');
+        if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+        const before = await loadSchedulerPlanState(database);
+        const history = await database.taskHistory.toArray();
+        expect((await undoPersistedSchedulerRepair(database, '2026-09-07T00:02:00.000Z')).ok).toBe(false);
+        expect(await loadSchedulerPlanState(database)).toEqual(before);
+        expect(await database.taskHistory.toArray()).toEqual(history);
+      } finally {
+        await database.delete();
+      }
+    },
+  );
+
   it('builds, validates and persists scheduler-generated plan state separately from soft placements', async () => {
     const database = createTestDatabase();
 
@@ -395,6 +519,25 @@ describe('persisted Gate 4 scheduler plan state', () => {
         errors: ['schedulerPlanState: Scheduling inputs changed before the repaired plan could be saved.'],
       });
       expect(await database.schedulerPlanState.get('current')).toBeUndefined();
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('detects changed calendar spacing even when source and updatedAt match the earlier read', async () => {
+    const database = createTestDatabase();
+    try {
+      const imported = await importIcsCalendarSource({ label: 'Calendar A', source: calendarA,
+        options: calendarOptions, importedAt: '2026-09-07T00:01:00.000Z' }, database);
+      expect(imported.ok).toBe(true);
+      if (!imported.ok) return;
+      await database.calendarSources.put({ ...imported.record, beforeBusyMinutes: 15 });
+      const result = await repairAndPersistSchedulerPlan({
+        reason: 'Do not build from superseded calendar buffers.', trigger: 'manualReplan',
+        now: { date: today, time: '08:00', timezone }, nextInput: model(),
+      }, database, '2026-09-07T00:03:00.000Z', undefined,
+      { source: imported.record.source, updatedAt: imported.record.updatedAt, beforeBusyMinutes: 0, afterBusyMinutes: 0 });
+      expect(result).toMatchObject({ ok: false, conflict: 'stale' });
     } finally {
       await database.delete();
     }

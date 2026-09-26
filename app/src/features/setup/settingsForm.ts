@@ -21,21 +21,17 @@ function parseMinuteField(value: string): number {
   return trimmed.length === 0 ? 0 : Number(trimmed);
 }
 
-export function normalizeLifeShapeForm(lifeShape: LifeShapeState): LifeShapeSettings {
+export function normalizeLifeShapeForm(lifeShape: LifeShapeState, previous?: LifeShapeSettings): LifeShapeSettings {
   const fixedCommitmentLabel = lifeShape.fixedCommitments.trim();
+  const existingNote = previous?.fixedCommitments.find((item) => !item.start && !item.end);
   const travelMinutes = parseMinuteField(lifeShape.commuteMinutes);
 
   return lifeShapeSettingsSchema.parse({
     commuteMinutes: travelMinutes,
-    fixedCommitments:
-      fixedCommitmentLabel.length > 0
-        ? [
-            {
-              id: 'setup-fixed-commitments',
-              label: fixedCommitmentLabel,
-            },
-          ]
-        : [],
+    fixedCommitments: [
+      ...(previous?.fixedCommitments.filter((commitment) => commitment.id !== existingNote?.id) ?? []),
+      ...(fixedCommitmentLabel.length > 0 ? [{ ...(existingNote ?? { id: 'setup-fixed-commitments' }), label: fixedCommitmentLabel }] : []),
+    ],
     lowCapacityPreference: lifeShape.lowCapacityPreference,
     mealAnchors: {
       breakfast: lifeShape.breakfastAnchor,
@@ -59,6 +55,7 @@ export function normalizeLifeShapeForm(lifeShape: LifeShapeState): LifeShapeSett
     transitionBufferMinutes: parseMinuteField(lifeShape.transitionBuffer),
     travelMinutes,
     usualWorkHours: {
+      days: previous?.usualWorkHours.days,
       start: lifeShape.workStart,
       end: lifeShape.workEnd,
     },
@@ -83,7 +80,7 @@ export function lifeShapeStateFromSettings(settings: Settings | undefined): Life
   }
 
   const lifeShape = lifeShapeSettingsSchema.parse(settings.lifeShape);
-  const firstCommitment = lifeShape.fixedCommitments[0];
+  const firstCommitment = lifeShape.fixedCommitments.find((commitment) => !commitment.start && !commitment.end);
 
   return {
     breakfastAnchor: lifeShape.mealAnchors.breakfast,

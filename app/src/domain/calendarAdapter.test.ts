@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { IcsCalendarAdapter } from './calendarAdapter';
+import { externalCommitmentsFromCalendarEvents } from './calendarAvailability';
 
 const options = {
   targetTimezone: 'Australia/Perth',
@@ -21,6 +22,41 @@ function event(lines: string[]) {
 }
 
 describe('ICS calendar adapter', () => {
+  it('selects the first occurrence of repeated Sydney 02:30 and retains its actual duration', () => {
+    const adapter = new IcsCalendarAdapter();
+    const result = adapter.read(calendar(event([
+      'UID:repeated-wall-time',
+      'SUMMARY:Repeated time',
+      'DTSTART;TZID=Australia/Sydney:20260405T023000',
+      'DTEND;TZID=Australia/Sydney:20260405T024500',
+    ])), { targetTimezone: 'UTC', windowStartDate: '2026-04-04', windowEndDate: '2026-04-05' });
+    expect(result.events[0]).toMatchObject({
+      start: { date: '2026-04-04', time: '15:30' }, end: { date: '2026-04-04', time: '15:45' },
+    });
+    const [commitment] = externalCommitmentsFromCalendarEvents(result.events, 10, 5);
+    expect(commitment).toMatchObject({ interval: { start: '15:30', end: '15:45' }, travelBeforeMinutes: 10, transitionAfterMinutes: 5 });
+  });
+
+  it('handles a repeated half-hour offset and a quarter-hour IANA offset without host-local time', () => {
+    const adapter = new IcsCalendarAdapter();
+    const options = { targetTimezone: 'UTC', windowStartDate: '2026-04-04', windowEndDate: '2026-04-05' };
+    const lordHowe = adapter.read(calendar(event([
+      'UID:lord-howe-fallback', 'SUMMARY:Repeated half-hour',
+      'DTSTART;TZID=Australia/Lord_Howe:20260405T014500',
+      'DTEND;TZID=Australia/Lord_Howe:20260405T015000',
+    ])), options).events;
+    expect(lordHowe[0]).toMatchObject({
+      start: { date: '2026-04-04', time: '14:45' }, end: { date: '2026-04-04', time: '14:50' },
+    });
+    const kathmandu = adapter.read(calendar(event([
+      'UID:kathmandu-offset', 'SUMMARY:Quarter-hour zone',
+      'DTSTART;TZID=Asia/Kathmandu:20260405T090030',
+      'DTEND;TZID=Asia/Kathmandu:20260405T093030',
+    ])), options).events;
+    expect(kathmandu[0]).toMatchObject({
+      start: { date: '2026-04-05', time: '03:15' }, end: { date: '2026-04-05', time: '03:45' },
+    });
+  });
   it('imports a UTC event into the requested local timezone', () => {
     const adapter = new IcsCalendarAdapter();
     const result = adapter.read(calendar(event([
@@ -112,7 +148,7 @@ describe('ICS calendar adapter', () => {
     });
   });
 
-  it('unfolds ICS lines and reports unsupported recurrence without silently expanding it', () => {
+  it('unfolds ICS lines and expands supported recurrence', () => {
     const adapter = new IcsCalendarAdapter();
     const result = adapter.read(calendar(event([
       'UID:weekly-sync',
@@ -124,9 +160,7 @@ describe('ICS calendar adapter', () => {
     ])), options);
 
     expect(result.events[0].title).toBe('Long weeklymeeting');
-    expect(result.warnings).toEqual([
-      'Recurring event weekly-sync is imported as its DTSTART occurrence only in Gate 2.',
-    ]);
+    expect(result.warnings).toEqual([]);
   });
 
   it('warns about floating times and skips malformed event blocks without writing anything', () => {
@@ -154,9 +188,9 @@ describe('ICS calendar adapter', () => {
     ]);
   });
 
-  it('skips an event with an unresolvable TZID without aborting other calendar events', () => {
+  it('fails closed when any busy event has an unresolvable TZID, even alongside valid events', () => {
     const adapter = new IcsCalendarAdapter();
-    const result = adapter.read(calendar(
+    expect(() => adapter.read(calendar(
       event([
         'UID:custom-zone',
         'SUMMARY:Unsupported timezone',
@@ -169,17 +203,12 @@ describe('ICS calendar adapter', () => {
         'DTSTART;TZID=Australia/Perth:20260907T110000',
         'DTEND;TZID=Australia/Perth:20260907T120000',
       ]),
-    ), options);
-
-    expect(result.events.map((candidate) => candidate.sourceEventId)).toEqual(['valid-after-bad-zone']);
-    expect(result.warnings).toEqual([
-      'Calendar event custom-zone was skipped because its timezone or local time could not be resolved.',
-    ]);
+    ), options)).toThrow('Busy calendar event custom-zone has an unresolved timezone or local time.');
   });
 
-  it('skips a nonexistent DST local time rather than silently normalizing it', () => {
+  it('fails closed on a nonexistent busy DST local time rather than silently normalizing it', () => {
     const adapter = new IcsCalendarAdapter();
-    const result = adapter.read(calendar(event([
+    expect(() => adapter.read(calendar(event([
       'UID:spring-gap',
       'SUMMARY:Nonexistent local time',
       'DTSTART;TZID=America/New_York:20260308T023000',
@@ -188,12 +217,7 @@ describe('ICS calendar adapter', () => {
       targetTimezone: 'America/New_York',
       windowStartDate: '2026-03-08',
       windowEndDate: '2026-03-08',
-    });
-
-    expect(result.events).toEqual([]);
-    expect(result.warnings).toEqual([
-      'Calendar event spring-gap was skipped because its timezone or local time could not be resolved.',
-    ]);
+    })).toThrow('Busy calendar event spring-gap has an unresolved timezone or local time.');
   });
 
   it('rejects an inverted read window', () => {
@@ -203,5 +227,144 @@ describe('ICS calendar adapter', () => {
       windowStartDate: '2026-09-09',
       windowEndDate: '2026-09-08',
     })).toThrow('Calendar read window start must not be after the end date.');
+  });
+
+  it('emits a post-horizon moved recurrence override only once by logical identity', () => {
+    const adapter = new IcsCalendarAdapter();
+    const source = calendar(
+      event([
+        'UID:moved-back',
+        'SUMMARY:Base meeting',
+        'DTSTART;TZID=Australia/Perth:20260907T090000',
+        'DTEND;TZID=Australia/Perth:20260907T093000',
+        'RRULE:FREQ=DAILY;COUNT=3',
+      ]),
+      event([
+        'UID:moved-back',
+        'RECURRENCE-ID;TZID=Australia/Perth:20260909T090000',
+        'SUMMARY:Moved into horizon',
+        'DTSTART;TZID=Australia/Perth:20260908T150000',
+        'DTEND;TZID=Australia/Perth:20260908T153000',
+      ]),
+    );
+
+    const first = adapter.read(source, options);
+    const second = adapter.read(source, options);
+    const moved = first.events.filter((candidate) => candidate.title === 'Moved into horizon');
+
+    expect(moved).toHaveLength(1);
+    expect(new Set(first.events.map((candidate) => candidate.sourceEventId)).size).toBe(first.events.length);
+    expect(moved[0]).toMatchObject({
+      start: { date: '2026-09-08', time: '15:00' },
+      end: { date: '2026-09-08', time: '15:30' },
+    });
+    expect(second.events.map((candidate) => candidate.sourceEventId))
+      .toEqual(first.events.map((candidate) => candidate.sourceEventId));
+  });
+
+  it('does not emit a post-horizon override whose moved time remains outside the window', () => {
+    const adapter = new IcsCalendarAdapter();
+    const source = calendar(
+      event([
+        'UID:moved-outside',
+        'SUMMARY:Base meeting',
+        'DTSTART;TZID=Australia/Perth:20260907T090000',
+        'DTEND;TZID=Australia/Perth:20260907T093000',
+        'RRULE:FREQ=DAILY;COUNT=3',
+      ]),
+      event([
+        'UID:moved-outside',
+        'RECURRENCE-ID;TZID=Australia/Perth:20260909T090000',
+        'SUMMARY:Moved outside',
+        'DTSTART;TZID=Australia/Perth:20260910T150000',
+        'DTEND;TZID=Australia/Perth:20260910T153000',
+      ]),
+    );
+
+    const result = adapter.read(source, options);
+
+    expect(result.events.some((candidate) => candidate.title === 'Moved outside')).toBe(false);
+  });
+
+  it('keeps distinct recurrence identities even when overrides share the same displayed time', () => {
+    const adapter = new IcsCalendarAdapter();
+    const source = calendar(
+      event([
+        'UID:shared-time',
+        'SUMMARY:Base meeting',
+        'DTSTART;TZID=Australia/Perth:20260907T090000',
+        'DTEND;TZID=Australia/Perth:20260907T093000',
+        'RRULE:FREQ=DAILY;COUNT=4',
+      ]),
+      event([
+        'UID:shared-time',
+        'RECURRENCE-ID;TZID=Australia/Perth:20260909T090000',
+        'SUMMARY:Moved slot three',
+        'DTSTART;TZID=Australia/Perth:20260908T150000',
+        'DTEND;TZID=Australia/Perth:20260908T153000',
+      ]),
+      event([
+        'UID:shared-time',
+        'RECURRENCE-ID;TZID=Australia/Perth:20260910T090000',
+        'SUMMARY:Moved slot four',
+        'DTSTART;TZID=Australia/Perth:20260908T150000',
+        'DTEND;TZID=Australia/Perth:20260908T153000',
+      ]),
+    );
+
+    const result = adapter.read(source, options);
+    const moved = result.events.filter((candidate) => candidate.start.date === '2026-09-08' && candidate.start.time === '15:00');
+
+    expect(moved).toHaveLength(2);
+    expect(new Set(moved.map((candidate) => candidate.sourceEventId)).size).toBe(2);
+  });
+
+  it('does not let a moved post-horizon exception bypass COUNT', () => {
+    const adapter = new IcsCalendarAdapter();
+    const source = calendar(
+      event([
+        'UID:count-limited',
+        'SUMMARY:Count limited',
+        'DTSTART;TZID=Australia/Perth:20260907T090000',
+        'DTEND;TZID=Australia/Perth:20260907T093000',
+        'RRULE:FREQ=DAILY;COUNT=2',
+      ]),
+      event([
+        'UID:count-limited',
+        'RECURRENCE-ID;TZID=Australia/Perth:20260909T090000',
+        'SUMMARY:Invalid moved slot',
+        'DTSTART;TZID=Australia/Perth:20260908T150000',
+        'DTEND;TZID=Australia/Perth:20260908T153000',
+      ]),
+    );
+
+    const result = adapter.read(source, options);
+
+    expect(result.events.some((candidate) => candidate.title === 'Invalid moved slot')).toBe(false);
+  });
+
+  it('does not let a moved post-horizon exception bypass EXDATE', () => {
+    const adapter = new IcsCalendarAdapter();
+    const source = calendar(
+      event([
+        'UID:excluded-slot',
+        'SUMMARY:Excluded slot',
+        'DTSTART;TZID=Australia/Perth:20260907T090000',
+        'DTEND;TZID=Australia/Perth:20260907T093000',
+        'RRULE:FREQ=DAILY;COUNT=3',
+        'EXDATE;TZID=Australia/Perth:20260909T090000',
+      ]),
+      event([
+        'UID:excluded-slot',
+        'RECURRENCE-ID;TZID=Australia/Perth:20260909T090000',
+        'SUMMARY:Excluded moved slot',
+        'DTSTART;TZID=Australia/Perth:20260908T150000',
+        'DTEND;TZID=Australia/Perth:20260908T153000',
+      ]),
+    );
+
+    const result = adapter.read(source, options);
+
+    expect(result.events.some((candidate) => candidate.title === 'Excluded moved slot')).toBe(false);
   });
 });

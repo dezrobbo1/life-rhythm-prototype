@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildSettingsBackupPayload, type SettingsBackup } from './settingsExport';
+import { buildSettingsBackupPayload } from './settingsExport';
 import {
   parseSettingsBackupImportJson,
   settingsBackupImportSchema,
@@ -11,7 +11,7 @@ import { settingsSchema } from './schemas';
 
 const exportedAt = '2026-06-16T00:00:00.000Z';
 
-function validPayload(): SettingsBackup {
+function validPayload() {
   const settings = settingsSchema.parse({
     appVersion: '1.4.6',
     createdAt: '2026-06-15T00:00:00.000Z',
@@ -78,7 +78,7 @@ function validPayload(): SettingsBackup {
     updatedAt: '2026-06-15T01:00:00.000Z',
   });
 
-  return settingsBackupV2ImportSchema.parse(buildSettingsBackupPayload(settings, exportedAt));
+  return settingsBackupV2ImportSchema.parse({ ...buildSettingsBackupPayload(settings, exportedAt), formatVersion: 2 });
 }
 
 function validVersion1Payload() {
@@ -140,8 +140,8 @@ describe('settings backup import validation', () => {
       expect(settingsBackupImportSchema.parse(result.payload)).toEqual(payload);
       expect(result.preview.theme).toBe('clear');
       expect(result.preview.formatVersion).toBe(2);
-      expect(result.preview.profileFoundationSummary).toContain('Profile foundation present');
-      expect(result.preview.profileFoundationSummary).toContain('does not activate derived availability');
+      expect(result.preview.profileFoundationSummary).toContain('Planning-day settings present');
+      expect(result.preview.profileFoundationSummary).toContain('Only reviewed and enabled profiles');
       expect(result.preview.lifeShapeSummary).toContain('09:00-17:00');
       expect(result.preview.startBoostSafetySummary).toBe('6 safety choices on');
       expect(result.payload.settings.lifeShape.timeBlocks[0]).toMatchObject({
@@ -168,7 +168,7 @@ describe('settings backup import validation', () => {
   it('rejects explicit unknown settings-backup versions', () => {
     const result = validateSettingsBackupImport({
       ...validPayload(),
-      formatVersion: 3,
+      formatVersion: 4,
     });
 
     expect(result.ok).toBe(false);

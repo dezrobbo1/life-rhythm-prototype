@@ -9,6 +9,7 @@ export type CandidateSchedulingInterval = {
   end: string;
   timezone: string;
   capacityMeaning: 'candidate-not-capacity';
+  workOnly?: boolean;
   provenance: string[];
 };
 
@@ -29,6 +30,8 @@ export type Gate2AvailabilityResult = {
 export type Gate2AvailabilityInput = {
   settings: Settings;
   calendarEvents: CalendarReadEvent[];
+  calendarBeforeBusyMinutes?: number;
+  calendarAfterBusyMinutes?: number;
   date: string;
   timezone: string;
   uncertaintyReserveMinutes?: number;
@@ -143,8 +146,35 @@ function fixedCommitmentsFromSettings(settings: Settings): ExternalCommitment[] 
   }));
 }
 
-export function externalCommitmentsFromCalendarEvents(events: CalendarReadEvent[]): ExternalCommitment[] {
+export function externalCommitmentsFromCalendarEvents(events: CalendarReadEvent[], beforeMinutes = 0, afterMinutes = 0): ExternalCommitment[] {
   const commitments: ExternalCommitment[] = [];
+
+  const addSpillover = (
+    event: CalendarReadEvent,
+    encodedSourceId: string,
+    edge: 'before' | 'after',
+    date: string,
+    startMinutes: number,
+    endMinutes: number,
+  ) => {
+    if (startMinutes >= endMinutes) return;
+    commitments.push({
+      id: `calendar:${event.adapterId}:${encodedSourceId}:spacing:${edge}:${date}`,
+      title: event.title,
+      source: 'calendar',
+      sourceId: event.sourceEventId,
+      interval: {
+        kind: 'datedLocal',
+        date,
+        start: timeFromMinutes(startMinutes),
+        end: timeFromMinutes(endMinutes),
+        timezone: event.timezone,
+      },
+      hard: true,
+      travelBeforeMinutes: 0,
+      transitionAfterMinutes: 0,
+    });
+  };
 
   for (const event of events) {
     if (!event.busy) continue;
@@ -171,10 +201,24 @@ export function externalCommitmentsFromCalendarEvents(events: CalendarReadEvent[
         });
         date = addDays(date, 1);
       }
+      if (beforeMinutes > 0) {
+        addSpillover(event, encodedSourceId, 'before', addDays(event.start.date, -1), 24 * 60 - beforeMinutes, 24 * 60);
+      }
+      if (afterMinutes > 0) {
+        addSpillover(event, encodedSourceId, 'after', event.end.date, 0, afterMinutes);
+      }
       continue;
     }
 
     if (!event.start.time || !event.end.time) continue;
+
+    const eventStartMinutes = minutesFromTime(event.start.time);
+    const eventEndMinutes = minutesFromTime(event.end.time);
+    const sameDayBefore = Math.min(beforeMinutes, eventStartMinutes);
+    const beforeSpill = beforeMinutes - sameDayBefore;
+    const endHasOwnFragment = eventEndMinutes > 0;
+    const sameDayAfter = endHasOwnFragment ? Math.min(afterMinutes, 24 * 60 - eventEndMinutes) : 0;
+    const afterSpill = afterMinutes - sameDayAfter;
 
     let date = event.start.date;
     while (date <= event.end.date) {
@@ -197,13 +241,21 @@ export function externalCommitmentsFromCalendarEvents(events: CalendarReadEvent[
             timezone: event.timezone,
           },
           hard: true,
-          travelBeforeMinutes: 0,
-          transitionAfterMinutes: 0,
+          travelBeforeMinutes: isStart ? sameDayBefore : 0,
+          transitionAfterMinutes: isEnd && endHasOwnFragment ? sameDayAfter : 0,
         });
       }
 
       if (isEnd) break;
       date = addDays(date, 1);
+    }
+
+    if (beforeSpill > 0) {
+      addSpillover(event, encodedSourceId, 'before', addDays(event.start.date, -1), 24 * 60 - beforeSpill, 24 * 60);
+    }
+    if (afterSpill > 0) {
+      const afterDate = eventEndMinutes === 0 ? event.end.date : addDays(event.end.date, 1);
+      addSpillover(event, encodedSourceId, 'after', afterDate, 0, afterSpill);
     }
   }
 
@@ -217,18 +269,11 @@ function profileContext(settings: Settings, date: string) {
     ? settings.dayProfiles.find((candidate) => candidate.id === assignment.profileId)
     : undefined;
 
-  const usableDay = profile?.usableDay
+  const usableDay = settings.dayProfileMigrationState.reviewState === 'reviewedAndEnabled' && profile?.usableDay
     ? { ...profile.usableDay, source: 'dayProfile' as const }
     : undefined;
 
-  const workPeriod = profile?.workPeriod
-    ? { ...profile.workPeriod }
-    : profile?.kind === 'workday' && settings.lifeShape.usualWorkHours.days.includes(weekday)
-      ? {
-          start: settings.lifeShape.usualWorkHours.start,
-          end: settings.lifeShape.usualWorkHours.end,
-        }
-      : undefined;
+  const workPeriod = profile?.workPeriod ? { ...profile.workPeriod } : undefined;
 
   return {
     weekday,
@@ -273,7 +318,7 @@ export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2Ava
   const context = profileContext(input.settings, input.date);
   const externalCommitments = [
     ...fixedCommitmentsFromSettings(input.settings),
-    ...externalCommitmentsFromCalendarEvents(input.calendarEvents),
+    ...externalCommitmentsFromCalendarEvents(input.calendarEvents, input.calendarBeforeBusyMinutes, input.calendarAfterBusyMinutes),
   ];
 
   if (!context.profile) {
@@ -321,16 +366,34 @@ export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2Ava
     reason: 'usable day',
   };
   const blockers: MinuteRange[] = [];
+  let coreWorkBlocker: MinuteRange | undefined;
 
   if (
     context.workPeriod &&
     genericCandidateWorkPeriodIsRestricted(context.profile.workPlanningUse)
   ) {
-    blockers.push({
+    coreWorkBlocker = {
       start: minutesFromTime(context.workPeriod.start),
       end: minutesFromTime(context.workPeriod.end),
       reason: `work period (${context.profile.workPlanningUse})`,
-    });
+    };
+    blockers.push(coreWorkBlocker);
+  }
+
+  if (context.profile.kind === 'workday' && context.workPeriod && input.settings.dayProfileMigrationState.reviewState === 'reviewedAndEnabled') {
+    const boundary = context.profile.workBoundaryMinutes;
+    if (boundary) {
+      blockers.push({
+        start: Math.max(0, minutesFromTime(context.workPeriod.start) - boundary.beforeTravel - boundary.beforeTransition),
+        end: minutesFromTime(context.workPeriod.start),
+        reason: 'reviewed before-work travel and transition',
+      });
+      blockers.push({
+        start: minutesFromTime(context.workPeriod.end),
+        end: Math.min(1440, minutesFromTime(context.workPeriod.end) + boundary.afterTravel + boundary.afterTransition),
+        reason: 'reviewed after-work travel and transition',
+      });
+    }
   }
 
   for (const block of input.settings.lifeShape.timeBlocks) {
@@ -390,6 +453,36 @@ export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2Ava
   }
 
   if (cursor < envelope.end) addGap(cursor, envelope.end);
+
+  if (context.profile.workPlanningUse === 'workRhythmsOnly' && context.workPeriod) {
+    const workRange = clipRange({
+      start: minutesFromTime(context.workPeriod.start),
+      end: minutesFromTime(context.workPeriod.end),
+      reason: 'explicit work-only period',
+    }, envelope);
+    if (workRange) {
+      // Only the synthetic core-work blocker is replaced by work-only capacity.
+      // User-authored labels must never determine whether hard time is removed.
+      const safeBlockers = mergeRanges(blockers.filter((blocker) => blocker !== coreWorkBlocker)
+        .map((blocker) => clipRange(blocker, workRange))
+        .filter((blocker): blocker is MinuteRange => Boolean(blocker)));
+      let start = workRange.start;
+      const addWorkGap = (end: number) => {
+        if (end - uncertaintyReserveMinutes - start < minimumCandidateMinutes) return;
+        const from = timeFromMinutes(start);
+        const to = timeFromMinutes(end - uncertaintyReserveMinutes);
+        gaps.push({ id: `candidate:work:${input.date}:${from}-${to}`, date: input.date,
+          start: from, end: to, timezone: input.timezone, capacityMeaning: 'candidate-not-capacity', workOnly: true,
+          provenance: ['Reviewed work-only period; only explicitly classified work intentions or rhythms may use it.',
+            'Known commitments and protected time were removed.'] });
+      };
+      for (const blocker of safeBlockers) {
+        if (start < blocker.start) addWorkGap(blocker.start);
+        start = Math.max(start, blocker.end);
+      }
+      if (start < workRange.end) addWorkGap(workRange.end);
+    }
+  }
 
   return {
     date: input.date,

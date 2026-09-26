@@ -1,10 +1,13 @@
 import type { Table } from 'dexie';
+import { LifeRhythmDatabase } from './db';
+import { CURRENT_SCHEDULER_PLAN_STATE_ID, markSettingsRepairPending } from './schedulerPlanStateRepository';
 import {
   migrateSettingsDayProfileFoundation,
   type LegacySettingsConflict,
 } from './dayProfileMigration';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
+  WORKDAY_PROFILE_ID,
   settingsSchema,
   type LifeShapeSettings,
   type Settings,
@@ -44,6 +47,10 @@ export type SettingsWriteInput = {
   lifeShape: unknown;
   startBoostSafety: unknown;
   theme: unknown;
+  dayProfiles?: unknown;
+  weekdayProfileAssignments?: unknown;
+  activatePlanningDay?: boolean;
+  planningDayReviewed?: boolean;
 };
 
 export type SettingsWriteResult =
@@ -271,10 +278,8 @@ export async function loadSettingsForBackup(
 }
 
 /**
- * Life Shape is the value Setup shows and edits, so a save resolves any
- * duplicated legacy root field towards it. Conflicts are reported by
- * `loadSettingsResult` for review before this point; they are not resolved by
- * discarding the edit the user just made.
+ * Only fields explicitly changed by Setup reconcile a duplicated legacy root
+ * value. Unrelated saves retain historical conflicts for visible review.
  */
 function settingsCandidateFromInput(
   current: Settings,
@@ -282,24 +287,79 @@ function settingsCandidateFromInput(
   timestamp = nowIso(),
 ) {
   const lifeShape = input.lifeShape as Partial<LifeShapeSettings> | undefined;
+  const explicitAssignments = input.weekdayProfileAssignments as Settings['weekdayProfileAssignments'] | undefined;
+  const reviewedWorkDays = explicitAssignments
+    ?.filter((assignment) => assignment.profileId === WORKDAY_PROFILE_ID)
+    .map((assignment) => assignment.weekday) ?? lifeShape?.usualWorkHours?.days;
+  const assignmentsChanged = explicitAssignments !== undefined &&
+    JSON.stringify(explicitAssignments) !== JSON.stringify(current.weekdayProfileAssignments);
+  const reconcileReviewedWorkDays =
+    input.activatePlanningDay === true ||
+    (input.planningDayReviewed === true && assignmentsChanged);
 
   return {
     ...current,
+    ...(input.dayProfiles ? { dayProfiles: input.dayProfiles } : {}),
+    ...(input.weekdayProfileAssignments ? { weekdayProfileAssignments: input.weekdayProfileAssignments } : {}),
+    ...(input.activatePlanningDay ? { dayProfileMigrationState: {
+      ...current.dayProfileMigrationState,
+      reviewState: 'reviewedAndEnabled',
+      reviewedAt: current.dayProfileMigrationState.reviewState === 'reviewedAndEnabled' &&
+        JSON.stringify(input.dayProfiles ?? current.dayProfiles) === JSON.stringify(current.dayProfiles) &&
+        JSON.stringify(input.weekdayProfileAssignments ?? current.weekdayProfileAssignments) === JSON.stringify(current.weekdayProfileAssignments)
+          ? current.dayProfileMigrationState.reviewedAt ?? timestamp
+          : timestamp,
+    } } : {}),
+    ...(input.planningDayReviewed === false && current.dayProfileMigrationState.reviewState === 'reviewedAndEnabled'
+      ? { dayProfileMigrationState: { ...current.dayProfileMigrationState, reviewState: 'needsReview' } } : {}),
     appVersion: SETTINGS_APP_VERSION,
-    bedTime: lifeShape?.sleepWakeAnchors?.sleep ?? current.bedTime,
-    breakfastTime: lifeShape?.mealAnchors?.breakfast ?? current.breakfastTime,
-    dinnerTime: lifeShape?.mealAnchors?.dinner ?? current.dinnerTime,
+    bedTime: lifeShape?.sleepWakeAnchors?.sleep !== current.lifeShape.sleepWakeAnchors.sleep
+      ? lifeShape?.sleepWakeAnchors?.sleep ?? current.bedTime : current.bedTime,
+    breakfastTime: lifeShape?.mealAnchors?.breakfast !== current.lifeShape.mealAnchors.breakfast
+      ? lifeShape?.mealAnchors?.breakfast ?? current.breakfastTime : current.breakfastTime,
+    dinnerTime: lifeShape?.mealAnchors?.dinner !== current.lifeShape.mealAnchors.dinner
+      ? lifeShape?.mealAnchors?.dinner ?? current.dinnerTime : current.dinnerTime,
     id: SETTINGS_ID,
     lifeShape: input.lifeShape,
-    lunchTime: lifeShape?.mealAnchors?.lunch ?? current.lunchTime,
+    lunchTime: lifeShape?.mealAnchors?.lunch !== current.lifeShape.mealAnchors.lunch
+      ? lifeShape?.mealAnchors?.lunch ?? current.lunchTime : current.lunchTime,
     startBoostSafety: input.startBoostSafety,
     theme: input.theme as ThemeName,
     updatedAt: timestamp,
-    wakeTime: lifeShape?.sleepWakeAnchors?.wake ?? current.wakeTime,
-    workDays: lifeShape?.usualWorkHours?.days ?? current.workDays,
-    workEnd: lifeShape?.usualWorkHours?.end ?? current.workEnd,
-    workStart: lifeShape?.usualWorkHours?.start ?? current.workStart,
+    wakeTime: lifeShape?.sleepWakeAnchors?.wake !== current.lifeShape.sleepWakeAnchors.wake
+      ? lifeShape?.sleepWakeAnchors?.wake ?? current.wakeTime : current.wakeTime,
+    workDays: reconcileReviewedWorkDays
+      ? reviewedWorkDays ?? current.workDays
+      : current.workDays,
+    workEnd: lifeShape?.usualWorkHours?.end !== current.lifeShape.usualWorkHours.end
+      ? lifeShape?.usualWorkHours?.end ?? current.workEnd : current.workEnd,
+    workStart: lifeShape?.usualWorkHours?.start !== current.lifeShape.usualWorkHours.start
+      ? lifeShape?.usualWorkHours?.start ?? current.workStart : current.workStart,
   };
+}
+
+function planningFingerprint(settings: Settings): string {
+  return JSON.stringify({
+    dayProfiles: settings.dayProfiles,
+    assignments: settings.weekdayProfileAssignments,
+    reviewState: settings.dayProfileMigrationState.reviewState,
+    work: settings.lifeShape.usualWorkHours,
+    fixed: settings.lifeShape.fixedCommitments,
+    blocks: settings.lifeShape.timeBlocks,
+  });
+}
+
+async function persistWithRepairAttention(store: SettingsStore, next: Settings, changed: boolean) {
+  if (!(store instanceof LifeRhythmDatabase) || !changed) {
+    await persistSettingsRecords(store, next, { rewriteSettingsRow: true });
+    return;
+  }
+  await store.transaction('rw', store.settings, store.schedulerPlanState, async () => {
+    await persistSettingsRecords(store, next, { rewriteSettingsRow: true });
+    const existing = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
+    const marked = await markSettingsRepairPending(store);
+    if (!marked.ok || (existing && !marked.persisted)) throw new Error('Settings plan repair attention could not be stored.');
+  });
 }
 
 export async function saveSettings(
@@ -331,7 +391,11 @@ export async function saveSettings(
     };
   }
 
-  await persistSettingsRecords(store, parsed.data, { rewriteSettingsRow: true });
+  try {
+    await persistWithRepairAttention(store, parsed.data, planningFingerprint(current) !== planningFingerprint(parsed.data));
+  } catch {
+    return { ok: false, errors: ['settings: Changes could not be saved safely.'], settings: current };
+  }
 
   return {
     ok: true,
@@ -341,8 +405,9 @@ export async function saveSettings(
 
 export async function resetSettingsToDefaults(store: SettingsStore = getCurrentLifeRhythmDatabase()): Promise<Settings> {
   const defaults = createDefaultSettings();
-
-  await persistSettingsRecords(store, defaults, { rewriteSettingsRow: true });
+  const current = await loadSettingsResult(store, { persistMigration: false });
+  if (current.status === 'invalid' || current.status === 'readFailed') throw new Error('Current settings cannot be reset safely.');
+  await persistWithRepairAttention(store, defaults, planningFingerprint(current.settings) !== planningFingerprint(defaults));
 
   return defaults;
 }

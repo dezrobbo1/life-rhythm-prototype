@@ -1,6 +1,8 @@
 # Day Profile and Availability Contract
 
-Status: Approved product contract; no runtime behaviour is implemented by this document
+Status: Historical approved product contract. Gate 8A3 implements the bounded Workday/Non-workday runtime described in `gate8a3-availability-calendar-report.md` (2026-09-26). Earlier “future-only” runtime statements below describe the contract's original state and are superseded by the Gate 8A3 report and current `/app` code.
+
+Gate 8A3 activates derived candidate intervals only after Setup saves `reviewedAndEnabled` and a valid same-date `usableDay`. It preserves explicit `openCapacity` as the fallback, 15-minute minimum fragments, and candidate-not-capacity semantics. Seven explicit assignments map to exactly one of two stable profiles. Core work can be unavailable, restricted to explicitly classified work tasks/rhythms, or open to otherwise eligible tasks. Reviewed four-sided work-bound travel/transition is blocking; migrated global values stay context only. Unsupported ask-first work remains conservative. Settings backup v3 includes reviewed boundaries; older v1/v2 checks remain accepted. Static recurring `.ics` is documented separately in the Gate 8A3 report. No external calendar writes or inferred waking hours are authorised.
 
 Scope: Future Workday and Non-workday profiles, profile-specific day context, derived planning boundaries, candidate-window calculation, migration, backup, and testing requirements for the `/app` architecture
 

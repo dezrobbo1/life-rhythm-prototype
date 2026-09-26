@@ -60,6 +60,7 @@ type SchedulerModeFields = {
 
 type SchedulerStateFields = SchedulerModeFields & {
   calendarRepairPendingAt?: string;
+  settingsRepairPendingAt?: string;
   preferenceRepairPendingAt?: string;
   preferenceRepairTargets?: PreferenceRepairTarget[];
   durationLearningApplied?: AppliedDurationLearning[];
@@ -72,6 +73,8 @@ type SchedulerStateFields = SchedulerModeFields & {
 export type CalendarSourceSnapshot = {
   source: string;
   updatedAt: string;
+  beforeBusyMinutes?: number;
+  afterBusyMinutes?: number;
 } | null;
 
 export const CALENDAR_REPAIR_PENDING_MESSAGE =
@@ -131,6 +134,7 @@ function stateFields(record: SchedulerStateFields): SchedulerStateFields {
     ...(record.calendarRepairPendingAt
       ? { calendarRepairPendingAt: record.calendarRepairPendingAt }
       : {}),
+    ...(record.settingsRepairPendingAt ? { settingsRepairPendingAt: record.settingsRepairPendingAt } : {}),
     ...(record.preferenceRepairPendingAt
       ? { preferenceRepairPendingAt: record.preferenceRepairPendingAt }
       : {}),
@@ -262,7 +266,9 @@ function storedCalendarMatchesSnapshot(
   const parsed = calendarSourceRecordSchema.safeParse(stored);
   return parsed.success &&
     parsed.data.source === snapshot.source &&
-    parsed.data.updatedAt === snapshot.updatedAt;
+    parsed.data.updatedAt === snapshot.updatedAt &&
+    (snapshot.beforeBusyMinutes === undefined || parsed.data.beforeBusyMinutes === snapshot.beforeBusyMinutes) &&
+    (snapshot.afterBusyMinutes === undefined || parsed.data.afterBusyMinutes === snapshot.afterBusyMinutes);
 }
 
 async function saveSchedulerPlanStateIfCurrent(
@@ -292,6 +298,10 @@ async function saveSchedulerPlanStateIfCurrent(
     }
     if (expected.status === 'ok' && expected.taskInputRepairPendingAt &&
         !fields.taskInputRepairPendingAt && canonicalInputSnapshot === undefined) {
+      return staleSchedulerWriteResult();
+    }
+    if (expected.status === 'ok' && expected.settingsRepairPendingAt &&
+        !fields.settingsRepairPendingAt && canonicalInputSnapshot === undefined) {
       return staleSchedulerWriteResult();
     }
     if (expected.status === 'ok' && expected.rhythmInputRepairPendingAt &&
@@ -338,6 +348,10 @@ async function saveSchedulerPlanStateIfCurrent(
 
         if (expected.status === 'ok' && expected.taskInputRepairPendingAt &&
             !fields.taskInputRepairPendingAt && canonicalInputSnapshot === undefined) {
+          return staleSchedulerWriteResult();
+        }
+        if (expected.status === 'ok' && expected.settingsRepairPendingAt &&
+            !fields.settingsRepairPendingAt && canonicalInputSnapshot === undefined) {
           return staleSchedulerWriteResult();
         }
         if (expected.status === 'ok' && expected.rhythmInputRepairPendingAt &&
@@ -474,6 +488,21 @@ export async function markCalendarRepairPending(
       ok: false,
       errors: ['schedulerPlanState: Calendar repair attention could not be saved.'],
     };
+  }
+}
+
+export async function markSettingsRepairPending(
+  store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
+  detectedAt = new Date().toISOString(),
+): Promise<{ ok: true; persisted: boolean } | { ok: false; errors: string[] }> {
+  try {
+    const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
+    if (!stored) return { ok: true, persisted: false };
+    // A corrupt derived plan must not prevent correction of canonical settings.
+    const updated = await store.schedulerPlanState.update(CURRENT_SCHEDULER_PLAN_STATE_ID, { settingsRepairPendingAt: detectedAt });
+    return { ok: true, persisted: updated === 1 };
+  } catch {
+    return { ok: false, errors: ['schedulerPlanState: Settings repair attention could not be saved.'] };
   }
 }
 
@@ -851,6 +880,7 @@ export async function repairAndPersistSchedulerPlan(
     const plan = calculatedPlan.repair && (
       appliedPreferenceRepairTargets.length > 0 ||
       changedDurationTemplateIds.length > 0 ||
+      (current.status === 'ok' && Boolean(current.settingsRepairPendingAt)) ||
       (current.status === 'ok' && Boolean(current.taskInputRepairPendingAt))
       || (current.status === 'ok' && Boolean(current.rhythmInputRepairPendingAt))
     )
@@ -863,6 +893,9 @@ export async function repairAndPersistSchedulerPlan(
               : {}),
             ...(current.status === 'ok' && current.rhythmInputRepairPendingAt
               ? { rhythmDefinitionRepairApplied: true }
+              : {}),
+            ...(current.status === 'ok' && current.settingsRepairPendingAt
+              ? { settingsDefinitionRepairApplied: true }
               : {}),
             ...(appliedPreferenceRepairTargets.length > 0
               ? { appliedPreferenceRepairTargets }
@@ -941,6 +974,11 @@ export async function undoPersistedSchedulerRepair(
     };
   }
 
+  if (current.settingsRepairPendingAt || current.plan.repair.trigger === 'settingsChanged' ||
+      current.plan.repair.settingsDefinitionRepairApplied) {
+    return { ok: false, errors: ['schedulerPlanState: Change the planning settings again to correct them. Earlier plan times cannot be restored under the current boundaries.'] };
+  }
+
   if (current.taskInputRepairPendingAt || current.plan.repair.trigger === 'taskDefinitionChanged' ||
       current.plan.repair.taskDefinitionRepairApplied) {
     return { ok: false, errors: ['schedulerPlanState: Edit the task again to correct its definition. Earlier task times cannot be restored as a valid plan.'] };
@@ -979,6 +1017,7 @@ export async function undoPersistedSchedulerRepair(
     : orderedDurationLearning(current.durationLearningApplied ?? []);
   const saved = await saveSchedulerPlanStateIfCurrent(reverted, current, store, updatedAt, {
     calendarRepairPendingAt,
+    settingsRepairPendingAt: current.settingsRepairPendingAt,
     preferenceRepairPendingAt,
     ...(preferenceRepairTargets.length > 0 ? { preferenceRepairTargets } : {}),
     durationLearningApplied: undoDurationLearningApplied,

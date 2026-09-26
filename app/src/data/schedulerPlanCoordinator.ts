@@ -444,8 +444,9 @@ export async function buildCurrentLiveSchedulingContext(
           loadDurationLearningControlsResult(createDurationLearningControlStore(database)),
           readPersistedCalendarEvents({
             targetTimezone: timezone,
-            windowStartDate: startDate,
-            windowEndDate: endDate,
+            // Saved source spacing can cross midnight at either horizon edge.
+            windowStartDate: addDays(startDate, -1),
+            windowEndDate: addDays(endDate, 1),
           }, database),
           options.planningPolicy ? Promise.resolve(null) : loadSchedulerPlanState(database),
         ]);
@@ -597,9 +598,13 @@ export async function buildCurrentLiveSchedulingContext(
     ? {
         source: calendarRead.record.source,
         updatedAt: calendarRead.record.updatedAt,
+        beforeBusyMinutes: calendarRead.record.beforeBusyMinutes,
+        afterBusyMinutes: calendarRead.record.afterBusyMinutes,
       }
     : null;
-  const calendarCommitments = externalCommitmentsFromCalendarEvents(calendarEvents);
+  const calendarCommitments = externalCommitmentsFromCalendarEvents(calendarEvents,
+    calendarRead.status === 'ok' ? calendarRead.record.beforeBusyMinutes : 0,
+    calendarRead.status === 'ok' ? calendarRead.record.afterBusyMinutes : 0);
   const planningBase: SchedulingDomainModel = {
     ...base,
     externalCommitments: [...base.externalCommitments, ...calendarCommitments],
@@ -613,7 +618,7 @@ export async function buildCurrentLiveSchedulingContext(
 
   if (calendarRead.status === 'ok') {
     warnings.push(
-      `Read-only calendar ${calendarRead.record.label} supplied ${calendarEvents.length} event${calendarEvents.length === 1 ? '' : 's'} in the current planning horizon.`,
+      `Read-only calendar ${calendarRead.record.label} supplied ${calendarEvents.length} event${calendarEvents.length === 1 ? '' : 's'} in and around the current planning horizon.`,
     );
   }
 
@@ -622,6 +627,8 @@ export async function buildCurrentLiveSchedulingContext(
     const availability = deriveGate2Availability({
       settings: settingsResult.settings,
       calendarEvents,
+      calendarBeforeBusyMinutes: calendarRead.status === 'ok' ? calendarRead.record.beforeBusyMinutes : 0,
+      calendarAfterBusyMinutes: calendarRead.status === 'ok' ? calendarRead.record.afterBusyMinutes : 0,
       date,
       timezone,
     });
@@ -715,6 +722,10 @@ export async function ensureCurrentPrivatePlan(
       reason: 'Apply the corrected task definition to the private plan.',
       trigger: 'taskDefinitionChanged',
     });
+  }
+
+  if (current.status === 'ok' && current.settingsRepairPendingAt) {
+    return repairCurrentPrivatePlan({ ...options, reason: 'Apply reviewed planning-day settings.', trigger: 'settingsChanged' });
   }
 
   if (current.status === 'ok' && current.rhythmInputRepairPendingAt) {

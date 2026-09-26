@@ -1250,9 +1250,25 @@ describe('Today screen', () => {
     expect(reducedDayMocks.loadTodayDayMode.mock.calls.length).toBeGreaterThan(1);
   });
 
+  it('does not report restoration when a visible Today Undo is rejected by changed settings authority', async () => {
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok', plan: persistedReducedDayRepairPlan(), updatedAt: '2026-09-15T01:00:00.000Z',
+    });
+    reducedDayMocks.undoTodayPlanChange.mockResolvedValue({
+      ok: false, errors: ['Change the planning settings again to correct them.'], warnings: [],
+    });
+    render(<TodayScreen />);
+    const changed = await screen.findByRole('region', { name: 'Changed' });
+    await userEvent.setup().click(within(changed).getByRole('button', { name: 'Undo last change' }));
+    expect(await within(changed).findByRole('alert')).toHaveProperty('textContent', 'Change the planning settings again to correct them.');
+    expect(screen.queryByText('The latest private-plan change was undone.')).toBeNull();
+    expect(reducedDayMocks.undoTodayPlanChange).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ['calendarChanged', 'A read-only calendar commitment changed.'],
     ['completionChanged', 'A Today task was completed.'],
+    ['settingsChanged', 'Reviewed planning settings changed.'],
   ] as const)('does not offer plan-only Undo for a %s repair whose source fact remains changed', async (trigger, reason) => {
     const repairedPlan = persistedReducedDayRepairPlan();
     repairedPlan.repair = {
@@ -1272,6 +1288,18 @@ describe('Today screen', () => {
 
     render(<TodayScreen />);
 
+    const changed = await screen.findByRole('region', { name: 'Changed' });
+    expect(within(changed).queryByRole('button', { name: 'Undo last change' })).toBeNull();
+    expect(reducedDayMocks.undoTodayPlanChange).not.toHaveBeenCalled();
+  });
+
+  it('does not offer Today Undo when a user correction also incorporated pending settings authority', async () => {
+    const repairedPlan = persistedReducedDayRepairPlan();
+    repairedPlan.repair = { ...repairedPlan.repair!, trigger: 'userCorrection', settingsDefinitionRepairApplied: true };
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok', plan: repairedPlan, updatedAt: '2026-09-15T01:00:00.000Z',
+    });
+    render(<TodayScreen />);
     const changed = await screen.findByRole('region', { name: 'Changed' });
     expect(within(changed).queryByRole('button', { name: 'Undo last change' })).toBeNull();
     expect(reducedDayMocks.undoTodayPlanChange).not.toHaveBeenCalled();
@@ -2805,5 +2833,43 @@ describe('Today screen', () => {
     await user.click(screen.getByRole('button', { name: 'Close Start Boost' }));
 
     expect(screen.queryByRole('dialog', { name: 'Start Boost' })).toBeNull();
+  });
+
+  it('uses settings-specific repair semantics and gives settings precedence when both markers are pending', async () => {
+    const user = userEvent.setup();
+    const pendingPlan = {
+      placements: [],
+      rejectedExistingPlacements: [],
+      unscheduledIntentionIds: [],
+      unscheduledRhythmIds: [],
+    };
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState
+      .mockResolvedValueOnce({
+        settingsRepairPendingAt: '2026-09-15T01:00:00.000Z',
+        calendarRepairPendingAt: '2026-09-15T01:00:00.000Z',
+        status: 'ok',
+        updatedAt: '2026-09-15T00:00:00.000Z',
+        plan: pendingPlan,
+      })
+      .mockResolvedValue({
+        status: 'ok',
+        updatedAt: '2026-09-15T01:05:00.000Z',
+        plan: pendingPlan,
+      });
+
+    render(<TodayScreen />);
+
+    const later = screen.getByRole('region', { name: 'Later' });
+    expect((await within(later).findByRole('alert')).textContent).toContain(
+      'The flexible private plan needs updating after planning settings changed.',
+    );
+    expect(within(later).queryByText('The flexible private plan needs repair after a calendar change.')).toBeNull();
+
+    await user.click(within(later).getByRole('button', { name: 'Retry update' }));
+
+    expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledWith({
+      reason: 'Retry the saved planning settings using current scheduling information.',
+      trigger: 'settingsChanged',
+    });
   });
 });

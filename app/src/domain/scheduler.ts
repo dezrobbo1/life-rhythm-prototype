@@ -164,6 +164,9 @@ function matchingCandidate(
   const range = placementRange(placement);
   return (input.candidateIntervals ?? []).find((candidate) =>
     candidate.date === placement.date &&
+    (!candidate.workOnly || (targetKind(placement) === 'rhythm'
+      ? input.rhythms.some((rhythm) => rhythm.id === rhythmIdForPlacement(placement) && rhythm.area === 'work')
+      : input.intentions.some((intention) => intention.id === placement.intentionId && intention.area === 'work' && intention.taskType === 'work'))) &&
     contains(
       { start: minutesFromTime(candidate.start), end: minutesFromTime(candidate.end) },
       range,
@@ -739,6 +742,7 @@ function findPlacementForIntention(
 
   const placements: CandidatePlacement[] = [];
   for (const gap of candidateGaps(input, accepted)) {
+    if (gap.candidate.workOnly && !(intention.area === 'work' && intention.taskType === 'work')) continue;
     const forcedMinimum = canUseReducedMinimum(intention, input, gap.candidate.date);
     const variants = forcedMinimum ? [forcedMinimum] : orderedVariants(intention.variants);
     for (const [variantRank, variant] of variants.entries()) {
@@ -878,6 +882,7 @@ function findPlacementForRhythm(
     (!rhythm.eligibilityEndDate || date <= rhythm.eligibilityEndDate),
   ));
   for (const gap of candidateGaps(input, accepted, eligibleDates)) {
+    if (gap.candidate.workOnly && rhythm.area !== 'work') continue;
     const forcedMinimum = eligibleRhythmMinimum(rhythm, input, gap.candidate.date);
     const variants = forcedMinimum ? [forcedMinimum] : orderedVariants(rhythm.variants);
     for (const [variantRank, variant] of variants.entries()) {

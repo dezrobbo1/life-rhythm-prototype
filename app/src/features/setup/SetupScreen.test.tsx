@@ -42,6 +42,10 @@ vi.mock('./SchedulingPreferencesPanel', () => ({
   ),
 }));
 
+vi.mock('../plan/CalendarSourceControl', () => ({
+  CalendarSourceControl: () => <section aria-label="Read-only calendar test boundary" />,
+}));
+
 vi.mock('../../data/settingsRepository', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../data/settingsRepository')>();
 
@@ -175,6 +179,110 @@ function validTaskPoolBackupJson() {
 }
 
 describe('Setup screen', () => {
+  it('saves clearing both optional core-work times without changing reviewed planning authority', async () => {
+    const defaults = createDefaultSettings('2026-09-26T00:00:00.000Z');
+    const settings = settingsSchema.parse({
+      ...defaults,
+      dayProfileMigrationState: { ...defaults.dayProfileMigrationState, reviewState: 'reviewedAndEnabled', reviewedAt: '2026-09-26T00:00:00.000Z' },
+      dayProfiles: defaults.dayProfiles.map((profile) => profile.kind === 'workday'
+        ? { ...profile, usableDay: { start: '06:30', end: '22:00' }, workBoundaryMinutes: { beforeTravel: 15, afterTravel: 10, beforeTransition: 5, afterTransition: 5 } }
+        : profile),
+    });
+    const onSaveSettings = vi.fn(async (input: SettingsWriteInput): Promise<SettingsWriteResult> => {
+      const parsed = settingsSchema.safeParse({ ...settings, dayProfiles: input.dayProfiles });
+      return parsed.success ? { ok: true, settings: parsed.data }
+        : { ok: false, errors: parsed.error.issues.map((issue) => issue.message), settings };
+    });
+    render(<SetupScreen settings={settings} onSaveSettings={onSaveSettings} />);
+    const workday = screen.getByRole('group', { name: 'Workday planning hours' });
+    fireEvent.change(within(workday).getByLabelText('Core work starts'), { target: { value: '' } });
+    fireEvent.change(within(workday).getByLabelText('Core work ends'), { target: { value: '' } });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(onSaveSettings).toHaveBeenCalledTimes(1);
+    expect(onSaveSettings.mock.calls[0][0]).toMatchObject({ activatePlanningDay: true,
+      dayProfiles: [expect.objectContaining({ kind: 'workday', workPeriod: undefined, usableDay: { start: '06:30', end: '22:00' },
+        workPlanningUse: settings.dayProfiles[0].workPlanningUse, workBoundaryMinutes: settings.dayProfiles[0].workBoundaryMinutes }),
+      settings.dayProfiles[1]],
+      weekdayProfileAssignments: settings.weekdayProfileAssignments,
+    });
+    expect(screen.getByRole('status').textContent).toContain('Settings saved');
+  });
+
+  it('does not save one blank core-work edge as an invalid profile', async () => {
+    const settings = createDefaultSettings('2026-09-26T00:00:00.000Z');
+    const onSaveSettings = vi.fn(async (input: SettingsWriteInput): Promise<SettingsWriteResult> => {
+      const parsed = settingsSchema.safeParse({ ...settings, dayProfiles: input.dayProfiles });
+      return parsed.success ? { ok: true, settings: parsed.data }
+        : { ok: false, errors: parsed.error.issues.map((issue) => issue.message), settings };
+    });
+    render(<SetupScreen settings={settings} onSaveSettings={onSaveSettings} />);
+    fireEvent.change(within(screen.getByRole('group', { name: 'Workday planning hours' })).getByLabelText('Core work starts'), { target: { value: '' } });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(onSaveSettings).toHaveBeenCalledTimes(1);
+    expect(onSaveSettings.mock.results[0].value).toBeInstanceOf(Promise);
+    expect(await onSaveSettings.mock.results[0].value).toMatchObject({ ok: false });
+    expect(screen.getByRole('status').textContent).toContain('Settings were not saved');
+  });
+
+  it('lets a reviewed person remove only one profile usable-day envelope by clearing both times', async () => {
+    const defaults = createDefaultSettings('2026-09-26T00:00:00.000Z');
+    const settings = settingsSchema.parse({
+      ...defaults,
+      dayProfileMigrationState: {
+        ...defaults.dayProfileMigrationState,
+        reviewState: 'reviewedAndEnabled',
+        reviewedAt: '2026-09-26T00:00:00.000Z',
+      },
+      dayProfiles: defaults.dayProfiles.map((profile) => ({
+        ...profile,
+        usableDay: profile.kind === 'workday'
+          ? { start: '06:30', end: '22:00' }
+          : { start: '07:00', end: '21:00' },
+      })),
+    });
+    const onSaveSettings = vi.fn(async (input: SettingsWriteInput): Promise<SettingsWriteResult> => ({
+      ok: true, settings: settingsSchema.parse({ ...settings, dayProfiles: input.dayProfiles }),
+    }));
+    render(<SetupScreen settings={settings} onSaveSettings={onSaveSettings} />);
+    const workday = screen.getByRole('group', { name: 'Workday planning hours' });
+    fireEvent.change(within(workday).getByLabelText('Earliest planning time'), { target: { value: '' } });
+    fireEvent.change(within(workday).getByLabelText('Latest planning time'), { target: { value: '' } });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(onSaveSettings).toHaveBeenCalledTimes(1);
+    expect(onSaveSettings.mock.calls[0][0]).toMatchObject({
+      activatePlanningDay: true,
+      dayProfiles: [expect.objectContaining({ kind: 'workday', usableDay: undefined }),
+        expect.objectContaining({ kind: 'nonWorkday', usableDay: { start: '07:00', end: '21:00' } })],
+    });
+    expect(screen.getByRole('status').textContent).toContain('Settings saved');
+  });
+
+  it('saves reviewed weekday and usable-day choices only after explicit confirmation', async () => {
+    const settings = createDefaultSettings('2026-09-26T00:00:00.000Z');
+    const onSaveSettings = vi.fn(async (input: SettingsWriteInput): Promise<SettingsWriteResult> => ({
+      ok: true, settings: settingsSchema.parse({ ...settings, lifeShape: input.lifeShape }),
+    }));
+    const user = userEvent.setup();
+    render(<SetupScreen settings={settings} onSaveSettings={onSaveSettings} />);
+    const workdays = screen.getByRole('group', { name: 'Usual workdays' });
+    await user.click(within(workdays).getByLabelText('Monday'));
+    await user.click(within(workdays).getByLabelText('Saturday'));
+    const workday = screen.getByRole('group', { name: 'Workday planning hours' });
+    fireEvent.change(within(workday).getByLabelText('Earliest planning time'), { target: { value: '06:30' } });
+    fireEvent.change(within(workday).getByLabelText('Latest planning time'), { target: { value: '22:00' } });
+    const nonWorkday = screen.getByRole('group', { name: 'Non-workday planning hours' });
+    fireEvent.change(within(nonWorkday).getByLabelText('Earliest planning time'), { target: { value: '07:00' } });
+    fireEvent.change(within(nonWorkday).getByLabelText('Latest planning time'), { target: { value: '21:00' } });
+    expect(onSaveSettings).not.toHaveBeenCalled();
+    await user.click(screen.getByLabelText(/I have reviewed these hours/));
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(onSaveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      activatePlanningDay: true,
+      lifeShape: expect.objectContaining({ usualWorkHours: expect.objectContaining({ days: ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] }) }),
+      dayProfiles: [expect.objectContaining({ usableDay: { start: '06:30', end: '22:00' } }),
+        expect.objectContaining({ usableDay: { start: '07:00', end: '21:00' } })],
+    }));
+  });
   it('renders all setup sections', () => {
     render(<SetupScreen />);
 
@@ -444,7 +552,7 @@ describe('Setup screen', () => {
     expect(screen.getByText('Login is not cloud sync. Backups can be exported and checked, but import/restore is not enabled.')).toBeTruthy();
     expect(
       screen.getByText(
-        'Plan accepts a read-only calendar file; recurring events are not accepted. Live calendar connection, AI, cloud sync, notifications, and individual Move/Protect for automatic times are not available yet.',
+        'Plan accepts a static read-only calendar file with supported recurring events. Re-import it after changes; live provider connections, cloud sync, notifications, and individual Move/Protect for automatic times remain future work.',
       ),
     ).toBeTruthy();
     expect(screen.queryByRole('button', { name: /restore/i })).toBeNull();
@@ -732,7 +840,7 @@ describe('Setup screen', () => {
     expect(screen.getByRole('button', { name: 'Save settings' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reset settings to defaults' })).toBeTruthy();
     expect(screen.getByText('This card changes theme, Start Boost safety, and Life Shape settings on this device.')).toBeTruthy();
-    expect(screen.getByText('Save writes theme, Start Boost safety, and Life shape only. Reset returns those settings to defaults.')).toBeTruthy();
+    expect(screen.getByText('Save writes appearance, Start Boost safety, Life Shape and reviewed planning hours. Reset returns these settings to defaults.')).toBeTruthy();
     expect(screen.getByText('Tasks, rhythms, scheduling preferences, packs, imports, dev tickets, and future modules are not changed by these two settings buttons.')).toBeTruthy();
   });
 
@@ -787,5 +895,43 @@ describe('Setup screen', () => {
     expect(within(secondaryNav).getByRole('button', { name: 'Reset' })).toBeTruthy();
     expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
+  });
+
+  it('validates reviewed work-boundary minutes before saving without clamping or rounding', async () => {
+    const settings = createDefaultSettings('2026-09-26T00:00:00.000Z');
+    const onSaveSettings = vi.fn(async (input: SettingsWriteInput): Promise<SettingsWriteResult> => ({
+      ok: true,
+      settings: settingsSchema.parse({
+        ...settings,
+        lifeShape: input.lifeShape,
+        dayProfiles: input.dayProfiles,
+        weekdayProfileAssignments: input.weekdayProfileAssignments,
+      }),
+    }));
+    const user = userEvent.setup();
+    render(<SetupScreen settings={settings} onSaveSettings={onSaveSettings} />);
+    const workday = screen.getByRole('group', { name: 'Workday planning hours' });
+    const travelBefore = within(workday).getByLabelText('Travel before work (minutes)') as HTMLInputElement;
+
+    fireEvent.change(travelBefore, { target: { value: '1.5' } });
+    expect(within(workday).getByText('Use a whole number from 0 to 180 minutes.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(onSaveSettings).not.toHaveBeenCalled();
+    expect(screen.getByRole('status').textContent).toContain('highlighted work travel and transition minutes');
+
+    fireEvent.change(travelBefore, { target: { value: '181' } });
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(onSaveSettings).not.toHaveBeenCalled();
+
+    fireEvent.change(travelBefore, { target: { value: '0' } });
+    expect(within(workday).queryByText('Use a whole number from 0 to 180 minutes.')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(onSaveSettings).toHaveBeenCalledTimes(1);
+    const savedProfiles = onSaveSettings.mock.calls[0][0].dayProfiles as Array<{
+      kind: string;
+      workBoundaryMinutes?: { beforeTravel: number };
+    }>;
+    expect(savedProfiles.find((profile) => profile.kind === 'workday')
+      ?.workBoundaryMinutes?.beforeTravel).toBe(0);
   });
 });
