@@ -151,6 +151,25 @@ describe('flexible-quota rhythm recurrence', () => {
     expect(new Set(initial.map((instance) => instance.deduplicationKey)).size).toBe(4);
   });
 
+  it('keeps prior-revision slots while allowing only feasible added quota after a late edit', () => {
+    const earlier = generate({ start: '2026-09-07', end: '2026-09-11' });
+    expect(earlier).toHaveLength(3);
+    const revised = revision({
+      id: 'revision-2', revisionNumber: 2, effectiveFromLocalDate: '2026-09-12',
+      rule: { frequency: 5, period: 'week', preferredDays: [], maxPerDay: 1 },
+    });
+    const later = generate({
+      revisions: [revision(), revised], existing: earlier, start: '2026-09-12', end: '2026-09-13',
+    });
+    expect(later).toHaveLength(2);
+    expect(later.map((instance) => instance.slotNumber)).toEqual([4, 5]);
+    expect(later.every((instance) => instance.recurrenceRevisionId === revised.id)).toBe(true);
+    expect(generate({
+      revisions: [revision(), revised], existing: [...earlier, ...later], start: '2026-09-13', end: '2026-09-13',
+    })).toEqual([]);
+    expect(earlier.every((instance) => instance.recurrenceRevisionId === 'revision-1')).toBe(true);
+  });
+
   it('does not carry an unmet quota into the next period', () => {
     const firstWeek = generate().slice(0, 1).map((instance) => rhythmInstanceSchema.parse({
       ...instance, lifecycleState: 'closed', completionState: 'skipped', planningState: 'closed',

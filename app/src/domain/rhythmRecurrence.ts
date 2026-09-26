@@ -172,7 +172,15 @@ export function buildMissingRhythmInstances(
       const capacityDates = capacityStart <= eligibilityEndDate
         ? datesBetween(capacityStart, eligibilityEndDate).length
         : 0;
-      const feasibleTotal = Math.min(revision.rule.frequency, capacityDates * revision.rule.maxPerDay);
+      // Earlier-revision slots already count toward the new frequency, but
+      // do not use up the days newly available after this prospective edit.
+      const priorRevisionCount = alreadyInPeriod.filter((instance) =>
+        instance.recurrenceSnapshot.effectiveFromLocalDate < revision.effectiveFromLocalDate,
+      ).length;
+      const feasibleTotal = Math.min(
+        revision.rule.frequency,
+        priorRevisionCount + capacityDates * revision.rule.maxPerDay,
+      );
       const feasibleSlots = Math.max(0, feasibleTotal - existingOrGenerated);
 
       for (let count = 0; count < feasibleSlots; count += 1) {
