@@ -61,4 +61,66 @@ describe('bounded recurring calendar authority', () => {
       ['2026-10-01', '09:00'], ['2026-10-31', '10:00'],
     ]);
   });
+
+  it('ignores unsupported recurrence rules that cannot contribute busy VEVENT time', () => {
+    const source = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'BEGIN:VTIMEZONE',
+      'TZID:Custom/Unused',
+      'BEGIN:STANDARD',
+      'DTSTART:19700101T000000',
+      'RRULE:FREQ=YEARLY;BYSETPOS=1;BYMONTH=1',
+      'TZOFFSETFROM:+0000',
+      'TZOFFSETTO:+0000',
+      'END:STANDARD',
+      'END:VTIMEZONE',
+      event(['STATUS:CANCELLED', ...base, 'RRULE:FREQ=HOURLY;COUNT=3']),
+      event(['TRANSP:TRANSPARENT', ...base, 'RRULE:FREQ=WEEKLY;COUNT=3;BYSETPOS=1']),
+      ['BEGIN:VEVENT', 'UID:busy@example.com', 'SUMMARY:Busy', 'DTSTART;TZID=Australia/Sydney:20261005T100000',
+        'DTEND;TZID=Australia/Sydney:20261005T103000', 'END:VEVENT'].join('\r\n'),
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    const rows = adapter.read(source, options).events;
+
+    expect(rows.filter((row) => row.busy).map((row) => row.title)).toEqual(['Busy']);
+  });
+
+  it('converts recurring DTSTART and DTEND with their own TZID values', () => {
+    const source = calendar(event([
+      'DTSTART;TZID=Australia/Perth:20261002T090000',
+      'DTEND;TZID=Australia/Sydney:20261002T120000',
+      'RRULE:FREQ=WEEKLY;COUNT=1',
+    ]));
+
+    const rows = adapter.read(source, { ...options, targetTimezone: 'Australia/Perth' }).events;
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      start: { date: '2026-10-02', time: '09:00' },
+      end: { date: '2026-10-02', time: '10:00' },
+    });
+  });
+
+  it('fails closed when aggregate recurrence iteration across the file exceeds the safe budget', () => {
+    const manySeries = Array.from({ length: 1_001 }, (_, index) =>
+      [
+        'BEGIN:VEVENT',
+        `UID:aggregate-${index}@example.com`,
+        'SUMMARY:Old daily series',
+        'DTSTART;TZID=Australia/Sydney:20260720T090000',
+        'DTEND;TZID=Australia/Sydney:20260720T093000',
+        'RRULE:FREQ=DAILY',
+        'END:VEVENT',
+      ].join('\r\n'),
+    );
+    const source = ['BEGIN:VCALENDAR', 'VERSION:2.0', ...manySeries, 'END:VCALENDAR'].join('\r\n');
+
+    expect(() => adapter.read(source, {
+      targetTimezone: 'Australia/Sydney',
+      windowStartDate: '2026-09-07',
+      windowEndDate: '2026-09-08',
+    })).toThrow('Calendar recurrence exceeds the safe read limit.');
+  });
 });

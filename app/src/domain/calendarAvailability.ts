@@ -149,6 +149,33 @@ function fixedCommitmentsFromSettings(settings: Settings): ExternalCommitment[] 
 export function externalCommitmentsFromCalendarEvents(events: CalendarReadEvent[], beforeMinutes = 0, afterMinutes = 0): ExternalCommitment[] {
   const commitments: ExternalCommitment[] = [];
 
+  const addSpillover = (
+    event: CalendarReadEvent,
+    encodedSourceId: string,
+    edge: 'before' | 'after',
+    date: string,
+    startMinutes: number,
+    endMinutes: number,
+  ) => {
+    if (startMinutes >= endMinutes) return;
+    commitments.push({
+      id: `calendar:${event.adapterId}:${encodedSourceId}:spacing:${edge}:${date}`,
+      title: event.title,
+      source: 'calendar',
+      sourceId: event.sourceEventId,
+      interval: {
+        kind: 'datedLocal',
+        date,
+        start: timeFromMinutes(startMinutes),
+        end: timeFromMinutes(endMinutes),
+        timezone: event.timezone,
+      },
+      hard: true,
+      travelBeforeMinutes: 0,
+      transitionAfterMinutes: 0,
+    });
+  };
+
   for (const event of events) {
     if (!event.busy) continue;
     const encodedSourceId = sourceIdSegment(event.sourceEventId);
@@ -169,15 +196,29 @@ export function externalCommitmentsFromCalendarEvents(events: CalendarReadEvent[
             timezone: event.timezone,
           },
           hard: true,
-          travelBeforeMinutes: beforeMinutes,
-          transitionAfterMinutes: afterMinutes,
+          travelBeforeMinutes: 0,
+          transitionAfterMinutes: 0,
         });
         date = addDays(date, 1);
+      }
+      if (beforeMinutes > 0) {
+        addSpillover(event, encodedSourceId, 'before', addDays(event.start.date, -1), 24 * 60 - beforeMinutes, 24 * 60);
+      }
+      if (afterMinutes > 0) {
+        addSpillover(event, encodedSourceId, 'after', event.end.date, 0, afterMinutes);
       }
       continue;
     }
 
     if (!event.start.time || !event.end.time) continue;
+
+    const eventStartMinutes = minutesFromTime(event.start.time);
+    const eventEndMinutes = minutesFromTime(event.end.time);
+    const sameDayBefore = Math.min(beforeMinutes, eventStartMinutes);
+    const beforeSpill = beforeMinutes - sameDayBefore;
+    const endHasOwnFragment = eventEndMinutes > 0;
+    const sameDayAfter = endHasOwnFragment ? Math.min(afterMinutes, 24 * 60 - eventEndMinutes) : 0;
+    const afterSpill = afterMinutes - sameDayAfter;
 
     let date = event.start.date;
     while (date <= event.end.date) {
@@ -200,13 +241,21 @@ export function externalCommitmentsFromCalendarEvents(events: CalendarReadEvent[
             timezone: event.timezone,
           },
           hard: true,
-          travelBeforeMinutes: beforeMinutes,
-          transitionAfterMinutes: afterMinutes,
+          travelBeforeMinutes: isStart ? sameDayBefore : 0,
+          transitionAfterMinutes: isEnd && endHasOwnFragment ? sameDayAfter : 0,
         });
       }
 
       if (isEnd) break;
       date = addDays(date, 1);
+    }
+
+    if (beforeSpill > 0) {
+      addSpillover(event, encodedSourceId, 'before', addDays(event.start.date, -1), 24 * 60 - beforeSpill, 24 * 60);
+    }
+    if (afterSpill > 0) {
+      const afterDate = eventEndMinutes === 0 ? event.end.date : addDays(event.end.date, 1);
+      addSpillover(event, encodedSourceId, 'after', afterDate, 0, afterSpill);
     }
   }
 

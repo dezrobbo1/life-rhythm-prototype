@@ -99,4 +99,68 @@ describe('Gate 2 calendar availability edge semantics', () => {
       minimumCandidateMinutes: 0,
     })).toThrow('minimumCandidateMinutes must be a finite positive number.');
   });
+
+  it('carries before-event spacing into the previous local date', () => {
+    const event = {
+      adapterId: 'ics',
+      sourceEventId: 'after-midnight',
+      title: 'After midnight meeting',
+      allDay: false,
+      busy: true,
+      start: { date: '2026-09-08', time: '00:30' },
+      end: { date: '2026-09-08', time: '01:00' },
+      timezone: 'Australia/Perth',
+    };
+    const commitments = externalCommitmentsFromCalendarEvents([event], 60, 0);
+    expect(commitments).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        interval: expect.objectContaining({ kind: 'datedLocal', date: '2026-09-07', start: '23:30', end: '24:00' }),
+        travelBeforeMinutes: 0,
+        transitionAfterMinutes: 0,
+      }),
+    ]));
+  });
+
+  it('carries after-event spacing into the next local date', () => {
+    const event = {
+      adapterId: 'ics',
+      sourceEventId: 'before-midnight',
+      title: 'Late meeting',
+      allDay: false,
+      busy: true,
+      start: { date: '2026-09-07', time: '23:30' },
+      end: { date: '2026-09-07', time: '23:45' },
+      timezone: 'Australia/Perth',
+    };
+    const commitments = externalCommitmentsFromCalendarEvents([event], 0, 60);
+    expect(commitments).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        interval: expect.objectContaining({ kind: 'datedLocal', date: '2026-09-08', start: '00:00', end: '00:45' }),
+        travelBeforeMinutes: 0,
+        transitionAfterMinutes: 0,
+      }),
+    ]));
+  });
+
+  it('carries all-day source spacing onto adjacent local dates', () => {
+    const event = {
+      adapterId: 'ics',
+      sourceEventId: 'all-day',
+      title: 'All-day commitment',
+      allDay: true,
+      busy: true,
+      start: { date: '2026-09-07' },
+      end: { date: '2026-09-08' },
+      timezone: 'Australia/Perth',
+    };
+    const commitments = externalCommitmentsFromCalendarEvents([event], 60, 60);
+    expect(commitments).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        interval: expect.objectContaining({ date: '2026-09-06', start: '23:00', end: '24:00' }),
+      }),
+      expect.objectContaining({
+        interval: expect.objectContaining({ date: '2026-09-08', start: '00:00', end: '01:00' }),
+      }),
+    ]));
+  });
 });

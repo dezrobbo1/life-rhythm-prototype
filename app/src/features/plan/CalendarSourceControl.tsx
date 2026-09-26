@@ -164,6 +164,8 @@ export function CalendarSourceControl({
         beforeBusyMinutes: imported.record.beforeBusyMinutes,
         afterBusyMinutes: imported.record.afterBusyMinutes,
       });
+      setBeforeBusyMinutes(imported.record.beforeBusyMinutes);
+      setAfterBusyMinutes(imported.record.afterBusyMinutes);
       setWarnings(imported.warnings);
 
       const repaired = await repairAfterCalendarChange('Read-only calendar import changed.');

@@ -301,17 +301,25 @@ function firstProperty(map: Map<string, ParsedProperty[]>, name: string): Parsed
 }
 
 function recurringEvents(source: string, options: CalendarReadOptions, warnings: string[]): CalendarReadEvent[] {
-  // ICAL.js normalizes unknown RRULE clauses away. Check the original unfolded
-  // source before parsing, so an unsupported busy rule cannot lose constraints.
+  // ICAL.js normalizes unknown RRULE clauses away. Validate the original VEVENT
+  // text before parsing, but only when the component can contribute busy time.
+  // VTIMEZONE observance rules and explicitly cancelled/transparent VEVENTs do
+  // not authorize planning blockers and must not make an otherwise usable
+  // calendar fail closed.
   const supportedRuleClauses = new Set(['FREQ', 'INTERVAL', 'COUNT', 'UNTIL', 'BYDAY', 'BYMONTH', 'BYMONTHDAY', 'WKST']);
-  for (const line of unfoldLines(source)) {
-    if (!/^RRULE(?:;|:)/i.test(line)) continue;
-    if (!/^RRULE:/i.test(line)) throw new Error('Unsupported busy recurrence parameters.');
-    const clauses = line.slice('RRULE:'.length).toUpperCase().split(';').map((clause) => clause.split('='));
-    if (!clauses.some(([key, value]) => key === 'FREQ' && /^(DAILY|WEEKLY|MONTHLY|YEARLY)$/.test(value ?? '')) ||
-      clauses.some(([key, value]) => !supportedRuleClauses.has(key) || !value) ||
-      new Set(clauses.map(([key]) => key)).size !== clauses.length) {
-      throw new Error('Unsupported busy recurrence rule.');
+  for (const block of collectEventBlocks(unfoldLines(source))) {
+    const properties = propertyMap(block);
+    const status = firstProperty(properties, 'STATUS')?.value.toUpperCase();
+    const transparency = firstProperty(properties, 'TRANSP')?.value.toUpperCase();
+    if (status === 'CANCELLED' || transparency === 'TRANSPARENT') continue;
+    for (const rule of properties.get('RRULE') ?? []) {
+      if (Object.keys(rule.params).length > 0) throw new Error('Unsupported busy recurrence parameters.');
+      const clauses = rule.value.toUpperCase().split(';').map((clause) => clause.split('='));
+      if (!clauses.some(([key, value]) => key === 'FREQ' && /^(DAILY|WEEKLY|MONTHLY|YEARLY)$/.test(value ?? '')) ||
+        clauses.some(([key, value]) => !supportedRuleClauses.has(key) || !value) ||
+        new Set(clauses.map(([key]) => key)).size !== clauses.length) {
+        throw new Error('Unsupported busy recurrence rule.');
+      }
     }
   }
   const calendar = new ICAL.Component(ICAL.parse(source));
@@ -325,6 +333,9 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
     grouped.set(uid, [...(grouped.get(uid) ?? []), component]);
   }
   const events: CalendarReadEvent[] = [];
+  const MAX_TOTAL_RECURRENCE_ITERATIONS = 50_000;
+  const MAX_TOTAL_RECURRENCE_EVENTS = 10_000;
+  let totalRecurrenceIterations = 0;
   for (const [uid, parts] of grouped) {
     const masters = parts.filter((part) => !part.hasProperty('recurrence-id'));
     if (masters.length !== 1) throw new Error(`Calendar event ${uid} has no unique recurrence master.`);
@@ -333,7 +344,11 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
     const recurrence = allParts.some((part) => ['rrule', 'rdate', 'exdate', 'recurrence-id'].some((name) => part.hasProperty(name)));
     if (!recurrence) continue;
     for (const part of allParts) {
-      if (part.hasProperty('rrule')) {
+      const partStatus = part.getFirstPropertyValue('status')?.toString().toUpperCase();
+      const effectiveTransparency = (part.getFirstPropertyValue('transp') ?? masters[0].getFirstPropertyValue('transp'))
+        ?.toString().toUpperCase();
+      const relevantBusyPart = partStatus !== 'CANCELLED' && effectiveTransparency !== 'TRANSPARENT';
+      if (relevantBusyPart && part.hasProperty('rrule')) {
         for (const rule of part.getAllProperties('rrule')) {
           const raw = rule.getFirstValue()?.toString() ?? '';
           const clauses = raw.toUpperCase().split(';').map((clause) => clause.split('='));
@@ -345,20 +360,31 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
           }
         }
       }
-      if (part.hasProperty('recurrence-id') && part.getFirstProperty('recurrence-id')?.getParameter('range')) {
+      if (relevantBusyPart && part.hasProperty('recurrence-id') && part.getFirstProperty('recurrence-id')?.getParameter('range')) {
         throw new Error(`Unsupported recurrence range for ${uid}.`);
       }
     }
     for (const exception of parts.filter((part) => part !== masters[0])) master.relateException(exception);
-    const zone = masters[0].getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined;
-    const sourceTimezone = zone?.replace(/^"|"$/g, '');
+    const startZone = masters[0].getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined;
+    const endZone = masters[0].getFirstProperty('dtend')?.getParameter('tzid') as string | undefined;
+    const sourceTimezone = startZone?.replace(/^"|"$/g, '');
+    const sourceEndTimezone = endZone?.replace(/^"|"$/g, '') ?? sourceTimezone;
     if (sourceTimezone) partsInZone(Date.now(), sourceTimezone);
-    const asEpoch = (time: ICAL.Time, component: ICAL.Component): number => {
-      const timeZone = component.getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined;
-      const tz = timeZone?.replace(/^"|"$/g, '') ?? sourceTimezone;
+    if (sourceEndTimezone && sourceEndTimezone !== sourceTimezone) partsInZone(Date.now(), sourceEndTimezone);
+    const asEpoch = (
+      time: ICAL.Time,
+      component: ICAL.Component,
+      propertyName: 'dtstart' | 'dtend',
+      fallbackTimezone?: string,
+    ): number => {
+      const timeZone = component.getFirstProperty(propertyName)?.getParameter('tzid') as string | undefined;
+      const tz = timeZone?.replace(/^"|"$/g, '') ?? fallbackTimezone;
       if (time.zone === ICAL.Timezone.utcTimezone) return time.toJSDate().getTime();
       if (!tz && !time.isDate) warnings.push(`Floating calendar time for ${uid} was interpreted in ${options.targetTimezone}.`);
-      return zonedLocalToEpoch({ year: time.year, month: time.month, day: time.day, hour: time.hour, minute: time.minute, second: time.second }, tz ?? options.targetTimezone);
+      return zonedLocalToEpoch(
+        { year: time.year, month: time.month, day: time.day, hour: time.hour, minute: time.minute, second: time.second },
+        tz ?? options.targetTimezone,
+      );
     };
     const emittedOccurrenceIds = new Set<string>();
     const addOccurrence = (identity: ICAL.Time, item: ICAL.Event, startTime: ICAL.Time, endTime: ICAL.Time) => {
@@ -366,8 +392,12 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
       const sourceEventId = `${uid}::${identity.toString()}`;
       if (emittedOccurrenceIds.has(sourceEventId)) return;
       const allDay = startTime.isDate;
-      const start: CalendarLocalPoint = allDay ? { date: formatDate(startTime.year, startTime.month, startTime.day) } : pointFromEpoch(asEpoch(startTime, item.component), options.targetTimezone);
-      const end: CalendarLocalPoint = allDay ? { date: formatDate(endTime.year, endTime.month, endTime.day) } : pointFromEpoch(asEpoch(endTime, item.component), options.targetTimezone);
+      const start: CalendarLocalPoint = allDay
+        ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
+        : pointFromEpoch(asEpoch(startTime, item.component, 'dtstart', sourceTimezone), options.targetTimezone);
+      const end: CalendarLocalPoint = allDay
+        ? { date: formatDate(endTime.year, endTime.month, endTime.day) }
+        : pointFromEpoch(asEpoch(endTime, item.component, 'dtend', sourceEndTimezone), options.targetTimezone);
       if (start.date >= end.date && (allDay || start.date !== end.date || (start.time ?? '') >= (end.time ?? ''))) throw new Error(`Invalid calendar occurrence ${uid}.`);
       const event: CalendarReadEvent = {
         adapterId: 'ics', sourceEventId, title: item.summary || master.summary || 'Calendar commitment',
@@ -379,15 +409,19 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
           : {}),
       };
       if (overlapsDateWindow(event, options.windowStartDate, options.windowEndDate)) {
+        if (events.length >= MAX_TOTAL_RECURRENCE_EVENTS) {
+          throw new Error('Calendar recurrence exceeds the safe emitted-event limit.');
+        }
         events.push(event);
         emittedOccurrenceIds.add(sourceEventId);
       }
     };
     const iterator = master.iterator();
     let next: ICAL.Time | null;
-    let scanned = 0;
     while ((next = iterator.next())) {
-      if (++scanned > 50000) throw new Error(`Recurrence for ${uid} exceeds the safe read limit.`);
+      if (++totalRecurrenceIterations > MAX_TOTAL_RECURRENCE_ITERATIONS) {
+        throw new Error('Calendar recurrence exceeds the safe read limit.');
+      }
       const details = master.getOccurrenceDetails(next);
       addOccurrence(details.recurrenceId, details.item, details.startDate, details.endDate);
       // Earlier logical dates can move into the horizon, so read them until the horizon ends.
