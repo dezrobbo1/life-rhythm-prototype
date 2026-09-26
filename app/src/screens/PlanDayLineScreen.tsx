@@ -105,6 +105,9 @@ export function PlanDayLineScreen({
       if (savedPlan.status === 'invalid' || savedPlan.status === 'error') {
         return { status: 'error', errors: savedPlan.errors };
       }
+      if (savedPlan.status === 'ok' && savedPlan.settingsRepairPendingAt) {
+        return { status: 'error', errors: ['Planning hours changed. Refresh the private plan before using its times.'] };
+      }
 
       return {
         status: 'ready',

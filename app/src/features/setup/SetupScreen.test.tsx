@@ -42,6 +42,10 @@ vi.mock('./SchedulingPreferencesPanel', () => ({
   ),
 }));
 
+vi.mock('../plan/CalendarSourceControl', () => ({
+  CalendarSourceControl: () => <section aria-label="Read-only calendar test boundary" />,
+}));
+
 vi.mock('../../data/settingsRepository', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../data/settingsRepository')>();
 
@@ -175,6 +179,32 @@ function validTaskPoolBackupJson() {
 }
 
 describe('Setup screen', () => {
+  it('saves reviewed weekday and usable-day choices only after explicit confirmation', async () => {
+    const settings = createDefaultSettings('2026-09-26T00:00:00.000Z');
+    const onSaveSettings = vi.fn(async (input: SettingsWriteInput): Promise<SettingsWriteResult> => ({
+      ok: true, settings: settingsSchema.parse({ ...settings, lifeShape: input.lifeShape }),
+    }));
+    const user = userEvent.setup();
+    render(<SetupScreen settings={settings} onSaveSettings={onSaveSettings} />);
+    const workdays = screen.getByRole('group', { name: 'Usual workdays' });
+    await user.click(within(workdays).getByLabelText('Monday'));
+    await user.click(within(workdays).getByLabelText('Saturday'));
+    const workday = screen.getByRole('group', { name: 'Workday planning hours' });
+    fireEvent.change(within(workday).getByLabelText('Earliest planning time'), { target: { value: '06:30' } });
+    fireEvent.change(within(workday).getByLabelText('Latest planning time'), { target: { value: '22:00' } });
+    const nonWorkday = screen.getByRole('group', { name: 'Non-workday planning hours' });
+    fireEvent.change(within(nonWorkday).getByLabelText('Earliest planning time'), { target: { value: '07:00' } });
+    fireEvent.change(within(nonWorkday).getByLabelText('Latest planning time'), { target: { value: '21:00' } });
+    expect(onSaveSettings).not.toHaveBeenCalled();
+    await user.click(screen.getByLabelText(/I have reviewed these hours/));
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(onSaveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      activatePlanningDay: true,
+      lifeShape: expect.objectContaining({ usualWorkHours: expect.objectContaining({ days: ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] }) }),
+      dayProfiles: [expect.objectContaining({ usableDay: { start: '06:30', end: '22:00' } }),
+        expect.objectContaining({ usableDay: { start: '07:00', end: '21:00' } })],
+    }));
+  });
   it('renders all setup sections', () => {
     render(<SetupScreen />);
 
@@ -444,7 +474,7 @@ describe('Setup screen', () => {
     expect(screen.getByText('Login is not cloud sync. Backups can be exported and checked, but import/restore is not enabled.')).toBeTruthy();
     expect(
       screen.getByText(
-        'Plan accepts a read-only calendar file; recurring events are not accepted. Live calendar connection, AI, cloud sync, notifications, and individual Move/Protect for automatic times are not available yet.',
+        'Plan accepts a static read-only calendar file with supported recurring events. Re-import it after changes; live provider connections, cloud sync, notifications, and individual Move/Protect for automatic times remain future work.',
       ),
     ).toBeTruthy();
     expect(screen.queryByRole('button', { name: /restore/i })).toBeNull();

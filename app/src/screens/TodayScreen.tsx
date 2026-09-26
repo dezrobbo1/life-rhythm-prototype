@@ -777,7 +777,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       if (!active || planReadGenerationRef.current !== generation) return;
 
       let currentSaved = saved;
-      if (saved.status === 'ok' && saved.plan.placements.some((placement) =>
+      if (saved.status === 'ok' && !saved.settingsRepairPendingAt && saved.plan.placements.some((placement) =>
         placement.targetKind === 'rhythm' && placement.rhythmInstanceId && placement.date === readDate,
       )) {
         const synced = await syncScheduledRhythmOccurrencesToToday(saved.plan, readDate);
@@ -803,7 +803,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         return;
       }
 
-      const calendarRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.calendarRepairPendingAt);
+      const calendarRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.calendarRepairPendingAt || currentSaved.settingsRepairPendingAt);
       const taskInputRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.taskInputRepairPendingAt);
       const rhythmInputRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.rhythmInputRepairPendingAt);
       const planStatus = currentSaved.status === 'ok'

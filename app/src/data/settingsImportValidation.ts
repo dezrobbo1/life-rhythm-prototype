@@ -14,7 +14,7 @@ import {
   themeNameSchema,
   weekdayProfileAssignmentSchema,
 } from './schemas';
-import { settingsBackupSchema } from './settingsExport';
+import { settingsBackupSchema, settingsBackupV2Schema } from './settingsExport';
 
 const appVersion = semanticAppVersionSchema;
 const isoDateTime = strictIsoDateTimeSchema;
@@ -233,6 +233,7 @@ export const settingsBackupV2ImportSchema = z
   .strict();
 
 export const settingsBackupImportSchema = z.union([
+  settingsBackupSchema,
   settingsBackupV2ImportSchema,
   settingsBackupV1ImportSchema,
 ]);
@@ -242,7 +243,7 @@ export type SettingsBackupImportPayload = z.infer<typeof settingsBackupImportSch
 export type SettingsBackupPreview = {
   appVersion: string;
   exportedAt: string;
-  formatVersion: 1 | 2;
+  formatVersion: 1 | 2 | 3;
   lifeShapeSummary: string;
   profileFoundationSummary: string;
   settingsUpdatedAt: string;
@@ -279,15 +280,15 @@ function countEnabledSafetyFlags(settings: SettingsBackupImportPayload['settings
 
 function buildPreview(payload: SettingsBackupImportPayload): SettingsBackupPreview {
   const workHours = payload.settings.lifeShape.usualWorkHours;
-  const isVersion2 = 'formatVersion' in payload;
+  const version = 'formatVersion' in payload ? payload.formatVersion : 1;
 
   return {
     appVersion: payload.appVersion,
     exportedAt: payload.exportedAt,
-    formatVersion: isVersion2 ? 2 : 1,
+    formatVersion: version,
     lifeShapeSummary: `${workHours.start}-${workHours.end}, ${payload.settings.lifeShape.transitionBufferMinutes} min buffer`,
-    profileFoundationSummary: isVersion2
-      ? `Profile foundation present; review state is ${payload.settings.dayProfileMigrationState.reviewState}. Presence does not activate derived availability.`
+    profileFoundationSummary: version > 1
+      ? `Planning-day settings present; review state is ${'dayProfileMigrationState' in payload.settings ? payload.settings.dayProfileMigrationState.reviewState : 'unreviewed'}. Only reviewed and enabled profiles produce derived availability.`
       : 'Profile foundation absent; a future restore would require migration and user review. No restore occurred.',
     settingsUpdatedAt: payload.settings.updatedAt,
     startBoostSafetySummary: `${countEnabledSafetyFlags(payload.settings)} safety choices on`,
@@ -329,14 +330,14 @@ export function validateSettingsBackupImport(input: unknown): SettingsBackupImpo
     };
   }
 
-  if (input.formatVersion !== 2) {
+  if (input.formatVersion !== 2 && input.formatVersion !== 3) {
     return {
-      errors: ['formatVersion: Expected 2, or omit the field for a legacy version-1 backup.'],
+      errors: ['formatVersion: Expected 2 or 3, or omit the field for a legacy version-1 backup.'],
       ok: false,
     };
   }
 
-  const parsed = settingsBackupV2ImportSchema.safeParse(input);
+  const parsed = input.formatVersion === 3 ? settingsBackupSchema.safeParse(input) : settingsBackupV2ImportSchema.safeParse(input);
 
   if (!parsed.success) {
     return {
@@ -345,7 +346,7 @@ export function validateSettingsBackupImport(input: unknown): SettingsBackupImpo
     };
   }
 
-  const exportCompatible = settingsBackupSchema.safeParse(parsed.data);
+  const exportCompatible = input.formatVersion === 3 ? settingsBackupSchema.safeParse(parsed.data) : settingsBackupV2Schema.safeParse(parsed.data);
 
   if (!exportCompatible.success) {
     return {

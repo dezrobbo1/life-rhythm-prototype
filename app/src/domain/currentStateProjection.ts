@@ -269,10 +269,10 @@ function projectDayProfile(profile: DayProfile, settings: Settings): DayProfileC
     name: profile.name,
     kind: profile.kind,
     assignedWeekdays,
-    usableDay: profile.usableDay
+    usableDay: settings.dayProfileMigrationState.reviewState === 'reviewedAndEnabled' && profile.usableDay
       ? { start: profile.usableDay.start, end: profile.usableDay.end }
       : undefined,
-    workPeriod: profile.workPeriod
+    workPeriod: settings.dayProfileMigrationState.reviewState === 'reviewedAndEnabled' && profile.workPeriod
       ? { start: profile.workPeriod.start, end: profile.workPeriod.end }
       : undefined,
     workPlanningUse: profile.workPlanningUse,

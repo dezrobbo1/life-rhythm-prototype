@@ -134,6 +134,7 @@ export type CandidateSchedulingInterval = {
   end: LocalTime;
   timezone: string;
   capacityMeaning: 'candidate-not-capacity';
+  workOnly?: boolean;
   provenance: string[];
 };
 
@@ -265,6 +266,7 @@ export type SchedulerPlanSnapshot = {
 
 export type SchedulerRepairTrigger =
   | 'calendarChanged'
+  | 'settingsChanged'
   | 'overrun'
   | 'missedStart'
   | 'completionChanged'

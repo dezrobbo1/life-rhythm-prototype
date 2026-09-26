@@ -45,6 +45,9 @@ import {
 import { buildSetupViewModel } from '../viewModels';
 import { SchedulingPreferencesPanel } from '../features/setup/SchedulingPreferencesPanel';
 import { DurationLearningPanel } from '../features/setup/DurationLearningPanel';
+import { CalendarSourceControl } from '../features/plan/CalendarSourceControl';
+import { ALL_WEEKDAYS, WORKDAY_PROFILE_ID, NON_WORKDAY_PROFILE_ID, type DayProfile, type WeekdayProfileAssignment } from '../data/schemas';
+import { createDefaultSettings } from '../data/settingsRepository';
 
 type SetupScreenProps = {
   onExportSettingsBackup?: () => Promise<SettingsBackupExport>;
@@ -54,6 +57,8 @@ type SetupScreenProps = {
   onSaveSettings?: (settings: SettingsWriteInput) => Promise<SettingsWriteResult>;
   onPreferencePlanChanged?: () => void;
   onDurationLearningPlanChanged?: () => void;
+  onCalendarPlanRepaired?: () => void;
+  onCalendarRepairIssueChange?: (message: string | null) => void;
   onThemeChange?: (theme: ThemeName) => void;
   settings?: Settings;
   theme?: ThemeName;
@@ -90,6 +95,8 @@ export function SetupScreen({
   onSaveSettings,
   onPreferencePlanChanged,
   onDurationLearningPlanChanged,
+  onCalendarPlanRepaired,
+  onCalendarRepairIssueChange,
   onThemeChange,
   settings,
   theme = 'exhale',
@@ -101,6 +108,9 @@ export function SetupScreen({
     settings ? safetyStateFromSettings(settings) : Object.fromEntries(Object.entries(initialSetupViewModel.startBoostSafety)),
   );
   const [lifeShape, setLifeShape] = useState<LifeShapeState>(() => lifeShapeStateFromSettings(settings));
+  const [planningProfiles, setPlanningProfiles] = useState<DayProfile[]>(() => settings?.dayProfiles ?? createDefaultSettings().dayProfiles);
+  const [weekdayAssignments, setWeekdayAssignments] = useState<WeekdayProfileAssignment[]>(() => settings?.weekdayProfileAssignments ?? createDefaultSettings().weekdayProfileAssignments);
+  const [planningReviewed, setPlanningReviewed] = useState(settings?.dayProfileMigrationState.reviewState === 'reviewedAndEnabled');
   const [settingsBackupErrors, setSettingsBackupErrors] = useState<string[]>([]);
   const [settingsBackupJson, setSettingsBackupJson] = useState('');
   const [settingsBackupPreview, setSettingsBackupPreview] = useState<SettingsBackupPreview | null>(null);
@@ -119,6 +129,9 @@ export function SetupScreen({
     setLocalTheme(settings.theme);
     setSafetyState(safetyStateFromSettings(settings));
     setLifeShape(lifeShapeStateFromSettings(settings));
+    setPlanningProfiles(settings.dayProfiles);
+    setWeekdayAssignments(settings.weekdayProfileAssignments);
+    setPlanningReviewed(settings.dayProfileMigrationState.reviewState === 'reviewedAndEnabled');
   }, [settings]);
 
   function toggleSafety(id: string) {
@@ -240,8 +253,17 @@ export function SetupScreen({
     }
 
     try {
+      const assignmentsChanged = JSON.stringify(weekdayAssignments) !== JSON.stringify(settings?.weekdayProfileAssignments ?? createDefaultSettings().weekdayProfileAssignments);
+      const workdays = assignmentsChanged
+        ? weekdayAssignments.filter((assignment) => assignment.profileId === WORKDAY_PROFILE_ID).map((assignment) => assignment.weekday)
+        : settings?.lifeShape.usualWorkHours.days;
+      const lifeShapeInput = normalizeLifeShapeForm(lifeShape, settings?.lifeShape);
       const result = await onSaveSettings({
-        lifeShape: normalizeLifeShapeForm(lifeShape),
+        lifeShape: { ...lifeShapeInput, usualWorkHours: { ...lifeShapeInput.usualWorkHours, days: workdays } },
+        dayProfiles: planningProfiles,
+        weekdayProfileAssignments: weekdayAssignments,
+        activatePlanningDay: planningReviewed,
+        planningDayReviewed: planningReviewed,
         startBoostSafety: safetySettingsFromState(safetyState),
         theme: selectedTheme,
       });
@@ -259,12 +281,18 @@ export function SetupScreen({
       return;
     }
 
-    const resetSettings = await onResetSettings();
-
-    setLocalTheme(resetSettings.theme);
-    setSafetyState(safetyStateFromSettings(resetSettings));
-    setLifeShape(lifeShapeStateFromSettings(resetSettings));
-    setStatus('Settings reset to defaults on this device.');
+    try {
+      const resetSettings = await onResetSettings();
+      setLocalTheme(resetSettings.theme);
+      setSafetyState(safetyStateFromSettings(resetSettings));
+      setLifeShape(lifeShapeStateFromSettings(resetSettings));
+      setPlanningProfiles(resetSettings.dayProfiles);
+      setWeekdayAssignments(resetSettings.weekdayProfileAssignments);
+      setPlanningReviewed(false);
+      setStatus('Settings reset to defaults on this device.');
+    } catch {
+      setStatus('Settings could not be reset safely. Saved information was left in place.');
+    }
   }
 
   async function exportSettingsOnlyBackup() {
@@ -464,12 +492,76 @@ export function SetupScreen({
 
       <Card>
         <div className="setup-section-heading">
+          <h2>When Life Rhythm may plan</h2>
+          <p>Set the broad hours when private planning may be considered. Empty calendar time alone never becomes available.</p>
+        </div>
+        <fieldset className="life-shape-fieldset life-shape-fieldset--wide">
+          <legend>Usual workdays</legend>
+          <div className="life-shape-day-grid">
+            {ALL_WEEKDAYS.map((weekday) => <label key={weekday}>
+              <input type="checkbox" checked={weekdayAssignments.some((assignment) => assignment.weekday === weekday && assignment.profileId === WORKDAY_PROFILE_ID)}
+                onChange={(event) => setWeekdayAssignments((current) => current.map((assignment) => assignment.weekday === weekday
+                  ? { ...assignment, profileId: event.target.checked ? WORKDAY_PROFILE_ID : NON_WORKDAY_PROFILE_ID } : assignment))} />
+              <span>{weekday}</span>
+            </label>)}
+          </div>
+        </fieldset>
+        <div className="life-shape-grid">
+          {planningProfiles.map((profile) => <fieldset className="life-shape-fieldset" key={profile.id}>
+            <legend>{profile.kind === 'workday' ? 'Workday' : 'Non-workday'} planning hours</legend>
+            <div className="life-shape-inline">
+              {(['start', 'end'] as const).map((edge) => <label key={edge}>
+                <span>{edge === 'start' ? 'Earliest planning time' : 'Latest planning time'}</span>
+                <input type="time" value={profile.usableDay?.[edge] ?? ''}
+                  onChange={(event) => setPlanningProfiles((current) => current.map((item) => item.id === profile.id
+                    ? { ...item, usableDay: { start: item.usableDay?.start ?? '', end: item.usableDay?.end ?? '', [edge]: event.target.value } } : item))} />
+              </label>)}
+            </div>
+            {profile.kind === 'workday' ? <>
+              <div className="life-shape-inline">
+                {(['start', 'end'] as const).map((edge) => <label key={edge}>
+                  <span>{edge === 'start' ? 'Core work starts' : 'Core work ends'}</span>
+                  <input type="time" value={profile.workPeriod?.[edge] ?? ''}
+                    onChange={(event) => setPlanningProfiles((current) => current.map((item) => item.id === profile.id
+                      ? { ...item, workPeriod: { start: item.workPeriod?.start ?? '', end: item.workPeriod?.end ?? '', [edge]: event.target.value } } : item))} />
+                </label>)}
+              </div>
+              <label><span>During core work hours</span><select value={profile.workPlanningUse}
+                onChange={(event) => setPlanningProfiles((current) => current.map((item) => item.id === profile.id
+                  ? { ...item, workPlanningUse: event.target.value as DayProfile['workPlanningUse'] } : item))}>
+                <option value="unavailable">Unavailable for planning</option>
+                <option value="workRhythmsOnly">Reserved for work rhythms; personal tasks stay out</option>
+                <option value="allowSuitableTasks">Allow suitable tasks</option>
+                {profile.workPlanningUse === 'askFirst' ? <option disabled value="askFirst">Ask first (saved setting; automatic planning waits)</option> : null}
+              </select></label>
+              <p>These reviewed work hours control automatic planning. A saved “ask first” setting remains protected until a decision flow exists.</p>
+              <div className="life-shape-inline">
+                {(['beforeTravel', 'afterTravel', 'beforeTransition', 'afterTransition'] as const).map((key) => <label key={key}>
+                  <span>{({ beforeTravel: 'Travel before work', afterTravel: 'Travel after work', beforeTransition: 'Transition before work', afterTransition: 'Transition after work' })[key]} (minutes)</span>
+                  <input type="number" min="0" max="180" value={profile.workBoundaryMinutes?.[key] ?? 0}
+                    onChange={(event) => setPlanningProfiles((current) => current.map((item) => item.id === profile.id
+                      ? { ...item, workBoundaryMinutes: { beforeTravel: 0, afterTravel: 0, beforeTransition: 0, afterTransition: 0, ...item.workBoundaryMinutes, [key]: Number(event.target.value) } } : item))} />
+                </label>)}
+              </div>
+              <p>These four values are yours to review. Older commute and transition notes are not used as blocking time.</p>
+            </> : null}
+          </fieldset>)}
+        </div>
+        <label className="setup-toggle"><input type="checkbox" checked={planningReviewed} onChange={(event) => setPlanningReviewed(event.target.checked)} />
+          <span>I have reviewed these hours and allow Life Rhythm to use them for private planning.</span></label>
+        <p>Choose Save settings below to apply. Without reviewed hours, existing explicit open-capacity blocks still work.</p>
+      </Card>
+
+      <CalendarSourceControl onPlanRepaired={onCalendarPlanRepaired} onRepairIssueChange={onCalendarRepairIssueChange} />
+
+      <Card>
+        <div className="setup-section-heading">
           <h2>Life shape</h2>
           <p>Saved on this device when you choose Save settings.</p>
         </div>
         <div className="life-shape-grid">
           <fieldset className="life-shape-fieldset">
-            <legend>Usual work hours</legend>
+            <legend>Older general work-hours context</legend>
             <div className="life-shape-inline">
               <label>
                 <span>Work starts</span>
@@ -491,6 +583,7 @@ export function SetupScreen({
               </label>
             </div>
           </fieldset>
+          <p className="setup-note">The reviewed Workday hours above control automatic planning. Older general work hours remain reviewable context.</p>
 
           <label className="life-shape-control">
             <span>Commute / travel time</span>
@@ -501,7 +594,7 @@ export function SetupScreen({
               type="number"
               value={lifeShape.commuteMinutes}
             />
-            <small>Minutes usually needed around leaving or arriving.</small>
+            <small>Context only. Reviewed work-bound travel above controls unavailable work time.</small>
           </label>
 
           <label className="life-shape-control life-shape-control--wide">
@@ -712,7 +805,7 @@ export function SetupScreen({
             )}
           </section>
         </div>
-        <p className="setup-note">Settings only. Future planning can use this shape later, but this does not schedule anything.</p>
+        <p className="setup-note">Reviewed planning hours and time blocks guide the private plan. Meal and sleep anchors remain context only.</p>
       </Card>
 
       <SchedulingPreferencesPanel onPlanChanged={onPreferencePlanChanged} />
@@ -1009,7 +1102,7 @@ export function SetupScreen({
         <div className="setup-trial-limits">
           <p>Life Rhythm is local-first. This browser and device store the live data.</p>
           <p>Login is not cloud sync. Backups can be exported and checked, but import/restore is not enabled.</p>
-          <p>Plan accepts a read-only calendar file; recurring events are not accepted. Live calendar connection, AI, cloud sync, notifications, and individual Move/Protect for automatic times are not available yet.</p>
+          <p>Plan accepts a static read-only calendar file with supported recurring events. Re-import it after changes; live provider connections, cloud sync, notifications, and individual Move/Protect for automatic times remain future work.</p>
         </div>
       </Card>
 

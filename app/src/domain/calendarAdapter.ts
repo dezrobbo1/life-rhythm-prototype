@@ -300,6 +300,104 @@ function firstProperty(map: Map<string, ParsedProperty[]>, name: string): Parsed
   return map.get(name)?.[0];
 }
 
+function recurringEvents(source: string, options: CalendarReadOptions, warnings: string[]): CalendarReadEvent[] {
+  // ICAL.js normalizes unknown RRULE clauses away. Check the original unfolded
+  // source before parsing, so an unsupported busy rule cannot lose constraints.
+  const supportedRuleClauses = new Set(['FREQ', 'INTERVAL', 'COUNT', 'UNTIL', 'BYDAY', 'BYMONTH', 'BYMONTHDAY', 'WKST']);
+  for (const line of unfoldLines(source)) {
+    if (!/^RRULE(?:;|:)/i.test(line)) continue;
+    if (!/^RRULE:/i.test(line)) throw new Error('Unsupported busy recurrence parameters.');
+    const clauses = line.slice('RRULE:'.length).toUpperCase().split(';').map((clause) => clause.split('='));
+    if (!clauses.some(([key, value]) => key === 'FREQ' && /^(DAILY|WEEKLY|MONTHLY|YEARLY)$/.test(value ?? '')) ||
+      clauses.some(([key, value]) => !supportedRuleClauses.has(key) || !value) ||
+      new Set(clauses.map(([key]) => key)).size !== clauses.length) {
+      throw new Error('Unsupported busy recurrence rule.');
+    }
+  }
+  const calendar = new ICAL.Component(ICAL.parse(source));
+  if (calendar.name !== 'vcalendar') throw new Error('Invalid calendar document.');
+  const components = calendar.getAllSubcomponents('vevent');
+  const grouped = new Map<string, ICAL.Component[]>();
+  for (const component of components) {
+    if (!['rrule', 'rdate', 'exdate', 'recurrence-id'].some((name) => component.hasProperty(name))) continue;
+    const uid = component.getFirstPropertyValue('uid');
+    if (typeof uid !== 'string' || !uid.trim()) throw new Error('Calendar UID is required.');
+    grouped.set(uid, [...(grouped.get(uid) ?? []), component]);
+  }
+  const events: CalendarReadEvent[] = [];
+  for (const [uid, parts] of grouped) {
+    const masters = parts.filter((part) => !part.hasProperty('recurrence-id'));
+    if (masters.length !== 1) throw new Error(`Calendar event ${uid} has no unique recurrence master.`);
+    const master = new ICAL.Event(masters[0]);
+    const allParts = [masters[0], ...parts.filter((part) => part !== masters[0])];
+    const recurrence = allParts.some((part) => ['rrule', 'rdate', 'exdate', 'recurrence-id'].some((name) => part.hasProperty(name)));
+    if (!recurrence) continue;
+    for (const part of allParts) {
+      if (part.hasProperty('rrule')) {
+        for (const rule of part.getAllProperties('rrule')) {
+          const raw = rule.getFirstValue()?.toString() ?? '';
+          const clauses = raw.toUpperCase().split(';').map((clause) => clause.split('='));
+          const supported = new Set(['FREQ', 'INTERVAL', 'COUNT', 'UNTIL', 'BYDAY', 'BYMONTH', 'BYMONTHDAY', 'WKST']);
+          if (!/^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;|$)/i.test(raw) ||
+            clauses.some(([key, value]) => !supported.has(key) || !value) ||
+            new Set(clauses.map(([key]) => key)).size !== clauses.length) {
+            throw new Error(`Unsupported busy recurrence for ${uid}.`);
+          }
+        }
+      }
+      if (part.hasProperty('recurrence-id') && part.getFirstProperty('recurrence-id')?.getParameter('range')) {
+        throw new Error(`Unsupported recurrence range for ${uid}.`);
+      }
+    }
+    for (const exception of parts.filter((part) => part !== masters[0])) master.relateException(exception);
+    const zone = masters[0].getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined;
+    const sourceTimezone = zone?.replace(/^"|"$/g, '');
+    if (sourceTimezone) partsInZone(Date.now(), sourceTimezone);
+    const asEpoch = (time: ICAL.Time, component: ICAL.Component): number => {
+      const timeZone = component.getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined;
+      const tz = timeZone?.replace(/^"|"$/g, '') ?? sourceTimezone;
+      if (time.zone === ICAL.Timezone.utcTimezone) return time.toJSDate().getTime();
+      if (!tz && !time.isDate) warnings.push(`Floating calendar time for ${uid} was interpreted in ${options.targetTimezone}.`);
+      return zonedLocalToEpoch({ year: time.year, month: time.month, day: time.day, hour: time.hour, minute: time.minute, second: time.second }, tz ?? options.targetTimezone);
+    };
+    const addOccurrence = (identity: ICAL.Time, item: ICAL.Event, startTime: ICAL.Time, endTime: ICAL.Time) => {
+      if (item.component.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED') return;
+      const allDay = startTime.isDate;
+      const start: CalendarLocalPoint = allDay ? { date: formatDate(startTime.year, startTime.month, startTime.day) } : pointFromEpoch(asEpoch(startTime, item.component), options.targetTimezone);
+      const end: CalendarLocalPoint = allDay ? { date: formatDate(endTime.year, endTime.month, endTime.day) } : pointFromEpoch(asEpoch(endTime, item.component), options.targetTimezone);
+      if (start.date >= end.date && (allDay || start.date !== end.date || (start.time ?? '') >= (end.time ?? ''))) throw new Error(`Invalid calendar occurrence ${uid}.`);
+      const event: CalendarReadEvent = {
+        adapterId: 'ics', sourceEventId: `${uid}::${identity.toString()}`, title: item.summary || master.summary || 'Calendar commitment',
+        allDay, busy: (item.component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
+          ?.toString().toUpperCase() !== 'TRANSPARENT',
+        start: { date: start.date, time: start.time }, end: { date: end.date, time: end.time },
+        timezone: options.targetTimezone, ...((item.component.getFirstProperty('dtstart')?.getParameter('tzid') ?? sourceTimezone)
+          ? { sourceTimezone: (item.component.getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined) ?? sourceTimezone }
+          : {}),
+      };
+      if (overlapsDateWindow(event, options.windowStartDate, options.windowEndDate)) events.push(event);
+    };
+    const iterator = master.iterator();
+    let next: ICAL.Time | null;
+    let scanned = 0;
+    while ((next = iterator.next())) {
+      if (++scanned > 50000) throw new Error(`Recurrence for ${uid} exceeds the safe read limit.`);
+      const details = master.getOccurrenceDetails(next);
+      addOccurrence(details.recurrenceId, details.item, details.startDate, details.endDate);
+      // Earlier logical dates can move into the horizon, so read them until the horizon ends.
+      if (formatDate(next.year, next.month, next.day) > options.windowEndDate) break;
+    }
+    // A later logical date can also be moved into the requested horizon.
+    for (const exception of parts.filter((part) => part.hasProperty('recurrence-id'))) {
+      const id = exception.getFirstPropertyValue('recurrence-id') as ICAL.Time;
+      if (formatDate(id.year, id.month, id.day) <= options.windowEndDate) continue;
+      const item = new ICAL.Event(exception);
+      addOccurrence(id, item, item.startDate, item.endDate);
+    }
+  }
+  return events;
+}
+
 export class IcsCalendarAdapter implements CalendarAdapter {
   readonly id = 'ics';
 
@@ -316,6 +414,7 @@ export class IcsCalendarAdapter implements CalendarAdapter {
 
     for (const block of collectEventBlocks(unfoldLines(source))) {
       const properties = propertyMap(block);
+      if (['RRULE', 'RDATE', 'EXDATE', 'RECURRENCE-ID'].some((name) => properties.has(name))) continue;
       const status = firstProperty(properties, 'STATUS')?.value.toUpperCase();
       if (status === 'CANCELLED') continue;
 
@@ -328,9 +427,6 @@ export class IcsCalendarAdapter implements CalendarAdapter {
         continue;
       }
 
-      if (firstProperty(properties, 'RRULE')) {
-        warnings.push(`Recurring event ${uid} is imported as its DTSTART occurrence only in Gate 2.`);
-      }
 
       let start: ParsedDateValue | null;
       let end: ParsedDateValue | null;
@@ -380,6 +476,8 @@ export class IcsCalendarAdapter implements CalendarAdapter {
       }
     }
 
+    events.push(...recurringEvents(source, options, warnings));
+
     events.sort((left, right) => {
       const startOrder = compareLocalPoints(left.start, right.start);
       return startOrder !== 0 ? startOrder : left.sourceEventId.localeCompare(right.sourceEventId);
@@ -390,3 +488,4 @@ export class IcsCalendarAdapter implements CalendarAdapter {
 }
 
 export const icsCalendarAdapter: CalendarAdapter = new IcsCalendarAdapter();
+import ICAL from 'ical.js';

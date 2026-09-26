@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
 import { createLifeRhythmDatabase } from './db';
-import { exportSettingsBackup, settingsBackupSchema } from './settingsExport';
+import { buildSettingsBackupPayload, exportSettingsBackup, settingsBackupSchema } from './settingsExport';
 import { validateSettingsBackupImport } from './settingsImportValidation';
 import {
   createDefaultSettings,
@@ -60,6 +60,23 @@ function validInput(overrides: Partial<SettingsWriteInput> = {}): SettingsWriteI
 }
 
 describe('settings export backup', () => {
+  it('retains activated profile boundaries, work travel, and assignments in version 3 check-only backups', () => {
+    const base = createDefaultSettings('2026-09-26T00:00:00.000Z');
+    const configured = { ...base,
+      dayProfileMigrationState: { ...base.dayProfileMigrationState, reviewState: 'reviewedAndEnabled' as const, reviewedAt: '2026-09-26T00:00:00.000Z' },
+      dayProfiles: base.dayProfiles.map((profile) => profile.kind === 'workday'
+        ? { ...profile, usableDay: { start: '06:30', end: '22:00' },
+          workBoundaryMinutes: { beforeTravel: 15, beforeTransition: 5, afterTravel: 20, afterTransition: 10 } }
+        : { ...profile, usableDay: { start: '07:00', end: '21:00' } }),
+      weekdayProfileAssignments: base.weekdayProfileAssignments.map((item) => ({ ...item,
+        profileId: ['Tuesday', 'Thursday', 'Saturday'].includes(item.weekday) ? 'profile-workday' : 'profile-non-workday' })),
+    };
+    const backup = buildSettingsBackupPayload(configured);
+    expect(backup.formatVersion).toBe(3);
+    expect(backup.settings.dayProfiles[0].workBoundaryMinutes?.beforeTravel).toBe(15);
+    expect(backup.settings.weekdayProfileAssignments).toEqual(configured.weekdayProfileAssignments);
+    expect(validateSettingsBackupImport(backup).ok).toBe(true);
+  });
   it('exports only approved settings fields', async () => {
     const database = createTestDatabase();
 
@@ -86,7 +103,7 @@ describe('settings export backup', () => {
         'updatedAt',
         'weekdayProfileAssignments',
       ]);
-      expect(backup.payload.formatVersion).toBe(2);
+      expect(backup.payload.formatVersion).toBe(3);
       expect(backup.payload.settings.theme).toBe('clear');
       expect(backup.payload.settings.startBoostSafety.avoidFoodRewards).toBe(true);
       expect(backup.payload.settings.lifeShape.commuteMinutes).toBe(25);
@@ -282,7 +299,7 @@ describe('settings export backup', () => {
     const backup = await exportSettingsBackup(store, '2026-06-16T00:00:00.000Z');
     const validation = validateSettingsBackupImport(backup.payload);
 
-    expect(backup.payload.formatVersion).toBe(2);
+    expect(backup.payload.formatVersion).toBe(3);
     expect(backup.payload.appVersion).toBe(SETTINGS_APP_VERSION);
     expect(backup.payload.settings.appVersion).toBe(SETTINGS_APP_VERSION);
     expect(

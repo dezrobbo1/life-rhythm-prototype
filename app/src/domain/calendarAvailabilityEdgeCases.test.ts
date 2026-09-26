@@ -11,6 +11,7 @@ function settingsWithUsableWorkday() {
   const base = createDefaultSettings('2026-09-03T00:00:00.000Z');
   return settingsSchema.parse({
     ...base,
+    dayProfileMigrationState: { ...base.dayProfileMigrationState, reviewState: 'reviewedAndEnabled', reviewedAt: '2026-09-03T00:00:00.000Z' },
     lifeShape: {
       ...base.lifeShape,
       fixedCommitments: [],

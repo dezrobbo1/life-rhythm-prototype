@@ -501,7 +501,7 @@ describe('settings repository', () => {
     ]);
   });
 
-  it('resolves a surfaced conflict towards Life Shape on save instead of discarding the edit', async () => {
+  it('resolves an explicitly edited work time but preserves unrelated historical conflicts', async () => {
     const current = createDefaultSettings('2026-08-12T00:00:00.000Z');
     const conflicted = {
       ...current,
@@ -526,15 +526,15 @@ describe('settings repository', () => {
     );
 
     expect(result.ok).toBe(true);
-    // The value Setup shows and edits wins; the stale duplicate does not survive.
+    // The explicitly edited work time wins; an untouched breakfast conflict is not silently resolved.
     expect(result.settings.workStart).toBe('10:00');
     expect(fake.getStoredSettings()?.workStart).toBe('10:00');
-    expect(fake.getStoredSettings()?.breakfastTime).toBe(current.lifeShape.mealAnchors.breakfast);
+    expect(fake.getStoredSettings()?.breakfastTime).toBe('06:45');
 
     const reloaded = await loadSettingsResult(fake.store);
 
-    // The conflict is resolved rather than recomputed on every later load.
-    expect(reloaded.conflicts).toEqual([]);
+    expect(reloaded.conflicts.some((conflict) => conflict.field === 'breakfastTime')).toBe(true);
+    expect(reloaded.conflicts.some((conflict) => conflict.field === 'workStart')).toBe(false);
   });
 
   it('preserves future-compatible profile-owned fields through load and save', async () => {

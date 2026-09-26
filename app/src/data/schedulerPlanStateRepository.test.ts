@@ -400,6 +400,25 @@ describe('persisted Gate 4 scheduler plan state', () => {
     }
   });
 
+  it('detects changed calendar spacing even when source and updatedAt match the earlier read', async () => {
+    const database = createTestDatabase();
+    try {
+      const imported = await importIcsCalendarSource({ label: 'Calendar A', source: calendarA,
+        options: calendarOptions, importedAt: '2026-09-07T00:01:00.000Z' }, database);
+      expect(imported.ok).toBe(true);
+      if (!imported.ok) return;
+      await database.calendarSources.put({ ...imported.record, beforeBusyMinutes: 15 });
+      const result = await repairAndPersistSchedulerPlan({
+        reason: 'Do not build from superseded calendar buffers.', trigger: 'manualReplan',
+        now: { date: today, time: '08:00', timezone }, nextInput: model(),
+      }, database, '2026-09-07T00:03:00.000Z', undefined,
+      { source: imported.record.source, updatedAt: imported.record.updatedAt, beforeBusyMinutes: 0, afterBusyMinutes: 0 });
+      expect(result).toMatchObject({ ok: false, conflict: 'stale' });
+    } finally {
+      await database.delete();
+    }
+  });
+
   it('does not let Undo erase calendar attention committed after Undo read the plan', async () => {
     const database = createTestDatabase();
 

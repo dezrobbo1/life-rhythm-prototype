@@ -130,6 +130,7 @@ export const persistedSchedulerPlanSnapshotSchema = z
 
 const schedulerRepairTriggerSchema = z.enum([
   'calendarChanged',
+  'settingsChanged',
   'overrun',
   'missedStart',
   'completionChanged',
@@ -250,6 +251,7 @@ export const schedulerPlanStateRecordSchema = z
     version: z.literal(1),
     updatedAt: strictIsoDateTimeSchema,
     calendarRepairPendingAt: strictIsoDateTimeSchema.optional(),
+    settingsRepairPendingAt: strictIsoDateTimeSchema.optional(),
     preferenceRepairPendingAt: strictIsoDateTimeSchema.optional(),
     preferenceRepairTargets: z.array(preferenceRepairTargetSchema).optional(),
     taskInputRepairPendingAt: strictIsoDateTimeSchema.optional(),

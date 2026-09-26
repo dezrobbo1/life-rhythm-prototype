@@ -13,6 +13,27 @@ import {
   markCalendarRepairPending,
 } from './schedulerPlanStateRepository';
 import type { LifeRhythmDatabase } from './db';
+import { loadCalendarSource } from './calendarSourceRepository';
+import { calendarSourceRecordSchema } from './calendarSourceSchema';
+
+export async function commitCalendarSourceBuffers(beforeBusyMinutes: number, afterBusyMinutes: number,
+  database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase()) {
+  try {
+    return await database.transaction('rw', database.calendarSources, database.schedulerPlanState, async () => {
+      const existing = await loadCalendarSource(database);
+      if (existing.status !== 'ok') return { ok: false as const, errors: ['Calendar must be imported and readable first.'] };
+      const parsed = calendarSourceRecordSchema.safeParse({ ...existing.record, version: 2,
+        beforeBusyMinutes, afterBusyMinutes, updatedAt: new Date().toISOString() });
+      if (!parsed.success) return { ok: false as const, errors: parsed.error.issues.map((issue) => issue.message) };
+      await database.calendarSources.put(parsed.data);
+      const marked = await persistRepairAttentionForExistingPlan(database);
+      if (!marked.ok) throw new Error('Calendar repair attention could not be stored.');
+      return { ok: true as const, record: parsed.data };
+    });
+  } catch {
+    return { ok: false as const, errors: ['Calendar buffers could not be saved safely.'] };
+  }
+}
 
 const IMPORT_ATOMICITY_ERROR =
   'calendarSource: Calendar change was not saved because repair attention could not be stored safely.';

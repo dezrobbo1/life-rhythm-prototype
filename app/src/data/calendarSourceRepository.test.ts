@@ -124,7 +124,7 @@ describe('calendar source repository', () => {
     expect(loaded.record.label).toBe('Family calendar');
   });
 
-  it('rejects unsupported recurrence without replacing a safe saved source', async () => {
+  it('imports supported recurrence as the saved read-only source', async () => {
     const first = await importIcsCalendarSource({
       label: 'Family calendar',
       source: calendar,
@@ -140,18 +140,15 @@ describe('calendar source repository', () => {
       importedAt: '2026-09-05T06:10:00.000Z',
     });
 
-    expect(recurring.ok).toBe(false);
-    if (recurring.ok) return;
-    expect(recurring.errors.join(' ')).toContain('RRULE');
-    expect(recurring.errors.join(' ')).toContain('not supported safely yet');
+    expect(recurring.ok).toBe(true);
 
     const loaded = await loadCalendarSource();
     expect(loaded.status).toBe('ok');
     if (loaded.status !== 'ok') return;
-    expect(loaded.record.label).toBe('Family calendar');
+    expect(loaded.record.label).toBe('Recurring calendar');
   });
 
-  it('fails closed if unsupported recurrence is already present in persisted source data', async () => {
+  it('reads a previously saved recurring source without rewriting its stored file', async () => {
     const database = getCurrentLifeRhythmDatabase();
     await database.calendarSources.put({
       id: 'primary',
@@ -161,13 +158,15 @@ describe('calendar source repository', () => {
       source: recurringCalendar,
       importedAt: '2026-09-05T06:00:00.000Z',
       updatedAt: '2026-09-05T06:00:00.000Z',
+      beforeBusyMinutes: 0,
+      afterBusyMinutes: 0,
     });
 
     const read = await readPersistedCalendarEvents(options);
 
-    expect(read.status).toBe('error');
-    if (read.status !== 'error') return;
-    expect(read.errors.join(' ')).toContain('RRULE');
+    expect(read.status).toBe('ok');
+    if (read.status !== 'ok') return;
+    expect(read.events.length).toBeGreaterThan(0);
   });
 
   it('removes the local source without touching another local data class', async () => {

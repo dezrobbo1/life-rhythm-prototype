@@ -58,7 +58,6 @@ export type CalendarSourceRemoveResult =
   | { ok: true; removed: boolean }
   | { ok: false; errors: string[] };
 
-const unsupportedRecurrenceProperties = new Set(['RRULE', 'RDATE', 'RECURRENCE-ID']);
 
 function issueMessages(issues: Array<{ message: string; path: Array<string | number> }>) {
   return issues.map((issue) => {
@@ -72,25 +71,6 @@ function looksLikeIcsCalendar(source: string) {
   return normalized.includes('BEGIN:VCALENDAR') && normalized.includes('END:VCALENDAR');
 }
 
-function unsupportedRecurrenceProperty(source: string): string | null {
-  const unfolded = source.replace(/\r?\n[ \t]/g, '');
-
-  for (const rawLine of unfolded.split(/\r?\n/)) {
-    const line = rawLine.trimStart();
-    const separator = line.search(/[;:]/);
-    if (separator < 1) continue;
-    const propertyName = line.slice(0, separator).toUpperCase();
-    if (unsupportedRecurrenceProperties.has(propertyName)) {
-      return propertyName;
-    }
-  }
-
-  return null;
-}
-
-function recurrenceError(propertyName: string) {
-  return `calendarSource: Recurring calendar data (${propertyName}) is not supported safely yet. This calendar cannot be used for automatic planning until recurrence expansion is supported.`;
-}
 
 export async function loadCalendarSource(
   store: CalendarSourceStore = getCurrentLifeRhythmDatabase(),
@@ -135,15 +115,6 @@ export async function readPersistedCalendarEvents(
     return { ...loaded, warnings: [] };
   }
 
-  const unsupportedRecurrence = unsupportedRecurrenceProperty(loaded.record.source);
-  if (unsupportedRecurrence) {
-    return {
-      status: 'error',
-      errors: [recurrenceError(unsupportedRecurrence)],
-      warnings: [],
-    };
-  }
-
   try {
     const result = icsCalendarAdapter.read(loaded.record.source, options);
     return {
@@ -152,10 +123,12 @@ export async function readPersistedCalendarEvents(
       events: result.events,
       warnings: result.warnings,
     };
-  } catch {
+  } catch (error) {
     return {
       status: 'error',
-      errors: ['calendarSource: Saved calendar data could not be interpreted safely.'],
+      errors: [error instanceof Error && /recurren|timezone|safe read limit/i.test(error.message)
+        ? `calendarSource: ${error.message}`
+        : 'calendarSource: Saved calendar data could not be interpreted safely.'],
       warnings: [],
     };
   }
@@ -176,35 +149,34 @@ export async function importIcsCalendarSource(
     };
   }
 
-  const unsupportedRecurrence = unsupportedRecurrenceProperty(source);
-  if (unsupportedRecurrence) {
-    return {
-      ok: false,
-      errors: [recurrenceError(unsupportedRecurrence)],
-      warnings: [],
-    };
-  }
-
   let preview;
   try {
     preview = icsCalendarAdapter.read(source, input.options);
-  } catch {
+  } catch (error) {
     return {
       ok: false,
-      errors: ['calendarSource: This calendar could not be interpreted safely.'],
+      errors: [error instanceof Error && /recurren|timezone|safe read limit/i.test(error.message)
+        ? `calendarSource: ${error.message}`
+        : 'calendarSource: This calendar could not be interpreted safely.'],
       warnings: [],
     };
   }
 
   const timestamp = input.importedAt ?? new Date().toISOString();
+  const previous = await loadCalendarSource(store);
+  if (previous.status === 'invalid' || previous.status === 'error') {
+    return { ok: false, errors: previous.errors, warnings: preview.warnings };
+  }
   const parsed = calendarSourceRecordSchema.safeParse({
     id: CURRENT_CALENDAR_SOURCE_ID,
-    version: 1,
+    version: 2,
     adapterId: 'ics',
     label,
     source,
     importedAt: timestamp,
     updatedAt: timestamp,
+    beforeBusyMinutes: previous.status === 'ok' ? previous.record.beforeBusyMinutes : 0,
+    afterBusyMinutes: previous.status === 'ok' ? previous.record.afterBusyMinutes : 0,
   });
 
   if (!parsed.success) {

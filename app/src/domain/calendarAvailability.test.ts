@@ -12,6 +12,7 @@ function gate2Settings(overrides: Record<string, unknown> = {}) {
 
   return settingsSchema.parse({
     ...base,
+    dayProfileMigrationState: { ...base.dayProfileMigrationState, reviewState: 'reviewedAndEnabled', reviewedAt: '2026-09-03T00:00:00.000Z' },
     lifeShape: {
       ...base.lifeShape,
       fixedCommitments: [],
@@ -85,6 +86,27 @@ function calendarEvent(start = '20260907T170000', end = '20260907T180000') {
 }
 
 describe('Gate 2 calendar-aware availability', () => {
+  it('never treats empty, sparse, cancelled or transparent calendar gaps as authority', () => {
+    const base = gate2Settings();
+    const inactive = settingsSchema.parse({ ...base,
+      dayProfileMigrationState: { ...base.dayProfileMigrationState, reviewState: 'needsReview', reviewedAt: undefined },
+      lifeShape: { ...base.lifeShape, timeBlocks: [] },
+    });
+    for (const events of [[], calendarEvent(), adapter.read([
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', 'UID:cancelled', 'STATUS:CANCELLED',
+      'DTSTART:20260907T010000Z', 'DTEND:20260907T013000Z', 'END:VEVENT', 'END:VCALENDAR',
+    ].join('\r\n'), { targetTimezone: 'Australia/Perth', windowStartDate: '2026-09-07', windowEndDate: '2026-09-07' }).events]) {
+      const result = deriveGate2Availability({ settings: inactive, calendarEvents: events,
+        date: '2026-09-07', timezone: 'Australia/Perth' });
+      expect(result.candidateIntervals).toEqual([]);
+    }
+  });
+  it('offers work-only intervals only as explicitly classified work candidates', () => {
+    const settings = withWorkPlanningUse(gate2Settings({ lifeShape: { timeBlocks: [] } }), 'workRhythmsOnly');
+    const result = deriveGate2Availability({ settings, calendarEvents: calendarEvent(), date: '2026-09-07', timezone: 'Australia/Perth' });
+    expect(result.candidateIntervals.filter((item) => item.workOnly).map(({ start, end }) => [start, end])).toEqual([['08:00', '16:00']]);
+    expect(result.candidateIntervals.filter((item) => !item.workOnly).map(({ start, end }) => [start, end])).toEqual([['06:30', '08:00'], ['16:00', '17:00'], ['18:00', '21:30']]);
+  });
   it('derives candidate intervals from usable-day boundaries minus work, calendar and protected time', () => {
     const result = deriveGate2Availability({
       settings: gate2Settings(),
@@ -205,7 +227,7 @@ describe('Gate 2 calendar-aware availability', () => {
         timezone: 'Australia/Perth',
       });
 
-      expect(result.candidateIntervals.map(({ start, end }) => [start, end])).toEqual([
+      expect(result.candidateIntervals.filter((item) => !item.workOnly).map(({ start, end }) => [start, end])).toEqual([
         ['06:30', '08:00'],
         ['16:00', '21:30'],
       ]);

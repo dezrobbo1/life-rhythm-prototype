@@ -112,7 +112,7 @@ describe('ICS calendar adapter', () => {
     });
   });
 
-  it('unfolds ICS lines and reports unsupported recurrence without silently expanding it', () => {
+  it('unfolds ICS lines and expands supported recurrence', () => {
     const adapter = new IcsCalendarAdapter();
     const result = adapter.read(calendar(event([
       'UID:weekly-sync',
@@ -124,9 +124,7 @@ describe('ICS calendar adapter', () => {
     ])), options);
 
     expect(result.events[0].title).toBe('Long weeklymeeting');
-    expect(result.warnings).toEqual([
-      'Recurring event weekly-sync is imported as its DTSTART occurrence only in Gate 2.',
-    ]);
+    expect(result.warnings).toEqual([]);
   });
 
   it('warns about floating times and skips malformed event blocks without writing anything', () => {

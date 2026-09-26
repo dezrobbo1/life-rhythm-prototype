@@ -6,6 +6,7 @@ import {
 import {
   commitCalendarSourceImport,
   commitCalendarSourceRemoval,
+  commitCalendarSourceBuffers,
 } from '../../data/calendarSourceMutationCoordinator';
 import { repairCurrentPrivatePlan } from '../../data/schedulerPlanCoordinator';
 import {
@@ -21,6 +22,8 @@ type CalendarSourceControlProps = {
 type SavedCalendarSummary = {
   importedAt: string;
   label: string;
+  beforeBusyMinutes: number;
+  afterBusyMinutes: number;
 };
 
 function localDateInTimezone(date: Date, timezone: string) {
@@ -63,6 +66,8 @@ export function CalendarSourceControl({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [beforeBusyMinutes, setBeforeBusyMinutes] = useState(0);
+  const [afterBusyMinutes, setAfterBusyMinutes] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -75,7 +80,11 @@ export function CalendarSourceControl({
         setSavedCalendar({
           importedAt: result.record.importedAt,
           label: result.record.label,
+          beforeBusyMinutes: result.record.beforeBusyMinutes,
+          afterBusyMinutes: result.record.afterBusyMinutes,
         });
+        setBeforeBusyMinutes(result.record.beforeBusyMinutes);
+        setAfterBusyMinutes(result.record.afterBusyMinutes);
         return;
       }
 
@@ -152,6 +161,8 @@ export function CalendarSourceControl({
       setSavedCalendar({
         importedAt: imported.record.importedAt,
         label: imported.record.label,
+        beforeBusyMinutes: imported.record.beforeBusyMinutes,
+        afterBusyMinutes: imported.record.afterBusyMinutes,
       });
       setWarnings(imported.warnings);
 
@@ -190,6 +201,18 @@ export function CalendarSourceControl({
     setBusy(false);
   }
 
+  async function saveBuffers() {
+    setBusy(true);
+    const result = await commitCalendarSourceBuffers(beforeBusyMinutes, afterBusyMinutes);
+    if (!result.ok) setStatus(result.errors[0] ?? 'Calendar spacing could not be saved.');
+    else {
+      setSavedCalendar((current) => current ? { ...current, beforeBusyMinutes, afterBusyMinutes } : null);
+      const repaired = await repairAfterCalendarChange('Calendar spacing changed.');
+      setStatus(repaired ? 'Calendar spacing saved. The private plan was refreshed.' : CALENDAR_REPAIR_PENDING_MESSAGE);
+    }
+    setBusy(false);
+  }
+
   return (
     <Card className="plan-calendar-surface">
       <section aria-labelledby="calendar-source-title" className="library-backup-checker">
@@ -201,6 +224,7 @@ export function CalendarSourceControl({
           <p>
             Life Rhythm reads this source only. It does not create, move, cancel, or write external calendar events.
           </p>
+          <p>This file is a static snapshot. If your calendar changes, re-import the file. Common recurring events and exceptions are read inside the planning horizon.</p>
         </div>
 
         {savedCalendar ? (
@@ -217,6 +241,14 @@ export function CalendarSourceControl({
         ) : (
           <p>No read-only calendar source is saved on this device.</p>
         )}
+
+        {savedCalendar ? <div className="life-shape-inline">
+          <label><span>Minutes before busy events</span><input type="number" min="0" max="180" value={beforeBusyMinutes}
+            onChange={(event) => setBeforeBusyMinutes(Number(event.target.value))} /></label>
+          <label><span>Minutes after busy events</span><input type="number" min="0" max="180" value={afterBusyMinutes}
+            onChange={(event) => setAfterBusyMinutes(Number(event.target.value))} /></label>
+          <Button disabled={busy || (beforeBusyMinutes === savedCalendar.beforeBusyMinutes && afterBusyMinutes === savedCalendar.afterBusyMinutes)} onClick={saveBuffers}>Save event spacing</Button>
+        </div> : null}
 
         <div className="library-backup-actions">
           <label className="library-file-picker">
@@ -240,7 +272,7 @@ export function CalendarSourceControl({
           Calendar changes repair only reversible private placements. External commitments remain untouched.
         </p>
         <p className="reentry-review__support">
-          Recurring calendar rules are not accepted yet. Life Rhythm rejects those imports rather than silently treating later recurring commitments as free time.
+          Unsupported busy recurrence is rejected so later commitments cannot silently disappear. Imported calendars are never synced automatically.
         </p>
 
         {warnings.length > 0 ? (

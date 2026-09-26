@@ -104,6 +104,19 @@ function generated(plan: ReturnType<DeterministicScheduler['buildPlan']>) {
 }
 
 describe('Gate 3 automatic scheduler v0', () => {
+  it('reserves reviewed work-only intervals for explicitly classified work tasks and rhythms', () => {
+    const input = model({
+      intentions: [intention('unclassified-work', { area: 'work', taskType: undefined }),
+        intention('confirmed-work', { area: 'work', taskType: 'work' })],
+      rhythms: [rhythm('rhythm:work', { area: 'work', frequency: 1, period: 'day' })],
+      candidateIntervals: [{ ...candidate('work-only', '2026-09-07', '09:00', '12:00'), workOnly: true }],
+    });
+    const plan = scheduler.buildPlan(input);
+    expect(plan.unscheduledIntentionIds).toContain('unclassified-work');
+    expect(plan.placements.some((placement) => placement.intentionId === 'confirmed-work')).toBe(true);
+    expect(plan.placements.some((placement) => placement.targetKind === 'rhythm')).toBe(true);
+    expect(scheduler.validatePlan(plan, input)).toEqual([]);
+  });
   it('automatically places a flexible private task without a per-placement confirmation loop', () => {
     const scheduler = new DeterministicScheduler();
     const input = model({
@@ -440,6 +453,7 @@ describe('Gate 3 automatic scheduler v0', () => {
     const base = createDefaultSettings('2026-09-03T00:00:00.000Z');
     const settings = settingsSchema.parse({
       ...base,
+      dayProfileMigrationState: { ...base.dayProfileMigrationState, reviewState: 'reviewedAndEnabled', reviewedAt: '2026-09-03T00:00:00.000Z' },
       lifeShape: {
         ...base.lifeShape,
         fixedCommitments: [],
