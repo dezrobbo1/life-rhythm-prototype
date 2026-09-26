@@ -52,6 +52,53 @@ function readEvent(uid: string, transp?: 'TRANSPARENT') {
 }
 
 describe('Gate 2 calendar availability edge semantics', () => {
+  it('blocks reviewed work travel on both sides of midnight across different assigned profiles', () => {
+    const base = settingsWithUsableWorkday();
+    const settings = settingsSchema.parse({
+      ...base,
+      weekdayProfileAssignments: base.weekdayProfileAssignments.map((assignment) => ({
+        ...assignment,
+        profileId: assignment.weekday === 'Monday'
+          ? base.dayProfiles.find((profile) => profile.kind === 'workday')!.id
+          : base.dayProfiles.find((profile) => profile.kind === 'nonWorkday')!.id,
+      })),
+      dayProfiles: base.dayProfiles.map((profile) => profile.kind === 'workday'
+        ? { ...profile, usableDay: { start: '00:00', end: '23:59' },
+            workPeriod: { start: '01:00', end: '23:30' }, workPlanningUse: 'allowSuitableTasks',
+            workBoundaryMinutes: { beforeTravel: 120, beforeTransition: 0, afterTravel: 120, afterTransition: 0 } }
+        : { ...profile, usableDay: { start: '00:00', end: '23:59' } }),
+    });
+    const candidate = (date: string) => deriveGate2Availability({
+      settings, calendarEvents: [], date, timezone: 'Australia/Perth',
+    }).candidateIntervals.map(({ start, end }) => [start, end]);
+    expect(candidate('2026-09-06')).toEqual([['00:00', '23:00']]);
+    expect(candidate('2026-09-07')).toEqual([['01:00', '23:30']]);
+    expect(candidate('2026-09-08')).toEqual([['01:30', '23:59']]);
+  });
+
+  it('does not turn unreviewed or missing work periods into cross-date travel blockers', () => {
+    const base = settingsWithUsableWorkday();
+    const workProfiles = base.dayProfiles.map((profile) => profile.kind === 'workday'
+      ? { ...profile, usableDay: { start: '00:00', end: '23:59' },
+          workPeriod: { start: '01:00', end: '23:30' }, workPlanningUse: 'allowSuitableTasks' as const,
+          workBoundaryMinutes: { beforeTravel: 120, beforeTransition: 0, afterTravel: 120, afterTransition: 0 } }
+      : { ...profile, usableDay: { start: '00:00', end: '23:59' } });
+    const unreviewed = settingsSchema.parse({
+      ...base, dayProfiles: workProfiles,
+      dayProfileMigrationState: { ...base.dayProfileMigrationState, reviewState: 'notStarted' },
+    });
+    expect(deriveGate2Availability({
+      settings: unreviewed, calendarEvents: [], date: '2026-09-07', timezone: 'Australia/Perth',
+    }).candidateIntervals).toEqual([]);
+    const absent = settingsSchema.parse({
+      ...base, dayProfiles: workProfiles.map((profile) => profile.kind === 'workday'
+        ? { ...profile, workPeriod: undefined } : profile),
+    });
+    expect(deriveGate2Availability({
+      settings: absent, calendarEvents: [], date: '2026-09-06', timezone: 'Australia/Perth',
+    }).candidateIntervals.map(({ start, end }) => [start, end]))
+      .toEqual([['00:00', '23:59']]);
+  });
   it('keeps user-authored protected and ask-first blocks inside work-only time even if labels resemble core work', () => {
     const base = settingsWithUsableWorkday();
     const settings = settingsSchema.parse({
