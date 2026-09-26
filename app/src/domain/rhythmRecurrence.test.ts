@@ -164,6 +164,13 @@ describe('flexible-quota rhythm recurrence', () => {
     expect(later).toHaveLength(2);
     expect(later.map((instance) => instance.slotNumber)).toEqual([4, 5]);
     expect(later.every((instance) => instance.recurrenceRevisionId === revised.id)).toBe(true);
+    const generatedTogether = generate({
+      revisions: [revision(), revised], start: '2026-09-07', end: '2026-09-13',
+    });
+    expect(generatedTogether.map((instance) => [instance.slotNumber, instance.recurrenceRevisionId])).toEqual([
+      [1, 'revision-1'], [2, 'revision-1'], [3, 'revision-1'],
+      [4, 'revision-2'], [5, 'revision-2'],
+    ]);
     expect(generate({
       revisions: [revision(), revised], existing: [...earlier, ...later], start: '2026-09-13', end: '2026-09-13',
     })).toEqual([]);

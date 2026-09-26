@@ -174,7 +174,7 @@ export function buildMissingRhythmInstances(
         : 0;
       // Earlier-revision slots already count toward the new frequency, but
       // do not use up the days newly available after this prospective edit.
-      const priorRevisionCount = alreadyInPeriod.filter((instance) =>
+      const priorRevisionCount = generatedCount + alreadyInPeriod.filter((instance) =>
         instance.recurrenceSnapshot.effectiveFromLocalDate < revision.effectiveFromLocalDate,
       ).length;
       const feasibleTotal = Math.min(
