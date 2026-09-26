@@ -54,6 +54,10 @@ type ParsedDateValue = {
   sourceTimezone?: string;
 };
 
+type RdateProvenance =
+  | { kind: 'date' | 'utc' | 'floating' }
+  | { kind: 'tzid'; timezone: string };
+
 function unfoldLines(source: string): string[] {
   return source
     .replace(/\r\n[ \t]/g, '')
@@ -375,20 +379,25 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
     const sourceEndTimezone = endZone?.replace(/^"|"$/g, '') ?? sourceTimezone;
     if (sourceTimezone) partsInZone(Date.now(), sourceTimezone);
     if (sourceEndTimezone && sourceEndTimezone !== sourceTimezone) partsInZone(Date.now(), sourceEndTimezone);
-    // ICAL.js represents an RDATE with an unregistered IANA TZID as floating
-    // and does not carry its property TZID into getOccurrenceDetails(). Retain
-    // the explicit source zone against its logical recurrence identity.
-    const rdateTimezoneByIdentity = new Map<string, string>();
+    // ICAL.js can omit an RDATE's original timezone form in occurrence details.
+    // Retain it per logical identity, including floating (which must not inherit
+    // the master's TZID) and UTC/date values.
+    const rdateProvenanceByIdentity = new Map<string, RdateProvenance>();
     for (const property of masters[0].getAllProperties('rdate')) {
       const tzid = (property.getParameter('tzid') as string | undefined)?.replace(/^"|"$/g, '');
-      if (!tzid) continue;
-      partsInZone(Date.now(), tzid);
+      if (tzid) partsInZone(Date.now(), tzid);
       for (const value of property.getValues() as ICAL.Time[]) {
         if (!(value instanceof ICAL.Time)) throw new Error(`Unsupported busy recurrence date for ${uid}.`);
         const identity = value.toString();
-        const existing = rdateTimezoneByIdentity.get(identity);
-        if (existing && existing !== tzid) throw new Error(`Conflicting recurrence timezones for ${uid}.`);
-        rdateTimezoneByIdentity.set(identity, tzid);
+        const provenance: RdateProvenance = value.isDate ? { kind: 'date' }
+          : value.zone === ICAL.Timezone.utcTimezone ? { kind: 'utc' }
+            : tzid ? { kind: 'tzid', timezone: tzid } : { kind: 'floating' };
+        const existing = rdateProvenanceByIdentity.get(identity);
+        if (existing && (existing.kind !== provenance.kind ||
+          (existing.kind === 'tzid' && provenance.kind === 'tzid' && existing.timezone !== provenance.timezone))) {
+          throw new Error(`Conflicting recurrence timezones for ${uid}.`);
+        }
+        rdateProvenanceByIdentity.set(identity, provenance);
       }
     }
     const asEpoch = (
@@ -397,11 +406,13 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
       propertyName: 'dtstart' | 'dtend',
       fallbackTimezone?: string,
       warnOnFloating = true,
-      occurrenceTimezone?: string,
+      occurrenceProvenance?: RdateProvenance,
     ): number => {
       const timeZone = component.getFirstProperty(propertyName)?.getParameter('tzid') as string | undefined;
-      const tz = occurrenceTimezone ?? timeZone?.replace(/^"|"$/g, '') ?? fallbackTimezone;
       if (time.zone === ICAL.Timezone.utcTimezone) return time.toJSDate().getTime();
+      const tz = occurrenceProvenance?.kind === 'floating' ? options.targetTimezone
+        : occurrenceProvenance?.kind === 'tzid' ? occurrenceProvenance.timezone
+          : timeZone?.replace(/^"|"$/g, '') ?? fallbackTimezone;
       if (!tz && !time.isDate && warnOnFloating) {
         warnings.push(`Floating calendar time for ${uid} was interpreted in ${options.targetTimezone}.`);
       }
@@ -451,22 +462,27 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
       const sourceEventId = `${uid}::${identity.toString()}`;
       if (emittedOccurrenceIds.has(sourceEventId)) return;
       const allDay = startTime.isDate;
-      const occurrenceTimezone = item.component === master.component ? rdateTimezoneByIdentity.get(identity.toString()) : undefined;
+      const occurrenceProvenance = item.component === master.component ? rdateProvenanceByIdentity.get(identity.toString()) : undefined;
+      if (occurrenceProvenance?.kind === 'floating') {
+        warnings.push(`Floating calendar time for ${uid} was interpreted in ${options.targetTimezone}.`);
+      }
       const start: CalendarLocalPoint = allDay
         ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
-        : pointFromEpoch(asEpoch(startTime, item.component, 'dtstart', sourceTimezone, true, occurrenceTimezone), options.targetTimezone);
+        : pointFromEpoch(asEpoch(startTime, item.component, 'dtstart', sourceTimezone, occurrenceProvenance?.kind !== 'floating', occurrenceProvenance), options.targetTimezone);
       const end: CalendarLocalPoint = allDay
         ? { date: formatDate(endTime.year, endTime.month, endTime.day) }
-        : pointFromEpoch(asEpoch(endTime, item.component, 'dtend', sourceEndTimezone, true, occurrenceTimezone), options.targetTimezone);
+        : pointFromEpoch(asEpoch(endTime, item.component, 'dtend', sourceEndTimezone, occurrenceProvenance?.kind !== 'floating', occurrenceProvenance), options.targetTimezone);
       if (start.date >= end.date && (allDay || start.date !== end.date || (start.time ?? '') >= (end.time ?? ''))) throw new Error(`Invalid calendar occurrence ${uid}.`);
+      const sourceOccurrenceTimezone = occurrenceProvenance?.kind === 'tzid' ? occurrenceProvenance.timezone
+        : occurrenceProvenance ? undefined
+          : (item.component.getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined) ?? sourceTimezone;
       const event: CalendarReadEvent = {
         adapterId: 'ics', sourceEventId, title: item.summary || master.summary || 'Calendar commitment',
         allDay, busy: (item.component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
           ?.toString().toUpperCase() !== 'TRANSPARENT',
         start: { date: start.date, time: start.time }, end: { date: end.date, time: end.time },
-        timezone: options.targetTimezone, ...((occurrenceTimezone ?? item.component.getFirstProperty('dtstart')?.getParameter('tzid') ?? sourceTimezone)
-          ? { sourceTimezone: occurrenceTimezone ?? (item.component.getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined) ?? sourceTimezone }
-          : {}),
+        timezone: options.targetTimezone,
+        ...(sourceOccurrenceTimezone ? { sourceTimezone: sourceOccurrenceTimezone } : {}),
       };
       if (overlapsDateWindow(event, options.windowStartDate, options.windowEndDate)) {
         if (events.length >= MAX_TOTAL_RECURRENCE_EVENTS) {
