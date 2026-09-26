@@ -360,14 +360,17 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
       if (!tz && !time.isDate) warnings.push(`Floating calendar time for ${uid} was interpreted in ${options.targetTimezone}.`);
       return zonedLocalToEpoch({ year: time.year, month: time.month, day: time.day, hour: time.hour, minute: time.minute, second: time.second }, tz ?? options.targetTimezone);
     };
+    const emittedOccurrenceIds = new Set<string>();
     const addOccurrence = (identity: ICAL.Time, item: ICAL.Event, startTime: ICAL.Time, endTime: ICAL.Time) => {
       if (item.component.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED') return;
+      const sourceEventId = `${uid}::${identity.toString()}`;
+      if (emittedOccurrenceIds.has(sourceEventId)) return;
       const allDay = startTime.isDate;
       const start: CalendarLocalPoint = allDay ? { date: formatDate(startTime.year, startTime.month, startTime.day) } : pointFromEpoch(asEpoch(startTime, item.component), options.targetTimezone);
       const end: CalendarLocalPoint = allDay ? { date: formatDate(endTime.year, endTime.month, endTime.day) } : pointFromEpoch(asEpoch(endTime, item.component), options.targetTimezone);
       if (start.date >= end.date && (allDay || start.date !== end.date || (start.time ?? '') >= (end.time ?? ''))) throw new Error(`Invalid calendar occurrence ${uid}.`);
       const event: CalendarReadEvent = {
-        adapterId: 'ics', sourceEventId: `${uid}::${identity.toString()}`, title: item.summary || master.summary || 'Calendar commitment',
+        adapterId: 'ics', sourceEventId, title: item.summary || master.summary || 'Calendar commitment',
         allDay, busy: (item.component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
           ?.toString().toUpperCase() !== 'TRANSPARENT',
         start: { date: start.date, time: start.time }, end: { date: end.date, time: end.time },
@@ -375,7 +378,10 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
           ? { sourceTimezone: (item.component.getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined) ?? sourceTimezone }
           : {}),
       };
-      if (overlapsDateWindow(event, options.windowStartDate, options.windowEndDate)) events.push(event);
+      if (overlapsDateWindow(event, options.windowStartDate, options.windowEndDate)) {
+        events.push(event);
+        emittedOccurrenceIds.add(sourceEventId);
+      }
     };
     const iterator = master.iterator();
     let next: ICAL.Time | null;

@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createAuthLocalDataNamespace,
   getCurrentLifeRhythmDatabase,
@@ -11,6 +11,7 @@ import {
   loadCalendarSource,
   readPersistedCalendarEvents,
   removeCalendarSource,
+  type CalendarSourceStore,
 } from './calendarSourceRepository';
 
 let namespaceIndex = 0;
@@ -196,5 +197,136 @@ describe('calendar source repository', () => {
     expect(removed).toEqual({ ok: true, removed: true });
     expect((await loadCalendarSource()).status).toBe('missing');
     expect(await database.taskPoolItems.count()).toBe(1);
+  });
+
+  it('preserves explicit buffers when replacing a valid v2 source', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    expect((await importIcsCalendarSource({
+      label: 'Family calendar',
+      source: calendar,
+      options,
+      importedAt: '2026-09-05T06:00:00.000Z',
+    })).ok).toBe(true);
+    await database.calendarSources.update('primary', { beforeBusyMinutes: 12, afterBusyMinutes: 7 });
+
+    const replacement = await importIcsCalendarSource({
+      label: 'Recurring calendar',
+      source: recurringCalendar,
+      options,
+      importedAt: '2026-09-05T06:10:00.000Z',
+    });
+
+    expect(replacement.ok).toBe(true);
+    const loaded = await loadCalendarSource();
+    expect(loaded.status).toBe('ok');
+    if (loaded.status !== 'ok') return;
+    expect(loaded.record).toMatchObject({ version: 2, beforeBusyMinutes: 12, afterBusyMinutes: 7 });
+  });
+
+  it('replaces a valid v1 source with safe zero buffer semantics', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    await database.calendarSources.put({
+      id: 'primary',
+      version: 1,
+      adapterId: 'ics',
+      label: 'Legacy source',
+      source: calendar,
+      importedAt: '2026-09-05T06:00:00.000Z',
+      updatedAt: '2026-09-05T06:00:00.000Z',
+    } as never);
+
+    const replacement = await importIcsCalendarSource({
+      label: 'Recurring calendar',
+      source: recurringCalendar,
+      options,
+      importedAt: '2026-09-05T06:10:00.000Z',
+    });
+
+    expect(replacement.ok).toBe(true);
+    const loaded = await loadCalendarSource();
+    expect(loaded.status).toBe('ok');
+    if (loaded.status !== 'ok') return;
+    expect(loaded.record).toMatchObject({ version: 2, beforeBusyMinutes: 0, afterBusyMinutes: 0 });
+  });
+
+  it('allows a valid explicit import to recover from a schema-invalid saved source', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    await database.calendarSources.put({
+      id: 'primary',
+      version: 99,
+      adapterId: 'ics',
+      label: 'Corrupt source',
+      source: calendar,
+      importedAt: 'not-a-time',
+      updatedAt: 'not-a-time',
+      beforeBusyMinutes: 999,
+      afterBusyMinutes: 999,
+    } as never);
+
+    expect((await loadCalendarSource()).status).toBe('invalid');
+
+    const replacement = await importIcsCalendarSource({
+      label: 'Recovered calendar',
+      source: recurringCalendar,
+      options,
+      importedAt: '2026-09-05T06:10:00.000Z',
+    });
+
+    expect(replacement.ok).toBe(true);
+    const loaded = await loadCalendarSource();
+    expect(loaded.status).toBe('ok');
+    if (loaded.status !== 'ok') return;
+    expect(loaded.record).toMatchObject({
+      version: 2,
+      label: 'Recovered calendar',
+      beforeBusyMinutes: 0,
+      afterBusyMinutes: 0,
+    });
+  });
+
+  it('does not overwrite an invalid stored row when the incoming file is malformed', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const corrupt = {
+      id: 'primary',
+      version: 99,
+      adapterId: 'ics',
+      label: 'Corrupt source',
+      source: calendar,
+      importedAt: 'not-a-time',
+      updatedAt: 'not-a-time',
+    };
+    await database.calendarSources.put(corrupt as never);
+
+    const replacement = await importIcsCalendarSource({
+      label: 'Bad replacement',
+      source: 'not an ics calendar',
+      options,
+      importedAt: '2026-09-05T06:10:00.000Z',
+    });
+
+    expect(replacement.ok).toBe(false);
+    expect(await database.calendarSources.get('primary')).toEqual(corrupt);
+  });
+
+  it('fails closed on an actual saved-source read failure', async () => {
+    const put = vi.fn();
+    const store = {
+      calendarSources: {
+        delete: vi.fn(),
+        get: vi.fn().mockRejectedValue(new Error('read failed')),
+        put,
+      },
+    } as unknown as CalendarSourceStore;
+
+    const result = await importIcsCalendarSource({
+      label: 'Replacement',
+      source: calendar,
+      options,
+      importedAt: '2026-09-05T06:10:00.000Z',
+    }, store);
+
+    expect(result.ok).toBe(false);
+    expect(result).toMatchObject({ errors: [expect.stringContaining('could not be read')] });
+    expect(put).not.toHaveBeenCalled();
   });
 });

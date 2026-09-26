@@ -167,4 +167,36 @@ describe('atomic calendar source mutation and repair attention', () => {
       calendarRepairPendingAt: expect.any(String),
     }));
   });
+
+  it('replaces an invalid saved source atomically with repair attention', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    await database.calendarSources.put({
+      id: 'primary',
+      version: 99,
+      adapterId: 'ics',
+      label: 'Corrupt source',
+      source: calendarA,
+      importedAt: 'not-a-time',
+      updatedAt: 'not-a-time',
+    } as never);
+    await seedPlan();
+
+    const result = await commitCalendarSourceImport({
+      label: 'Calendar B',
+      source: calendarB,
+      options,
+      importedAt: '2026-09-07T00:02:00.000Z',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.repairAttentionPersisted).toBe(true);
+    const calendarState = await loadCalendarSource();
+    const planState = await loadSchedulerPlanState();
+    expect(calendarState.status).toBe('ok');
+    expect(planState).toEqual(expect.objectContaining({
+      status: 'ok',
+      calendarRepairPendingAt: expect.any(String),
+    }));
+  });
 });

@@ -7,6 +7,7 @@ import {
 } from './dayProfileMigration';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
+  WORKDAY_PROFILE_ID,
   settingsSchema,
   type LifeShapeSettings,
   type Settings,
@@ -286,6 +287,15 @@ function settingsCandidateFromInput(
   timestamp = nowIso(),
 ) {
   const lifeShape = input.lifeShape as Partial<LifeShapeSettings> | undefined;
+  const explicitAssignments = input.weekdayProfileAssignments as Settings['weekdayProfileAssignments'] | undefined;
+  const reviewedWorkDays = explicitAssignments
+    ?.filter((assignment) => assignment.profileId === WORKDAY_PROFILE_ID)
+    .map((assignment) => assignment.weekday) ?? lifeShape?.usualWorkHours?.days;
+  const assignmentsChanged = explicitAssignments !== undefined &&
+    JSON.stringify(explicitAssignments) !== JSON.stringify(current.weekdayProfileAssignments);
+  const reconcileReviewedWorkDays =
+    input.activatePlanningDay === true ||
+    (input.planningDayReviewed === true && assignmentsChanged);
 
   return {
     ...current,
@@ -318,8 +328,9 @@ function settingsCandidateFromInput(
     updatedAt: timestamp,
     wakeTime: lifeShape?.sleepWakeAnchors?.wake !== current.lifeShape.sleepWakeAnchors.wake
       ? lifeShape?.sleepWakeAnchors?.wake ?? current.wakeTime : current.wakeTime,
-    workDays: input.planningDayReviewed && JSON.stringify(lifeShape?.usualWorkHours?.days) !== JSON.stringify(current.lifeShape.usualWorkHours.days)
-      ? lifeShape?.usualWorkHours?.days ?? current.workDays : current.workDays,
+    workDays: reconcileReviewedWorkDays
+      ? reviewedWorkDays ?? current.workDays
+      : current.workDays,
     workEnd: lifeShape?.usualWorkHours?.end !== current.lifeShape.usualWorkHours.end
       ? lifeShape?.usualWorkHours?.end ?? current.workEnd : current.workEnd,
     workStart: lifeShape?.usualWorkHours?.start !== current.lifeShape.usualWorkHours.start

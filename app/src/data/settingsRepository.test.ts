@@ -138,6 +138,15 @@ function withoutDayProfileFoundation(settings: Settings = createDefaultSettings(
   return legacy;
 }
 
+
+function assignmentsFor(settings: Settings, workDays: Settings['workDays']) {
+  const workdaySet = new Set(workDays);
+  return settings.weekdayProfileAssignments.map((assignment) => ({
+    ...assignment,
+    profileId: workdaySet.has(assignment.weekday) ? WORKDAY_PROFILE_ID : NON_WORKDAY_PROFILE_ID,
+  }));
+}
+
 describe('settings repository', () => {
   it('saves and reloads settings through the Dexie settings table', async () => {
     const database = createTestDatabase();
@@ -719,5 +728,116 @@ describe('settings repository', () => {
 
     expect(taskPut).not.toHaveBeenCalled();
     expect(rhythmPut).not.toHaveBeenCalled();
+  });
+
+  it('reconciles reviewed workdays into the rollback-readable root in the same save', async () => {
+    const current = createDefaultSettings('2026-09-26T00:00:00.000Z');
+    const fake = createSplitFakeStore(current);
+    const workDays: Settings['workDays'] = ['Tuesday', 'Thursday', 'Saturday'];
+    const assignments = assignmentsFor(current, workDays);
+    const lifeShape = {
+      ...current.lifeShape,
+      usualWorkHours: { ...current.lifeShape.usualWorkHours, days: workDays },
+    };
+
+    const result = await saveSettings({
+      lifeShape,
+      dayProfiles: current.dayProfiles,
+      weekdayProfileAssignments: assignments,
+      activatePlanningDay: true,
+      planningDayReviewed: true,
+      startBoostSafety: current.startBoostSafety,
+      theme: current.theme,
+    }, fake.store);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.settings.workDays).toEqual(workDays);
+    expect(result.settings.lifeShape.usualWorkHours.days).toEqual(workDays);
+    expect(fake.getStoredSettings()?.workDays).toEqual(workDays);
+    const reloaded = await loadSettingsResult(fake.store);
+    expect(reloaded.conflicts.some((conflict) => conflict.field === 'workDays')).toBe(false);
+  });
+
+  it('reconciles a previously saved unreviewed workday draft when planning is later activated', async () => {
+    const current = createDefaultSettings('2026-09-26T00:00:00.000Z');
+    const fake = createSplitFakeStore(current);
+    const workDays: Settings['workDays'] = ['Tuesday', 'Thursday', 'Saturday'];
+    const assignments = assignmentsFor(current, workDays);
+    const lifeShape = {
+      ...current.lifeShape,
+      usualWorkHours: { ...current.lifeShape.usualWorkHours, days: workDays },
+    };
+
+    const draft = await saveSettings({
+      lifeShape,
+      dayProfiles: current.dayProfiles,
+      weekdayProfileAssignments: assignments,
+      activatePlanningDay: false,
+      planningDayReviewed: false,
+      startBoostSafety: current.startBoostSafety,
+      theme: current.theme,
+    }, fake.store);
+
+    expect(draft.ok).toBe(true);
+    if (!draft.ok) return;
+    expect(draft.settings.lifeShape.usualWorkHours.days).toEqual(workDays);
+    expect(draft.settings.workDays).toEqual(current.workDays);
+    expect(fake.getStoredSettings()?.workDays).toEqual(current.workDays);
+
+    const activated = await saveSettings({
+      lifeShape: draft.settings.lifeShape,
+      dayProfiles: draft.settings.dayProfiles,
+      weekdayProfileAssignments: draft.settings.weekdayProfileAssignments,
+      activatePlanningDay: true,
+      planningDayReviewed: true,
+      startBoostSafety: draft.settings.startBoostSafety,
+      theme: draft.settings.theme,
+    }, fake.store);
+
+    expect(activated.ok).toBe(true);
+    if (!activated.ok) return;
+    expect(activated.settings.workDays).toEqual(workDays);
+    expect(fake.getStoredSettings()?.workDays).toEqual(workDays);
+    expect(legacySettingsSchema.safeParse(fake.getRawSettings()).success).toBe(true);
+
+    const reloaded = await loadSettingsResult(fake.store);
+    expect(reloaded.settings.lifeShape.usualWorkHours.days).toEqual(workDays);
+    expect(reloaded.settings.workDays).toEqual(workDays);
+    expect(reloaded.conflicts.some((conflict) => conflict.field === 'workDays')).toBe(false);
+
+    const themeOnly = await saveSettings({
+      lifeShape: reloaded.settings.lifeShape,
+      startBoostSafety: reloaded.settings.startBoostSafety,
+      theme: 'grounded',
+    }, fake.store);
+    expect(themeOnly.ok).toBe(true);
+    if (!themeOnly.ok) return;
+    expect(themeOnly.settings.workDays).toEqual(workDays);
+  });
+
+  it('reset restores coherent root and nested default workdays', async () => {
+    const current = createDefaultSettings('2026-09-26T00:00:00.000Z');
+    const fake = createSplitFakeStore(current);
+    const workDays: Settings['workDays'] = ['Tuesday', 'Thursday', 'Saturday'];
+    const configured = await saveSettings({
+      lifeShape: {
+        ...current.lifeShape,
+        usualWorkHours: { ...current.lifeShape.usualWorkHours, days: workDays },
+      },
+      dayProfiles: current.dayProfiles,
+      weekdayProfileAssignments: assignmentsFor(current, workDays),
+      activatePlanningDay: true,
+      planningDayReviewed: true,
+      startBoostSafety: current.startBoostSafety,
+      theme: current.theme,
+    }, fake.store);
+    expect(configured.ok).toBe(true);
+
+    const reset = await resetSettingsToDefaults(fake.store);
+
+    expect(reset.workDays).toEqual(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+    expect(reset.lifeShape.usualWorkHours.days).toEqual(reset.workDays);
+    expect(fake.getStoredSettings()?.workDays).toEqual(reset.workDays);
   });
 });

@@ -164,7 +164,7 @@ export async function importIcsCalendarSource(
 
   const timestamp = input.importedAt ?? new Date().toISOString();
   const previous = await loadCalendarSource(store);
-  if (previous.status === 'invalid' || previous.status === 'error') {
+  if (previous.status === 'error') {
     return { ok: false, errors: previous.errors, warnings: preview.warnings };
   }
   const parsed = calendarSourceRecordSchema.safeParse({

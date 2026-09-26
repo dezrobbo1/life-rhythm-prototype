@@ -202,4 +202,94 @@ describe('ICS calendar adapter', () => {
       windowEndDate: '2026-09-08',
     })).toThrow('Calendar read window start must not be after the end date.');
   });
+
+  it('emits a post-horizon moved recurrence override only once by logical identity', () => {
+    const adapter = new IcsCalendarAdapter();
+    const source = calendar(
+      event([
+        'UID:moved-back',
+        'SUMMARY:Base meeting',
+        'DTSTART;TZID=Australia/Perth:20260907T090000',
+        'DTEND;TZID=Australia/Perth:20260907T093000',
+        'RRULE:FREQ=DAILY;COUNT=3',
+      ]),
+      event([
+        'UID:moved-back',
+        'RECURRENCE-ID;TZID=Australia/Perth:20260909T090000',
+        'SUMMARY:Moved into horizon',
+        'DTSTART;TZID=Australia/Perth:20260908T150000',
+        'DTEND;TZID=Australia/Perth:20260908T153000',
+      ]),
+    );
+
+    const first = adapter.read(source, options);
+    const second = adapter.read(source, options);
+    const moved = first.events.filter((candidate) => candidate.title === 'Moved into horizon');
+
+    expect(moved).toHaveLength(1);
+    expect(new Set(first.events.map((candidate) => candidate.sourceEventId)).size).toBe(first.events.length);
+    expect(moved[0]).toMatchObject({
+      start: { date: '2026-09-08', time: '15:00' },
+      end: { date: '2026-09-08', time: '15:30' },
+    });
+    expect(second.events.map((candidate) => candidate.sourceEventId))
+      .toEqual(first.events.map((candidate) => candidate.sourceEventId));
+  });
+
+  it('does not emit a post-horizon override whose moved time remains outside the window', () => {
+    const adapter = new IcsCalendarAdapter();
+    const source = calendar(
+      event([
+        'UID:moved-outside',
+        'SUMMARY:Base meeting',
+        'DTSTART;TZID=Australia/Perth:20260907T090000',
+        'DTEND;TZID=Australia/Perth:20260907T093000',
+        'RRULE:FREQ=DAILY;COUNT=3',
+      ]),
+      event([
+        'UID:moved-outside',
+        'RECURRENCE-ID;TZID=Australia/Perth:20260909T090000',
+        'SUMMARY:Moved outside',
+        'DTSTART;TZID=Australia/Perth:20260910T150000',
+        'DTEND;TZID=Australia/Perth:20260910T153000',
+      ]),
+    );
+
+    const result = adapter.read(source, options);
+
+    expect(result.events.some((candidate) => candidate.title === 'Moved outside')).toBe(false);
+  });
+
+  it('keeps distinct recurrence identities even when overrides share the same displayed time', () => {
+    const adapter = new IcsCalendarAdapter();
+    const source = calendar(
+      event([
+        'UID:shared-time',
+        'SUMMARY:Base meeting',
+        'DTSTART;TZID=Australia/Perth:20260907T090000',
+        'DTEND;TZID=Australia/Perth:20260907T093000',
+        'RRULE:FREQ=DAILY;COUNT=4',
+      ]),
+      event([
+        'UID:shared-time',
+        'RECURRENCE-ID;TZID=Australia/Perth:20260909T090000',
+        'SUMMARY:Moved slot three',
+        'DTSTART;TZID=Australia/Perth:20260908T150000',
+        'DTEND;TZID=Australia/Perth:20260908T153000',
+      ]),
+      event([
+        'UID:shared-time',
+        'RECURRENCE-ID;TZID=Australia/Perth:20260910T090000',
+        'SUMMARY:Moved slot four',
+        'DTSTART;TZID=Australia/Perth:20260908T150000',
+        'DTEND;TZID=Australia/Perth:20260908T153000',
+      ]),
+    );
+
+    const result = adapter.read(source, options);
+    const moved = result.events.filter((candidate) => candidate.start.date === '2026-09-08' && candidate.start.time === '15:00');
+
+    expect(moved).toHaveLength(2);
+    expect(new Set(moved.map((candidate) => candidate.sourceEventId)).size).toBe(2);
+  });
 });
