@@ -72,12 +72,35 @@ describe('ICS calendar adapter', () => {
     });
   });
 
+  it('resolves a duration-derived moved exception at the first repeated Sydney instant and rejects a spring gap', () => {
+    const moved = calendar(event([
+      'UID:ambiguous-duration', 'SUMMARY:Master',
+      'DTSTART;TZID=Australia/Sydney:20260404T023000',
+      'DTEND;TZID=Australia/Sydney:20260404T024500',
+      'RRULE:FREQ=DAILY;COUNT=2',
+    ]), event([
+      'UID:ambiguous-duration', 'RECURRENCE-ID;TZID=Australia/Sydney:20260405T023000',
+      'SUMMARY:Moved', 'DTSTART;TZID=Australia/Sydney:20260405T023000', 'DURATION:PT15M',
+    ]));
+    const options = { targetTimezone: 'UTC', windowStartDate: '2026-04-04', windowEndDate: '2026-04-05' };
+    const result = new IcsCalendarAdapter().read(moved, options);
+    expect(result.events.find((item) => item.title === 'Moved')).toMatchObject({
+      start: { date: '2026-04-04', time: '15:30' }, end: { date: '2026-04-04', time: '15:45' },
+    });
+    expect(new IcsCalendarAdapter().read(moved, options).events.map((item) => item.sourceEventId))
+      .toEqual(result.events.map((item) => item.sourceEventId));
+    const gap = moved.split('20260404').join('20261003').split('20260405').join('20261004');
+    expect(() => new IcsCalendarAdapter().read(gap, {
+      targetTimezone: 'UTC', windowStartDate: '2026-10-03', windowEndDate: '2026-10-04',
+    })).toThrow();
+  });
+
   it('scans both first post-window Kiritimati RDATEs that map into Pago Pago', () => {
     const source = calendar(event([
       'UID:dateline-rdates', 'SUMMARY:Dateline events',
       'DTSTART;TZID=Pacific/Kiritimati:20261001T001000',
       'DTEND;TZID=Pacific/Kiritimati:20261001T004000',
-      'RDATE;TZID=Pacific/Kiritimati:20261003T001000,20261003T003000',
+      'RDATE;TZID=Pacific/Kiritimati:20261003T001000,20261003T003000,20261005T001000',
     ]));
     const options = { targetTimezone: 'Pacific/Pago_Pago', windowStartDate: '2026-10-01', windowEndDate: '2026-10-02' };
     const first = new IcsCalendarAdapter().read(source, options).events;
