@@ -19,6 +19,7 @@ import {
   buildAndPersistSchedulerPlan,
   loadSchedulerPlanState,
   markCalendarRepairPending,
+  markSettingsRepairPending,
   repairAndPersistSchedulerPlan,
   undoPersistedSchedulerRepair,
 } from './schedulerPlanStateRepository';
@@ -164,6 +165,51 @@ afterEach(() => {
 });
 
 describe('persisted Gate 4 scheduler plan state', () => {
+  it('rejects undo of a different repair while settings authority is pending without writing a plan or event', async () => {
+    const database = createTestDatabase();
+    try {
+      const built = await buildAndPersistSchedulerPlan(model(), database, '2026-09-07T00:00:00.000Z');
+      if (!built.ok) throw new Error(built.errors.join('\n'));
+      const repaired = await repairAndPersistSchedulerPlan({
+        nextInput: model([candidate('later', '10:00', '11:00')]),
+        trigger: 'calendarChanged', reason: 'Calendar changed', now: { date: today, time: '08:00', timezone },
+      }, database, '2026-09-07T00:01:00.000Z');
+      if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+      expect(await markSettingsRepairPending(database, '2026-09-07T00:02:00.000Z')).toEqual({ ok: true, persisted: true });
+      const before = await loadSchedulerPlanState(database);
+      const history = await database.taskHistory.toArray();
+      const undo = await undoPersistedSchedulerRepair(database, '2026-09-07T00:03:00.000Z');
+      expect(undo.ok).toBe(false);
+      expect(await loadSchedulerPlanState(database)).toEqual(before);
+      expect(await database.taskHistory.toArray()).toEqual(history);
+      expect(history.filter((event) => event.eventType === 'schedulerRepairUndone')).toHaveLength(0);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it.each(['taskDefinitionChanged', 'rhythmDefinitionChanged'] as const)(
+    'retains the existing %s definition-repair undo rejection', async (trigger) => {
+      const database = createTestDatabase();
+      try {
+        const built = await buildAndPersistSchedulerPlan(model(), database, '2026-09-07T00:00:00.000Z');
+        if (!built.ok) throw new Error(built.errors.join('\n'));
+        const repaired = await repairAndPersistSchedulerPlan({
+          nextInput: model([candidate('later', '10:00', '11:00')]), trigger,
+          reason: 'Definition changed', now: { date: today, time: '08:00', timezone },
+        }, database, '2026-09-07T00:01:00.000Z');
+        if (!repaired.ok) throw new Error(repaired.errors.join('\n'));
+        const before = await loadSchedulerPlanState(database);
+        const history = await database.taskHistory.toArray();
+        expect((await undoPersistedSchedulerRepair(database, '2026-09-07T00:02:00.000Z')).ok).toBe(false);
+        expect(await loadSchedulerPlanState(database)).toEqual(before);
+        expect(await database.taskHistory.toArray()).toEqual(history);
+      } finally {
+        await database.delete();
+      }
+    },
+  );
+
   it('builds, validates and persists scheduler-generated plan state separately from soft placements', async () => {
     const database = createTestDatabase();
 

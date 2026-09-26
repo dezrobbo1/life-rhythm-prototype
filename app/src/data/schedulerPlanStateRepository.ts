@@ -970,6 +970,10 @@ export async function undoPersistedSchedulerRepair(
     };
   }
 
+  if (current.settingsRepairPendingAt || current.plan.repair.trigger === 'settingsChanged') {
+    return { ok: false, errors: ['schedulerPlanState: Change the planning settings again to correct them. Earlier plan times cannot be restored under the current boundaries.'] };
+  }
+
   if (current.taskInputRepairPendingAt || current.plan.repair.trigger === 'taskDefinitionChanged' ||
       current.plan.repair.taskDefinitionRepairApplied) {
     return { ok: false, errors: ['schedulerPlanState: Edit the task again to correct its definition. Earlier task times cannot be restored as a valid plan.'] };
@@ -1008,7 +1012,7 @@ export async function undoPersistedSchedulerRepair(
     : orderedDurationLearning(current.durationLearningApplied ?? []);
   const saved = await saveSchedulerPlanStateIfCurrent(reverted, current, store, updatedAt, {
     calendarRepairPendingAt,
-    settingsRepairPendingAt: current.settingsRepairPendingAt ?? (current.plan.repair?.trigger === 'settingsChanged' ? updatedAt : undefined),
+    settingsRepairPendingAt: current.settingsRepairPendingAt,
     preferenceRepairPendingAt,
     ...(preferenceRepairTargets.length > 0 ? { preferenceRepairTargets } : {}),
     durationLearningApplied: undoDurationLearningApplied,

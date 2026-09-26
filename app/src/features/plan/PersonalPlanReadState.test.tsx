@@ -227,6 +227,30 @@ describe('Personal Plan read states', () => {
     expect(coordinatorMocks.undoCurrentPrivatePlan).toHaveBeenCalledTimes(1);
   });
 
+  it('shows a settings repair without offering to restore times from before the reviewed boundaries', async () => {
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: { ...changedPlan, repair: { ...changedPlan.repair, trigger: 'settingsChanged', reason: 'Reviewed planning settings changed.' } },
+      titleByTargetId: { 'task-moved': 'Move the form' }, warnings: [],
+    });
+    renderEmbeddedPlan();
+    expect(await screen.findByRole('heading', { name: 'Changed' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Undo last repair' })).toBeNull();
+    expect(coordinatorMocks.undoCurrentPrivatePlan).not.toHaveBeenCalled();
+    expect(screen.queryByText('The previous private plan was restored.')).toBeNull();
+  });
+
+  it('never reports a successful restoration when an otherwise visible Undo is rejected', async () => {
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({ ok: true, plan: changedPlan,
+      titleByTargetId: { 'task-moved': 'Move the form' }, warnings: [] });
+    coordinatorMocks.undoCurrentPrivatePlan.mockResolvedValue({ ok: false, errors: ['Planning settings changed.'], warnings: [] });
+    renderEmbeddedPlan();
+    await screen.findByRole('heading', { name: 'Changed' });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Undo last repair' }));
+    expect(await screen.findByText('The previous private plan could not be restored.')).toBeTruthy();
+    expect(screen.queryByText('The previous private plan was restored.')).toBeNull();
+  });
+
   it('keeps a private-plan failure visible while details remain closed', async () => {
     coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
       errors: ['Saved scheduler state is invalid.'],

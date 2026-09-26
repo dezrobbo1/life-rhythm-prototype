@@ -1250,9 +1250,25 @@ describe('Today screen', () => {
     expect(reducedDayMocks.loadTodayDayMode.mock.calls.length).toBeGreaterThan(1);
   });
 
+  it('does not report restoration when a visible Today Undo is rejected by changed settings authority', async () => {
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok', plan: persistedReducedDayRepairPlan(), updatedAt: '2026-09-15T01:00:00.000Z',
+    });
+    reducedDayMocks.undoTodayPlanChange.mockResolvedValue({
+      ok: false, errors: ['Change the planning settings again to correct them.'], warnings: [],
+    });
+    render(<TodayScreen />);
+    const changed = await screen.findByRole('region', { name: 'Changed' });
+    await userEvent.setup().click(within(changed).getByRole('button', { name: 'Undo last change' }));
+    expect(await within(changed).findByRole('alert')).toHaveProperty('textContent', 'Change the planning settings again to correct them.');
+    expect(screen.queryByText('The latest private-plan change was undone.')).toBeNull();
+    expect(reducedDayMocks.undoTodayPlanChange).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ['calendarChanged', 'A read-only calendar commitment changed.'],
     ['completionChanged', 'A Today task was completed.'],
+    ['settingsChanged', 'Reviewed planning settings changed.'],
   ] as const)('does not offer plan-only Undo for a %s repair whose source fact remains changed', async (trigger, reason) => {
     const repairedPlan = persistedReducedDayRepairPlan();
     repairedPlan.repair = {

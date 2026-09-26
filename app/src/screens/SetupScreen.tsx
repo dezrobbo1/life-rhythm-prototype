@@ -540,10 +540,14 @@ export function SetupScreen({
                 {(['start', 'end'] as const).map((edge) => <label key={edge}>
                   <span>{edge === 'start' ? 'Core work starts' : 'Core work ends'}</span>
                   <input type="time" value={profile.workPeriod?.[edge] ?? ''}
-                    onChange={(event) => setPlanningProfiles((current) => current.map((item) => item.id === profile.id
-                      ? { ...item, workPeriod: { start: item.workPeriod?.start ?? '', end: item.workPeriod?.end ?? '', [edge]: event.target.value } } : item))} />
+                    onChange={(event) => setPlanningProfiles((current) => current.map((item) => {
+                      if (item.id !== profile.id) return item;
+                      const workPeriod = { start: item.workPeriod?.start ?? '', end: item.workPeriod?.end ?? '', [edge]: event.target.value };
+                      return { ...item, workPeriod: workPeriod.start || workPeriod.end ? workPeriod : undefined };
+                    }))} />
                 </label>)}
               </div>
+              <p>Clear both core work times if you have no fixed work hours.</p>
               <label><span>During core work hours</span><select value={profile.workPlanningUse}
                 onChange={(event) => setPlanningProfiles((current) => current.map((item) => item.id === profile.id
                   ? { ...item, workPlanningUse: event.target.value as DayProfile['workPlanningUse'] } : item))}>

@@ -86,6 +86,24 @@ function calendarEvent(start = '20260907T170000', end = '20260907T180000') {
 }
 
 describe('Gate 2 calendar-aware availability', () => {
+  it('does not reconstruct cleared reviewed core work from legacy hours or block the protected-time overlay', () => {
+    const base = gate2Settings({ lifeShape: { timeBlocks: [
+      { id: 'protected-lunch', label: 'Protected lunch', type: 'protectedTime', schedulerUse: 'unavailable',
+        days: ['Monday'], start: '12:00', end: '13:00' },
+    ] } });
+    const settings = settingsSchema.parse({ ...base,
+      dayProfiles: base.dayProfiles.map((profile) => profile.kind === 'workday'
+        ? { ...profile, workPeriod: undefined, workBoundaryMinutes: { beforeTravel: 20, afterTravel: 20, beforeTransition: 10, afterTransition: 10 },
+          workPlanningUse: 'workRhythmsOnly' }
+        : profile),
+    });
+    expect(settings.lifeShape.usualWorkHours).toMatchObject({ start: '08:00', end: '16:00' });
+    const result = deriveGate2Availability({ settings, calendarEvents: [], date: '2026-09-07', timezone: 'Australia/Perth' });
+    expect(result.candidateIntervals.map((item) => [item.start, item.end, item.workOnly])).toEqual([
+      ['06:30', '12:00', undefined], ['13:00', '21:30', undefined],
+    ]);
+  });
+
   it('never treats empty, sparse, cancelled or transparent calendar gaps as authority', () => {
     const base = gate2Settings();
     const inactive = settingsSchema.parse({ ...base,
