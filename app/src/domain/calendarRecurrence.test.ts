@@ -63,6 +63,24 @@ describe('bounded recurring calendar authority', () => {
   });
 
   it('ignores unsupported recurrence rules that cannot contribute busy VEVENT time', () => {
+    const cancelled = [
+      'BEGIN:VEVENT',
+      'UID:cancelled@example.com',
+      'SUMMARY:Cancelled',
+      'STATUS:CANCELLED',
+      ...base,
+      'RRULE:FREQ=HOURLY;COUNT=3',
+      'END:VEVENT',
+    ].join('\r\n');
+    const transparent = [
+      'BEGIN:VEVENT',
+      'UID:transparent@example.com',
+      'SUMMARY:Transparent',
+      'TRANSP:TRANSPARENT',
+      ...base,
+      'RRULE:FREQ=WEEKLY;COUNT=3;BYSETPOS=1',
+      'END:VEVENT',
+    ].join('\r\n');
     const source = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
@@ -75,8 +93,8 @@ describe('bounded recurring calendar authority', () => {
       'TZOFFSETTO:+0000',
       'END:STANDARD',
       'END:VTIMEZONE',
-      event(['STATUS:CANCELLED', ...base, 'RRULE:FREQ=HOURLY;COUNT=3']),
-      event(['TRANSP:TRANSPARENT', ...base, 'RRULE:FREQ=WEEKLY;COUNT=3;BYSETPOS=1']),
+      cancelled,
+      transparent,
       ['BEGIN:VEVENT', 'UID:busy@example.com', 'SUMMARY:Busy', 'DTSTART;TZID=Australia/Sydney:20261005T100000',
         'DTEND;TZID=Australia/Sydney:20261005T103000', 'END:VEVENT'].join('\r\n'),
       'END:VCALENDAR',
@@ -103,15 +121,15 @@ describe('bounded recurring calendar authority', () => {
     });
   });
 
-  it('fails closed when aggregate recurrence iteration across the file exceeds the safe budget', () => {
-    const manySeries = Array.from({ length: 1_001 }, (_, index) =>
+  it('fails closed before expanding an excessive number of recurring series', () => {
+    const manySeries = Array.from({ length: 251 }, (_, index) =>
       [
         'BEGIN:VEVENT',
         `UID:aggregate-${index}@example.com`,
-        'SUMMARY:Old daily series',
-        'DTSTART;TZID=Australia/Sydney:20260720T090000',
-        'DTEND;TZID=Australia/Sydney:20260720T093000',
-        'RRULE:FREQ=DAILY',
+        'SUMMARY:Recurring series',
+        'DTSTART;TZID=Australia/Sydney:20260907T090000',
+        'DTEND;TZID=Australia/Sydney:20260907T093000',
+        'RRULE:FREQ=DAILY;COUNT=2',
         'END:VEVENT',
       ].join('\r\n'),
     );
@@ -121,6 +139,6 @@ describe('bounded recurring calendar authority', () => {
       targetTimezone: 'Australia/Sydney',
       windowStartDate: '2026-09-07',
       windowEndDate: '2026-09-08',
-    })).toThrow('Calendar recurrence exceeds the safe read limit.');
+    })).toThrow('Calendar contains too many recurring series for a safe browser read.');
   });
 });

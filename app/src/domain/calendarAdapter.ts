@@ -333,8 +333,12 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
     grouped.set(uid, [...(grouped.get(uid) ?? []), component]);
   }
   const events: CalendarReadEvent[] = [];
+  const MAX_RECURRING_SERIES = 250;
   const MAX_TOTAL_RECURRENCE_ITERATIONS = 50_000;
   const MAX_TOTAL_RECURRENCE_EVENTS = 10_000;
+  if (grouped.size > MAX_RECURRING_SERIES) {
+    throw new Error('Calendar contains too many recurring series for a safe browser read.');
+  }
   let totalRecurrenceIterations = 0;
   for (const [uid, parts] of grouped) {
     const masters = parts.filter((part) => !part.hasProperty('recurrence-id'));
