@@ -101,6 +101,12 @@ function formatDate(year: number, month: number, day: number): string {
   return `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
 }
 
+function addCalendarDays(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return formatDate(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate());
+}
+
 function formatTime(hour: number, minute: number): string {
   return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
@@ -415,6 +421,18 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
         tz ?? options.targetTimezone,
       );
     };
+    const occurrenceEndFallback = (component: ICAL.Component) => {
+      if (component === master.component) return sourceEndTimezone;
+      // An exception's DURATION derives its end from that exception's start;
+      // a missing DTEND must never borrow the master's unrelated end zone.
+      if (component.hasProperty('duration') && !component.hasProperty('dtend')) {
+        return (component.getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined)
+          ?.replace(/^"|"$/g, '');
+      }
+      return undefined;
+    };
+    const occurrenceStartFallback = (component: ICAL.Component) =>
+      component === master.component ? sourceTimezone : undefined;
     const recurrenceIdentityKey = (time: ICAL.Time) =>
       `${formatDate(time.year, time.month, time.day)}T${time.isDate ? '00:00:00' :
         `${formatTime(time.hour, time.minute)}:${time.second.toString().padStart(2, '0')}`}`;
@@ -426,10 +444,10 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
       const allDay = startTime.isDate;
       const start: CalendarLocalPoint = allDay
         ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
-        : pointFromEpoch(asEpoch(startTime, component, 'dtstart', sourceTimezone, false), options.targetTimezone);
+        : pointFromEpoch(asEpoch(startTime, component, 'dtstart', occurrenceStartFallback(component), false), options.targetTimezone);
       const end: CalendarLocalPoint = allDay
         ? { date: formatDate(endTime.year, endTime.month, endTime.day) }
-        : pointFromEpoch(asEpoch(endTime, component, 'dtend', sourceEndTimezone, false), options.targetTimezone);
+        : pointFromEpoch(asEpoch(endTime, component, 'dtend', occurrenceEndFallback(component), false), options.targetTimezone);
       return overlapsDateWindow({
         adapterId: 'ics',
         sourceEventId: uid,
@@ -462,14 +480,14 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
       }
       const start: CalendarLocalPoint = allDay
         ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
-        : pointFromEpoch(asEpoch(startTime, item.component, 'dtstart', sourceTimezone, occurrenceProvenance?.kind !== 'floating', occurrenceProvenance), options.targetTimezone);
+        : pointFromEpoch(asEpoch(startTime, item.component, 'dtstart', occurrenceStartFallback(item.component), occurrenceProvenance?.kind !== 'floating', occurrenceProvenance), options.targetTimezone);
       const end: CalendarLocalPoint = allDay
         ? { date: formatDate(endTime.year, endTime.month, endTime.day) }
-        : pointFromEpoch(asEpoch(endTime, item.component, 'dtend', sourceEndTimezone, occurrenceProvenance?.kind !== 'floating', occurrenceProvenance), options.targetTimezone);
+        : pointFromEpoch(asEpoch(endTime, item.component, 'dtend', occurrenceEndFallback(item.component), occurrenceProvenance?.kind !== 'floating', occurrenceProvenance), options.targetTimezone);
       if (start.date >= end.date && (allDay || start.date !== end.date || (start.time ?? '') >= (end.time ?? ''))) throw new Error(`Invalid calendar occurrence ${uid}.`);
       const sourceOccurrenceTimezone = occurrenceProvenance?.kind === 'tzid' ? occurrenceProvenance.timezone
         : occurrenceProvenance ? undefined
-          : (item.component.getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined) ?? sourceTimezone;
+          : (item.component.getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined) ?? occurrenceStartFallback(item.component);
       const event: CalendarReadEvent = {
         adapterId: 'ics', sourceEventId, title: item.summary || master.summary || 'Calendar commitment',
         allDay, busy: (item.component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
@@ -488,20 +506,26 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
     };
     const iterator = master.iterator();
     let next: ICAL.Time | null;
+    // IANA zones can differ by 26 hours (+14 to -12). A source-local
+    // occurrence on target end date +2 can still land on the target end date.
+    // Scan all of that first post-boundary date, including multiple RDATEs.
+    const logicalScanEnd = addCalendarDays(options.windowEndDate, 1);
+    let firstPostBoundaryDate: string | undefined;
     while ((next = iterator.next())) {
       if (++totalRecurrenceIterations > MAX_TOTAL_RECURRENCE_ITERATIONS) {
         throw new Error('Calendar recurrence exceeds the safe read limit.');
       }
+      const logicalDate = formatDate(next.year, next.month, next.day);
+      if (firstPostBoundaryDate && logicalDate > firstPostBoundaryDate &&
+          (!laterMovedExceptionScanKey || recurrenceIdentityKey(next) > laterMovedExceptionScanKey)) break;
       const details = master.getOccurrenceDetails(next);
       addOccurrence(details.recurrenceId, details.item, details.startDate, details.endDate);
       // Scan through a later moved override only via the master's recurrence
       // expansion. COUNT, UNTIL and EXDATE therefore remain authoritative:
       // an exception cannot create a logical slot that the master never emits.
-      if (
-        formatDate(next.year, next.month, next.day) > options.windowEndDate &&
-        (!laterMovedExceptionScanKey || recurrenceIdentityKey(next) >= laterMovedExceptionScanKey)
-      ) {
-        break;
+      if (logicalDate > logicalScanEnd &&
+          (!laterMovedExceptionScanKey || recurrenceIdentityKey(next) >= laterMovedExceptionScanKey)) {
+        firstPostBoundaryDate ??= logicalDate;
       }
     }
   }
