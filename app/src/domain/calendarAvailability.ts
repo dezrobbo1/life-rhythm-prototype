@@ -366,16 +366,18 @@ export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2Ava
     reason: 'usable day',
   };
   const blockers: MinuteRange[] = [];
+  let coreWorkBlocker: MinuteRange | undefined;
 
   if (
     context.workPeriod &&
     genericCandidateWorkPeriodIsRestricted(context.profile.workPlanningUse)
   ) {
-    blockers.push({
+    coreWorkBlocker = {
       start: minutesFromTime(context.workPeriod.start),
       end: minutesFromTime(context.workPeriod.end),
       reason: `work period (${context.profile.workPlanningUse})`,
-    });
+    };
+    blockers.push(coreWorkBlocker);
   }
 
   if (context.profile.kind === 'workday' && context.workPeriod && input.settings.dayProfileMigrationState.reviewState === 'reviewedAndEnabled') {
@@ -459,7 +461,9 @@ export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2Ava
       reason: 'explicit work-only period',
     }, envelope);
     if (workRange) {
-      const safeBlockers = mergeRanges(blockers.filter((blocker) => !blocker.reason.startsWith('work period'))
+      // Only the synthetic core-work blocker is replaced by work-only capacity.
+      // User-authored labels must never determine whether hard time is removed.
+      const safeBlockers = mergeRanges(blockers.filter((blocker) => blocker !== coreWorkBlocker)
         .map((blocker) => clipRange(blocker, workRange))
         .filter((blocker): blocker is MinuteRange => Boolean(blocker)));
       let start = workRange.start;

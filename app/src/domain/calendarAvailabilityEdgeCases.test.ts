@@ -52,6 +52,24 @@ function readEvent(uid: string, transp?: 'TRANSPARENT') {
 }
 
 describe('Gate 2 calendar availability edge semantics', () => {
+  it('keeps user-authored protected and ask-first blocks inside work-only time even if labels resemble core work', () => {
+    const base = settingsWithUsableWorkday();
+    const settings = settingsSchema.parse({
+      ...base,
+      dayProfiles: base.dayProfiles.map((profile) => profile.kind === 'workday'
+        ? { ...profile, workPlanningUse: 'workRhythmsOnly' }
+        : profile),
+      lifeShape: { ...base.lifeShape, timeBlocks: [
+        { id: 'lunch', label: 'work period lunch', type: 'protectedTime', schedulerUse: 'unavailable', days: ['Monday'], start: '12:00', end: '13:00' },
+        { id: 'review', label: 'work period review', type: 'looseTime', schedulerUse: 'askFirst', days: ['Monday'], start: '14:00', end: '14:30' },
+      ] },
+    });
+    const result = deriveGate2Availability({ settings, calendarEvents: [], date: '2026-09-07', timezone: 'Australia/Perth' });
+    expect(result.candidateIntervals.filter((interval) => interval.workOnly).map(({ start, end }) => [start, end])).toEqual([
+      ['08:00', '12:00'], ['13:00', '14:00'], ['14:30', '16:00'],
+    ]);
+  });
+
   it('does not turn a transparent calendar event into a hard scheduling commitment', () => {
     const event = readEvent('free-reminder', 'TRANSPARENT');
 
