@@ -530,7 +530,7 @@ export function SetupScreen({
                 onChange={(event) => setPlanningProfiles((current) => current.map((item) => item.id === profile.id
                   ? { ...item, workPlanningUse: event.target.value as DayProfile['workPlanningUse'] } : item))}>
                 <option value="unavailable">Unavailable for planning</option>
-                <option value="workRhythmsOnly">Reserved for work rhythms; personal tasks stay out</option>
+                <option value="workRhythmsOnly">Explicit work tasks and rhythms only</option>
                 <option value="allowSuitableTasks">Allow suitable tasks</option>
                 {profile.workPlanningUse === 'askFirst' ? <option disabled value="askFirst">Ask first (saved setting; automatic planning waits)</option> : null}
               </select></label>
@@ -842,7 +842,7 @@ export function SetupScreen({
           <Button onClick={saveCurrentSettings} variant="primary">Save settings</Button>
           <Button onClick={resetCurrentSettings}>Reset settings to defaults</Button>
         </div>
-        <p className="setup-note">Save writes theme, Start Boost safety, and Life shape only. Reset returns those settings to defaults.</p>
+        <p className="setup-note">Save writes appearance, Start Boost safety, Life Shape and reviewed planning hours. Reset returns these settings to defaults.</p>
         <p className="setup-note setup-note--quiet">Tasks, rhythms, scheduling preferences, packs, imports, dev tickets, and future modules are not changed by these two settings buttons.</p>
       </Card>
 

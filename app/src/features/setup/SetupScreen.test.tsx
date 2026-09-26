@@ -762,7 +762,7 @@ describe('Setup screen', () => {
     expect(screen.getByRole('button', { name: 'Save settings' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reset settings to defaults' })).toBeTruthy();
     expect(screen.getByText('This card changes theme, Start Boost safety, and Life Shape settings on this device.')).toBeTruthy();
-    expect(screen.getByText('Save writes theme, Start Boost safety, and Life shape only. Reset returns those settings to defaults.')).toBeTruthy();
+    expect(screen.getByText('Save writes appearance, Start Boost safety, Life Shape and reviewed planning hours. Reset returns these settings to defaults.')).toBeTruthy();
     expect(screen.getByText('Tasks, rhythms, scheduling preferences, packs, imports, dev tickets, and future modules are not changed by these two settings buttons.')).toBeTruthy();
   });
 
