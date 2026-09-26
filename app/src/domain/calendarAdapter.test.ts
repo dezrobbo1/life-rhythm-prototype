@@ -152,9 +152,9 @@ describe('ICS calendar adapter', () => {
     ]);
   });
 
-  it('skips an event with an unresolvable TZID without aborting other calendar events', () => {
+  it('fails closed when any busy event has an unresolvable TZID, even alongside valid events', () => {
     const adapter = new IcsCalendarAdapter();
-    const result = adapter.read(calendar(
+    expect(() => adapter.read(calendar(
       event([
         'UID:custom-zone',
         'SUMMARY:Unsupported timezone',
@@ -167,17 +167,12 @@ describe('ICS calendar adapter', () => {
         'DTSTART;TZID=Australia/Perth:20260907T110000',
         'DTEND;TZID=Australia/Perth:20260907T120000',
       ]),
-    ), options);
-
-    expect(result.events.map((candidate) => candidate.sourceEventId)).toEqual(['valid-after-bad-zone']);
-    expect(result.warnings).toEqual([
-      'Calendar event custom-zone was skipped because its timezone or local time could not be resolved.',
-    ]);
+    ), options)).toThrow('Busy calendar event custom-zone has an unresolved timezone or local time.');
   });
 
-  it('skips a nonexistent DST local time rather than silently normalizing it', () => {
+  it('fails closed on a nonexistent busy DST local time rather than silently normalizing it', () => {
     const adapter = new IcsCalendarAdapter();
-    const result = adapter.read(calendar(event([
+    expect(() => adapter.read(calendar(event([
       'UID:spring-gap',
       'SUMMARY:Nonexistent local time',
       'DTSTART;TZID=America/New_York:20260308T023000',
@@ -186,12 +181,7 @@ describe('ICS calendar adapter', () => {
       targetTimezone: 'America/New_York',
       windowStartDate: '2026-03-08',
       windowEndDate: '2026-03-08',
-    });
-
-    expect(result.events).toEqual([]);
-    expect(result.warnings).toEqual([
-      'Calendar event spring-gap was skipped because its timezone or local time could not be resolved.',
-    ]);
+    })).toThrow('Busy calendar event spring-gap has an unresolved timezone or local time.');
   });
 
   it('rejects an inverted read window', () => {

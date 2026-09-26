@@ -121,6 +121,20 @@ describe('bounded recurring calendar authority', () => {
     });
   });
 
+  it('converts an RDATE in its own timezone without borrowing the master timezone', () => {
+    const source = calendar(event([
+      'DTSTART;TZID=Australia/Perth:20261002T090000',
+      'DTEND;TZID=Australia/Perth:20261002T093000',
+      'RRULE:FREQ=WEEKLY;COUNT=1',
+      'RDATE;TZID=America/New_York:20261005T090000',
+    ]));
+    const rows = adapter.read(source, { ...options, targetTimezone: 'Australia/Perth' }).events;
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ start: { date: '2026-10-05', time: '21:00' }, end: { date: '2026-10-05', time: '21:30' } }),
+    ]));
+    expect(adapter.read(source, { ...options, targetTimezone: 'Australia/Perth' }).events).toEqual(rows);
+  });
+
   it('fails closed before expanding an excessive number of recurring series', () => {
     const manySeries = Array.from({ length: 251 }, (_, index) =>
       [

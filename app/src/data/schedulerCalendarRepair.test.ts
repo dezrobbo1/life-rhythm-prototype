@@ -6,8 +6,9 @@ import {
   resetCurrentLocalDataNamespace,
   setCurrentLocalDataNamespace,
 } from './localDataNamespace';
-import { commitCalendarSourceImport } from './calendarSourceMutationCoordinator';
+import { commitCalendarSourceBuffers, commitCalendarSourceImport } from './calendarSourceMutationCoordinator';
 import {
+  buildCurrentLiveSchedulingContext,
   ensureCurrentPrivatePlan,
   repairCurrentPrivatePlan,
 } from './schedulerPlanCoordinator';
@@ -86,6 +87,26 @@ beforeEach(async () => {
 });
 
 describe('calendar-driven rolling repair', () => {
+  it('includes adjacent-date events whose authored spacing blocks the planning horizon', async () => {
+    const source = ['BEGIN:VCALENDAR', 'VERSION:2.0',
+      'BEGIN:VEVENT', 'UID:previous-day', 'DTSTART;TZID=Australia/Perth:20260906T233000',
+      'DTEND;TZID=Australia/Perth:20260906T234500', 'END:VEVENT',
+      'BEGIN:VEVENT', 'UID:following-day', 'DTSTART;TZID=Australia/Perth:20260908T003000',
+      'DTEND;TZID=Australia/Perth:20260908T010000', 'END:VEVENT', 'END:VCALENDAR',
+    ].join('\r\n');
+    expect((await commitCalendarSourceImport({ label: 'Adjacent events', source, options: {
+      targetTimezone: timezone, windowStartDate: monday, windowEndDate: monday,
+    } })).ok).toBe(true);
+    expect((await commitCalendarSourceBuffers(60, 60)).ok).toBe(true);
+    const context = await buildCurrentLiveSchedulingContext({ ...coordinatorOptions(), readOnly: true });
+    expect(context.ok).toBe(true);
+    if (!context.ok) return;
+    expect(context.context.input.externalCommitments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourceId: 'previous-day', interval: expect.objectContaining({ date: monday, start: '00:00', end: '00:45' }) }),
+      expect.objectContaining({ sourceId: 'following-day', interval: expect.objectContaining({ date: monday, start: '23:30', end: '24:00' }) }),
+    ]));
+  });
+
   it('moves a flexible automatic placement when a read-only calendar commitment arrives', async () => {
     const initial = await ensureCurrentPrivatePlan(coordinatorOptions());
 

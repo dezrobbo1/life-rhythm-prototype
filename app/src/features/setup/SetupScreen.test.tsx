@@ -849,7 +849,11 @@ describe('Setup screen', () => {
     expect(within(workday).queryByText('Use a whole number from 0 to 180 minutes.')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Save settings' }));
     expect(onSaveSettings).toHaveBeenCalledTimes(1);
-    expect(onSaveSettings.mock.calls[0][0].dayProfiles?.find((profile) => profile.kind === 'workday')
+    const savedProfiles = onSaveSettings.mock.calls[0][0].dayProfiles as Array<{
+      kind: string;
+      workBoundaryMinutes?: { beforeTravel: number };
+    }>;
+    expect(savedProfiles.find((profile) => profile.kind === 'workday')
       ?.workBoundaryMinutes?.beforeTravel).toBe(0);
   });
 });
