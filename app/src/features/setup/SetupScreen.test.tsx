@@ -818,4 +818,38 @@ describe('Setup screen', () => {
     expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
   });
+
+  it('validates reviewed work-boundary minutes before saving without clamping or rounding', async () => {
+    const settings = createDefaultSettings('2026-09-26T00:00:00.000Z');
+    const onSaveSettings = vi.fn(async (input: SettingsWriteInput): Promise<SettingsWriteResult> => ({
+      ok: true,
+      settings: settingsSchema.parse({
+        ...settings,
+        lifeShape: input.lifeShape,
+        dayProfiles: input.dayProfiles,
+        weekdayProfileAssignments: input.weekdayProfileAssignments,
+      }),
+    }));
+    const user = userEvent.setup();
+    render(<SetupScreen settings={settings} onSaveSettings={onSaveSettings} />);
+    const workday = screen.getByRole('group', { name: 'Workday planning hours' });
+    const travelBefore = within(workday).getByLabelText('Travel before work (minutes)') as HTMLInputElement;
+
+    fireEvent.change(travelBefore, { target: { value: '1.5' } });
+    expect(within(workday).getByText('Use a whole number from 0 to 180 minutes.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(onSaveSettings).not.toHaveBeenCalled();
+    expect(screen.getByRole('status').textContent).toContain('highlighted work travel and transition minutes');
+
+    fireEvent.change(travelBefore, { target: { value: '181' } });
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(onSaveSettings).not.toHaveBeenCalled();
+
+    fireEvent.change(travelBefore, { target: { value: '0' } });
+    expect(within(workday).queryByText('Use a whole number from 0 to 180 minutes.')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(onSaveSettings).toHaveBeenCalledTimes(1);
+    expect(onSaveSettings.mock.calls[0][0].dayProfiles?.find((profile) => profile.kind === 'workday')
+      ?.workBoundaryMinutes?.beforeTravel).toBe(0);
+  });
 });

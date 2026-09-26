@@ -86,6 +86,11 @@ const defaultLabelByTimeBlockType: Record<LifeShapeTimeBlockState['type'], strin
 };
 
 const defaultTimeBlockLabels = new Set(Object.values(defaultLabelByTimeBlockType));
+const workBoundaryKeys = ['beforeTravel', 'afterTravel', 'beforeTransition', 'afterTransition'] as const;
+
+function validWorkBoundaryMinutes(value: number | undefined) {
+  return value === undefined || (Number.isInteger(value) && value >= 0 && value <= 180);
+}
 
 export function SetupScreen({
   onExportSettingsBackup,
@@ -249,6 +254,15 @@ export function SetupScreen({
   async function saveCurrentSettings() {
     if (!onSaveSettings) {
       setStatus('Settings save controls are not connected in this render.');
+      return;
+    }
+
+    const invalidWorkBoundary = planningProfiles.some((profile) =>
+      profile.kind === 'workday' &&
+      workBoundaryKeys.some((key) => !validWorkBoundaryMinutes(profile.workBoundaryMinutes?.[key])),
+    );
+    if (invalidWorkBoundary) {
+      setStatus('Check the highlighted work travel and transition minutes.');
       return;
     }
 
@@ -538,9 +552,13 @@ export function SetupScreen({
               <div className="life-shape-inline">
                 {(['beforeTravel', 'afterTravel', 'beforeTransition', 'afterTransition'] as const).map((key) => <label key={key}>
                   <span>{({ beforeTravel: 'Travel before work', afterTravel: 'Travel after work', beforeTransition: 'Transition before work', afterTransition: 'Transition after work' })[key]} (minutes)</span>
-                  <input type="number" min="0" max="180" value={profile.workBoundaryMinutes?.[key] ?? 0}
+                  <input type="number" min="0" max="180" step="1" value={profile.workBoundaryMinutes?.[key] ?? 0}
+                    aria-invalid={!validWorkBoundaryMinutes(profile.workBoundaryMinutes?.[key])}
                     onChange={(event) => setPlanningProfiles((current) => current.map((item) => item.id === profile.id
                       ? { ...item, workBoundaryMinutes: { beforeTravel: 0, afterTravel: 0, beforeTransition: 0, afterTransition: 0, ...item.workBoundaryMinutes, [key]: Number(event.target.value) } } : item))} />
+                  {!validWorkBoundaryMinutes(profile.workBoundaryMinutes?.[key]) ? (
+                    <small className="form-feedback" role="alert">Use a whole number from 0 to 180 minutes.</small>
+                  ) : null}
                 </label>)}
               </div>
               <p>These four values are yours to review. Older commute and transition notes are not used as blocking time.</p>

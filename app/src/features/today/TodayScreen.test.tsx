@@ -2806,4 +2806,42 @@ describe('Today screen', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Start Boost' })).toBeNull();
   });
+
+  it('uses settings-specific repair semantics and gives settings precedence when both markers are pending', async () => {
+    const user = userEvent.setup();
+    const pendingPlan = {
+      placements: [],
+      rejectedExistingPlacements: [],
+      unscheduledIntentionIds: [],
+      unscheduledRhythmIds: [],
+    };
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState
+      .mockResolvedValueOnce({
+        settingsRepairPendingAt: '2026-09-15T01:00:00.000Z',
+        calendarRepairPendingAt: '2026-09-15T01:00:00.000Z',
+        status: 'ok',
+        updatedAt: '2026-09-15T00:00:00.000Z',
+        plan: pendingPlan,
+      })
+      .mockResolvedValue({
+        status: 'ok',
+        updatedAt: '2026-09-15T01:05:00.000Z',
+        plan: pendingPlan,
+      });
+
+    render(<TodayScreen />);
+
+    const later = screen.getByRole('region', { name: 'Later' });
+    expect((await within(later).findByRole('alert')).textContent).toContain(
+      'The flexible private plan needs updating after planning settings changed.',
+    );
+    expect(within(later).queryByText('The flexible private plan needs repair after a calendar change.')).toBeNull();
+
+    await user.click(within(later).getByRole('button', { name: 'Retry update' }));
+
+    expect(schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledWith({
+      reason: 'Retry the saved planning settings using current scheduling information.',
+      trigger: 'settingsChanged',
+    });
+  });
 });

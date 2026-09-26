@@ -68,6 +68,7 @@ type TodayPlanReadState =
   | {
       status: 'ready';
       calendarRepairPending: boolean;
+      settingsRepairPending: boolean;
       taskInputRepairPending: boolean;
       rhythmInputRepairPending: boolean;
       readDate: string;
@@ -527,6 +528,26 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
     }
   }
 
+  async function retryPendingSettingsRepair() {
+    setCalendarRepairRetryBusy(true);
+    setCalendarRepairRetryError('');
+
+    try {
+      const repaired = await repairCurrentPrivatePlan({
+        reason: 'Retry the saved planning settings using current scheduling information.',
+        trigger: 'settingsChanged',
+      });
+      if (!repaired.ok) {
+        setCalendarRepairRetryError(repaired.errors.join(' '));
+      }
+    } catch {
+      setCalendarRepairRetryError('The flexible private plan could not be repaired.');
+    } finally {
+      setCalendarRepairRetryBusy(false);
+      refreshTodayPlanFacts();
+    }
+  }
+
   async function retryPendingTaskInputRepair() {
     setCalendarRepairRetryBusy(true);
     setCalendarRepairRetryError('');
@@ -803,11 +824,12 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         return;
       }
 
-      const calendarRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.calendarRepairPendingAt || currentSaved.settingsRepairPendingAt);
+      const settingsRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.settingsRepairPendingAt);
+      const calendarRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.calendarRepairPendingAt);
       const taskInputRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.taskInputRepairPendingAt);
       const rhythmInputRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.rhythmInputRepairPendingAt);
       const planStatus = currentSaved.status === 'ok'
-        ? calendarRepairPending || taskInputRepairPending || rhythmInputRepairPending
+        ? settingsRepairPending || calendarRepairPending || taskInputRepairPending || rhythmInputRepairPending
           ? 'error' as const
           : 'available' as const
         : currentSaved.status;
@@ -816,7 +838,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         nowTime: live.now.time,
         input: live.context.input,
         planStatus,
-        plan: currentSaved.status === 'ok' && !calendarRepairPending && !taskInputRepairPending && !rhythmInputRepairPending
+        plan: currentSaved.status === 'ok' && !settingsRepairPending && !calendarRepairPending && !taskInputRepairPending && !rhythmInputRepairPending
           ? currentSaved.plan
           : null,
         titleByTargetId: live.context.titleByTargetId,
@@ -832,6 +854,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       setTodayPlanReadState({
         status: 'ready',
         calendarRepairPending,
+        settingsRepairPending,
         taskInputRepairPending,
         rhythmInputRepairPending,
         readDate,
@@ -1352,7 +1375,19 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
           </div>
         ) : (
           <>
-            {todayPlanReadState.calendarRepairPending ? (
+            {todayPlanReadState.settingsRepairPending ? (
+              <div className="surface-read-state surface-read-state--error" role="alert">
+                <h3>The flexible private plan needs updating after planning settings changed.</h3>
+                <p>Now remains available. Fixed and user-confirmed facts can still appear, but automatic private placements are hidden until the settings repair succeeds.</p>
+                {calendarRepairRetryError ? <p>{calendarRepairRetryError}</p> : null}
+                <Button
+                  disabled={calendarRepairRetryBusy}
+                  onClick={() => { void retryPendingSettingsRepair(); }}
+                >
+                  {calendarRepairRetryBusy ? 'Updating...' : 'Retry update'}
+                </Button>
+              </div>
+            ) : todayPlanReadState.calendarRepairPending ? (
               <div className="surface-read-state surface-read-state--error" role="alert">
                 <h3>The flexible private plan needs repair after a calendar change.</h3>
                 <p>Now remains available. Fixed and user-confirmed facts can still appear, but automatic private placements are hidden until repair succeeds.</p>

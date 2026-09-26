@@ -292,4 +292,53 @@ describe('ICS calendar adapter', () => {
     expect(moved).toHaveLength(2);
     expect(new Set(moved.map((candidate) => candidate.sourceEventId)).size).toBe(2);
   });
+
+  it('does not let a moved post-horizon exception bypass COUNT', () => {
+    const adapter = new IcsCalendarAdapter();
+    const source = calendar(
+      event([
+        'UID:count-limited',
+        'SUMMARY:Count limited',
+        'DTSTART;TZID=Australia/Perth:20260907T090000',
+        'DTEND;TZID=Australia/Perth:20260907T093000',
+        'RRULE:FREQ=DAILY;COUNT=2',
+      ]),
+      event([
+        'UID:count-limited',
+        'RECURRENCE-ID;TZID=Australia/Perth:20260909T090000',
+        'SUMMARY:Invalid moved slot',
+        'DTSTART;TZID=Australia/Perth:20260908T150000',
+        'DTEND;TZID=Australia/Perth:20260908T153000',
+      ]),
+    );
+
+    const result = adapter.read(source, options);
+
+    expect(result.events.some((candidate) => candidate.title === 'Invalid moved slot')).toBe(false);
+  });
+
+  it('does not let a moved post-horizon exception bypass EXDATE', () => {
+    const adapter = new IcsCalendarAdapter();
+    const source = calendar(
+      event([
+        'UID:excluded-slot',
+        'SUMMARY:Excluded slot',
+        'DTSTART;TZID=Australia/Perth:20260907T090000',
+        'DTEND;TZID=Australia/Perth:20260907T093000',
+        'RRULE:FREQ=DAILY;COUNT=3',
+        'EXDATE;TZID=Australia/Perth:20260909T090000',
+      ]),
+      event([
+        'UID:excluded-slot',
+        'RECURRENCE-ID;TZID=Australia/Perth:20260909T090000',
+        'SUMMARY:Excluded moved slot',
+        'DTSTART;TZID=Australia/Perth:20260908T150000',
+        'DTEND;TZID=Australia/Perth:20260908T153000',
+      ]),
+    );
+
+    const result = adapter.read(source, options);
+
+    expect(result.events.some((candidate) => candidate.title === 'Excluded moved slot')).toBe(false);
+  });
 });

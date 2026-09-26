@@ -380,16 +380,54 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
       component: ICAL.Component,
       propertyName: 'dtstart' | 'dtend',
       fallbackTimezone?: string,
+      warnOnFloating = true,
     ): number => {
       const timeZone = component.getFirstProperty(propertyName)?.getParameter('tzid') as string | undefined;
       const tz = timeZone?.replace(/^"|"$/g, '') ?? fallbackTimezone;
       if (time.zone === ICAL.Timezone.utcTimezone) return time.toJSDate().getTime();
-      if (!tz && !time.isDate) warnings.push(`Floating calendar time for ${uid} was interpreted in ${options.targetTimezone}.`);
+      if (!tz && !time.isDate && warnOnFloating) {
+        warnings.push(`Floating calendar time for ${uid} was interpreted in ${options.targetTimezone}.`);
+      }
       return zonedLocalToEpoch(
         { year: time.year, month: time.month, day: time.day, hour: time.hour, minute: time.minute, second: time.second },
         tz ?? options.targetTimezone,
       );
     };
+    const recurrenceIdentityKey = (time: ICAL.Time) =>
+      `${formatDate(time.year, time.month, time.day)}T${time.isDate ? '00:00:00' :
+        `${formatTime(time.hour, time.minute)}:${time.second.toString().padStart(2, '0')}`}`;
+    const exceptionOverlapsWindow = (component: ICAL.Component) => {
+      if (component.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED') return false;
+      const item = new ICAL.Event(component);
+      const startTime = item.startDate;
+      const endTime = item.endDate;
+      const allDay = startTime.isDate;
+      const start: CalendarLocalPoint = allDay
+        ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
+        : pointFromEpoch(asEpoch(startTime, component, 'dtstart', sourceTimezone, false), options.targetTimezone);
+      const end: CalendarLocalPoint = allDay
+        ? { date: formatDate(endTime.year, endTime.month, endTime.day) }
+        : pointFromEpoch(asEpoch(endTime, component, 'dtend', sourceEndTimezone, false), options.targetTimezone);
+      return overlapsDateWindow({
+        adapterId: 'ics',
+        sourceEventId: uid,
+        title: item.summary || master.summary || 'Calendar commitment',
+        allDay,
+        busy: true,
+        start,
+        end,
+        timezone: options.targetTimezone,
+      }, options.windowStartDate, options.windowEndDate);
+    };
+    const laterMovedExceptionScanKey = parts
+      .filter((part) => part.hasProperty('recurrence-id'))
+      .filter((part) => {
+        const id = part.getFirstPropertyValue('recurrence-id') as ICAL.Time;
+        return formatDate(id.year, id.month, id.day) > options.windowEndDate && exceptionOverlapsWindow(part);
+      })
+      .map((part) => recurrenceIdentityKey(part.getFirstPropertyValue('recurrence-id') as ICAL.Time))
+      .sort()
+      .at(-1);
     const emittedOccurrenceIds = new Set<string>();
     const addOccurrence = (identity: ICAL.Time, item: ICAL.Event, startTime: ICAL.Time, endTime: ICAL.Time) => {
       if (item.component.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED') return;
@@ -428,15 +466,15 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
       }
       const details = master.getOccurrenceDetails(next);
       addOccurrence(details.recurrenceId, details.item, details.startDate, details.endDate);
-      // Earlier logical dates can move into the horizon, so read them until the horizon ends.
-      if (formatDate(next.year, next.month, next.day) > options.windowEndDate) break;
-    }
-    // A later logical date can also be moved into the requested horizon.
-    for (const exception of parts.filter((part) => part.hasProperty('recurrence-id'))) {
-      const id = exception.getFirstPropertyValue('recurrence-id') as ICAL.Time;
-      if (formatDate(id.year, id.month, id.day) <= options.windowEndDate) continue;
-      const item = new ICAL.Event(exception);
-      addOccurrence(id, item, item.startDate, item.endDate);
+      // Scan through a later moved override only via the master's recurrence
+      // expansion. COUNT, UNTIL and EXDATE therefore remain authoritative:
+      // an exception cannot create a logical slot that the master never emits.
+      if (
+        formatDate(next.year, next.month, next.day) > options.windowEndDate &&
+        (!laterMovedExceptionScanKey || recurrenceIdentityKey(next) >= laterMovedExceptionScanKey)
+      ) {
+        break;
+      }
     }
   }
   return events;
