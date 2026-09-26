@@ -179,6 +179,39 @@ function validTaskPoolBackupJson() {
 }
 
 describe('Setup screen', () => {
+  it('lets a reviewed person remove only one profile usable-day envelope by clearing both times', async () => {
+    const defaults = createDefaultSettings('2026-09-26T00:00:00.000Z');
+    const settings = settingsSchema.parse({
+      ...defaults,
+      dayProfileMigrationState: {
+        ...defaults.dayProfileMigrationState,
+        reviewState: 'reviewedAndEnabled',
+        reviewedAt: '2026-09-26T00:00:00.000Z',
+      },
+      dayProfiles: defaults.dayProfiles.map((profile) => ({
+        ...profile,
+        usableDay: profile.kind === 'workday'
+          ? { start: '06:30', end: '22:00' }
+          : { start: '07:00', end: '21:00' },
+      })),
+    });
+    const onSaveSettings = vi.fn(async (input: SettingsWriteInput): Promise<SettingsWriteResult> => ({
+      ok: true, settings: settingsSchema.parse({ ...settings, dayProfiles: input.dayProfiles }),
+    }));
+    render(<SetupScreen settings={settings} onSaveSettings={onSaveSettings} />);
+    const workday = screen.getByRole('group', { name: 'Workday planning hours' });
+    fireEvent.change(within(workday).getByLabelText('Earliest planning time'), { target: { value: '' } });
+    fireEvent.change(within(workday).getByLabelText('Latest planning time'), { target: { value: '' } });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(onSaveSettings).toHaveBeenCalledTimes(1);
+    expect(onSaveSettings.mock.calls[0][0]).toMatchObject({
+      activatePlanningDay: true,
+      dayProfiles: [expect.objectContaining({ kind: 'workday', usableDay: undefined }),
+        expect.objectContaining({ kind: 'nonWorkday', usableDay: { start: '07:00', end: '21:00' } })],
+    });
+    expect(screen.getByRole('status').textContent).toContain('Settings saved');
+  });
+
   it('saves reviewed weekday and usable-day choices only after explicit confirmation', async () => {
     const settings = createDefaultSettings('2026-09-26T00:00:00.000Z');
     const onSaveSettings = vi.fn(async (input: SettingsWriteInput): Promise<SettingsWriteResult> => ({

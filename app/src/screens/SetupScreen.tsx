@@ -527,10 +527,14 @@ export function SetupScreen({
               {(['start', 'end'] as const).map((edge) => <label key={edge}>
                 <span>{edge === 'start' ? 'Earliest planning time' : 'Latest planning time'}</span>
                 <input type="time" value={profile.usableDay?.[edge] ?? ''}
-                  onChange={(event) => setPlanningProfiles((current) => current.map((item) => item.id === profile.id
-                    ? { ...item, usableDay: { start: item.usableDay?.start ?? '', end: item.usableDay?.end ?? '', [edge]: event.target.value } } : item))} />
+                  onChange={(event) => setPlanningProfiles((current) => current.map((item) => {
+                    if (item.id !== profile.id) return item;
+                    const usableDay = { start: item.usableDay?.start ?? '', end: item.usableDay?.end ?? '', [edge]: event.target.value };
+                    return { ...item, usableDay: usableDay.start || usableDay.end ? usableDay : undefined };
+                  }))} />
               </label>)}
             </div>
+            <p>Clear both planning times to stop using this day’s envelope without changing the other days.</p>
             {profile.kind === 'workday' ? <>
               <div className="life-shape-inline">
                 {(['start', 'end'] as const).map((edge) => <label key={edge}>
