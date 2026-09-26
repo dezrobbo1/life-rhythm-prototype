@@ -97,6 +97,7 @@ export function deriveDurationLearningEvidence(
     if (
       event.eventType !== 'taskCompleted' ||
       !event.templateId ||
+      event.rhythmInstanceId ||
       event.actualMinutes === undefined ||
       event.actualMinutes <= 0
     ) {

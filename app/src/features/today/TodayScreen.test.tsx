@@ -43,11 +43,16 @@ const taskLifecycleRepositoryMocks = vi.hoisted(() => ({
 
 const schedulerPlanCoordinatorMocks = vi.hoisted(() => ({
   buildCurrentLiveSchedulingContext: vi.fn(),
+  ensureCurrentPrivatePlan: vi.fn(),
   repairCurrentPrivatePlan: vi.fn(),
 }));
 
 const schedulerPlanStateRepositoryMocks = vi.hoisted(() => ({
   loadSchedulerPlanState: vi.fn(),
+}));
+const rhythmTodayRepositoryMocks = vi.hoisted(() => ({
+  syncScheduledRhythmOccurrencesToToday: vi.fn(),
+  addRhythmToTodayOnce: vi.fn(),
 }));
 
 vi.mock('../../data/activeTaskRepository', () => activeTaskRepositoryMocks);
@@ -63,6 +68,7 @@ vi.mock('../../data/reducedDayCoordinator', () => reducedDayMocks);
 vi.mock('../../data/taskLifecycleRepository', () => taskLifecycleRepositoryMocks);
 vi.mock('../../data/schedulerPlanCoordinator', () => schedulerPlanCoordinatorMocks);
 vi.mock('../../data/schedulerPlanStateRepository', () => schedulerPlanStateRepositoryMocks);
+vi.mock('../../data/rhythmTodayRepository', () => rhythmTodayRepositoryMocks);
 
 import App from '../../App';
 import { TodayScreen } from '../../screens/TodayScreen';
@@ -238,7 +244,9 @@ beforeEach(() => {
     now: { date: '2026-09-15', time: '09:00', timezone: 'Australia/Perth' },
   });
   schedulerPlanCoordinatorMocks.repairCurrentPrivatePlan.mockResolvedValue({ ok: true });
+  schedulerPlanCoordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({ ok: true });
   schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({ status: 'missing' });
+  rhythmTodayRepositoryMocks.syncScheduledRhythmOccurrencesToToday.mockResolvedValue({ ok: true, tasks: [], mutated: false });
 });
 
 afterEach(() => {
@@ -249,6 +257,61 @@ afterEach(() => {
 });
 
 describe('Today screen', () => {
+  it.each([false, true])('reloads Today projections only when rhythm sync mutated=%s', async (mutated) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 15, 12));
+    const date = '2026-09-15';
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok', updatedAt: '2026-09-15T01:00:00.000Z',
+      plan: {
+        placements: [{
+          id: 'rhythm-placement', intentionId: 'rhythm-instance', targetKind: 'rhythm',
+          rhythmId: 'rhythm-instance', rhythmInstanceId: 'rhythm-instance',
+          date, start: '09:00', end: '09:10', origin: 'scheduler', variantKind: 'normal', provenance: [],
+        }],
+        unscheduledIntentionIds: [], unscheduledRhythmIds: [], rejectedExistingPlacements: [],
+      },
+    });
+    rhythmTodayRepositoryMocks.syncScheduledRhythmOccurrencesToToday.mockResolvedValue({
+      ok: true, tasks: [persistedOneOffTask()], mutated: false,
+    });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const rendered = render(<TodayScreen planRevision={0} />);
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    await waitFor(() => expect(rhythmTodayRepositoryMocks.syncScheduledRhythmOccurrencesToToday.mock.calls.length).toBeGreaterThan(0));
+    expect(activeTaskRepositoryMocks.loadActiveTodayTasksResult).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Start Boost' }));
+    expect(screen.getByRole('dialog', { name: 'Start Boost' })).toBeTruthy();
+    const before = activeTaskRepositoryMocks.loadActiveTodayTasksResult.mock.calls.length;
+    const beforeSync = rhythmTodayRepositoryMocks.syncScheduledRhythmOccurrencesToToday.mock.calls.length;
+    const beforeRepair = schedulerPlanCoordinatorMocks.ensureCurrentPrivatePlan.mock.calls.length;
+    rhythmTodayRepositoryMocks.syncScheduledRhythmOccurrencesToToday.mockResolvedValue({
+      ok: true, tasks: [persistedOneOffTask()], mutated,
+    });
+    rendered.rerender(<TodayScreen planRevision={1} />);
+    await waitFor(() => expect(rhythmTodayRepositoryMocks.syncScheduledRhythmOccurrencesToToday.mock.calls.length).toBeGreaterThan(beforeSync));
+    if (mutated) {
+      await waitFor(() => expect(activeTaskRepositoryMocks.loadActiveTodayTasksResult).toHaveBeenCalledTimes(before + 1));
+      expect(schedulerPlanCoordinatorMocks.ensureCurrentPrivatePlan.mock.calls.length).toBeGreaterThan(beforeRepair);
+      expect(screen.queryByRole('dialog', { name: 'Start Boost' })).toBeNull();
+    } else {
+      expect(activeTaskRepositoryMocks.loadActiveTodayTasksResult).toHaveBeenCalledTimes(before);
+      expect(schedulerPlanCoordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(beforeRepair);
+      expect(screen.getByRole('dialog', { name: 'Start Boost' })).toBeTruthy();
+      expect(screen.getByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+      await user.click(screen.getByRole('button', { name: 'Close Start Boost' }));
+      await user.click(screen.getByRole('button', { name: 'Start task' }));
+      expect(screen.getByText('In progress. Keep it small.')).toBeTruthy();
+      const beforeAnotherRead = activeTaskRepositoryMocks.loadActiveTodayTasksResult.mock.calls.length;
+      const beforeAnotherSync = rhythmTodayRepositoryMocks.syncScheduledRhythmOccurrencesToToday.mock.calls.length;
+      rendered.rerender(<TodayScreen planRevision={2} />);
+      await waitFor(() => expect(rhythmTodayRepositoryMocks.syncScheduledRhythmOccurrencesToToday.mock.calls.length).toBeGreaterThan(beforeAnotherSync));
+      expect(activeTaskRepositoryMocks.loadActiveTodayTasksResult).toHaveBeenCalledTimes(beforeAnotherRead);
+      expect(screen.getByText('In progress. Keep it small.')).toBeTruthy();
+      expect(screen.getByRole('article', { name: 'Pay water bill' })).toBeTruthy();
+    }
+  });
   it('offers correction for another saved one-off without changing the current focus', async () => {
     activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([
       persistedOneOffTask(),

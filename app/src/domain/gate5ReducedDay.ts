@@ -178,6 +178,14 @@ function applyReducedDay(plan: SchedulerPlan, input: SchedulingDomainModel): Sch
       kind: 'variantChanged',
       targetKind: targetKind(after),
       targetId: targetId(after),
+      ...(after.rhythmInstanceId
+        ? {
+            rhythmTemplateId: after.rhythmTemplateId,
+            rhythmPlanId: after.rhythmPlanId,
+            rhythmRecurrenceRevisionId: after.rhythmRecurrenceRevisionId,
+            rhythmInstanceId: after.rhythmInstanceId,
+          }
+        : {}),
       from: placementPoint(before),
       to: placementPoint(after),
       reason: reducedDayReason,

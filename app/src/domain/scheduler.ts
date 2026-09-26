@@ -495,7 +495,9 @@ function preferenceAppliesToRhythm(
 ): boolean {
   switch (preference.targetKind) {
     case 'rhythm':
-      return preference.targetValue === rhythm.id;
+      return preference.targetValue === rhythm.id ||
+        preference.targetValue === rhythm.templateId ||
+        preference.targetValue === `rhythm:${rhythm.templateId}`;
     case 'area':
       return preference.targetValue === rhythm.area;
     default:
@@ -871,14 +873,20 @@ function findPlacementForRhythm(
   );
 
   const placements: CandidatePlacement[] = [];
-  for (const gap of candidateGaps(input, accepted, allowedDates)) {
+  const eligibleDates = new Set([...allowedDates].filter((date) =>
+    (!rhythm.eligibilityStartDate || date >= rhythm.eligibilityStartDate) &&
+    (!rhythm.eligibilityEndDate || date <= rhythm.eligibilityEndDate),
+  ));
+  for (const gap of candidateGaps(input, accepted, eligibleDates)) {
     const forcedMinimum = eligibleRhythmMinimum(rhythm, input, gap.candidate.date);
     const variants = forcedMinimum ? [forcedMinimum] : orderedVariants(rhythm.variants);
     for (const [variantRank, variant] of variants.entries()) {
       const existingOnDay = accepted.filter((placement) =>
         placement.date === gap.candidate.date &&
         targetKind(placement) === 'rhythm' &&
-        rhythmIdForPlacement(placement) === rhythm.id,
+        (rhythm.planId
+          ? placement.rhythmPlanId === rhythm.planId
+          : rhythmIdForPlacement(placement) === rhythm.id),
       ).length;
       if (existingOnDay >= rhythm.maxPerDay) continue;
 
@@ -908,6 +916,12 @@ function findPlacementForRhythm(
           intentionId: rhythm.id,
           targetKind: 'rhythm',
           rhythmId: rhythm.id,
+          ...(rhythm.templateId ? { rhythmTemplateId: rhythm.templateId } : {}),
+          ...(rhythm.planId ? { rhythmPlanId: rhythm.planId } : {}),
+          ...(rhythm.recurrenceRevisionId
+            ? { rhythmRecurrenceRevisionId: rhythm.recurrenceRevisionId }
+            : {}),
+          ...(rhythm.rhythmInstanceId ? { rhythmInstanceId: rhythm.rhythmInstanceId } : {}),
           date: gap.candidate.date,
           start: timeFromMinutes(start),
           end: timeFromMinutes(end),
@@ -1016,6 +1030,27 @@ function scheduleRhythms(
   const unscheduled = new Set<string>();
 
   for (const rhythm of [...rhythms].sort((a, b) => a.id.localeCompare(b.id))) {
+    if (rhythm.rhythmInstanceId) {
+      const existing = accepted.some((placement) =>
+        targetKind(placement) === 'rhythm' && placement.rhythmInstanceId === rhythm.rhythmInstanceId,
+      );
+      if (existing || rhythm.lifecycleState !== 'eligible') continue;
+      const allowedDates = new Set(planningDates.filter((date) =>
+        (!rhythm.eligibilityStartDate || date >= rhythm.eligibilityStartDate) &&
+        (!rhythm.eligibilityEndDate || date <= rhythm.eligibilityEndDate),
+      ));
+      const firstPlanningDate = [...planningDates].sort()[0];
+      if (allowedDates.size === 0 && rhythm.eligibilityEndDate && firstPlanningDate &&
+          rhythm.eligibilityEndDate < firstPlanningDate) {
+        // The quota period ended. Preserve the instance as factual history,
+        // but do not turn it into an overdue or unscheduled debt item.
+        continue;
+      }
+      const placement = findPlacementForRhythm(rhythm, accepted, input, 0, allowedDates);
+      if (placement) accepted.push(placement);
+      else unscheduled.add(rhythm.id);
+      continue;
+    }
     const periodDates = new Map<string, string[]>();
     const boundedWeeklyHorizon = isBoundedWeeklyHorizon(rhythm, planningDates);
     if (boundedWeeklyHorizon) {

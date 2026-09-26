@@ -648,6 +648,7 @@ describe('settings backup import validation', () => {
     const blockedKeys = [
       'softPlacements',
       'rhythmPlans',
+      'rhythmRecurrenceRevisions',
       'rhythmInstances',
       'calendarData',
       'analytics',

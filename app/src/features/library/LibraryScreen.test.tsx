@@ -1,802 +1,310 @@
 // @vitest-environment jsdom
 
+import 'fake-indexeddb/auto';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  buildLibraryRhythmBackupPayload,
-  libraryRhythmBackupSchema,
-  serializeLibraryRhythmBackup,
-} from '../../data/libraryRhythmBackup';
-import { activeTaskSchema, rhythmTemplateSchema, type ActiveTask, type RhythmTemplate } from '../../data/schemas';
-import { createDefaultSettings } from '../../data/settingsRepository';
-
-const activeTaskRepositoryMocks = vi.hoisted(() => ({
-  createActiveTaskId: vi.fn((prefix = 'active-task') => `${prefix}-test-id`),
-  loadActiveTodayTasks: vi.fn(),
-  loadActiveTodayTasksResult: vi.fn(),
-  loadPersistedActiveTasksResult: vi.fn(),
-  saveActiveTodayTask: vi.fn(),
-  updateActiveTaskStatus: vi.fn(),
-}));
-
-const libraryRepositoryMocks = vi.hoisted(() => ({
-  loadCustomLibraryRhythms: vi.fn(),
-  saveCustomLibraryRhythm: vi.fn(),
-}));
-
-const settingsRepositoryMocks = vi.hoisted(() => ({
-  loadSettingsResult: vi.fn(),
-}));
-const taskDefinitionReconciliationMocks = vi.hoisted(() => ({
-  reconcileTaskDefinitionAfterWrite: vi.fn(),
-}));
-
-vi.mock('../../data/activeTaskRepository', () => activeTaskRepositoryMocks);
-vi.mock('../../data/libraryRhythmRepository', () => libraryRepositoryMocks);
-vi.mock('../../data/taskDefinitionPlanReconciliation', () => taskDefinitionReconciliationMocks);
-vi.mock('../../data/settingsRepository', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../data/settingsRepository')>();
-
-  return {
-    ...actual,
-    loadSettingsResult: settingsRepositoryMocks.loadSettingsResult,
-  };
-});
-
-import App from '../../App';
 import { LibraryScreen } from '../../screens/LibraryScreen';
+import {
+  createAuthLocalDataNamespace,
+  getCurrentLifeRhythmDatabase,
+  resetCurrentLocalDataNamespace,
+  setCurrentLocalDataNamespace,
+} from '../../data/localDataNamespace';
+import { parseRhythmAuthorityBackupJson } from '../../data/rhythmAuthorityBackup';
+import { rhythmTemplateSchema } from '../../data/schemas';
+import * as authorityRepository from '../../data/rhythmAuthorityRepository';
+import { LibraryRhythmCard, type LibraryRhythmConfigurationView } from './LibraryRhythmCard';
+import { mockLibraryRhythms } from './mockLibraryData';
 
-function savedRhythmTemplate(overrides: Partial<RhythmTemplate> = {}): RhythmTemplate {
-  return rhythmTemplateSchema.parse({
-    area: 'money',
-    createdAt: '2026-06-16T00:00:00.000Z',
-    full: {
-      label: 'Put papers together and name the next admin step.',
-      minutes: 20,
-    },
-    id: 'custom-paperwork-landing',
-    minimum: {
-      label: 'Put one paper in the folder.',
-      minutes: 5,
-    },
-    normal: {
-      label: 'Put the loose papers in one safe place.',
-      minutes: 10,
-    },
-    purpose: 'Give loose paperwork one safe place.',
-    source: 'custom',
-    title: 'Paperwork landing',
-    updatedAt: '2026-06-16T00:00:00.000Z',
-    ...overrides,
-  });
-}
-
-function validLibraryBackupJson(overrides: Partial<RhythmTemplate> = {}) {
-  return serializeLibraryRhythmBackup(
-    buildLibraryRhythmBackupPayload([
-      savedRhythmTemplate({
-        id: 'custom-backup-paperwork',
-        title: 'Backup paperwork rhythm',
-        ...overrides,
-      }),
-    ], '2026-06-16T00:00:00.000Z'),
-  );
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
-
-  return { promise, resolve };
-}
-
-function readableCustomRhythms(items: RhythmTemplate[] = [], invalidRecordCount = 0) {
-  return {
-    invalidRecordCount,
-    items,
-    status: invalidRecordCount > 0 ? 'partial' as const : 'ok' as const,
-  };
-}
-
-const originalCreateObjectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
-const originalRevokeObjectUrl = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
-
-function mockDownloadApi() {
-  const createObjectUrl = vi.fn((blob: Blob) => {
-    void blob;
-    return 'blob:library-rhythm-backup';
-  });
-  const revokeObjectUrl = vi.fn();
-  const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-
-  Object.defineProperty(URL, 'createObjectURL', {
-    configurable: true,
-    value: createObjectUrl,
-  });
-  Object.defineProperty(URL, 'revokeObjectURL', {
-    configurable: true,
-    value: revokeObjectUrl,
-  });
-
-  return {
-    anchorClick,
-    createObjectUrl,
-    revokeObjectUrl,
-  };
-}
+let testIndex = 0;
 
 beforeEach(() => {
-  activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([]);
-  activeTaskRepositoryMocks.loadActiveTodayTasksResult.mockImplementation(async () => ({
-    invalidRecordCount: 0,
-    items: await activeTaskRepositoryMocks.loadActiveTodayTasks(),
-    status: 'ok',
-  }));
-  activeTaskRepositoryMocks.loadPersistedActiveTasksResult.mockResolvedValue({
-    invalidRecordCount: 0,
-    items: [],
-    status: 'ok',
-  });
-  activeTaskRepositoryMocks.saveActiveTodayTask.mockImplementation(async (task: ActiveTask) => ({
-    alreadyExists: false,
-    ok: true,
-    task: activeTaskSchema.parse(task),
-  }));
-  libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue(readableCustomRhythms());
-  libraryRepositoryMocks.saveCustomLibraryRhythm.mockImplementation(async (rhythm: unknown) => ({
-    ok: true,
-    rhythm: rhythmTemplateSchema.parse(rhythm),
-  }));
-  taskDefinitionReconciliationMocks.reconcileTaskDefinitionAfterWrite.mockResolvedValue({ ok: true });
-  settingsRepositoryMocks.loadSettingsResult.mockImplementation(async () => ({
-    conflicts: [],
-    errors: [],
-    migrationPersisted: false,
-    settings: createDefaultSettings('2026-08-15T00:00:00.000Z'),
-    status: 'defaulted',
-  }));
+  testIndex += 1;
+  setCurrentLocalDataNamespace(createAuthLocalDataNamespace(`gate8a2-library-${testIndex}`));
 });
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
-  vi.clearAllMocks();
   vi.restoreAllMocks();
-
-  if (originalCreateObjectUrl) {
-    Object.defineProperty(URL, 'createObjectURL', originalCreateObjectUrl);
-  } else {
-    Reflect.deleteProperty(URL, 'createObjectURL');
-  }
-
-  if (originalRevokeObjectUrl) {
-    Object.defineProperty(URL, 'revokeObjectURL', originalRevokeObjectUrl);
-  } else {
-    Reflect.deleteProperty(URL, 'revokeObjectURL');
-  }
+  const database = getCurrentLifeRhythmDatabase();
+  database.close();
+  await database.delete();
+  resetCurrentLocalDataNamespace();
 });
 
-describe('Library screen', () => {
-  async function fillCreateRhythmForm(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(screen.getByRole('button', { name: 'Create rhythm' }));
-    await user.type(screen.getByLabelText('Rhythm title'), 'Paperwork landing');
-    await user.selectOptions(screen.getByLabelText('Category'), 'Money');
-    await user.type(screen.getByLabelText('Purpose'), 'Give loose paperwork one safe place.');
-    await user.type(screen.getByLabelText('Minimum version'), 'Put one paper in the folder.');
-  }
+async function openBreakfastConfiguration(user: ReturnType<typeof userEvent.setup>) {
+  render(<LibraryScreen />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Create rhythm' })).toHaveProperty('disabled', false));
+  const card = screen.getByRole('article', { name: 'Breakfast reset' });
+  await waitFor(() => expect(within(card).getByRole('button', { name: 'Configure and turn on' })).toHaveProperty('disabled', false));
+  await user.click(within(card).getByRole('button', { name: 'Configure and turn on' }));
+  return card;
+}
 
-  it('keeps the built-in catalogue visible while saved custom rhythms are still loading', async () => {
-    const pendingRead = deferred<ReturnType<typeof readableCustomRhythms>>();
-    libraryRepositoryMocks.loadCustomLibraryRhythms.mockReturnValueOnce(pendingRead.promise);
-    render(<LibraryScreen />);
+async function saveMinimumOnly(user: ReturnType<typeof userEvent.setup>, minutes = '7') {
+  await user.type(screen.getByLabelText('Minimum minutes'), minutes);
+  await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
+  await screen.findByText(/Breakfast reset saved/);
+}
 
-    expect(screen.getByRole('status', { name: 'Saved Library rhythm loading' }).textContent).toContain(
-      'Reading saved custom rhythms',
-    );
-    expect(screen.queryByText('No saved custom rhythms yet.')).toBeNull();
-    expect(screen.getByRole('article', { name: 'Breakfast reset' })).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Create rhythm' }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'Export Library rhythms backup' }) as HTMLButtonElement).disabled).toBe(true);
-
-    pendingRead.resolve(readableCustomRhythms());
-    await screen.findByText('No saved custom rhythms yet.');
+describe('Gate 8A2 Library rhythm authority', () => {
+  it.each(['enabled', 'paused', 'disabled', 'unconfigured'] as const)('disables %s card mutations while authority is unreadable', (state) => {
+    const onConfigure = vi.fn();
+    const onSetState = vi.fn();
+    const onAddToday = vi.fn();
+    const configuration: LibraryRhythmConfigurationView = { state, frequency: 2, period: 'week', minimumMinutes: 3 };
+    render(<LibraryRhythmCard actionsDisabled configuration={configuration} onConfigure={onConfigure} onSetState={onSetState} onAddToday={onAddToday} rhythm={mockLibraryRhythms[0]} />);
+    const card = screen.getByRole('article');
+    const actions = within(card).getAllByRole('button');
+    for (const button of actions) {
+      if (button.textContent === 'Details') expect(button).toHaveProperty('disabled', false);
+      else expect(button).toHaveProperty('disabled', true);
+    }
   });
-
-  it('keeps built-in rhythms usable when the saved custom-rhythm read fails', async () => {
-    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValueOnce({
-      errors: ['rhythmTemplates: Saved custom Library rhythms could not be read.'],
-      status: 'readFailed',
+  it('keeps catalogue details readable but every write unavailable until saved authority loads', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const originalRead = authorityRepository.loadRhythmAuthorityResult;
+    const createdAt = '2026-01-01T01:00:00.000Z';
+    const savedTemplate = rhythmTemplateSchema.parse({
+      id: 'food-breakfast-reset', source: 'built-in', title: 'Breakfast reset', area: 'food',
+      minimum: { label: 'Saved minimum', minutes: 3 },
+      normal: { label: 'Saved normal', minutes: 17 },
+      full: { label: 'Saved full', minutes: 29 },
+      enabled: false, createdAt, updatedAt: createdAt,
     });
+    await database.rhythmTemplates.put(savedTemplate);
+    let finishRead!: (value: Awaited<ReturnType<typeof originalRead>>) => void;
+    vi.spyOn(authorityRepository, 'loadRhythmAuthorityResult').mockImplementationOnce(() =>
+      new Promise((resolve) => { finishRead = resolve; }));
+    const save = vi.spyOn(authorityRepository, 'saveRhythmConfiguration');
     const user = userEvent.setup();
     render(<LibraryScreen />);
-
-    const warning = await screen.findByRole('alert', { name: 'Saved Library rhythm read failure' });
-    expect(warning.textContent).toContain('Saved custom rhythms could not be loaded.');
-    expect(warning.textContent).toContain('Nothing stored on this device was changed.');
-    expect(screen.queryByText('No saved custom rhythms yet.')).toBeNull();
-    expect((screen.getByRole('button', { name: 'Create rhythm' }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'Export Library rhythms backup' }) as HTMLButtonElement).disabled).toBe(true);
-
-    const builtIn = screen.getByRole('article', { name: 'Breakfast reset' });
-    await user.click(within(builtIn).getByRole('button', { name: 'Add to Today now' }));
-    expect(activeTaskRepositoryMocks.saveActiveTodayTask).toHaveBeenCalledTimes(1);
-    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
-  });
-
-  it('retries read-only after failure and restores saved custom rhythms with sensible focus', async () => {
-    libraryRepositoryMocks.loadCustomLibraryRhythms
-      .mockResolvedValueOnce({
-        errors: ['rhythmTemplates: Saved custom Library rhythms could not be read.'],
-        status: 'readFailed',
-      })
-      .mockResolvedValueOnce(readableCustomRhythms([savedRhythmTemplate()]));
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    await user.click(await screen.findByRole('button', { name: 'Retry saved rhythms' }));
-
-    expect(await screen.findByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
-    expect(libraryRepositoryMocks.loadCustomLibraryRhythms).toHaveBeenCalledTimes(2);
-    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
-    expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Create rhythm' }));
-  });
-
-  it('keeps a repeated saved-data read failure truthful and returns focus to Retry', async () => {
-    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue({
-      errors: ['rhythmTemplates: Saved custom Library rhythms could not be read.'],
-      status: 'readFailed',
-    });
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    await user.click(await screen.findByRole('button', { name: 'Retry saved rhythms' }));
-    const retry = await screen.findByRole('button', { name: 'Retry saved rhythms' });
-
-    expect(screen.getByRole('alert', { name: 'Saved Library rhythm read failure' })).toBeTruthy();
-    expect(screen.queryByText('No saved custom rhythms yet.')).toBeNull();
-    expect(document.activeElement).toBe(retry);
-    expect(libraryRepositoryMocks.loadCustomLibraryRhythms).toHaveBeenCalledTimes(2);
-    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
-  });
-
-  it('shows valid custom rhythms with a partial-read warning and leaves create available', async () => {
-    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValueOnce(
-      readableCustomRhythms([savedRhythmTemplate()], 2),
-    );
-    render(<LibraryScreen />);
-
-    expect(await screen.findByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
-    const warning = screen.getByRole('status', { name: 'Saved Library rhythm warning' });
-    expect(warning.textContent).toContain('Some saved Library rhythm data could not be read.');
-    expect(warning.textContent).toContain('2 saved Library rhythm records were left unchanged.');
-    expect(warning.textContent).toContain('Backup export stays unavailable until every saved rhythm record can be read.');
-    expect((screen.getByRole('button', { name: 'Create rhythm' }) as HTMLButtonElement).disabled).toBe(false);
-    expect((screen.getByRole('button', { name: 'Export Library rhythms backup' }) as HTMLButtonElement).disabled).toBe(true);
-    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
-  });
-
-  it('does not allow a stale initial read to overwrite a newer successful Retry', async () => {
-    const initialRead = deferred<ReturnType<typeof readableCustomRhythms>>();
-    libraryRepositoryMocks.loadCustomLibraryRhythms
-      .mockReturnValueOnce(initialRead.promise)
-      .mockResolvedValueOnce(readableCustomRhythms([savedRhythmTemplate()]));
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    await user.click(screen.getByRole('button', { name: 'Retry saved rhythms' }));
-    expect(await screen.findByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
-
-    initialRead.resolve(readableCustomRhythms());
-    await waitFor(() => expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy());
-  });
-
-  it('does not let a read started during a save erase the newly created rhythm', async () => {
-    const retryRead = deferred<ReturnType<typeof readableCustomRhythms>>();
-    let finishSave: (() => void) | undefined;
-    libraryRepositoryMocks.loadCustomLibraryRhythms
-      .mockResolvedValueOnce(readableCustomRhythms([savedRhythmTemplate({ id: 'custom-existing', title: 'Existing custom rhythm' })], 1))
-      .mockReturnValueOnce(retryRead.promise);
-    libraryRepositoryMocks.saveCustomLibraryRhythm.mockImplementationOnce(
-      async (rhythm: unknown) => new Promise((resolve) => {
-        finishSave = () => resolve({
-          ok: true,
-          rhythm: rhythmTemplateSchema.parse(rhythm),
-        });
-      }),
-    );
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    await screen.findByRole('article', { name: 'Existing custom rhythm' });
-    await fillCreateRhythmForm(user);
-    fireEvent.click(screen.getByRole('button', { name: 'Save rhythm' }));
-    await screen.findByRole('button', { name: 'Saving rhythm...' });
-    fireEvent.click(screen.getByRole('button', { name: 'Retry saved rhythms' }));
-
-    finishSave?.();
-    expect(await screen.findByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
-    retryRead.resolve(readableCustomRhythms([savedRhythmTemplate({ id: 'custom-existing', title: 'Existing custom rhythm' })], 1));
-
-    await waitFor(() => {
-      expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
-      expect(screen.getByRole('article', { name: 'Existing custom rhythm' })).toBeTruthy();
-      expect(screen.queryByRole('status', { name: 'Saved Library rhythm loading' })).toBeNull();
-      expect((screen.getByRole('button', { name: 'Create rhythm' }) as HTMLButtonElement).disabled).toBe(false);
-    });
-  });
-
-  it('renders library categories', () => {
-    render(<LibraryScreen />);
-
-    const categories = screen.getByRole('list', { name: 'Library categories' });
-    expect(within(categories).getByRole('button', { name: 'All' })).toBeTruthy();
-    expect(within(categories).getByRole('button', { name: 'Food' })).toBeTruthy();
-    expect(within(categories).getByRole('button', { name: 'Money' })).toBeTruthy();
-    expect(within(categories).getByRole('button', { name: 'Start Boost' })).toBeTruthy();
-  });
-
-  it('renders rhythm catalogue cards', () => {
-    render(<LibraryScreen />);
-
-    expect(screen.getByRole('button', { name: 'Create rhythm' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Export Library rhythms backup' })).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Create pack later' }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText(/Create rhythm makes a reusable template/)).toBeTruthy();
-    expect(screen.getByText('Export creates a local backup file for saved custom Library rhythms only.')).toBeTruthy();
-    expect(screen.getByText('It does not include Today tasks, settings, enablement, or packs.')).toBeTruthy();
     const card = screen.getByRole('article', { name: 'Breakfast reset' });
-    expect(within(card).getByText('Food')).toBeTruthy();
-    expect(within(card).getByText('Make the first food step visible and small.')).toBeTruthy();
-    expect(within(card).getAllByText(/Morning|Easy start/)).toHaveLength(2);
-    expect(screen.getByRole('article', { name: 'Open the first file' })).toBeTruthy();
+    expect(within(card).getByText('Saved state unavailable')).toBeTruthy();
+    expect(within(card).queryByText('Needs configuration')).toBeNull();
+    const add = within(card).getByRole('button', { name: 'Configure to add once' });
+    expect(add).toHaveProperty('disabled', true);
+    expect(within(card).queryByRole('button', { name: 'Configure and turn on' })).toBeNull();
+    await user.click(within(card).getByRole('button', { name: 'Details' }));
+    expect(within(card).getByText('Why this rhythm exists')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(save).not.toHaveBeenCalled();
+    await database.rhythmTemplates.get(savedTemplate.id).then((row) => expect(row).toEqual(savedTemplate));
+
+    const result = await originalRead();
+    await waitFor(() => expect(typeof finishRead).toBe('function'));
+    finishRead(result);
+    await waitFor(() => expect(within(card).getByText('Needs configuration')).toBeTruthy());
+    expect(within(card).getByRole('button', { name: 'Configure and turn on' })).toHaveProperty('disabled', false);
+    expect(within(card).getByRole('button', { name: 'Configure to add once' })).toHaveProperty('disabled', false);
+    expect(await database.rhythmTemplates.get(savedTemplate.id)).toEqual(savedTemplate);
   });
 
-  it('filters rhythms by category', async () => {
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    await user.click(screen.getByRole('button', { name: 'Money' }));
-
-    expect(screen.getByRole('article', { name: 'Receipt drop' })).toBeTruthy();
-    expect(screen.queryByRole('article', { name: 'Breakfast reset' })).toBeNull();
-  });
-
-  it('changes enabled state in mock UI only', async () => {
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    const card = screen.getByRole('article', { name: 'Breakfast reset' });
-    expect(within(card).getByText('Disabled')).toBeTruthy();
-
-    await user.click(within(card).getByRole('button', { name: 'Enable rhythm' }));
-
-    expect(within(card).getByText('Enabled')).toBeTruthy();
-    expect(within(card).getByRole('button', { name: 'Disable rhythm' })).toBeTruthy();
-  });
-
-  it('persists Add to Today as one active task without writing Library rhythms', async () => {
-    const user = userEvent.setup();
-    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
-    render(<LibraryScreen />);
-
-    const card = screen.getByRole('article', { name: 'Breakfast reset' });
-    await user.click(within(card).getByRole('button', { name: 'Add to Today now' }));
-
-    expect(screen.getByRole('status').textContent).toContain('Breakfast reset saved to Today on this device.');
-    expect(screen.getByRole('status').textContent).toContain('Library enablement did not change.');
-    expect(activeTaskRepositoryMocks.saveActiveTodayTask).toHaveBeenCalledTimes(1);
-    expect(activeTaskRepositoryMocks.saveActiveTodayTask.mock.calls[0][0]).toMatchObject({
-      source: 'library',
-      templateId: 'food-breakfast-reset',
-      showToday: true,
-      status: 'active',
-      title: 'Breakfast reset',
-    });
-    expect(taskDefinitionReconciliationMocks.reconcileTaskDefinitionAfterWrite).toHaveBeenCalledWith(
-      'A Library task was added to Today.',
-    );
-    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
-    expect(setItemSpy).not.toHaveBeenCalled();
-  });
-
-  it('reports a saved Library Today task when its private plan still needs repair', async () => {
-    taskDefinitionReconciliationMocks.reconcileTaskDefinitionAfterWrite.mockResolvedValueOnce({
-      ok: false, message: 'Retry from Today.',
+  it('keeps all mutations disabled after an authority read error, while Details remains readable', async () => {
+    vi.spyOn(authorityRepository, 'loadRhythmAuthorityResult').mockResolvedValueOnce({
+      status: 'readFailed', errors: ['Saved data could not be read.'],
     });
     const user = userEvent.setup();
     render(<LibraryScreen />);
-
-    await user.click(within(screen.getByRole('article', { name: 'Breakfast reset' }))
-      .getByRole('button', { name: 'Add to Today now' }));
-
-    expect(screen.getByRole('status').textContent).toContain(
-      'Breakfast reset saved to Today. The private plan needs updating. Retry from Today.',
-    );
+    await screen.findByText('Saved rhythm configuration could not be read.');
+    const card = screen.getByRole('article', { name: 'Breakfast reset' });
+    expect(within(card).getByText('Saved state unavailable')).toBeTruthy();
+    expect(within(card).getByRole('button', { name: 'Configure to add once' })).toHaveProperty('disabled', true);
+    expect(within(card).queryByRole('button', { name: 'Configure and turn on' })).toBeNull();
+    await user.click(within(card).getByRole('button', { name: 'Details' }));
+    expect(within(card).getByText('Catalogue action ideas')).toBeTruthy();
+    expect(await getCurrentLifeRhythmDatabase().rhythmTemplates.count()).toBe(0);
   });
 
-  it('does not duplicate Add to Today when the active task already exists', async () => {
-    activeTaskRepositoryMocks.saveActiveTodayTask.mockImplementationOnce(async (task: ActiveTask) => ({
-      alreadyExists: true,
-      ok: true,
-      task: activeTaskSchema.parse(task),
+  it('clears previous backup check results on selection and reports file-read failures', async () => {
+    render(<LibraryScreen />);
+    const editor = screen.getByRole('textbox', { name: 'Paste backup text' });
+    const picker = screen.getByLabelText('Select backup file');
+    const check = screen.getByRole('button', { name: 'Check rhythm backup' });
+    fireEvent.change(editor, { target: { value: JSON.stringify({ format: 'life-rhythm-rhythm-authority-backup', version: 1, exportedAt: '2026-09-25T00:00:00.000Z', templates: [] }) } });
+    fireEvent.click(check);
+    expect(screen.getByText(/Valid backup:/)).toBeTruthy();
+    fireEvent.change(picker, { target: { files: [{ text: async () => '{ bad' }] } });
+    await waitFor(() => expect(editor).toHaveProperty('value', '{ bad'));
+    expect(screen.queryByText(/Valid backup:/)).toBeNull();
+    fireEvent.click(check);
+    expect(screen.getByText(/Backup JSON is malformed/)).toBeTruthy();
+    fireEvent.change(picker, { target: { files: [{ text: async () => '{}' }] } });
+    await waitFor(() => expect(editor).toHaveProperty('value', '{}'));
+    expect(screen.queryByText(/Backup JSON is malformed/)).toBeNull();
+    fireEvent.change(picker, { target: { files: [{ text: async () => { throw new Error('read failed'); } }] } });
+    expect(await screen.findByText('The selected backup file could not be read.')).toBeTruthy();
+    fireEvent.change(picker, { target: { files: [] } });
+    expect(screen.getByText('The selected backup file could not be read.')).toBeTruthy();
+    expect(editor).toHaveProperty('value', '{}');
+  });
+  it('presents fixture rhythms as unconfigured suggestions and packs as preview-only', async () => {
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+    const card = await screen.findByRole('article', { name: 'Breakfast reset' });
+    await waitFor(() => expect(within(card).getByText('Needs configuration')).toBeTruthy());
+    expect(within(card).queryByText('Enabled')).toBeNull();
+    await user.click(within(screen.getByRole('article', { name: 'Morning basics' }))
+      .getByRole('button', { name: 'Preview pack' }));
+    expect(screen.getByText('Preview only. Configure any rhythm individually before it can schedule.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Enable selected rhythms/i })).toBeNull();
+  });
+
+  it('keeps a legacy custom template off and exposes its duration uncertainty on configuration', async () => {
+    const timestamp = new Date().toISOString();
+    const database = getCurrentLifeRhythmDatabase();
+    await database.rhythmTemplates.put(rhythmTemplateSchema.parse({
+      id: 'legacy-custom-rhythm', source: 'custom', title: 'Legacy custom rhythm', area: 'other',
+      minimum: { label: 'Small version', minutes: 5 },
+      normal: { label: 'Normal version', minutes: 10 },
+      full: { label: 'Full version', minutes: 20 },
+      enabled: false, createdAt: timestamp, updatedAt: timestamp,
     }));
     const user = userEvent.setup();
     render(<LibraryScreen />);
-
-    const card = screen.getByRole('article', { name: 'Breakfast reset' });
-    await user.click(within(card).getByRole('button', { name: 'Add to Today now' }));
-
-    expect(screen.getByRole('status').textContent).toContain('Breakfast reset is already in Today on this device.');
-    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
+    const card = await screen.findByRole('article', { name: 'Legacy custom rhythm' });
+    expect(within(card).getByText('Needs configuration')).toBeTruthy();
+    expect(await database.rhythmPlans.count()).toBe(0);
+    await user.click(within(card).getByRole('button', { name: 'Configure and turn on' }));
+    expect(screen.getByText(/Older rhythm minutes may have been filled automatically/)).toBeTruthy();
+    expect((screen.getByLabelText('Minimum minutes') as HTMLInputElement).value).toBe('5');
   });
 
-  it('opens Create rhythm as a reusable preview modal', async () => {
+  it('requires user-authored minutes and inherits omitted variants exactly', async () => {
     const user = userEvent.setup();
-    render(<LibraryScreen />);
+    await openBreakfastConfiguration(user);
+    expect((screen.getByLabelText('Minimum minutes') as HTMLInputElement).value).toBe('');
+    await saveMinimumOnly(user, '7');
 
-    await user.click(screen.getByRole('button', { name: 'Create rhythm' }));
-
-    expect(screen.getByRole('dialog', { name: 'Create rhythm' })).toBeTruthy();
-    expect(screen.getByText('Reusable rhythm. Saved on this device. Enablement and Add to Today are preview-only.')).toBeTruthy();
-    expect(screen.getByLabelText('Rhythm title')).toBeTruthy();
-    expect(screen.getByLabelText('Category')).toBeTruthy();
-    expect(screen.getByRole('combobox', { name: 'Category' })).toBeTruthy();
-    expect(screen.getByLabelText('Purpose')).toBeTruthy();
-    expect(screen.getByLabelText('Minimum version')).toBeTruthy();
-    expect(screen.getByRole('checkbox', { name: /Enabled/ })).toBeTruthy();
+    const database = getCurrentLifeRhythmDatabase();
+    const template = await database.rhythmTemplates.get('food-breakfast-reset');
+    const plan = await database.rhythmPlans.where('rhythmTemplateId').equals('food-breakfast-reset').first();
+    expect(template?.minimum).toEqual({ label: 'Clear one surface and choose the easiest breakfast option.', minutes: 7 });
+    expect(template?.normal).toEqual(template?.minimum);
+    expect(template?.full).toEqual(template?.normal);
+    expect(template?.enabled).toBe(false);
+    expect(plan?.state).toBe('enabled');
   });
 
-  it('saves a created rhythm through the custom Library rhythm repository', async () => {
+  it('persists exact Normal and Full actions and minutes', async () => {
     const user = userEvent.setup();
-    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
-    render(<LibraryScreen />);
-
-    await fillCreateRhythmForm(user);
+    await openBreakfastConfiguration(user);
+    await user.type(screen.getByLabelText('Minimum minutes'), '4');
+    await user.click(screen.getByRole('button', { name: /Optional Normal and Full/ }));
+    await user.type(screen.getByLabelText('Normal action'), 'Eat something easy.');
+    await user.type(screen.getByLabelText('Normal minutes'), '13');
+    await user.type(screen.getByLabelText('Full action'), 'Eat and reset the bench.');
+    await user.type(screen.getByLabelText('Full minutes'), '27');
     await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
-
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Create rhythm' })).toBeNull());
-    expect(screen.getByRole('status').textContent).toContain('Rhythm saved to Library on this device.');
-    expect(screen.getByRole('status').textContent).toContain('Enablement and Add to Today are still preview-only.');
-    expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Money' }).getAttribute('aria-pressed')).toBe('true');
-    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).toHaveBeenCalledTimes(1);
-    expect(libraryRepositoryMocks.saveCustomLibraryRhythm.mock.calls[0][0]).toMatchObject({
-      area: 'money',
-      source: 'custom',
-      title: 'Paperwork landing',
-    });
-    expect(setItemSpy).not.toHaveBeenCalled();
+    await screen.findByText(/Breakfast reset saved/);
+    const template = await getCurrentLifeRhythmDatabase().rhythmTemplates.get('food-breakfast-reset');
+    expect(template?.minimum.minutes).toBe(4);
+    expect(template?.normal).toEqual({ label: 'Eat something easy.', minutes: 13 });
+    expect(template?.full).toEqual({ label: 'Eat and reset the bench.', minutes: 27 });
   });
 
-  it('exports saved custom Library rhythms as a valid backup download', async () => {
-    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue(readableCustomRhythms([savedRhythmTemplate()]));
-    const { anchorClick, createObjectUrl, revokeObjectUrl } = mockDownloadApi();
+  it('inherits omitted Full from the exact authored Normal action and minutes', async () => {
+    const user = userEvent.setup();
+    await openBreakfastConfiguration(user);
+    await user.type(screen.getByLabelText('Minimum minutes'), '4');
+    await user.click(screen.getByRole('button', { name: /Optional Normal and Full/ }));
+    await user.type(screen.getByLabelText('Normal action'), 'Eat something easy.');
+    await user.type(screen.getByLabelText('Normal minutes'), '13');
+    await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
+    await screen.findByText(/Breakfast reset saved/);
+    const template = await getCurrentLifeRhythmDatabase().rhythmTemplates.get('food-breakfast-reset');
+    expect(template?.normal).toEqual({ label: 'Eat something easy.', minutes: 13 });
+    expect(template?.full).toEqual(template?.normal);
+  });
+
+  it('shows a field-specific error for a non-positive duration', async () => {
+    const user = userEvent.setup();
+    await openBreakfastConfiguration(user);
+    fireEvent.change(screen.getByLabelText('Minimum minutes'), { target: { value: '0' } });
+    await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
+    expect(screen.getByRole('alert').textContent).toContain('Minimum duration in minutes must be a positive whole number.');
+    expect(await getCurrentLifeRhythmDatabase().rhythmPlans.count()).toBe(0);
+  });
+
+  it('persists pause and re-enable without creating a second plan', async () => {
+    const user = userEvent.setup();
+    await openBreakfastConfiguration(user);
+    await saveMinimumOnly(user);
+    let card = screen.getByRole('article', { name: 'Breakfast reset' });
+    await user.click(within(card).getByRole('button', { name: 'Pause rhythm' }));
+    await waitFor(() => expect(within(card).getByText('Paused')).toBeTruthy());
+    await user.click(within(card).getByRole('button', { name: 'Turn on rhythm' }));
+    await waitFor(() => expect(within(card).getByText('On')).toBeTruthy());
+    const database = getCurrentLifeRhythmDatabase();
+    expect(await database.rhythmPlans.where('rhythmTemplateId').equals('food-breakfast-reset').count()).toBe(1);
+    expect((await database.rhythmPlans.toArray())[0].state).toBe('enabled');
+  });
+
+  it('creates a custom rhythm with exact durations and a durable plan', async () => {
     const user = userEvent.setup();
     render(<LibraryScreen />);
-
-    await user.click(screen.getByRole('button', { name: 'Export Library rhythms backup' }));
-
-    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Library rhythms backup created on this device.'));
-    expect(createObjectUrl).toHaveBeenCalledTimes(1);
-    expect(anchorClick).toHaveBeenCalledTimes(1);
-    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:library-rhythm-backup');
-
-    const blob = createObjectUrl.mock.calls[0][0] as Blob;
-    const json = await blob.text();
-    const payload = libraryRhythmBackupSchema.parse(JSON.parse(json));
-
-    expect(payload.rhythms).toHaveLength(1);
-    expect(payload.rhythms[0]).toMatchObject({
-      id: 'custom-paperwork-landing',
-      source: 'custom',
-      title: 'Paperwork landing',
-    });
-    expect(json).not.toMatch(/settings|activeTasks|oneOff|scheduler|devTickets|migrationLog|resetLog|futureModules/i);
-    expect(json).not.toContain('lifeRhythm_v146');
-    expect(json).not.toContain('Breakfast reset');
+    const createButton = await screen.findByRole('button', { name: 'Create rhythm' });
+    await waitFor(() => expect((createButton as HTMLButtonElement).disabled).toBe(false));
+    await user.click(createButton);
+    await user.type(screen.getByLabelText('Rhythm title'), 'Paper landing');
+    await user.selectOptions(screen.getByLabelText('Category'), 'Money');
+    await user.type(screen.getByLabelText('Minimum action'), 'Put one paper away.');
+    await user.type(screen.getByLabelText('Minimum minutes'), '6');
+    await user.clear(screen.getByLabelText('Times'));
+    await user.type(screen.getByLabelText('Times'), '2');
+    await user.selectOptions(screen.getByLabelText('Per'), 'month');
+    await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
+    await screen.findByText(/Paper landing saved/);
+    const database = getCurrentLifeRhythmDatabase();
+    const template = (await database.rhythmTemplates.toArray()).find((item) => item.title === 'Paper landing');
+    expect(template).toMatchObject({ source: 'custom', minimum: { minutes: 6 }, normal: { minutes: 6 }, full: { minutes: 6 } });
+    expect((await database.rhythmPlans.toArray())[0].rhythmTemplateId).toBe(template?.id);
+    expect((await database.rhythmRecurrenceRevisions.toArray())[0].rule).toMatchObject({ frequency: 2, period: 'month' });
   });
 
-  it('shows an empty export message without downloading when no custom rhythms are saved', async () => {
-    const { anchorClick, createObjectUrl } = mockDownloadApi();
+  it('adds one configured rhythm once without enabling recurrence or duplicating Today', async () => {
     const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    await user.click(screen.getByRole('button', { name: 'Export Library rhythms backup' }));
-
-    expect(screen.getByRole('status').textContent).toContain('No saved custom rhythms to export yet.');
-    expect(createObjectUrl).not.toHaveBeenCalled();
-    expect(anchorClick).not.toHaveBeenCalled();
+    await openBreakfastConfiguration(user);
+    await user.type(screen.getByLabelText('Minimum minutes'), '9');
+    await user.click(screen.getByRole('checkbox', { name: /Turn on after saving/ }));
+    await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
+    await screen.findByText(/Breakfast reset saved/);
+    const card = screen.getByRole('article', { name: 'Breakfast reset' });
+    await user.click(within(card).getByRole('button', { name: 'Add to Today once' }));
+    await screen.findByText(/was added once/);
+    await user.click(within(card).getByRole('button', { name: 'Add to Today once' }));
+    await screen.findByText(/already in Today/);
+    const database = getCurrentLifeRhythmDatabase();
+    expect(await database.activeTasks.count()).toBe(1);
+    const task = (await database.activeTasks.toArray())[0];
+    expect(task.minimum.minutes).toBe(9);
+    expect(task.manualRhythmOccurrenceKey).toBeTruthy();
+    expect((await database.rhythmPlans.toArray())[0].state).toBe('disabled');
   });
 
-  it('renders the Library rhythm backup checker UI', () => {
-    render(<LibraryScreen />);
-
-    expect(screen.getByRole('heading', { name: 'Check Library rhythms backup' })).toBeTruthy();
-    expect(screen.getByLabelText('Library rhythm backup text')).toBeTruthy();
-    expect(screen.getByLabelText('Select Library backup file')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Check Library rhythms backup' })).toBeTruthy();
-    expect(screen.getByText('Export creates a local backup file for saved custom Library rhythms only.')).toBeTruthy();
-    expect(screen.getByText('It does not include Today tasks, settings, enablement, or packs.')).toBeTruthy();
-    expect(screen.getByText('Check only. Paste or select a Library rhythms backup.')).toBeTruthy();
-    expect(screen.getByText('Restore is not connected yet.')).toBeTruthy();
-    expect(screen.getByText('Checking does not restore rhythms or change this device.')).toBeTruthy();
-  });
-
-  it('validates pasted Library backup JSON and shows a preview without saving', async () => {
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    fireEvent.change(screen.getByLabelText('Library rhythm backup text'), {
-      target: { value: validLibraryBackupJson() },
-    });
-    await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
-
-    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid. Restore is not connected yet.');
-    const preview = screen.getByLabelText('Library rhythm backup preview');
-    expect(within(preview).getByText('1')).toBeTruthy();
-    expect(within(preview).getByText('Backup paperwork rhythm')).toBeTruthy();
-    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
-  });
-
-  it('shows invalid pasted JSON feedback without changing Library rhythms', async () => {
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    expect(screen.queryByRole('article', { name: 'Backup paperwork rhythm' })).toBeNull();
-
-    fireEvent.change(screen.getByLabelText('Library rhythm backup text'), {
-      target: { value: '{ not json' },
-    });
-    await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
-
-    expect(screen.getByRole('status').textContent).toContain('This Library rhythms backup could not be used. Nothing changed on this device.');
-    expect(screen.getByRole('list', { name: 'Library rhythm backup errors' }).textContent).toContain('malformed');
-    expect(screen.queryByRole('article', { name: 'Backup paperwork rhythm' })).toBeNull();
-    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
-  });
-
-  it('validates a selected Library backup file', async () => {
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    await user.upload(
-      screen.getByLabelText('Select Library backup file'),
-      new File([validLibraryBackupJson()], 'library-backup.json', { type: 'application/json' }),
-    );
-    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup loaded. Choose Check Library rhythms backup.');
-
-    await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
-
-    expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid. Restore is not connected yet.');
-    expect(screen.getByLabelText('Library rhythm backup preview').textContent).toContain('Backup paperwork rhythm');
-  });
-
-  it('shows invalid feedback for a selected malformed Library backup file', async () => {
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    await user.upload(
-      screen.getByLabelText('Select Library backup file'),
-      new File(['{ no'], 'library-backup.json', { type: 'application/json' }),
-    );
-    await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
-
-    expect(screen.getByRole('status').textContent).toContain('This Library rhythms backup could not be used. Nothing changed on this device.');
-    expect(screen.getByRole('list', { name: 'Library rhythm backup errors' }).textContent).toContain('malformed');
-  });
-
-  it('checks Library backups without Dexie writes or localStorage use', async () => {
-    const originalIndexedDb = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
-    const indexedDB = {
-      deleteDatabase: vi.fn(() => {
-        throw new Error('IndexedDB must not be changed');
-      }),
-      open: vi.fn(() => {
-        throw new Error('IndexedDB must not be opened');
-      }),
-    };
-    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
-    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
-    const user = userEvent.setup();
-
-    Object.defineProperty(globalThis, 'indexedDB', {
-      configurable: true,
-      value: indexedDB,
-    });
-
+  it('exports and checks a referentially complete rhythm authority backup', async () => {
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    let exportedBlob: Blob | undefined;
+    URL.createObjectURL = (blob) => { exportedBlob = blob as Blob; return 'blob:rhythms'; };
+    URL.revokeObjectURL = () => undefined;
+    const click = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = () => undefined;
     try {
-      render(<LibraryScreen />);
-      fireEvent.change(screen.getByLabelText('Library rhythm backup text'), {
-        target: { value: validLibraryBackupJson() },
-      });
-      await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
-
-      expect(screen.getByRole('status').textContent).toContain('Library rhythms backup looks valid.');
-      expect(indexedDB.open).not.toHaveBeenCalled();
-      expect(indexedDB.deleteDatabase).not.toHaveBeenCalled();
-      expect(getItemSpy).not.toHaveBeenCalled();
-      expect(setItemSpy).not.toHaveBeenCalled();
-      expect(libraryRepositoryMocks.saveCustomLibraryRhythm).not.toHaveBeenCalled();
+      const user = userEvent.setup();
+      await openBreakfastConfiguration(user);
+      await saveMinimumOnly(user);
+      await user.click(screen.getByRole('button', { name: 'Export rhythm backup' }));
+      await screen.findByText(/backup created/);
+      const json = await exportedBlob!.text();
+      const checked = parseRhythmAuthorityBackupJson(json);
+      expect(checked.ok).toBe(true);
+      if (checked.ok) expect(checked.preview.dependencyState).toBe('complete');
     } finally {
-      if (originalIndexedDb) {
-        Object.defineProperty(globalThis, 'indexedDB', originalIndexedDb);
-      } else {
-        Reflect.deleteProperty(globalThis, 'indexedDB');
-      }
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
+      HTMLAnchorElement.prototype.click = click;
     }
-  });
-
-  it('checks Library backups without affecting enablement state', async () => {
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    const card = screen.getByRole('article', { name: 'Breakfast reset' });
-    await user.click(within(card).getByRole('button', { name: 'Enable rhythm' }));
-
-    expect(within(card).getByText('Enabled')).toBeTruthy();
-
-    fireEvent.change(screen.getByLabelText('Library rhythm backup text'), {
-      target: { value: validLibraryBackupJson() },
-    });
-    await user.click(screen.getByRole('button', { name: 'Check Library rhythms backup' }));
-
-    expect(within(card).getByText('Enabled')).toBeTruthy();
-    expect(within(card).getByRole('button', { name: 'Disable rhythm' })).toBeTruthy();
-  });
-
-  it('keeps the Create rhythm modal open with entered values when save fails', async () => {
-    libraryRepositoryMocks.saveCustomLibraryRhythm.mockResolvedValueOnce({
-      errors: ['id: A Library rhythm with this ID already exists.'],
-      ok: false,
-    });
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    await fillCreateRhythmForm(user);
-    await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
-
-    expect((await screen.findByRole('alert')).textContent).toContain('Rhythm was not saved. Check the required fields.');
-    expect(screen.getByRole('dialog', { name: 'Create rhythm' })).toBeTruthy();
-    expect((screen.getByLabelText('Rhythm title') as HTMLInputElement).value).toBe('Paperwork landing');
-    expect((screen.getByLabelText('Purpose') as HTMLInputElement).value).toBe('Give loose paperwork one safe place.');
-    expect((screen.getByLabelText('Minimum version') as HTMLInputElement).value).toBe('Put one paper in the folder.');
-    expect(screen.getByRole('status').textContent).toContain('Rhythm was not saved. Check the required fields.');
-    expect(screen.queryByRole('article', { name: 'Paperwork landing' })).toBeNull();
-  });
-
-  it('prevents duplicate Create rhythm saves while saving', async () => {
-    let finishSave: (() => void) | undefined;
-    libraryRepositoryMocks.saveCustomLibraryRhythm.mockImplementationOnce(
-      async (rhythm: unknown) =>
-        new Promise((resolve) => {
-          finishSave = () => resolve({
-            ok: true,
-            rhythm: rhythmTemplateSchema.parse(rhythm),
-          });
-        }),
-    );
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    await fillCreateRhythmForm(user);
-    const saveButton = screen.getByRole('button', { name: 'Save rhythm' });
-
-    fireEvent.click(saveButton);
-    fireEvent.click(saveButton);
-
-    expect(libraryRepositoryMocks.saveCustomLibraryRhythm).toHaveBeenCalledTimes(1);
-    expect((screen.getByRole('button', { name: 'Saving rhythm...' }) as HTMLButtonElement).disabled).toBe(true);
-
-    finishSave?.();
-
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Create rhythm' })).toBeNull());
-    expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy();
-  });
-
-  it('reloads saved custom rhythms from the repository', async () => {
-    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue(readableCustomRhythms([savedRhythmTemplate()]));
-
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    const card = await screen.findByRole('article', { name: 'Paperwork landing' });
-    await user.click(within(card).getByRole('button', { name: 'Details' }));
-
-    expect(within(card).getByText('This custom rhythm was created by you and saved on this device.')).toBeTruthy();
-  });
-
-  it('does not restore Library enablement as persisted state', async () => {
-    libraryRepositoryMocks.loadCustomLibraryRhythms.mockResolvedValue(readableCustomRhythms([savedRhythmTemplate({ enabled: true })]));
-
-    render(<LibraryScreen />);
-
-    const card = await screen.findByRole('article', { name: 'Paperwork landing' });
-    expect(within(card).getByText('Disabled')).toBeTruthy();
-    expect(within(card).getByRole('button', { name: 'Enable rhythm' })).toBeTruthy();
-  });
-
-  it('does not add a created rhythm to Today', async () => {
-    const user = userEvent.setup();
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: 'Library' }));
-    await fillCreateRhythmForm(user);
-    await user.click(screen.getByRole('button', { name: 'Save rhythm' }));
-
-    await waitFor(() => expect(screen.getByRole('article', { name: 'Paperwork landing' })).toBeTruthy());
-
-    await user.click(screen.getByRole('button', { name: 'Today' }));
-
-    expect(screen.queryByRole('article', { name: 'Paperwork landing' })).toBeNull();
-  });
-
-  it('opens rhythm details disclosure', async () => {
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    const card = screen.getByRole('article', { name: 'Receipt drop' });
-    await user.click(within(card).getByRole('button', { name: 'Details' }));
-
-    expect(within(card).getByRole('heading', { name: 'Why this rhythm exists' })).toBeTruthy();
-    expect(within(card).getByText('Money rhythms are organisation support, not financial advice.')).toBeTruthy();
-  });
-
-  it('renders quick pack preview', async () => {
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    const pack = screen.getByRole('article', { name: 'Morning basics' });
-    await user.click(within(pack).getByRole('button', { name: 'Preview pack' }));
-
-    expect(within(pack).getByText('Packs enable rhythms. Today only shows what fits.')).toBeTruthy();
-    expect(within(pack).getByText('Breakfast reset')).toBeTruthy();
-    expect(within(pack).getByText('Kitchen landing')).toBeTruthy();
-  });
-
-  it('shows empty state and clears filters', async () => {
-    const user = userEvent.setup();
-    render(<LibraryScreen />);
-
-    await user.type(screen.getByRole('searchbox'), 'zzzz no match');
-
-    expect(screen.getByText('No rhythms match this filter')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
-
-    expect(screen.getByRole('article', { name: 'Breakfast reset' })).toBeTruthy();
-  });
-
-  it('keeps Setup available while Reset is available', async () => {
-    const user = userEvent.setup();
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: 'Reset' }));
-    expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
-
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
-    expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Appearance' })).toBeTruthy();
-  });
-
-  it('keeps bottom navigation available', async () => {
-    const user = userEvent.setup();
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: 'Library' }));
-
-    const nav = screen.getByRole('navigation', { name: 'Primary' });
-    expect(within(nav).getByRole('button', { name: 'Today' })).toBeTruthy();
-    expect(within(nav).getByRole('button', { name: 'Plan' })).toBeTruthy();
-    expect(within(nav).getByRole('button', { name: 'Held' })).toBeTruthy();
-    expect(within(nav).getByRole('button', { name: 'Library' })).toBeTruthy();
-    expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
-    expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();
-
-    const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
-    expect(within(secondaryNav).getByRole('button', { name: 'Reset' })).toBeTruthy();
-    expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Library' })).toBeTruthy();
   });
 });

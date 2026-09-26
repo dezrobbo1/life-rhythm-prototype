@@ -719,6 +719,9 @@ export const activeTaskSchema = z
   .object({
     id: idSchema,
     templateId: idSchema.optional(),
+    sourceRhythmInstanceId: idSchema.optional(),
+    manualRhythmOccurrenceKey: z.string().min(1).optional(),
+    plannedVariantKind: z.enum(['minimum', 'normal', 'full']).optional(),
     source: z.enum(['adhoc', 'library', 'custom']),
     title: z.string().min(1),
     area: areaSchema,
@@ -755,6 +758,38 @@ export const activeTaskSchema = z
         code: z.ZodIssueCode.custom,
         message: 'Library active tasks must reference a templateId.',
         path: ['templateId'],
+      });
+    }
+
+    if (task.sourceRhythmInstanceId && task.source !== 'library') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Generated rhythm occurrences must use the Library task source.',
+        path: ['sourceRhythmInstanceId'],
+      });
+    }
+
+    if (task.sourceRhythmInstanceId && !task.templateId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Generated rhythm occurrences must retain their template identity.',
+        path: ['templateId'],
+      });
+    }
+
+    if (task.sourceRhythmInstanceId && task.manualRhythmOccurrenceKey) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'A Today task cannot be both a generated and manual rhythm occurrence.',
+        path: ['manualRhythmOccurrenceKey'],
+      });
+    }
+
+    if (task.manualRhythmOccurrenceKey && (task.source !== 'library' || !task.templateId)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Manual rhythm occurrences must retain their Library template identity.',
+        path: ['manualRhythmOccurrenceKey'],
       });
     }
 
@@ -1156,6 +1191,7 @@ export const behaviourEventSchema = z
     taskId: idSchema.optional(),
     templateId: idSchema.optional(),
     rhythmId: idSchema.optional(),
+    rhythmInstanceId: idSchema.optional(),
     placementId: idSchema.optional(),
     source: z.enum(['user', 'scheduler']),
     action: z.enum([
@@ -1237,7 +1273,7 @@ export const behaviourEventSchema = z
         context.addIssue({ code: z.ZodIssueCode.custom, message: `${field} is required.`, path: [field] });
       }
     };
-    const forbidField = (field: 'taskId' | 'templateId' | 'rhythmId' | 'placementId') => {
+    const forbidField = (field: 'taskId' | 'templateId' | 'rhythmId' | 'rhythmInstanceId' | 'placementId') => {
       if (event[field]) {
         context.addIssue({ code: z.ZodIssueCode.custom, message: `${field} is not applicable.`, path: [field] });
       }
@@ -1252,6 +1288,7 @@ export const behaviourEventSchema = z
       requireField('placementId');
       forbidField('templateId');
       forbidField('rhythmId');
+      forbidField('rhythmInstanceId');
     } else if (rule.ids === 'schedulerTarget') {
       if (Boolean(event.taskId) === Boolean(event.rhythmId)) {
         context.addIssue({
@@ -1260,7 +1297,6 @@ export const behaviourEventSchema = z
           path: ['taskId'],
         });
       }
-      forbidField('templateId');
       const initialBuild = event.provenance.origin === 'initialPlanBuild';
       if (initialBuild) requireField('placementId');
       else forbidField('placementId');
@@ -1268,6 +1304,7 @@ export const behaviourEventSchema = z
       forbidField('taskId');
       forbidField('templateId');
       forbidField('rhythmId');
+      forbidField('rhythmInstanceId');
       forbidField('placementId');
     }
 

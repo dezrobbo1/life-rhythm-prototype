@@ -11,6 +11,9 @@ import {
   type TaskPoolItemStatus,
 } from './schemas';
 import type { LifeRhythmDatabase } from './db';
+import { rhythmInstanceSchema } from './rhythmAuthoritySchemas';
+import type { RhythmInstance } from './rhythmAuthoritySchemas';
+import { markRhythmInputRepairPending } from './schedulerPlanStateRepository';
 import {
   appendBehaviourEvent,
   behaviourEventForAddedToToday,
@@ -364,10 +367,14 @@ export async function updateTaskLifecycleStatus(
 
   return database.transaction(
     'rw',
-    database.activeTasks,
-    database.taskPoolItems,
-    database.softPlacements,
-    database.taskHistory,
+    [
+      database.activeTasks,
+      database.taskPoolItems,
+      database.softPlacements,
+      database.taskHistory,
+      database.rhythmInstances,
+      database.schedulerPlanState,
+    ],
     async () => {
       const storedTask = await database.activeTasks.get(taskId);
 
@@ -409,8 +416,9 @@ export async function updateTaskLifecycleStatus(
       });
       const storedPoolItem = await database.taskPoolItems.get(taskId);
       let updatedPoolItem: TaskPoolItem | null = null;
+      let updatedRhythmInstance: RhythmInstance | null = null;
 
-      if (storedPoolItem) {
+      if (storedPoolItem && !parsedTask.data.sourceRhythmInstanceId) {
         const parsedPoolItem = taskPoolItemSchema.safeParse(storedPoolItem);
 
         if (!parsedPoolItem.success) {
@@ -423,6 +431,35 @@ export async function updateTaskLifecycleStatus(
         updatedPoolItem = taskPoolItemSchema.parse({
           ...withoutBringBackAfter(parsedPoolItem.data),
           status: poolStatusForActiveTask(parsedStatus.data),
+          updatedAt: timestamp,
+        });
+      }
+
+      if (parsedTask.data.sourceRhythmInstanceId) {
+        const parsedInstance = rhythmInstanceSchema.safeParse(
+          await database.rhythmInstances.get(parsedTask.data.sourceRhythmInstanceId),
+        );
+        if (!parsedInstance.success || parsedInstance.data.activeTaskId !== parsedTask.data.id) {
+          return { errors: ['The linked rhythm occurrence could not be read safely. No change was made.'], ok: false as const };
+        }
+        const closed = ['done', 'parked', 'skipped', 'notToday'].includes(parsedStatus.data);
+        updatedRhythmInstance = rhythmInstanceSchema.parse({
+          ...parsedInstance.data,
+          lifecycleState: closed
+            ? 'closed'
+            : parsedStatus.data === 'paused'
+              ? 'paused'
+              : parsedStatus.data === 'active'
+                ? 'today'
+                : 'inProgress',
+          completionState: parsedStatus.data === 'minimumDone'
+            ? 'minimumDone'
+            : parsedStatus.data === 'done'
+              ? 'done'
+              : closed
+                ? 'skipped'
+                : parsedInstance.data.completionState,
+          planningState: closed ? 'closed' : 'today',
           updatedAt: timestamp,
         });
       }
@@ -441,6 +478,15 @@ export async function updateTaskLifecycleStatus(
       );
 
       await database.activeTasks.put(updatedTask);
+      if (updatedRhythmInstance) {
+        await database.rhythmInstances.put(updatedRhythmInstance);
+        const marked = await markRhythmInputRepairPending(
+          database,
+          `instance:${updatedRhythmInstance.id}`,
+          timestamp,
+        );
+        if (!marked.ok) throw new Error(marked.errors.join(' '));
+      }
       if (updatedPoolItem) {
         await database.taskPoolItems.put(updatedPoolItem);
       }

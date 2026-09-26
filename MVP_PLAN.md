@@ -230,12 +230,12 @@ Exit condition: at least a small set of scheduling choices can improve from the 
 
 ### Gate 8A — Personal-Trial Platform Readiness
 
-Status (2026-09-25): **Current programme; Gate 8A1 is the next bounded implementation.** Gate 7 exit does not authorise Day 1 of the longitudinal trial. The verified blocker inventory, slice ownership and trial start gate are in `app/docs/gate8a-personal-trial-platform-readiness.md`. Earlier PR #104-era personal-trial guidance is historical.
+Status (2026-09-25): **Current programme; Gate 8A2 is complete on its reviewed PR head and Gate 8A3 is next.** Gate 8A1 was completed by PR #157 from reviewed `main` `5436c64137d543b76a347dd8920f1de6e4d1dcae`. Gate 7 exit and the completion of either 8A1 or 8A2 do not authorise Day 1 of the longitudinal trial. The verified blocker inventory, slice ownership and trial start gate are in `app/docs/gate8a-personal-trial-platform-readiness.md`. Earlier PR #104-era personal-trial guidance is historical.
 
 Deliver the following bounded slices in order, reviewing each before starting the next:
 
-1. **8A1 — Canonical Input Truth:** user-entered task variant minutes, truthful fallback, correction of existing user-created tasks, and honest scheduling authority/classification. Preserve historical duration uncertainty.
-2. **8A2 — Rhythm End-to-End:** configured personal rhythm, durable enabled state, frequency/window, scheduler placement, concrete occurrence, Today/Now execution and linked behaviour history.
+1. **8A1 — Canonical Input Truth — Complete (PR #157):** user-entered task variant minutes, truthful fallback, correction of existing user-created tasks, and honest scheduling authority/classification. Historical duration uncertainty is preserved.
+2. **8A2 — Rhythm End-to-End — Complete on the Gate 8A2 PR head:** configured personal rhythm, durable plan/revision authority, bounded flexible-quota recurrence, deterministic concrete occurrences, scheduler placement, Today/Now execution and exact instance-linked factual history. Fixed anchored cadence remains deferred.
 3. **8A3 — Availability + Calendar:** usable-day setup and reliable calendar input, including a bounded recurrence/provider decision; never infer usable capacity from blank calendar gaps.
 4. **8A4 — Durable Personal Data:** preserve canonical data beyond one device/browser with an explicit recovery, portability and conflict policy. Include Gate 7E duration-control portability.
 5. **8A5 — Scheduling Mutation Integrity + Corrections:** reconcile every scheduling input write, plus individual move/protect, explanations and safe undo.

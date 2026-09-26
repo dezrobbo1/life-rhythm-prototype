@@ -2,7 +2,6 @@ import { Button } from '../../components';
 import type { LibraryRhythm, QuickPack } from './mockLibraryData';
 
 type QuickPackCardProps = {
-  onEnablePack: (pack: QuickPack) => void;
   onPreviewPack: (packId: string) => void;
   pack: QuickPack;
   previewOpen: boolean;
@@ -10,7 +9,6 @@ type QuickPackCardProps = {
 };
 
 export function QuickPackCard({
-  onEnablePack,
   onPreviewPack,
   pack,
   previewOpen,
@@ -30,13 +28,10 @@ export function QuickPackCard({
         >
           Preview pack
         </Button>
-        <Button onClick={() => onEnablePack(pack)} variant="primary">
-          Enable selected rhythms
-        </Button>
       </div>
       {previewOpen ? (
         <div className="quick-pack__preview" id={`${pack.id}-preview`}>
-          <p>Packs enable rhythms. Today only shows what fits.</p>
+          <p>Preview only. Configure any rhythm individually before it can schedule.</p>
           <ul>
             {rhythms.map((rhythm) => (
               <li key={rhythm.id}>{rhythm.title}</li>

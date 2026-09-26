@@ -83,7 +83,8 @@ describe('persistent shell Capture', () => {
     expect(await database.taskPoolItems.count()).toBe(1);
     expect(await database.activeTasks.count()).toBe(0);
     expect(await database.softPlacements.count()).toBe(0);
-    expect(await database.schedulerPlanState.count()).toBe(0);
+    const savedPlans = await database.schedulerPlanState.toArray();
+    expect(savedPlans.flatMap((saved) => saved.plan.placements)).toEqual([]);
     expect(await database.rhythmTemplates.count()).toBe(0);
 
     await user.click(screen.getByRole('button', { name: 'Held' }));

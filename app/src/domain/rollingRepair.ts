@@ -276,6 +276,14 @@ function changeForPair(
     kind: samePosition(before, after) ? 'variantChanged' : 'moved',
     targetKind: placementTargetKind(after),
     targetId: placementTargetId(after),
+    ...(after.rhythmInstanceId
+      ? {
+          rhythmTemplateId: after.rhythmTemplateId,
+          rhythmPlanId: after.rhythmPlanId,
+          rhythmRecurrenceRevisionId: after.rhythmRecurrenceRevisionId,
+          rhythmInstanceId: after.rhythmInstanceId,
+        }
+      : {}),
     from: placementPoint(before),
     to: placementPoint(after),
     reason,
@@ -342,6 +350,14 @@ function buildChanges(
       kind: 'removed',
       targetKind: placementTargetKind(placement),
       targetId: placementTargetId(placement),
+      ...(placement.rhythmInstanceId
+        ? {
+            rhythmTemplateId: placement.rhythmTemplateId,
+            rhythmPlanId: placement.rhythmPlanId,
+            rhythmRecurrenceRevisionId: placement.rhythmRecurrenceRevisionId,
+            rhythmInstanceId: placement.rhythmInstanceId,
+          }
+        : {}),
       from: placementPoint(placement),
       reason,
     });
@@ -353,6 +369,14 @@ function buildChanges(
       kind: 'added',
       targetKind: placementTargetKind(placement),
       targetId: placementTargetId(placement),
+      ...(placement.rhythmInstanceId
+        ? {
+            rhythmTemplateId: placement.rhythmTemplateId,
+            rhythmPlanId: placement.rhythmPlanId,
+            rhythmRecurrenceRevisionId: placement.rhythmRecurrenceRevisionId,
+            rhythmInstanceId: placement.rhythmInstanceId,
+          }
+        : {}),
       to: placementPoint(placement),
       reason,
     });

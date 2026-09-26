@@ -5,6 +5,9 @@ export type CanonicalSchedulingInputSnapshot = string;
 export type CanonicalSchedulingInputRows = {
   activeTasks: unknown[];
   rhythmTemplates: unknown[];
+  rhythmPlans: unknown[];
+  rhythmRecurrenceRevisions: unknown[];
+  rhythmInstances: unknown[];
   settings: unknown[];
   softPlacements: unknown[];
   taskPoolItems: unknown[];
@@ -12,7 +15,14 @@ export type CanonicalSchedulingInputRows = {
 
 type CanonicalSchedulingInputStore = Pick<
   LifeRhythmDatabase,
-  'activeTasks' | 'rhythmTemplates' | 'settings' | 'softPlacements' | 'taskPoolItems'
+  | 'activeTasks'
+  | 'rhythmTemplates'
+  | 'rhythmPlans'
+  | 'rhythmRecurrenceRevisions'
+  | 'rhythmInstances'
+  | 'settings'
+  | 'softPlacements'
+  | 'taskPoolItems'
 >;
 
 function stableValue(value: unknown): unknown {
@@ -43,15 +53,36 @@ function stableRows(rows: unknown[]) {
 export async function readCanonicalSchedulingInputRows(
   store: CanonicalSchedulingInputStore,
 ): Promise<CanonicalSchedulingInputRows> {
-  const [settings, activeTasks, taskPoolItems, rhythmTemplates, softPlacements] = await Promise.all([
+  const [
+    settings,
+    activeTasks,
+    taskPoolItems,
+    rhythmTemplates,
+    rhythmPlans,
+    rhythmRecurrenceRevisions,
+    rhythmInstances,
+    softPlacements,
+  ] = await Promise.all([
     store.settings.toArray(),
     store.activeTasks.toArray(),
     store.taskPoolItems.toArray(),
     store.rhythmTemplates.toArray(),
+    store.rhythmPlans.toArray(),
+    store.rhythmRecurrenceRevisions.toArray(),
+    store.rhythmInstances.toArray(),
     store.softPlacements.toArray(),
   ]);
 
-  return { activeTasks, rhythmTemplates, settings, softPlacements, taskPoolItems };
+  return {
+    activeTasks,
+    rhythmInstances,
+    rhythmPlans,
+    rhythmRecurrenceRevisions,
+    rhythmTemplates,
+    settings,
+    softPlacements,
+    taskPoolItems,
+  };
 }
 
 export function canonicalSchedulingInputSnapshot(
@@ -60,6 +91,9 @@ export function canonicalSchedulingInputSnapshot(
   return JSON.stringify({
     activeTasks: stableRows(rows.activeTasks),
     rhythmTemplates: stableRows(rows.rhythmTemplates),
+    rhythmPlans: stableRows(rows.rhythmPlans),
+    rhythmRecurrenceRevisions: stableRows(rows.rhythmRecurrenceRevisions),
+    rhythmInstances: stableRows(rows.rhythmInstances),
     settings: stableRows(rows.settings),
     softPlacements: stableRows(rows.softPlacements),
     taskPoolItems: stableRows(rows.taskPoolItems),
