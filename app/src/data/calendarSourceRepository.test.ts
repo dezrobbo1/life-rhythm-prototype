@@ -79,6 +79,25 @@ describe('calendar source repository', () => {
     expect(await getCurrentLifeRhythmDatabase().calendarSources.count()).toBe(0);
   });
 
+  it.each([
+    { kind: 'single', recurrence: [] },
+    { kind: 'recurring', recurrence: ['RRULE:FREQ=DAILY;COUNT=1'] },
+  ])('rejects a future $kind over-budget BUSY event before replacing a valid source', async ({ recurrence }) => {
+    expect((await importIcsCalendarSource({
+      label: 'Existing', source: calendar, options,
+      importedAt: '2026-09-05T06:00:00.000Z',
+    })).ok).toBe(true);
+    const database = getCurrentLifeRhythmDatabase();
+    const before = await database.calendarSources.get('primary');
+    const result = await importIcsCalendarSource({
+      label: 'Future unsafe event',
+      source: calendarWith(['UID:future', 'DTSTART:20261201T090000Z', 'DURATION:P1000000D', ...recurrence]),
+      options,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await database.calendarSources.get('primary')).toEqual(before);
+  });
+
   it('accepts exactly 10,000 timed fragments and rejects the immediately following fragment', async () => {
     // Perth midnight on 2053-05-19 is 16:00Z on the preceding date.
     const start = ['UID:boundary', 'DTSTART:20260101T090000Z'];
