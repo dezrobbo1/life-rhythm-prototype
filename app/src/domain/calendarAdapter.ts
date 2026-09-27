@@ -192,6 +192,37 @@ function pointFromEpoch(epochMs: number, targetTimezone: string): ParsedDateValu
   };
 }
 
+function safeDuration(raw: string, allDay: boolean): ICAL.Duration {
+  // RFC 5545 permits nominal weeks/days and accurate hours/minutes/seconds;
+  // VEVENT requires a positive duration and DATE events permit only weeks/days.
+  const grammar = allDay ? /^\+?P(?:[0-9]+W|[0-9]+D)$/
+    : /^\+?P(?:[0-9]+W|[0-9]+D(?:T(?:[0-9]+H(?:[0-9]+M(?:[0-9]+S)?)?|[0-9]+M(?:[0-9]+S)?|[0-9]+S))?|T(?:[0-9]+H(?:[0-9]+M(?:[0-9]+S)?)?|[0-9]+M(?:[0-9]+S)?|[0-9]+S))$/;
+  if (!grammar.test(raw)) throw new Error('Unsupported busy calendar duration.');
+  const duration = ICAL.Duration.fromString(raw);
+  const components = [duration.weeks, duration.days, duration.hours, duration.minutes, duration.seconds];
+  if (duration.isNegative || components.some((value) => !Number.isSafeInteger(value) || value < 0) ||
+    components.every((value) => value === 0)) throw new Error('Invalid busy calendar duration.');
+  return duration;
+}
+
+function durationEndEpoch(startEpoch: number, duration: ICAL.Duration, timezone: string): number {
+  const nominalDays = duration.weeks * 7 + duration.days;
+  if (!Number.isSafeInteger(nominalDays)) throw new Error('Calendar duration exceeds safe date bounds.');
+  let nominalEpoch = startEpoch;
+  if (nominalDays) {
+    const start = partsInZone(startEpoch, timezone);
+    const nominalDate = addCalendarDays(formatDate(start.year, start.month, start.day), nominalDays);
+    const [year, month, day] = nominalDate.split('-').map(Number);
+    nominalEpoch = zonedLocalToEpoch({ ...start, year, month, day }, timezone);
+  }
+  const accurateMilliseconds = ((duration.hours * 60 + duration.minutes) * 60 + duration.seconds) * 1000;
+  const endEpoch = nominalEpoch + accurateMilliseconds;
+  if (!Number.isSafeInteger(endEpoch) || endEpoch <= startEpoch || !Number.isFinite(new Date(endEpoch).getTime())) {
+    throw new Error('Calendar duration exceeds safe date bounds.');
+  }
+  return endEpoch;
+}
+
 function parseDateProperty(
   property: ParsedProperty,
   targetTimezone: string,
@@ -433,6 +464,28 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
     };
     const occurrenceStartFallback = (component: ICAL.Component) =>
       component === master.component ? sourceTimezone : undefined;
+    const occurrenceEnd = (
+      startTime: ICAL.Time, endTime: ICAL.Time, component: ICAL.Component,
+      provenance?: RdateProvenance,
+    ): CalendarLocalPoint => {
+      if (component.hasProperty('duration') && !component.hasProperty('dtend')) {
+        const duration = safeDuration(component.getFirstProperty('duration')?.getFirstValue()?.toString() ?? '', startTime.isDate);
+        if (startTime.isDate) {
+          return { date: addCalendarDays(formatDate(startTime.year, startTime.month, startTime.day),
+            duration.weeks * 7 + duration.days) };
+        }
+        const startEpoch = asEpoch(startTime, component, 'dtstart', occurrenceStartFallback(component), false, provenance);
+        const timezone = startTime.zone === ICAL.Timezone.utcTimezone || provenance?.kind === 'utc' ? 'UTC'
+          : provenance?.kind === 'floating' ? options.targetTimezone
+            : provenance?.kind === 'tzid' ? provenance.timezone
+              : (component.getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined)
+                ?.replace(/^"|"$/g, '') ?? occurrenceStartFallback(component) ?? options.targetTimezone;
+        return pointFromEpoch(durationEndEpoch(startEpoch, duration, timezone), options.targetTimezone);
+      }
+      return startTime.isDate
+        ? { date: formatDate(endTime.year, endTime.month, endTime.day) }
+        : pointFromEpoch(asEpoch(endTime, component, 'dtend', occurrenceEndFallback(component), false, provenance), options.targetTimezone);
+    };
     const recurrenceIdentityKey = (time: ICAL.Time) =>
       `${formatDate(time.year, time.month, time.day)}T${time.isDate ? '00:00:00' :
         `${formatTime(time.hour, time.minute)}:${time.second.toString().padStart(2, '0')}`}`;
@@ -445,9 +498,7 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
       const start: CalendarLocalPoint = allDay
         ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
         : pointFromEpoch(asEpoch(startTime, component, 'dtstart', occurrenceStartFallback(component), false), options.targetTimezone);
-      const end: CalendarLocalPoint = allDay
-        ? { date: formatDate(endTime.year, endTime.month, endTime.day) }
-        : pointFromEpoch(asEpoch(endTime, component, 'dtend', occurrenceEndFallback(component), false), options.targetTimezone);
+      const end = occurrenceEnd(startTime, endTime, component);
       return overlapsDateWindow({
         adapterId: 'ics',
         sourceEventId: uid,
@@ -481,9 +532,7 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
       const start: CalendarLocalPoint = allDay
         ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
         : pointFromEpoch(asEpoch(startTime, item.component, 'dtstart', occurrenceStartFallback(item.component), occurrenceProvenance?.kind !== 'floating', occurrenceProvenance), options.targetTimezone);
-      const end: CalendarLocalPoint = allDay
-        ? { date: formatDate(endTime.year, endTime.month, endTime.day) }
-        : pointFromEpoch(asEpoch(endTime, item.component, 'dtend', occurrenceEndFallback(item.component), occurrenceProvenance?.kind !== 'floating', occurrenceProvenance), options.targetTimezone);
+      const end = occurrenceEnd(startTime, endTime, item.component, occurrenceProvenance);
       if (start.date >= end.date && (allDay || start.date !== end.date || (start.time ?? '') >= (end.time ?? ''))) throw new Error(`Invalid calendar occurrence ${uid}.`);
       const sourceOccurrenceTimezone = occurrenceProvenance?.kind === 'tzid' ? occurrenceProvenance.timezone
         : occurrenceProvenance ? undefined
@@ -555,18 +604,29 @@ export class IcsCalendarAdapter implements CalendarAdapter {
       const uid = firstProperty(properties, 'UID')?.value.trim();
       const startProperty = firstProperty(properties, 'DTSTART');
       const endProperty = firstProperty(properties, 'DTEND');
+      const durationProperty = firstProperty(properties, 'DURATION');
 
-      if (!uid || !startProperty || !endProperty) {
+      if (!uid || !startProperty || (!endProperty && !durationProperty)) {
         warnings.push('A calendar event was skipped because UID, DTSTART or DTEND was missing.');
         continue;
       }
+
+      if (endProperty && durationProperty) throw new Error(`Calendar event ${uid} has both DTEND and DURATION.`);
 
 
       let start: ParsedDateValue | null;
       let end: ParsedDateValue | null;
       try {
         start = parseDateProperty(startProperty, options.targetTimezone, warnings);
-        end = parseDateProperty(endProperty, options.targetTimezone, warnings);
+        if (durationProperty) {
+          const duration = safeDuration(durationProperty.value, start?.allDay ?? false);
+          end = start?.allDay ? { allDay: true, date: addCalendarDays(start.date, duration.weeks * 7 + duration.days) }
+            : start?.epochMs === undefined ? null
+              : pointFromEpoch(durationEndEpoch(start.epochMs, duration,
+                start.sourceTimezone ?? (startProperty.value.endsWith('Z') ? 'UTC' : options.targetTimezone)), options.targetTimezone);
+        } else {
+          end = parseDateProperty(endProperty!, options.targetTimezone, warnings);
+        }
       } catch {
         if (firstProperty(properties, 'TRANSP')?.value.toUpperCase() !== 'TRANSPARENT') {
           throw new Error(`Busy calendar event ${uid} has an unresolved timezone or local time.`);

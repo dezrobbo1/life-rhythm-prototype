@@ -22,6 +22,103 @@ function event(lines: string[]) {
 }
 
 describe('ICS calendar adapter', () => {
+  it('keeps an elapsed-hour moved exception across Sydney spring-forward', () => {
+    const source = calendar(event([
+      'UID:duration-spring', 'SUMMARY:Master',
+      'DTSTART;TZID=Australia/Sydney:20261003T013000',
+      'DTEND;TZID=Australia/Sydney:20261003T020000', 'RRULE:FREQ=DAILY;COUNT=2',
+    ]), event([
+      'UID:duration-spring', 'RECURRENCE-ID;TZID=Australia/Sydney:20261004T013000',
+      'SUMMARY:Moved', 'DTSTART;TZID=Australia/Sydney:20261004T013000', 'DURATION:PT1H',
+    ]));
+    const events = new IcsCalendarAdapter().read(source, {
+      targetTimezone: 'Australia/Sydney', windowStartDate: '2026-10-03', windowEndDate: '2026-10-04',
+    }).events;
+    expect(events.find((item) => item.title === 'Moved')).toMatchObject({
+      start: { date: '2026-10-04', time: '01:30' }, end: { date: '2026-10-04', time: '03:30' },
+    });
+    expect(new IcsCalendarAdapter().read(source, {
+      targetTimezone: 'UTC', windowStartDate: '2026-10-03', windowEndDate: '2026-10-04',
+    }).events.find((item) => item.title === 'Moved')).toMatchObject({
+      start: { date: '2026-10-03', time: '15:30' }, end: { date: '2026-10-03', time: '16:30' },
+    });
+    expect(new IcsCalendarAdapter().read(source, {
+      targetTimezone: 'Australia/Sydney', windowStartDate: '2026-10-03', windowEndDate: '2026-10-04',
+    }).events.map((item) => item.sourceEventId)).toEqual(events.map((item) => item.sourceEventId));
+  });
+
+  it.each([
+    ['spring elapsed', '20261004T013000', 'PT1H', '2026-10-04', '03:30'],
+    ['fall elapsed', '20260405T013000', 'PT2H', '2026-04-05', '02:30'],
+    ['spring nominal day', '20261003T090000', 'P1D', '2026-10-04', '09:00'],
+    ['spring accurate day', '20261003T090000', 'PT24H', '2026-10-04', '10:00'],
+    ['fall nominal day', '20260404T090000', 'P1D', '2026-04-05', '09:00'],
+    ['fall accurate day', '20260404T090000', 'PT24H', '2026-04-05', '08:00'],
+    ['nominal then accurate', '20261003T090000', 'P1DT1H', '2026-10-04', '10:00'],
+  ])('%s applies RFC nominal and accurate duration in order', (_name, start, duration, endDate, endTime) => {
+    const source = calendar(event([
+      `UID:duration-${start}`, 'SUMMARY:Timed', `DTSTART;TZID=Australia/Sydney:${start}`,
+      `DURATION:${duration}`, 'RRULE:FREQ=DAILY;COUNT=1',
+    ]));
+    const [item] = new IcsCalendarAdapter().read(source, {
+      targetTimezone: 'Australia/Sydney', windowStartDate: start.slice(0, 4) + '-04-01', windowEndDate: '2026-10-05',
+    }).events;
+    expect(item).toMatchObject({ end: { date: endDate, time: endTime } });
+  });
+
+  it('distinguishes authored DTEND, UTC, floating, and all-day DURATION', () => {
+    const read = (lines: string[], targetTimezone = 'Australia/Sydney') => new IcsCalendarAdapter().read(
+      calendar(event(['UID:duration-forms', 'SUMMARY:Forms', ...lines])),
+      { targetTimezone, windowStartDate: '2026-10-03', windowEndDate: '2026-10-05' },
+    ).events[0];
+    expect(read(['DTSTART;TZID=Australia/Sydney:20261004T013000', 'DURATION:PT1H'])).toMatchObject({
+      start: { time: '01:30' }, end: { time: '03:30' },
+    });
+    expect(read(['DTSTART;TZID=Australia/Sydney:20261004T013000',
+      'DTEND;TZID=Australia/Sydney:20261004T033000'])).toMatchObject({ end: { time: '03:30' } });
+    expect(read(['DTSTART:20261003T153000Z', 'DURATION:PT1H'])).toMatchObject({
+      start: { time: '01:30' }, end: { time: '03:30' },
+    });
+    expect(read(['DTSTART:20261004T013000', 'DURATION:PT1H'])).toMatchObject({
+      start: { time: '01:30' }, end: { time: '03:30' },
+    });
+    expect(read(['DTSTART;VALUE=DATE:20261004', 'DURATION:P1D'])).toMatchObject({
+      allDay: true, start: { date: '2026-10-04' }, end: { date: '2026-10-05' },
+    });
+    expect(() => read(['DTSTART;VALUE=DATE:20261004', 'DURATION:PT24H'])).toThrow();
+    expect(() => read(['DTSTART;TZID=Australia/Sydney:20261004T023000', 'DURATION:PT1H'])).toThrow();
+    expect(() => read(['DTSTART;TZID=Australia/Sydney:20261004T013000', 'DURATION:-PT1H'])).toThrow();
+  });
+
+  it('uses an explicit RDATE timezone and the first repeated instant for elapsed duration', () => {
+    const source = calendar(event([
+      'UID:duration-rdate', 'SUMMARY:Series',
+      'DTSTART;TZID=Australia/Perth:20260404T090000', 'DURATION:PT2H',
+      'RDATE;TZID=Australia/Sydney:20260405T023000',
+    ]));
+    const options = { targetTimezone: 'UTC', windowStartDate: '2026-04-04', windowEndDate: '2026-04-05' };
+    const first = new IcsCalendarAdapter().read(source, options).events;
+    expect(first.find((item) => item.start.time === '15:30')).toMatchObject({
+      start: { date: '2026-04-04', time: '15:30' }, end: { date: '2026-04-04', time: '17:30' },
+      sourceTimezone: 'Australia/Sydney',
+    });
+    expect(new IcsCalendarAdapter().read(source, options).events.map((item) => item.sourceEventId))
+      .toEqual(first.map((item) => item.sourceEventId));
+  });
+
+  it('retains two elapsed hours when Sydney falls back', () => {
+    const source = calendar(event([
+      'UID:duration-fall', 'SUMMARY:Fall',
+      'DTSTART;TZID=Australia/Sydney:20260405T013000', 'DURATION:PT2H',
+      'RRULE:FREQ=DAILY;COUNT=1',
+    ]));
+    const result = new IcsCalendarAdapter().read(source, {
+      targetTimezone: 'UTC', windowStartDate: '2026-04-04', windowEndDate: '2026-04-05',
+    });
+    expect(result.events[0]).toMatchObject({
+      start: { date: '2026-04-04', time: '14:30' }, end: { date: '2026-04-04', time: '16:30' },
+    });
+  });
   it('retains a moved Perth exception four-hour DURATION under a Sydney master', () => {
     const source = calendar(event([
       'UID:duration-zone', 'SUMMARY:Master',

@@ -121,6 +121,7 @@ describe('live scheduler plan coordinator', () => {
     const rebuilt = await ensureCurrentPrivatePlan(coordinatorOptions());
     expect(rebuilt.ok).toBe(true);
     if (!rebuilt.ok) return;
+    expect(rebuilt.plan.placements.some((placement) => placement.intentionId === 'task-a')).toBe(true);
     expect(rebuilt.plan.placements.every((placement) => placement.end <= '17:00')).toBe(true);
     expect(rebuilt.plan.placements.some((placement) => placement.start === '18:00')).toBe(false);
     expect(await database.schedulerPlanState.count()).toBe(1);
@@ -156,6 +157,7 @@ describe('live scheduler plan coordinator', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(reads).toBe(3);
+    expect(result.plan.placements.some((placement) => placement.intentionId === 'task-a')).toBe(true);
     expect(result.plan.placements.every((placement) => placement.end <= '17:00')).toBe(true);
     expect(writes).toHaveBeenCalledTimes(1);
     expect(await database.schedulerPlanState.count()).toBe(1);
