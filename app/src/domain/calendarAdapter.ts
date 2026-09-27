@@ -102,9 +102,39 @@ function formatDate(year: number, month: number, day: number): string {
 }
 
 function addCalendarDays(date: string, days: number): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isSafeInteger(days)) {
+    throw new RangeError('Calendar date shift exceeds safe bounds.');
+  }
   const [year, month, day] = date.split('-').map(Number);
-  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  const original = new Date(0);
+  original.setUTCFullYear(year, month - 1, day);
+  if (original.getUTCFullYear() !== year || original.getUTCMonth() + 1 !== month || original.getUTCDate() !== day) {
+    throw new RangeError('Invalid calendar date.');
+  }
+  const shifted = new Date(original.getTime() + days * 86_400_000);
+  if (!Number.isFinite(shifted.getTime()) || shifted.getUTCFullYear() < 1 || shifted.getUTCFullYear() > 9999) {
+    throw new RangeError('Calendar date shift exceeds safe bounds.');
+  }
   return formatDate(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate());
+}
+
+// Matches the existing 10,000 emitted-recurrence guard: a single imported
+// commitment must not demand more daily records than a whole safe read.
+export const MAX_CALENDAR_EXPANSION_DAYS = 10_000;
+
+export function calendarDateSpanDays(start: string, end: string): number {
+  const epoch = (date: string) => {
+    addCalendarDays(date, 0);
+    const [year, month, day] = date.split('-').map(Number);
+    const value = new Date(0);
+    value.setUTCFullYear(year, month - 1, day);
+    return value.getTime();
+  };
+  const days = (epoch(end) - epoch(start)) / 86_400_000;
+  if (!Number.isSafeInteger(days) || days < 1 || days > MAX_CALENDAR_EXPANSION_DAYS) {
+    throw new RangeError('Calendar event exceeds safe daily expansion bounds.');
+  }
+  return days;
 }
 
 function formatTime(hour: number, minute: number): string {
@@ -153,6 +183,7 @@ function localComponentsMatch(left: LocalDateTimeComponents, right: LocalDateTim
 function zonedLocalToEpoch(
   components: LocalDateTimeComponents,
   timezone: string,
+  durationDerivedNominalEnd = false,
 ): number {
   const nominalUtc = Date.UTC(
     components.year,
@@ -162,6 +193,7 @@ function zonedLocalToEpoch(
     components.minute,
     components.second,
   );
+  if (!Number.isFinite(nominalUtc)) throw new RangeError('Calendar local time exceeds safe bounds.');
   // Inspect the bounded range of possible IANA offsets independently of the
   // machine timezone. Both sides of a fallback transition can represent the
   // same wall time; RFC 5545 uses the earlier of those two instants.
@@ -177,6 +209,22 @@ function zonedLocalToEpoch(
   const matching = [...offsets].map((offset) => nominalUtc - offset)
     .filter((candidate) => localComponentsMatch(partsInZone(candidate, timezone), components));
   if (matching.length === 0) {
+    if (durationDerivedNominalEnd) {
+      // RFC 5545 §3.3.5 uses the offset immediately before a forward gap.
+      // Authored DTSTART/DTEND values keep the strict resolver above.
+      const following = [...offsets].map((offset) => {
+        const candidate = nominalUtc - offset;
+        const represented = partsInZone(candidate, timezone);
+        const representedUtc = Date.UTC(represented.year, represented.month - 1, represented.day,
+          represented.hour, represented.minute, represented.second);
+        const shift = representedUtc - nominalUtc;
+        const prior = partsInZone(candidate - shift, timezone);
+        const priorOffset = Date.UTC(prior.year, prior.month - 1, prior.day,
+          prior.hour, prior.minute, prior.second) - (candidate - shift);
+        return { candidate, shift, offset, priorOffset };
+      }).filter(({ shift, offset, priorOffset }) => shift > 0 && shift <= 26 * 3_600_000 && priorOffset === offset);
+      if (following.length > 0) return following.sort((a, b) => a.shift - b.shift)[0].candidate;
+    }
     throw new RangeError(`Local calendar time cannot be represented in timezone ${timezone}.`);
   }
   return Math.min(...matching);
@@ -213,7 +261,7 @@ function durationEndEpoch(startEpoch: number, duration: ICAL.Duration, timezone:
     const start = partsInZone(startEpoch, timezone);
     const nominalDate = addCalendarDays(formatDate(start.year, start.month, start.day), nominalDays);
     const [year, month, day] = nominalDate.split('-').map(Number);
-    nominalEpoch = zonedLocalToEpoch({ ...start, year, month, day }, timezone);
+    nominalEpoch = zonedLocalToEpoch({ ...start, year, month, day }, timezone, true);
   }
   const accurateMilliseconds = ((duration.hours * 60 + duration.minutes) * 60 + duration.seconds) * 1000;
   const endEpoch = nominalEpoch + accurateMilliseconds;
@@ -533,6 +581,7 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
         ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
         : pointFromEpoch(asEpoch(startTime, item.component, 'dtstart', occurrenceStartFallback(item.component), occurrenceProvenance?.kind !== 'floating', occurrenceProvenance), options.targetTimezone);
       const end = occurrenceEnd(startTime, endTime, item.component, occurrenceProvenance);
+      if (allDay) calendarDateSpanDays(start.date, end.date);
       if (start.date >= end.date && (allDay || start.date !== end.date || (start.time ?? '') >= (end.time ?? ''))) throw new Error(`Invalid calendar occurrence ${uid}.`);
       const sourceOccurrenceTimezone = occurrenceProvenance?.kind === 'tzid' ? occurrenceProvenance.timezone
         : occurrenceProvenance ? undefined
@@ -611,12 +660,10 @@ export class IcsCalendarAdapter implements CalendarAdapter {
         continue;
       }
 
-      if (endProperty && durationProperty) throw new Error(`Calendar event ${uid} has both DTEND and DURATION.`);
-
-
       let start: ParsedDateValue | null;
       let end: ParsedDateValue | null;
       try {
+        if (endProperty && durationProperty) throw new Error(`Calendar event ${uid} has both DTEND and DURATION.`);
         start = parseDateProperty(startProperty, options.targetTimezone, warnings);
         if (durationProperty) {
           const duration = safeDuration(durationProperty.value, start?.allDay ?? false);
@@ -627,6 +674,7 @@ export class IcsCalendarAdapter implements CalendarAdapter {
         } else {
           end = parseDateProperty(endProperty!, options.targetTimezone, warnings);
         }
+        if (start?.allDay && end?.allDay) calendarDateSpanDays(start.date, end.date);
       } catch {
         if (firstProperty(properties, 'TRANSP')?.value.toUpperCase() !== 'TRANSPARENT') {
           throw new Error(`Busy calendar event ${uid} has an unresolved timezone or local time.`);

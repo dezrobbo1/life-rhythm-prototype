@@ -52,6 +52,17 @@ function readEvent(uid: string, transp?: 'TRANSPARENT') {
 }
 
 describe('Gate 2 calendar availability edge semantics', () => {
+  it('rejects oversized or malformed all-day event spans before expanding commitments', () => {
+    const valid = readEvent('ordinary');
+    const allDay = { ...valid, allDay: true, start: { date: '2026-01-01' }, end: { date: '2026-01-02' } };
+    expect(externalCommitmentsFromCalendarEvents([allDay])).toHaveLength(1);
+    expect(() => externalCommitmentsFromCalendarEvents([
+      { ...allDay, end: { date: 'NaN-NaN-NaN' } },
+    ])).toThrow();
+    expect(() => externalCommitmentsFromCalendarEvents([
+      { ...allDay, end: { date: '2053-05-20' } },
+    ])).toThrow();
+  });
   it('blocks reviewed work travel on both sides of midnight across different assigned profiles', () => {
     const base = settingsWithUsableWorkday();
     const settings = settingsSchema.parse({

@@ -1,5 +1,5 @@
 import type { DayOfWeek, Settings } from '../data/schemas';
-import type { CalendarReadEvent } from './calendarAdapter';
+import { calendarDateSpanDays, MAX_CALENDAR_EXPANSION_DAYS, type CalendarReadEvent } from './calendarAdapter';
 import type { ExternalCommitment, SchedulingInterval } from './schedulingModel';
 
 export type CandidateSchedulingInterval = {
@@ -148,6 +148,14 @@ function fixedCommitmentsFromSettings(settings: Settings): ExternalCommitment[] 
 
 export function externalCommitmentsFromCalendarEvents(events: CalendarReadEvent[], beforeMinutes = 0, afterMinutes = 0): ExternalCommitment[] {
   const commitments: ExternalCommitment[] = [];
+  let totalExpandedDays = 0;
+  for (const event of events) {
+    if (!event.busy || !event.allDay) continue;
+    totalExpandedDays += calendarDateSpanDays(event.start.date, event.end.date);
+    if (totalExpandedDays > MAX_CALENDAR_EXPANSION_DAYS) {
+      throw new RangeError('Calendar commitments exceed safe daily expansion bounds.');
+    }
+  }
 
   const addSpillover = (
     event: CalendarReadEvent,
@@ -283,7 +291,7 @@ function profileContext(settings: Settings, date: string) {
   };
 }
 
-function reviewedWorkBoundaryRanges(settings: Settings, date: string): MinuteRange[] {
+export function reviewedWorkBoundaryRanges(settings: Settings, date: string): MinuteRange[] {
   if (settings.dayProfileMigrationState.reviewState !== 'reviewedAndEnabled') return [];
   const ranges: MinuteRange[] = [];
   for (const offset of [-1, 0, 1]) {

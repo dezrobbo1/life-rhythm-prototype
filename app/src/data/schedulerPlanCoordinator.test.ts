@@ -211,6 +211,37 @@ describe('live scheduler plan coordinator', () => {
     expect(result.plan.unscheduledIntentionIds).toContain('task-a');
   });
 
+  it('subtracts reviewed adjacent work-boundary spillover from explicit capacity', async () => {
+    const defaults = createDefaultSettings(timestamp);
+    const saved = await saveSettings({
+      theme: defaults.theme, startBoostSafety: defaults.startBoostSafety,
+      lifeShape: { ...defaults.lifeShape, timeBlocks: [
+        { id: 'sunday', label: 'Sunday capacity', type: 'openCapacity', schedulerUse: 'available', days: ['Sunday'], start: '22:00', end: '23:59' },
+        { id: 'sunday-small', label: 'Sunday fragment', type: 'openCapacity', schedulerUse: 'available', days: ['Sunday'], start: '22:50', end: '23:10' },
+        { id: 'monday', label: 'Monday capacity', type: 'openCapacity', schedulerUse: 'available', days: ['Monday'], start: '00:00', end: '02:00' },
+        { id: 'tuesday', label: 'Tuesday capacity', type: 'openCapacity', schedulerUse: 'available', days: ['Tuesday'], start: '00:00', end: '02:00' },
+      ] },
+      dayProfiles: defaults.dayProfiles.map((profile) => profile.kind === 'workday'
+        ? { ...profile, usableDay: undefined, workPeriod: { start: '01:00', end: '23:30' },
+            workPlanningUse: 'allowSuitableTasks' as const,
+            workBoundaryMinutes: { beforeTravel: 120, beforeTransition: 0, afterTravel: 120, afterTransition: 0 } }
+        : { ...profile, usableDay: undefined }),
+      activatePlanningDay: true,
+    });
+    expect(saved.ok).toBe(true);
+    const result = await buildCurrentLiveSchedulingContext({
+      horizonDays: 3, startDate: '2026-09-06', now: new Date('2026-09-06T11:00:00.000Z'), timezone,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const ranges = (date: string) => (result.context.input.candidateIntervals ?? []).filter((entry) => entry.date === date)
+      .map(({ start, end }) => [start, end]);
+    expect(ranges('2026-09-06')).toEqual([['22:00', '23:00']]);
+    expect(ranges('2026-09-07')).toEqual([['01:00', '02:00']]);
+    expect(ranges('2026-09-08')).toEqual([['01:30', '02:00']]);
+    expect((result.context.input.candidateIntervals ?? []).every((entry) => entry.end > entry.start)).toBe(true);
+  });
+
   it('subtracts ask-first and fixed commitment time from the explicit-available fallback', async () => {
     await saveLifeShape({
       fixedCommitments: [

@@ -22,6 +22,77 @@ function event(lines: string[]) {
 }
 
 describe('ICS calendar adapter', () => {
+  it('rejects an overflowing busy all-day duration before commitment expansion', () => {
+    const source = calendar(event([
+      'UID:huge-day', 'DTSTART;VALUE=DATE:20260101', 'DURATION:P100000000D',
+    ]));
+    expect(() => new IcsCalendarAdapter().read(source, {
+      targetTimezone: 'UTC', windowStartDate: '2026-01-01', windowEndDate: '2026-01-02',
+    })).toThrow();
+    const read = (duration: string) => new IcsCalendarAdapter().read(
+      source.replace('P100000000D', duration),
+      { targetTimezone: 'UTC', windowStartDate: '2026-01-01', windowEndDate: '2026-01-02' },
+    ).events[0];
+    expect(read('P1D').end.date).toBe('2026-01-02');
+    expect(read('P1W').end.date).toBe('2026-01-08');
+    expect(read('P10000D').end.date).toBe('2053-05-19');
+    for (const invalid of ['P10001D', 'P0D', '-P1D']) expect(() => read(invalid)).toThrow();
+    expect(() => read('P1D')).not.toThrow();
+  });
+
+  it('skips a malformed transparent duration without hiding a valid busy event', () => {
+    const source = calendar(event([
+      'UID:free-invalid', 'TRANSP:TRANSPARENT',
+      'DTSTART:20260907T010000Z', 'DTEND:20260907T020000Z', 'DURATION:PT1H',
+    ]), event([
+      'UID:busy-valid', 'DTSTART:20260907T030000Z', 'DTEND:20260907T040000Z',
+    ]));
+    const result = new IcsCalendarAdapter().read(source, options);
+    expect(result.events.map((entry) => entry.sourceEventId)).toEqual(['busy-valid']);
+    expect(result.warnings).toEqual([expect.stringContaining('skipped')]);
+    expect(() => new IcsCalendarAdapter().read(source.replace('TRANSP:TRANSPARENT', 'TRANSP:OPAQUE'), options)).toThrow();
+    const malformed = source.replace('DTEND:20260907T020000Z', '').replace('DURATION:PT1H', 'DURATION:PT0H');
+    expect(new IcsCalendarAdapter().read(malformed, options).events.map((entry) => entry.sourceEventId)).toEqual(['busy-valid']);
+  });
+
+  it('resolves a nominal day end landing in Sydney spring gap while rejecting an authored gap start', () => {
+    const source = calendar(event([
+      'UID:nominal-gap', 'DTSTART;TZID=Australia/Sydney:20261003T023000', 'DURATION:P1D',
+      'RRULE:FREQ=DAILY;COUNT=1',
+    ]));
+    const result = new IcsCalendarAdapter().read(source, {
+      targetTimezone: 'Australia/Sydney', windowStartDate: '2026-10-03', windowEndDate: '2026-10-04',
+    });
+    expect(result.events[0]).toMatchObject({ start: { date: '2026-10-03', time: '02:30' }, end: { date: '2026-10-04', time: '03:30' } });
+    const asUtc = new IcsCalendarAdapter().read(source, {
+      targetTimezone: 'UTC', windowStartDate: '2026-10-02', windowEndDate: '2026-10-04',
+    }).events[0];
+    expect(asUtc).toMatchObject({ end: { date: '2026-10-03', time: '16:30' } });
+    const mixed = source.replace('DURATION:P1D', 'DURATION:P1DT1H');
+    expect(new IcsCalendarAdapter().read(mixed, {
+      targetTimezone: 'Australia/Sydney', windowStartDate: '2026-10-03', windowEndDate: '2026-10-04',
+    }).events[0].end).toEqual({ date: '2026-10-04', time: '04:30' });
+    const moved = calendar(event([
+      'UID:gap-override', 'DTSTART;TZID=Australia/Sydney:20261002T023000',
+      'DTEND;TZID=Australia/Sydney:20261002T030000', 'RRULE:FREQ=DAILY;COUNT=2',
+    ]), event([
+      'UID:gap-override', 'RECURRENCE-ID;TZID=Australia/Sydney:20261003T023000',
+      'DTSTART;TZID=Australia/Sydney:20261003T023000', 'DURATION:P1D',
+    ]));
+    expect(new IcsCalendarAdapter().read(moved, {
+      targetTimezone: 'Australia/Sydney', windowStartDate: '2026-10-02', windowEndDate: '2026-10-04',
+    }).events.find((entry) => entry.start.date === '2026-10-03')).toMatchObject({
+      end: { date: '2026-10-04', time: '03:30' },
+    });
+    const halfHourGap = source.replace('Australia/Sydney', 'Australia/Lord_Howe')
+      .replace(/023000/g, '021500');
+    expect(new IcsCalendarAdapter().read(halfHourGap, {
+      targetTimezone: 'Australia/Lord_Howe', windowStartDate: '2026-10-03', windowEndDate: '2026-10-04',
+    }).events[0].end).toEqual({ date: '2026-10-04', time: '02:45' });
+    expect(() => new IcsCalendarAdapter().read(source.replace('20261003T023000', '20261004T023000'), {
+      targetTimezone: 'Australia/Sydney', windowStartDate: '2026-10-04', windowEndDate: '2026-10-05',
+    })).toThrow();
+  });
   it('keeps an elapsed-hour moved exception across Sydney spring-forward', () => {
     const source = calendar(event([
       'UID:duration-spring', 'SUMMARY:Master',

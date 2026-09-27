@@ -1,6 +1,7 @@
 import {
   deriveGate2Availability,
   externalCommitmentsFromCalendarEvents,
+  reviewedWorkBoundaryRanges,
 } from '../domain/calendarAvailability';
 import { projectCurrentStateToSchedulingDomain } from '../domain/currentStateProjection';
 import type {
@@ -237,6 +238,7 @@ function explicitAvailableCandidates(
   input: SchedulingDomainModel,
   date: string,
   timezone: string,
+  settings: Parameters<typeof reviewedWorkBoundaryRanges>[0],
 ): CandidateSchedulingInterval[] {
   const weekday = weekdayForDate(date);
   const available = input.capacityWindows.filter(
@@ -260,7 +262,7 @@ function explicitAvailableCandidates(
     const range = commitmentRangeForDate(commitment, date);
     return range ? [range] : [];
   });
-  const blockers = [...capacityBlockers, ...commitmentBlockers];
+  const blockers = [...capacityBlockers, ...commitmentBlockers, ...reviewedWorkBoundaryRanges(settings, date)];
   const candidates: CandidateSchedulingInterval[] = [];
 
   for (const window of available) {
@@ -275,7 +277,7 @@ function explicitAvailableCandidates(
       segments = subtractRange(segments, blocker);
     }
 
-    segments.forEach((segment, index) => {
+    segments.filter((segment) => segment.end - segment.start >= 15).forEach((segment, index) => {
       candidates.push({
         id: `explicit-available:${date}:${window.id}:${index}`,
         date,
@@ -636,7 +638,7 @@ export async function buildCurrentLiveSchedulingContext(
     if (availability.usableDay) {
       candidateIntervals.push(...availability.candidateIntervals);
     } else {
-      const explicitCandidates = explicitAvailableCandidates(planningBase, date, timezone);
+      const explicitCandidates = explicitAvailableCandidates(planningBase, date, timezone, settingsResult.settings);
       candidateIntervals.push(...explicitCandidates);
       if (explicitCandidates.length > 0) {
         warnings.push(
