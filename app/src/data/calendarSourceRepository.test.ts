@@ -119,6 +119,42 @@ describe('calendar source repository', () => {
     }
   });
 
+  it('rejects an off-window BUSY moved exception with an unsafe timed span', async () => {
+    expect((await importIcsCalendarSource({
+      label: 'Existing', source: calendar, options,
+      importedAt: '2026-09-05T06:00:00.000Z',
+    })).ok).toBe(true);
+    const database = getCurrentLifeRhythmDatabase();
+    const before = await database.calendarSources.get('primary');
+    const result = await importIcsCalendarSource({
+      label: 'Future moved blocker',
+      source: calendarWith(
+        ['UID:future-series', 'DTSTART:20261201T090000Z', 'DURATION:PT1H',
+          'RRULE:FREQ=DAILY;COUNT=2', 'TRANSP:TRANSPARENT'],
+        ['UID:future-series', 'RECURRENCE-ID:20261202T090000Z',
+          'DTSTART:20261202T090000Z', 'DURATION:P1000000D', 'TRANSP:OPAQUE'],
+      ),
+      options,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await database.calendarSources.get('primary')).toEqual(before);
+  });
+
+  it('accepts an off-window transparent moved exception with an unsafe span', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Future free exception',
+      source: calendarWith(
+        ['UID:future-series', 'DTSTART:20261201T090000Z', 'DURATION:PT1H',
+          'RRULE:FREQ=DAILY;COUNT=2'],
+        ['UID:future-series', 'RECURRENCE-ID:20261202T090000Z',
+          'DTSTART:20261202T090000Z', 'DURATION:P1000000D', 'TRANSP:TRANSPARENT'],
+        ['UID:busy-now', 'DTSTART:20260907T010000Z', 'DTEND:20260907T020000Z'],
+      ),
+      options,
+    });
+    expect(result).toMatchObject({ ok: true, busyEventCount: 1 });
+  });
+
   it('accepts exactly 10,000 timed fragments and rejects the immediately following fragment', async () => {
     // Perth midnight on 2053-05-19 is 16:00Z on the preceding date.
     const start = ['UID:boundary', 'DTSTART:20260101T090000Z'];
