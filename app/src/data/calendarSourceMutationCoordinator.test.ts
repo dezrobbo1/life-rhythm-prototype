@@ -133,6 +133,24 @@ describe('atomic calendar source mutation and repair attention', () => {
     expect(await database.schedulerPlanState.get('current')).toEqual(beforePlan);
   });
 
+  it('keeps authored spacing on a valid replacement and marks accepted plans for repair', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    await seedCalendarA();
+    await database.calendarSources.update('primary', { beforeBusyMinutes: 35, afterBusyMinutes: 25 });
+    await seedPlan();
+    const result = await commitCalendarSourceImport({
+      label: 'Calendar B', source: calendarB, options,
+      importedAt: '2026-09-07T00:02:00.000Z',
+    });
+    expect(result).toMatchObject({
+      ok: true, repairAttentionPersisted: true,
+      record: { beforeBusyMinutes: 35, afterBusyMinutes: 25 },
+    });
+    expect(await loadSchedulerPlanState()).toMatchObject({
+      status: 'ok', calendarRepairPendingAt: expect.any(String),
+    });
+  });
+
   it('does not retain a first import when an existing plan cannot be marked pending', async () => {
     const beforePlan = await seedPlan();
     failPendingMarkerWrite();

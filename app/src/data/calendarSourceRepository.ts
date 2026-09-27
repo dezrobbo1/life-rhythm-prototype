@@ -4,6 +4,7 @@ import {
   type CalendarReadEvent,
   type CalendarReadOptions,
 } from '../domain/calendarAdapter';
+import { validateCalendarCommitmentExpansion } from '../domain/calendarAvailability';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   CURRENT_CALENDAR_SOURCE_ID,
@@ -183,6 +184,22 @@ export async function importIcsCalendarSource(
     return {
       ok: false,
       errors: issueMessages(parsed.error.issues),
+      warnings: preview.warnings,
+    };
+  }
+
+  // The parsed record contains the exact replacement buffers (including
+  // inherited v2 spacing). Each side is schema-bounded to 180 minutes and
+  // adds only O(1) adjacent fragments, so it cannot enlarge the daily loop.
+  // Use planning's own preflight before the first canonical write.
+  try {
+    validateCalendarCommitmentExpansion(preview.events);
+  } catch (error) {
+    return {
+      ok: false,
+      errors: [error instanceof RangeError && /safe daily expansion bounds/i.test(error.message)
+        ? `calendarSource: ${error.message}`
+        : 'calendarSource: This calendar could not be interpreted safely.'],
       warnings: preview.warnings,
     };
   }

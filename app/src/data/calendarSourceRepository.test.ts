@@ -13,6 +13,7 @@ import {
   removeCalendarSource,
   type CalendarSourceStore,
 } from './calendarSourceRepository';
+import { validateCalendarCommitmentExpansion } from '../domain/calendarAvailability';
 
 let namespaceIndex = 0;
 const options = {
@@ -53,6 +54,12 @@ const recurringCalendar = [
   'END:VCALENDAR',
 ].join('\r\n');
 
+function calendarWith(...entries: string[][]) {
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0',
+    ...entries.flatMap((lines) => ['BEGIN:VEVENT', ...lines, 'END:VEVENT']),
+    'END:VCALENDAR'].join('\r\n');
+}
+
 beforeEach(() => {
   resetCurrentLocalDataNamespace();
   namespaceIndex += 1;
@@ -62,6 +69,69 @@ beforeEach(() => {
 });
 
 describe('calendar source repository', () => {
+  it('rejects a first over-budget timed import before persisting a source', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Too long',
+      source: calendarWith(['UID:huge', 'DTSTART:20260101T090000Z', 'DURATION:P1000000D']),
+      options,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await getCurrentLifeRhythmDatabase().calendarSources.count()).toBe(0);
+  });
+
+  it('accepts exactly 10,000 timed fragments and rejects the immediately following fragment', async () => {
+    const start = ['UID:boundary', 'DTSTART:20260101T090000Z'];
+    const accepted = await importIcsCalendarSource({
+      label: 'At boundary',
+      source: calendarWith([...start, 'DTEND:20530519T000000Z']),
+      options,
+      importedAt: '2026-09-05T06:00:00.000Z',
+    });
+    expect(accepted.ok).toBe(true);
+    const before = await getCurrentLifeRhythmDatabase().calendarSources.get('primary');
+    const read = await readPersistedCalendarEvents(options);
+    expect(read.status).toBe('ok');
+    if (read.status === 'ok') expect(() => validateCalendarCommitmentExpansion(read.events)).not.toThrow();
+    const rejected = await importIcsCalendarSource({
+      label: 'Beyond boundary',
+      source: calendarWith([...start, 'DTEND:20530519T000100Z']),
+      options,
+    });
+    expect(rejected).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await getCurrentLifeRhythmDatabase().calendarSources.get('primary')).toEqual(before);
+  });
+
+  it('rejects an aggregate all-day and timed import without replacing the saved source', async () => {
+    expect((await importIcsCalendarSource({ label: 'Existing', source: calendar, options,
+      importedAt: '2026-09-05T06:00:00.000Z' })).ok).toBe(true);
+    const before = await getCurrentLifeRhythmDatabase().calendarSources.get('primary');
+    const rejected = await importIcsCalendarSource({
+      label: 'Over budget aggregate',
+      source: calendarWith(
+        ['UID:all-day', 'DTSTART;VALUE=DATE:20260101', 'DURATION:P6000D'],
+        ['UID:timed', 'DTSTART:20260101T090000Z', 'DURATION:P6000D'],
+      ),
+      options,
+    });
+    expect(rejected).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await getCurrentLifeRhythmDatabase().calendarSources.get('primary')).toEqual(before);
+  });
+
+  it('does not charge transparent long spans against the busy import budget', async () => {
+    const imported = await importIcsCalendarSource({
+      label: 'Mixed source',
+      source: calendarWith(
+        ['UID:free-long', 'TRANSP:TRANSPARENT', 'DTSTART:20260101T090000Z', 'DURATION:P1000000D'],
+        ['UID:busy', 'DTSTART:20260907T010000Z', 'DTEND:20260907T020000Z'],
+      ),
+      options,
+    });
+    expect(imported).toMatchObject({ ok: true, eventCount: 2, busyEventCount: 1 });
+    const read = await readPersistedCalendarEvents(options);
+    expect(read.status).toBe('ok');
+    if (read.status === 'ok') expect(() => validateCalendarCommitmentExpansion(read.events)).not.toThrow();
+  });
+
   it('imports, persists and reads a local read-only ICS calendar', async () => {
     const imported = await importIcsCalendarSource({
       label: 'Family calendar',
