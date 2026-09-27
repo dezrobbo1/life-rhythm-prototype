@@ -636,7 +636,7 @@ function recurringEvents(
         end,
         timezone: options.targetTimezone,
       };
-      if (openEndedBusySeries && chargeSource && !chargedOccurrenceIds.has(event.sourceEventId)) {
+      if (chargeSource && !chargedOccurrenceIds.has(event.sourceEventId)) {
         // A future authored override may be beyond the rolling RRULE scan.
         // Reserve its BUSY cost once without emitting its replaced slot.
         chargeSource(event, start.epochMs, end.epochMs);

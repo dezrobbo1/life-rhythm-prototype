@@ -271,6 +271,21 @@ describe('calendar source repository', () => {
     expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
   });
 
+  it('charges BUSY future exceptions on a transparent open-ended master without charging its ordinary slots', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Transparent master with busy exceptions',
+      source: calendarWith(
+        ['UID:series', 'TRANSP:TRANSPARENT', 'DTSTART:20271201T090000Z',
+          'DURATION:PT1H', 'RRULE:FREQ=YEARLY'],
+        ['UID:series', 'RECURRENCE-ID:20301201T090000Z', 'TRANSP:OPAQUE',
+          'DTSTART:20301201T090000Z', 'DURATION:P6000D'],
+        ['UID:series', 'RECURRENCE-ID:20311201T090000Z', 'TRANSP:OPAQUE',
+          'DTSTART:20311201T090000Z', 'DURATION:P6000D'],
+      ), options,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+  });
+
   it('does not charge a century of disjoint past open-ended yearly occurrences', async () => {
     const result = await importIcsCalendarSource({
       label: 'Long-lived yearly commitment',
