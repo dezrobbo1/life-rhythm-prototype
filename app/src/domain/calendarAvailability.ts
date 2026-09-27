@@ -1,5 +1,5 @@
 import type { DayOfWeek, Settings } from '../data/schemas';
-import type { CalendarReadEvent } from './calendarAdapter';
+import { calendarDateSpanDays, MAX_CALENDAR_EXPANSION_DAYS, type CalendarReadEvent } from './calendarAdapter';
 import type { ExternalCommitment, SchedulingInterval } from './schedulingModel';
 
 export type CandidateSchedulingInterval = {
@@ -148,6 +148,14 @@ function fixedCommitmentsFromSettings(settings: Settings): ExternalCommitment[] 
 
 export function externalCommitmentsFromCalendarEvents(events: CalendarReadEvent[], beforeMinutes = 0, afterMinutes = 0): ExternalCommitment[] {
   const commitments: ExternalCommitment[] = [];
+  let totalExpandedDays = 0;
+  for (const event of events) {
+    if (!event.busy || !event.allDay) continue;
+    totalExpandedDays += calendarDateSpanDays(event.start.date, event.end.date);
+    if (totalExpandedDays > MAX_CALENDAR_EXPANSION_DAYS) {
+      throw new RangeError('Calendar commitments exceed safe daily expansion bounds.');
+    }
+  }
 
   const addSpillover = (
     event: CalendarReadEvent,
@@ -283,6 +291,28 @@ function profileContext(settings: Settings, date: string) {
   };
 }
 
+export function reviewedWorkBoundaryRanges(settings: Settings, date: string): MinuteRange[] {
+  if (settings.dayProfileMigrationState.reviewState !== 'reviewedAndEnabled') return [];
+  const ranges: MinuteRange[] = [];
+  for (const offset of [-1, 0, 1]) {
+    const source = profileContext(settings, addDays(date, offset));
+    if (source.profile?.kind !== 'workday' || !source.workPeriod || !source.profile.workBoundaryMinutes) continue;
+    const boundary = source.profile.workBoundaryMinutes;
+    const before = boundary.beforeTravel + boundary.beforeTransition;
+    const after = boundary.afterTravel + boundary.afterTransition;
+    const workStart = minutesFromTime(source.workPeriod.start) + offset * 1440;
+    const workEnd = minutesFromTime(source.workPeriod.end) + offset * 1440;
+    for (const range of [
+      { start: workStart - before, end: workStart, reason: 'reviewed before-work travel and transition' },
+      { start: workEnd, end: workEnd + after, reason: 'reviewed after-work travel and transition' },
+    ]) {
+      const projected = clipRange(range, { start: 0, end: 1440, reason: 'queried date' });
+      if (projected) ranges.push(projected);
+    }
+  }
+  return ranges;
+}
+
 function genericCandidateWorkPeriodIsRestricted(
   workPlanningUse: Settings['dayProfiles'][number]['workPlanningUse'] | undefined,
 ): boolean {
@@ -380,21 +410,7 @@ export function deriveGate2Availability(input: Gate2AvailabilityInput): Gate2Ava
     blockers.push(coreWorkBlocker);
   }
 
-  if (context.profile.kind === 'workday' && context.workPeriod && input.settings.dayProfileMigrationState.reviewState === 'reviewedAndEnabled') {
-    const boundary = context.profile.workBoundaryMinutes;
-    if (boundary) {
-      blockers.push({
-        start: Math.max(0, minutesFromTime(context.workPeriod.start) - boundary.beforeTravel - boundary.beforeTransition),
-        end: minutesFromTime(context.workPeriod.start),
-        reason: 'reviewed before-work travel and transition',
-      });
-      blockers.push({
-        start: minutesFromTime(context.workPeriod.end),
-        end: Math.min(1440, minutesFromTime(context.workPeriod.end) + boundary.afterTravel + boundary.afterTransition),
-        reason: 'reviewed after-work travel and transition',
-      });
-    }
-  }
+  blockers.push(...reviewedWorkBoundaryRanges(input.settings, input.date));
 
   for (const block of input.settings.lifeShape.timeBlocks) {
     if (!block.days.includes(context.weekday) || block.schedulerUse === 'available') continue;

@@ -17,7 +17,7 @@ import {
   softPlacementSchema,
   taskPoolItemSchema,
 } from './schemas';
-import { createDefaultSettings, saveSettings } from './settingsRepository';
+import { createDefaultSettings, DAY_PROFILE_FOUNDATION_ID, saveSettings, SETTINGS_ID } from './settingsRepository';
 
 const timestamp = '2026-09-07T00:00:00.000Z';
 let namespaceIndex = 0;
@@ -52,6 +52,18 @@ beforeEach(async () => {
 });
 
 describe('canonical scheduling-input snapshot', () => {
+  it('includes both the rollback-readable settings row and day-profile foundation in the commit guard', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const rows = await readCanonicalSchedulingInputRows(database);
+    expect(rows.settings.map((row) => (row as { id: string }).id).sort()).toEqual([
+      DAY_PROFILE_FOUNDATION_ID, SETTINGS_ID,
+    ].sort());
+    const previous = canonicalSchedulingInputSnapshot(rows);
+    const foundation = await database.settings.get(DAY_PROFILE_FOUNDATION_ID);
+    expect(foundation).toBeDefined();
+    await database.settings.put({ ...foundation!, updatedAt: '2026-09-08T00:00:00.000Z' });
+    expect(await snapshot(database)).not.toBe(previous);
+  });
   const changes: Array<{
     label: string;
     mutate: (database: LifeRhythmDatabase) => Promise<unknown>;

@@ -12,7 +12,7 @@ import {
   repairCurrentPrivatePlan,
   undoCurrentPrivatePlan,
 } from './schedulerPlanCoordinator';
-import { saveSchedulerPlanState } from './schedulerPlanStateRepository';
+import { loadSchedulerPlanState, repairAndPersistSchedulerPlan, saveSchedulerPlanState } from './schedulerPlanStateRepository';
 import { taskPoolItemSchema } from './schemas';
 import { createDefaultSettings, saveSettings } from './settingsRepository';
 import { scheduler } from '../domain/primaryScheduler';
@@ -85,6 +85,84 @@ afterEach(() => {
 });
 
 describe('live scheduler plan coordinator', () => {
+  it('rejects an initial plan built from older settings and rebuilds from the saved reviewed day', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const defaults = createDefaultSettings(timestamp);
+    const saveDay = (end: string) => saveSettings({
+      theme: defaults.theme, startBoostSafety: defaults.startBoostSafety, lifeShape: defaults.lifeShape,
+      dayProfiles: defaults.dayProfiles.map((profile) => profile.kind === 'workday'
+        ? { ...profile, usableDay: { start: end === '22:00' ? '18:00' : '06:30', end } }
+        : profile),
+      activatePlanningDay: true,
+    });
+    expect((await saveDay('22:00')).ok).toBe(true);
+    await database.taskPoolItems.put(task('task-a'));
+    const oldLive = await buildCurrentLiveSchedulingContext(coordinatorOptions());
+    expect(oldLive.ok).toBe(true);
+    if (!oldLive.ok) return;
+    expect(scheduler.buildPlan(oldLive.context.input).placements).toEqual([
+      expect.objectContaining({ start: '18:00' }),
+    ]);
+    expect(await database.schedulerPlanState.count()).toBe(0);
+
+    // Resume the real initial-plan commit only after the canonical settings
+    // write has finished; no plan row existed for the settings repair marker.
+    expect((await saveDay('17:00')).ok).toBe(true);
+    const eventsBefore = await database.taskHistory.toArray();
+    const stale = await repairAndPersistSchedulerPlan({
+      nextInput: oldLive.context.input, now: oldLive.now,
+      reason: 'Create the current private plan from live scheduling information.', trigger: 'manualReplan',
+    }, database, timestamp, undefined, oldLive.context.calendarSourceSnapshot,
+    oldLive.context.canonicalInputSnapshot, oldLive.context.schedulerStateSnapshot);
+    expect(stale).toMatchObject({ ok: false, conflict: 'stale' });
+    expect(await database.schedulerPlanState.count()).toBe(0);
+    expect(await database.taskHistory.toArray()).toEqual(eventsBefore);
+
+    const rebuilt = await ensureCurrentPrivatePlan(coordinatorOptions());
+    expect(rebuilt.ok).toBe(true);
+    if (!rebuilt.ok) return;
+    expect(rebuilt.plan.placements.some((placement) => placement.intentionId === 'task-a')).toBe(true);
+    expect(rebuilt.plan.placements.every((placement) => placement.end <= '17:00')).toBe(true);
+    expect(rebuilt.plan.placements.some((placement) => placement.start === '18:00')).toBe(false);
+    expect(await database.schedulerPlanState.count()).toBe(1);
+    expect((await loadSchedulerPlanState()).status).toBe('ok');
+  });
+
+  it('retries a concurrent settings change during first-plan generation using fresh authority', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const defaults = createDefaultSettings(timestamp);
+    const saveDay = (end: string) => saveSettings({
+      theme: defaults.theme, startBoostSafety: defaults.startBoostSafety, lifeShape: defaults.lifeShape,
+      dayProfiles: defaults.dayProfiles.map((profile) => profile.kind === 'workday'
+        ? { ...profile, usableDay: { start: end === '22:00' ? '18:00' : '06:30', end } }
+        : profile), activatePlanningDay: true,
+    });
+    expect((await saveDay('22:00')).ok).toBe(true);
+    await database.taskPoolItems.put(task('task-a'));
+    const originalGet = database.schedulerPlanState.get.bind(database.schedulerPlanState);
+    let reads = 0;
+    const getSpy = vi.spyOn(database.schedulerPlanState, 'get').mockImplementation((async (key: string) => {
+      reads += 1;
+      const current = await originalGet(key);
+      if (reads === 3) {
+        getSpy.mockRestore();
+        expect((await saveDay('17:00')).ok).toBe(true);
+        expect(await database.schedulerPlanState.count()).toBe(0);
+      }
+      return current;
+    }) as never);
+    const writes = vi.spyOn(database.schedulerPlanState, 'put');
+
+    const result = await ensureCurrentPrivatePlan(coordinatorOptions());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(reads).toBe(3);
+    expect(result.plan.placements.some((placement) => placement.intentionId === 'task-a')).toBe(true);
+    expect(result.plan.placements.every((placement) => placement.end <= '17:00')).toBe(true);
+    expect(writes).toHaveBeenCalledTimes(1);
+    expect(await database.schedulerPlanState.count()).toBe(1);
+    expect((await database.taskHistory.toArray()).filter((event) => event.eventType === 'schedulerPlacementAdded')).toHaveLength(result.plan.placements.length);
+  });
   it('builds and persists an automatic private plan inside explicit available time when usable-day is not configured', async () => {
     await saveLifeShape({
       timeBlocks: [
@@ -131,6 +209,37 @@ describe('live scheduler plan coordinator', () => {
     if (!result.ok) return;
     expect(result.plan.placements).toEqual([]);
     expect(result.plan.unscheduledIntentionIds).toContain('task-a');
+  });
+
+  it('subtracts reviewed adjacent work-boundary spillover from explicit capacity', async () => {
+    const defaults = createDefaultSettings(timestamp);
+    const saved = await saveSettings({
+      theme: defaults.theme, startBoostSafety: defaults.startBoostSafety,
+      lifeShape: { ...defaults.lifeShape, timeBlocks: [
+        { id: 'sunday', label: 'Sunday capacity', type: 'openCapacity', schedulerUse: 'available', days: ['Sunday'], start: '22:00', end: '23:59' },
+        { id: 'sunday-small', label: 'Sunday fragment', type: 'openCapacity', schedulerUse: 'available', days: ['Sunday'], start: '22:50', end: '23:10' },
+        { id: 'monday', label: 'Monday capacity', type: 'openCapacity', schedulerUse: 'available', days: ['Monday'], start: '00:00', end: '02:00' },
+        { id: 'tuesday', label: 'Tuesday capacity', type: 'openCapacity', schedulerUse: 'available', days: ['Tuesday'], start: '00:00', end: '02:00' },
+      ] },
+      dayProfiles: defaults.dayProfiles.map((profile) => profile.kind === 'workday'
+        ? { ...profile, usableDay: undefined, workPeriod: { start: '01:00', end: '23:30' },
+            workPlanningUse: 'allowSuitableTasks' as const,
+            workBoundaryMinutes: { beforeTravel: 120, beforeTransition: 0, afterTravel: 120, afterTransition: 0 } }
+        : { ...profile, usableDay: undefined }),
+      activatePlanningDay: true,
+    });
+    expect(saved.ok).toBe(true);
+    const result = await buildCurrentLiveSchedulingContext({
+      horizonDays: 3, startDate: '2026-09-06', now: new Date('2026-09-06T11:00:00.000Z'), timezone,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const ranges = (date: string) => (result.context.input.candidateIntervals ?? []).filter((entry) => entry.date === date)
+      .map(({ start, end }) => [start, end]);
+    expect(ranges('2026-09-06')).toEqual([['22:00', '23:00']]);
+    expect(ranges('2026-09-07')).toEqual([['01:00', '02:00']]);
+    expect(ranges('2026-09-08')).toEqual([['01:30', '02:00']]);
+    expect((result.context.input.candidateIntervals ?? []).every((entry) => entry.end > entry.start)).toBe(true);
   });
 
   it('subtracts ask-first and fixed commitment time from the explicit-available fallback', async () => {
