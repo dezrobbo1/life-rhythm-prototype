@@ -563,6 +563,8 @@ function recurringEvents(
       .every((rule) => (rule.getFirstValue() as ICAL.Recur).isFinite());
     const masterBusy = masters[0].getFirstPropertyValue('status')?.toString().toUpperCase() !== 'CANCELLED' &&
       masters[0].getFirstPropertyValue('transp')?.toString().toUpperCase() !== 'TRANSPARENT';
+    const openEndedBusySeries = chargeSource && !finiteSeries && masterBusy;
+    let firstOpenEndedOverlapScanEnd: string | undefined;
     // A transparent/cancelled master cannot charge its ordinary occurrences.
     // Scan a finite series only as far as its last potentially BUSY exception.
     const lastBusyExceptionKey = finiteSeries && !masterBusy ? parts
@@ -640,8 +642,24 @@ function recurringEvents(
         ...(sourceOccurrenceTimezone ? { sourceTimezone: sourceOccurrenceTimezone } : {}),
       };
       if (chargeSource && !chargedOccurrenceIds.has(sourceEventId)) {
-        chargeSource(event);
-        chargedOccurrenceIds.add(sourceEventId);
+        // An infinite RRULE has no whole-source sum. Charge the current read
+        // and a bounded witness window around its first relevant occurrence;
+        // past disjoint slots must not consume an infinite lifetime budget.
+        const relevantOpenEndedOccurrence = !openEndedBusySeries ||
+          overlapsDateWindow(event, options.windowStartDate, options.windowEndDate) ||
+          (firstOpenEndedOverlapScanEnd
+            ? event.start.date <= firstOpenEndedOverlapScanEnd
+            : event.start.date > options.windowEndDate);
+        if (relevantOpenEndedOccurrence) {
+          chargeSource(event);
+          chargedOccurrenceIds.add(sourceEventId);
+          if (openEndedBusySeries && !firstOpenEndedOverlapScanEnd) {
+            // Source/target zones can differ by 26 hours. Two days of slack
+            // ensure an occurrence near the local endpoint is examined.
+            firstOpenEndedOverlapScanEnd = event.end.date > '9999-12-29'
+              ? '9999-12-31' : addCalendarDays(event.end.date, 2);
+          }
+        }
       }
       if (overlapsDateWindow(event, options.windowStartDate, options.windowEndDate)) {
         if (events.length >= MAX_TOTAL_RECURRENCE_EVENTS) {
@@ -665,7 +683,8 @@ function recurringEvents(
       const logicalDate = formatDate(next.year, next.month, next.day);
       if (!(finiteSeries && masterBusy) && firstPostBoundaryDate && logicalDate > firstPostBoundaryDate &&
           (!laterMovedExceptionScanKey || recurrenceIdentityKey(next) > laterMovedExceptionScanKey) &&
-          (!lastBusyExceptionKey || recurrenceIdentityKey(next) > lastBusyExceptionKey)) break;
+          (!lastBusyExceptionKey || recurrenceIdentityKey(next) > lastBusyExceptionKey) &&
+          (!firstOpenEndedOverlapScanEnd || logicalDate > firstOpenEndedOverlapScanEnd)) break;
       const details = master.getOccurrenceDetails(next);
       addOccurrence(details.recurrenceId, details.item, details.startDate, details.endDate);
       // Scan through a later moved override only via the master's recurrence

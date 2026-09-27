@@ -19,6 +19,8 @@ import {
   markCalendarRepairPending,
   saveSchedulerPlanState,
 } from './schedulerPlanStateRepository';
+import { icsCalendarAdapter } from '../domain/calendarAdapter';
+import { validateCalendarCommitmentExpansion } from '../domain/calendarAvailability';
 
 let namespaceIndex = 0;
 
@@ -60,6 +62,12 @@ const futureAggregateCalendar = [
   'BEGIN:VEVENT', 'UID:future-a', 'DTSTART:20261201T160000Z', 'DURATION:P6000D', 'END:VEVENT',
   'BEGIN:VEVENT', 'UID:future-b', 'DTSTART:20261202T160000Z', 'DURATION:P6000D', 'END:VEVENT',
   'END:VCALENDAR',
+].join('\r\n');
+
+const openEndedOverlapCalendar = [
+  'BEGIN:VCALENDAR', 'VERSION:2.0',
+  'BEGIN:VEVENT', 'UID:long-yearly', 'DTSTART:20261201T090000Z', 'DURATION:P6000D',
+  'RRULE:FREQ=YEARLY', 'END:VEVENT', 'END:VCALENDAR',
 ].join('\r\n');
 
 const plan = {
@@ -105,6 +113,25 @@ beforeEach(() => {
 });
 
 describe('atomic calendar source mutation and repair attention', () => {
+  it('rejects future overlapping occurrences of an open-ended BUSY series before replacement', async () => {
+    const future = icsCalendarAdapter.read(openEndedOverlapCalendar, {
+      ...options, windowStartDate: '2027-12-01', windowEndDate: '2027-12-02',
+    });
+    expect(future.events).toHaveLength(2);
+    expect(() => validateCalendarCommitmentExpansion(future.events))
+      .toThrow('Calendar commitments exceed safe daily expansion bounds.');
+
+    const database = getCurrentLifeRhythmDatabase();
+    await seedCalendarA();
+    const beforeSource = await database.calendarSources.get('primary');
+    const result = await commitCalendarSourceImport({
+      label: 'Unsafe open recurrence', source: openEndedOverlapCalendar, options,
+      importedAt: '2026-09-07T00:02:00.000Z',
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await database.calendarSources.get('primary')).toEqual(beforeSource);
+  });
+
   it('rejects two individually safe future BUSY events before first import while preserving a plan', async () => {
     const database = getCurrentLifeRhythmDatabase();
     const beforePlan = await seedPlan();

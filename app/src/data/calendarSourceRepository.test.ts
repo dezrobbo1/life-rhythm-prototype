@@ -210,6 +210,15 @@ describe('calendar source repository', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('does not charge a century of disjoint past open-ended yearly occurrences', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Long-lived yearly commitment',
+      source: calendarWith(['UID:yearly', 'DTSTART:19261201T160000Z', 'DURATION:P200D',
+        'RRULE:FREQ=YEARLY']), options,
+    });
+    expect(result.ok).toBe(true);
+  });
+
   it('counts explicit future RDATE once even if it duplicates a finite RRULE occurrence', async () => {
     const result = await importIcsCalendarSource({
       label: 'Future RDATE',
