@@ -150,6 +150,12 @@ export function timedCalendarFragmentDays(start: string, end: string, endTime: s
   return fragments;
 }
 
+export function calendarCommitmentFragmentDays(event: Pick<CalendarReadEvent, 'allDay' | 'start' | 'end'>): number {
+  return event.allDay
+    ? calendarDateSpanDays(event.start.date, event.end.date)
+    : timedCalendarFragmentDays(event.start.date, event.end.date, event.end.time ?? '');
+}
+
 function formatTime(hour: number, minute: number): string {
   return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
@@ -396,7 +402,10 @@ function firstProperty(map: Map<string, ParsedProperty[]>, name: string): Parsed
   return map.get(name)?.[0];
 }
 
-function recurringEvents(source: string, options: CalendarReadOptions, warnings: string[]): CalendarReadEvent[] {
+function recurringEvents(
+  source: string, options: CalendarReadOptions, warnings: string[],
+  chargeSource?: (event: CalendarReadEvent) => void,
+): CalendarReadEvent[] {
   // ICAL.js normalizes unknown RRULE clauses away. Validate the original VEVENT
   // text before parsing, but only when the component can contribute busy time.
   // VTIMEZONE observance rules and explicitly cancelled/transparent VEVENTs do
@@ -550,6 +559,19 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
     const recurrenceIdentityKey = (time: ICAL.Time) =>
       `${formatDate(time.year, time.month, time.day)}T${time.isDate ? '00:00:00' :
         `${formatTime(time.hour, time.minute)}:${time.second.toString().padStart(2, '0')}`}`;
+    const finiteSeries = chargeSource && masters[0].getAllProperties('rrule')
+      .every((rule) => (rule.getFirstValue() as ICAL.Recur).isFinite());
+    const masterBusy = masters[0].getFirstPropertyValue('status')?.toString().toUpperCase() !== 'CANCELLED' &&
+      masters[0].getFirstPropertyValue('transp')?.toString().toUpperCase() !== 'TRANSPARENT';
+    // A transparent/cancelled master cannot charge its ordinary occurrences.
+    // Scan a finite series only as far as its last potentially BUSY exception.
+    const lastBusyExceptionKey = finiteSeries && !masterBusy ? parts
+      .filter((part) => part.hasProperty('recurrence-id') &&
+        part.getFirstPropertyValue('status')?.toString().toUpperCase() !== 'CANCELLED' &&
+        (part.getFirstPropertyValue('transp') ?? masters[0].getFirstPropertyValue('transp'))
+          ?.toString().toUpperCase() !== 'TRANSPARENT')
+      .map((part) => recurrenceIdentityKey(part.getFirstPropertyValue('recurrence-id') as ICAL.Time))
+      .sort().slice(-1)[0] : undefined;
     const exceptionOverlapsWindow = (component: ICAL.Component) => {
       if (component.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED') return false;
       if ((component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
@@ -587,6 +609,7 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
       .sort()
       .slice(-1)[0];
     const emittedOccurrenceIds = new Set<string>();
+    const chargedOccurrenceIds = new Set<string>();
     const addOccurrence = (identity: ICAL.Time, item: ICAL.Event, startTime: ICAL.Time, endTime: ICAL.Time) => {
       if (item.component.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED') return;
       const busy = (item.component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
@@ -616,6 +639,10 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
         timezone: options.targetTimezone,
         ...(sourceOccurrenceTimezone ? { sourceTimezone: sourceOccurrenceTimezone } : {}),
       };
+      if (chargeSource && !chargedOccurrenceIds.has(sourceEventId)) {
+        chargeSource(event);
+        chargedOccurrenceIds.add(sourceEventId);
+      }
       if (overlapsDateWindow(event, options.windowStartDate, options.windowEndDate)) {
         if (events.length >= MAX_TOTAL_RECURRENCE_EVENTS) {
           throw new Error('Calendar recurrence exceeds the safe emitted-event limit.');
@@ -636,8 +663,9 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
         throw new Error('Calendar recurrence exceeds the safe read limit.');
       }
       const logicalDate = formatDate(next.year, next.month, next.day);
-      if (firstPostBoundaryDate && logicalDate > firstPostBoundaryDate &&
-          (!laterMovedExceptionScanKey || recurrenceIdentityKey(next) > laterMovedExceptionScanKey)) break;
+      if (!(finiteSeries && masterBusy) && firstPostBoundaryDate && logicalDate > firstPostBoundaryDate &&
+          (!laterMovedExceptionScanKey || recurrenceIdentityKey(next) > laterMovedExceptionScanKey) &&
+          (!lastBusyExceptionKey || recurrenceIdentityKey(next) > lastBusyExceptionKey)) break;
       const details = master.getOccurrenceDetails(next);
       addOccurrence(details.recurrenceId, details.item, details.startDate, details.endDate);
       // Scan through a later moved override only via the master's recurrence
@@ -655,9 +683,26 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
 export class IcsCalendarAdapter implements CalendarAdapter {
   readonly id = 'ics';
 
-  read(source: string, options: CalendarReadOptions): CalendarReadResult {
+  readForImport(source: string, options: CalendarReadOptions): CalendarReadResult {
+    return this.read(source, options, true);
+  }
+
+  read(source: string, options: CalendarReadOptions, validateWholeSource = false): CalendarReadResult {
     const warnings: string[] = [];
     const events: CalendarReadEvent[] = [];
+    let totalSourceFragments = 0;
+    const chargeSource = validateWholeSource ? (event: CalendarReadEvent) => {
+      if (!event.busy) return;
+      try {
+        totalSourceFragments += calendarCommitmentFragmentDays(event);
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error;
+        throw new RangeError('Calendar commitments exceed safe daily expansion bounds.');
+      }
+      if (totalSourceFragments > MAX_CALENDAR_EXPANSION_DAYS) {
+        throw new RangeError('Calendar commitments exceed safe daily expansion bounds.');
+      }
+    } : undefined;
 
     if (options.windowStartDate > options.windowEndDate) {
       throw new Error('Calendar read window start must not be after the end date.');
@@ -742,12 +787,14 @@ export class IcsCalendarAdapter implements CalendarAdapter {
       // horizon. Bound its own dated expansion before source persistence.
       if (busy && !start.allDay) timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
 
+      chargeSource?.(event);
+
       if (overlapsDateWindow(event, options.windowStartDate, options.windowEndDate)) {
         events.push(event);
       }
     }
 
-    events.push(...recurringEvents(source, options, warnings));
+    events.push(...recurringEvents(source, options, warnings, chargeSource));
 
     events.sort((left, right) => {
       const startOrder = compareLocalPoints(left.start, right.start);
@@ -758,5 +805,5 @@ export class IcsCalendarAdapter implements CalendarAdapter {
   }
 }
 
-export const icsCalendarAdapter: CalendarAdapter = new IcsCalendarAdapter();
+export const icsCalendarAdapter = new IcsCalendarAdapter();
 import ICAL from 'ical.js';

@@ -1,5 +1,5 @@
 import type { DayOfWeek, Settings } from '../data/schemas';
-import { calendarDateSpanDays, MAX_CALENDAR_EXPANSION_DAYS, timedCalendarFragmentDays, type CalendarReadEvent } from './calendarAdapter';
+import { calendarCommitmentFragmentDays, MAX_CALENDAR_EXPANSION_DAYS, type CalendarReadEvent } from './calendarAdapter';
 import type { ExternalCommitment, SchedulingInterval } from './schedulingModel';
 
 export type CandidateSchedulingInterval = {
@@ -153,9 +153,7 @@ export function validateCalendarCommitmentExpansion(events: CalendarReadEvent[])
   for (const event of events) {
     if (!event.busy) continue;
     try {
-      totalExpandedDays += event.allDay
-        ? calendarDateSpanDays(event.start.date, event.end.date)
-        : timedCalendarFragmentDays(event.start.date, event.end.date, event.end.time ?? '');
+      totalExpandedDays += calendarCommitmentFragmentDays(event);
     } catch (error) {
       if (!(error instanceof RangeError)) throw error;
       throw new RangeError('Calendar commitments exceed safe daily expansion bounds.');

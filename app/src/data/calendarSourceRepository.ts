@@ -152,7 +152,7 @@ export async function importIcsCalendarSource(
 
   let preview;
   try {
-    preview = icsCalendarAdapter.read(source, input.options);
+    preview = icsCalendarAdapter.readForImport(source, input.options);
   } catch (error) {
     return {
       ok: false,
@@ -191,7 +191,9 @@ export async function importIcsCalendarSource(
   // The parsed record contains the exact replacement buffers (including
   // inherited v2 spacing). Each side is schema-bounded to 180 minutes and
   // adds only O(1) adjacent fragments, so it cannot enlarge the daily loop.
-  // Use planning's own preflight before the first canonical write.
+  // The adapter has already charged every non-recurring BUSY event and the
+  // bounded finite recurrence source. Keep planning's same-window defensive
+  // preflight before the first canonical write as well.
   try {
     validateCalendarCommitmentExpansion(preview.events);
   } catch (error) {

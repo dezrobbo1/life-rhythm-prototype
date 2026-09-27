@@ -55,6 +55,13 @@ const overBudgetTimed = [
   'END:VCALENDAR',
 ].join('\r\n');
 
+const futureAggregateCalendar = [
+  'BEGIN:VCALENDAR', 'VERSION:2.0',
+  'BEGIN:VEVENT', 'UID:future-a', 'DTSTART:20261201T160000Z', 'DURATION:P6000D', 'END:VEVENT',
+  'BEGIN:VEVENT', 'UID:future-b', 'DTSTART:20261202T160000Z', 'DURATION:P6000D', 'END:VEVENT',
+  'END:VCALENDAR',
+].join('\r\n');
+
 const plan = {
   placements: [],
   rejectedExistingPlacements: [],
@@ -98,6 +105,40 @@ beforeEach(() => {
 });
 
 describe('atomic calendar source mutation and repair attention', () => {
+  it('rejects two individually safe future BUSY events before first import while preserving a plan', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const beforePlan = await seedPlan();
+    const result = await commitCalendarSourceImport({
+      label: 'Future aggregate', source: futureAggregateCalendar, options,
+      importedAt: '2026-09-07T00:02:00.000Z',
+    });
+
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await database.calendarSources.get('primary')).toBeUndefined();
+    expect(await database.schedulerPlanState.get('current')).toEqual(beforePlan);
+  });
+
+  it.each([false, true])('rejects future 6,000 + 6,000 fragments without changing source, spacing or plan (pending=%s)', async (pending) => {
+    const database = getCurrentLifeRhythmDatabase();
+    await seedCalendarA();
+    await database.calendarSources.update('primary', { beforeBusyMinutes: 35, afterBusyMinutes: 25 });
+    await seedPlan();
+    if (pending) {
+      expect(await markCalendarRepairPending(database, '2026-09-07T00:01:30.000Z'))
+        .toEqual({ ok: true, persisted: true });
+    }
+    const beforeSource = await database.calendarSources.get('primary');
+    const beforePlan = await database.schedulerPlanState.get('current');
+    const result = await commitCalendarSourceImport({
+      label: 'Future aggregate', source: futureAggregateCalendar, options,
+      importedAt: '2026-09-07T00:02:00.000Z',
+    });
+
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await database.calendarSources.get('primary')).toEqual(beforeSource);
+    expect(await database.schedulerPlanState.get('current')).toEqual(beforePlan);
+  });
+
   it('rejects a first over-budget import without changing an accepted plan or repair attention', async () => {
     const database = getCurrentLifeRhythmDatabase();
     const beforePlan = await seedPlan();

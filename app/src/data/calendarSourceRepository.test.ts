@@ -14,6 +14,7 @@ import {
   type CalendarSourceStore,
 } from './calendarSourceRepository';
 import { validateCalendarCommitmentExpansion } from '../domain/calendarAvailability';
+import { icsCalendarAdapter } from '../domain/calendarAdapter';
 
 let namespaceIndex = 0;
 const options = {
@@ -69,6 +70,155 @@ beforeEach(() => {
 });
 
 describe('calendar source repository', () => {
+  it('charges two individually legal future 6,000-fragment BUSY events before persistence', async () => {
+    const a = ['UID:future-a', 'DTSTART:20261201T160000Z', 'DURATION:P6000D'];
+    const b = ['UID:future-b', 'DTSTART:20261202T160000Z', 'DURATION:P6000D'];
+    for (const entry of [a, b]) {
+      expect(icsCalendarAdapter.readForImport(calendarWith(entry), options).events).toEqual([]);
+    }
+    const result = await importIcsCalendarSource({ label: 'Future aggregate', source: calendarWith(a, b), options });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await getCurrentLifeRhythmDatabase().calendarSources.count()).toBe(0);
+  });
+
+  it.each([
+    { label: 'two future timed events', second: ['UID:second', 'DTSTART:20261202T160000Z', 'DURATION:P4001D'] },
+    { label: 'future timed plus all-day', second: ['UID:second', 'DTSTART;VALUE=DATE:20261202', 'DURATION:P4001D'] },
+    { label: 'one in-window plus future', second: ['UID:second', 'DTSTART:20260907T160000Z', 'DURATION:P4001D'] },
+  ])('rejects $label at 10,001 aggregate fragments', async ({ second }) => {
+    const result = await importIcsCalendarSource({
+      label: 'Mixed aggregate',
+      source: calendarWith(['UID:first', 'DTSTART:20261201T160000Z', 'DURATION:P6000D'], second),
+      options,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await getCurrentLifeRhythmDatabase().calendarSources.count()).toBe(0);
+  });
+
+  it('accepts exactly 10,000 aggregate fragments outside the read window', async () => {
+    const imported = await importIcsCalendarSource({
+      label: 'Future accepted',
+      source: calendarWith(
+        ['UID:first', 'DTSTART:20261201T160000Z', 'DURATION:P6000D'],
+        ['UID:second', 'DTSTART:20261202T160000Z', 'DURATION:P4000D'],
+      ), options,
+    });
+    expect(imported.ok).toBe(true);
+    expect(await getCurrentLifeRhythmDatabase().calendarSources.count()).toBe(1);
+  });
+
+  it('does not charge transparent or cancelled future events against valid BUSY commitments', async () => {
+    const imported = await importIcsCalendarSource({
+      label: 'Non-blocking future',
+      source: calendarWith(
+        ['UID:free-a', 'TRANSP:TRANSPARENT', 'DTSTART:20261201T160000Z', 'DURATION:P1000000D'],
+        ['UID:free-b', 'TRANSP:TRANSPARENT', 'DTSTART:20261202T160000Z', 'DURATION:P1000000D'],
+        ['UID:cancelled', 'STATUS:CANCELLED', 'DTSTART:20261203T160000Z', 'DURATION:P1000000D'],
+        ['UID:busy', 'DTSTART:20260907T010000Z', 'DURATION:PT1H'],
+      ), options,
+    });
+    expect(imported).toMatchObject({ ok: true, busyEventCount: 1 });
+  });
+
+  it('counts finite recurring BUSY occurrences beyond the read window', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Future recurrence',
+      source: calendarWith(['UID:future', 'DTSTART:20261201T160000Z', 'DURATION:P6000D',
+        'RRULE:FREQ=DAILY;COUNT=2']), options,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await getCurrentLifeRhythmDatabase().calendarSources.count()).toBe(0);
+  });
+
+  it.each([
+    { kind: 'UNTIL', recurrence: ['RRULE:FREQ=DAILY;UNTIL=20261202T160000Z'] },
+    { kind: 'RDATE', recurrence: ['RRULE:FREQ=DAILY;COUNT=1', 'RDATE:20261202T160000Z'] },
+  ])('counts future $kind occurrences using the effective recurrence iterator', async ({ recurrence }) => {
+      const result = await importIcsCalendarSource({
+        label: 'Future recurrence',
+        source: calendarWith(['UID:future', 'DTSTART:20261201T160000Z', 'DURATION:P6000D', ...recurrence]),
+        options,
+      });
+      expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+      expect(await getCurrentLifeRhythmDatabase().calendarSources.count()).toBe(0);
+  });
+
+  it('counts a future BUSY moved exception once alongside an ordinary future event', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Future moved aggregate',
+      source: calendarWith(
+        ['UID:ordinary', 'DTSTART:20261201T160000Z', 'DURATION:P6000D'],
+        ['UID:series', 'TRANSP:TRANSPARENT', 'DTSTART:20261202T160000Z', 'DURATION:PT1H',
+          'RRULE:FREQ=DAILY;COUNT=2'],
+        ['UID:series', 'RECURRENCE-ID:20261203T160000Z', 'TRANSP:OPAQUE',
+          'DTSTART:20261203T160000Z', 'DURATION:P4001D'],
+      ), options,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+  });
+
+  it('charges two BUSY moved exceptions without charging their transparent master', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Future overrides',
+      source: calendarWith(
+        ['UID:series', 'TRANSP:TRANSPARENT', 'DTSTART:20261201T160000Z', 'DURATION:PT1H',
+          'RRULE:FREQ=DAILY;COUNT=3'],
+        ['UID:series', 'RECURRENCE-ID:20261202T160000Z', 'TRANSP:OPAQUE',
+          'DTSTART:20261202T160000Z', 'DURATION:P6000D'],
+        ['UID:series', 'RECURRENCE-ID:20261203T160000Z', 'TRANSP:OPAQUE',
+          'DTSTART:20261203T160000Z', 'DURATION:P6000D'],
+      ), options,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+  });
+
+  it('replaces logical slots exactly once and ignores transparent, cancelled and EXDATE slots', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Effective recurrence',
+      source: calendarWith(
+        ['UID:series', 'DTSTART:20261201T160000Z', 'DURATION:P6000D',
+          'RRULE:FREQ=DAILY;COUNT=4', 'EXDATE:20261204T160000Z'],
+        ['UID:series', 'RECURRENCE-ID:20261202T160000Z', 'TRANSP:OPAQUE',
+          'DTSTART:20261202T160000Z', 'DURATION:P4000D'],
+        ['UID:series', 'RECURRENCE-ID:20261203T160000Z', 'TRANSP:TRANSPARENT',
+          'DTSTART:20261203T160000Z', 'DURATION:P1000000D'],
+      ), options,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('does not charge a cancelled future recurrence exception', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Cancelled future slot',
+      source: calendarWith(
+        ['UID:series', 'DTSTART:20261201T160000Z', 'DURATION:P6000D',
+          'RRULE:FREQ=DAILY;COUNT=2'],
+        ['UID:series', 'RECURRENCE-ID:20261202T160000Z', 'STATUS:CANCELLED',
+          'DTSTART:20261202T160000Z', 'DURATION:P6000D'],
+        ['UID:other', 'DTSTART:20261203T160000Z', 'DURATION:P4000D'],
+      ), options,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('keeps open-ended recurrence bounded to the rolling read horizon', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Open recurrence',
+      source: calendarWith(['UID:future', 'DTSTART:20261201T160000Z', 'DURATION:PT1H',
+        'RRULE:FREQ=DAILY']), options,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('counts explicit future RDATE once even if it duplicates a finite RRULE occurrence', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Future RDATE',
+      source: calendarWith(['UID:series', 'DTSTART:20261201T160000Z', 'DURATION:P5000D',
+        'RRULE:FREQ=DAILY;COUNT=2', 'RDATE:20261202T160000Z']), options,
+    });
+    expect(result.ok).toBe(true);
+  });
+
   it('rejects a first over-budget timed import before persisting a source', async () => {
     const result = await importIcsCalendarSource({
       label: 'Too long',
