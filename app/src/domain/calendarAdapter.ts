@@ -562,6 +562,10 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
         ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
         : pointFromEpoch(asEpoch(startTime, component, 'dtstart', occurrenceStartFallback(component), false), options.targetTimezone);
       const end = occurrenceEnd(startTime, endTime, component);
+      // A moved BUSY exception may be beyond this read window and therefore
+      // never reach addOccurrence during import. Bound its own dated work now.
+      if (allDay) calendarDateSpanDays(start.date, end.date);
+      else timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
       return overlapsDateWindow({
         adapterId: 'ics',
         sourceEventId: uid,
