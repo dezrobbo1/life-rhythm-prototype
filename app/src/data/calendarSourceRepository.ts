@@ -127,7 +127,7 @@ export async function readPersistedCalendarEvents(
   } catch (error) {
     return {
       status: 'error',
-      errors: [error instanceof Error && /recurren|timezone|safe read limit/i.test(error.message)
+      errors: [error instanceof Error && /recurren|timezone|safe read limit|safe daily expansion bounds/i.test(error.message)
         ? `calendarSource: ${error.message}`
         : 'calendarSource: Saved calendar data could not be interpreted safely.'],
       warnings: [],
@@ -156,7 +156,7 @@ export async function importIcsCalendarSource(
   } catch (error) {
     return {
       ok: false,
-      errors: [error instanceof Error && /recurren|timezone|safe read limit/i.test(error.message)
+      errors: [error instanceof Error && /recurren|timezone|safe read limit|safe daily expansion bounds/i.test(error.message)
         ? `calendarSource: ${error.message}`
         : 'calendarSource: This calendar could not be interpreted safely.'],
       warnings: [],

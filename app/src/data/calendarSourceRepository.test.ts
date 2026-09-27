@@ -98,6 +98,27 @@ describe('calendar source repository', () => {
     expect(await database.calendarSources.get('primary')).toEqual(before);
   });
 
+  it.each([
+    { kind: 'single', recurrence: [] },
+    { kind: 'recurring', recurrence: ['RRULE:FREQ=DAILY;COUNT=1'] },
+  ])('allows a future $kind transparent long span alongside a valid BUSY event', async ({ recurrence }) => {
+    const imported = await importIcsCalendarSource({
+      label: 'Future transparent reminder',
+      source: calendarWith(
+        ['UID:future-free', 'DTSTART:20261201T090000Z', 'DURATION:P1000000D', 'TRANSP:TRANSPARENT', ...recurrence],
+        ['UID:busy-now', 'DTSTART:20260907T010000Z', 'DTEND:20260907T020000Z'],
+      ),
+      options,
+    });
+    expect(imported).toMatchObject({ ok: true, busyEventCount: 1 });
+    const read = await readPersistedCalendarEvents(options);
+    expect(read.status).toBe('ok');
+    if (read.status === 'ok') {
+      expect(read.events.filter((event) => event.busy).map((event) => event.sourceEventId)).toEqual(['busy-now']);
+      expect(() => validateCalendarCommitmentExpansion(read.events)).not.toThrow();
+    }
+  });
+
   it('accepts exactly 10,000 timed fragments and rejects the immediately following fragment', async () => {
     // Perth midnight on 2053-05-19 is 16:00Z on the preceding date.
     const start = ['UID:boundary', 'DTSTART:20260101T090000Z'];

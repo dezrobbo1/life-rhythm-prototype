@@ -600,6 +600,7 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
         : pointFromEpoch(asEpoch(startTime, item.component, 'dtstart', occurrenceStartFallback(item.component), occurrenceProvenance?.kind !== 'floating', occurrenceProvenance), options.targetTimezone);
       const end = occurrenceEnd(startTime, endTime, item.component, occurrenceProvenance);
       if (allDay) calendarDateSpanDays(start.date, end.date);
+      else timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
       if (start.date >= end.date && (allDay || start.date !== end.date || (start.time ?? '') >= (end.time ?? ''))) throw new Error(`Invalid calendar occurrence ${uid}.`);
       const sourceOccurrenceTimezone = occurrenceProvenance?.kind === 'tzid' ? occurrenceProvenance.timezone
         : occurrenceProvenance ? undefined
@@ -732,6 +733,10 @@ export class IcsCalendarAdapter implements CalendarAdapter {
         timezone: options.targetTimezone,
         sourceTimezone: start.sourceTimezone,
       };
+
+      // A BUSY event beyond today's read window can enter a later planning
+      // horizon. Bound its own dated expansion before source persistence.
+      if (busy && !start.allDay) timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
 
       if (overlapsDateWindow(event, options.windowStartDate, options.windowEndDate)) {
         events.push(event);
