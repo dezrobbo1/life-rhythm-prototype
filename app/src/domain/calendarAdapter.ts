@@ -121,6 +121,9 @@ function addCalendarDays(date: string, days: number): string {
 // Matches the existing 10,000 emitted-recurrence guard: a single imported
 // commitment must not demand more daily records than a whole safe read.
 export const MAX_CALENDAR_EXPANSION_DAYS = 10_000;
+// A scheduler read covers up to 31 planned dates plus one calendar-spacing
+// date on either side (schedulerPlanCoordinator.ts).
+const MAX_CALENDAR_PLANNING_READ_DAYS = 33;
 
 export function calendarDateSpanDays(start: string, end: string): number {
   const epoch = (date: string) => {
@@ -624,8 +627,6 @@ function recurringEvents(
       const end = occurrenceEnd(startTime, endTime, component);
       // A moved BUSY exception may be beyond this read window and therefore
       // never reach addOccurrence during import. Bound its own dated work now.
-      if (allDay) calendarDateSpanDays(start.date, end.date);
-      else timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
       const event: CalendarReadEvent = {
         adapterId: 'ics',
         sourceEventId: `${uid}::${(component.getFirstPropertyValue('recurrence-id') as ICAL.Time).toString()}`,
@@ -636,13 +637,18 @@ function recurringEvents(
         end,
         timezone: options.targetTimezone,
       };
+      const overlaps = overlapsDateWindow(event, options.windowStartDate, options.windowEndDate);
+      if (chargeSource || overlaps) {
+        if (allDay) calendarDateSpanDays(start.date, end.date);
+        else timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
+      }
       if (chargeSource && !chargedOccurrenceIds.has(event.sourceEventId)) {
         // A future authored override may be beyond the rolling RRULE scan.
         // Reserve its BUSY cost once without emitting its replaced slot.
         chargeSource(event, start.epochMs, end.epochMs);
         chargedOccurrenceIds.add(event.sourceEventId);
       }
-      return overlapsDateWindow(event, options.windowStartDate, options.windowEndDate);
+      return overlaps;
     };
     const laterMovedExceptionScanKey = parts
       .filter((part) => part.hasProperty('recurrence-id'))
@@ -669,8 +675,6 @@ function recurringEvents(
         ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
         : pointFromEpoch(asEpoch(startTime, item.component, 'dtstart', occurrenceStartFallback(item.component), occurrenceProvenance?.kind !== 'floating', occurrenceProvenance), options.targetTimezone);
       const end = occurrenceEnd(startTime, endTime, item.component, occurrenceProvenance);
-      if (allDay) calendarDateSpanDays(start.date, end.date);
-      else timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
       if (start.date >= end.date && (allDay || start.date !== end.date || (start.time ?? '') >= (end.time ?? ''))) throw new Error(`Invalid calendar occurrence ${uid}.`);
       const sourceOccurrenceTimezone = occurrenceProvenance?.kind === 'tzid' ? occurrenceProvenance.timezone
         : occurrenceProvenance ? undefined
@@ -682,6 +686,11 @@ function recurringEvents(
         timezone: options.targetTimezone,
         ...(sourceOccurrenceTimezone ? { sourceTimezone: sourceOccurrenceTimezone } : {}),
       };
+      const overlaps = overlapsDateWindow(event, options.windowStartDate, options.windowEndDate);
+      if (chargeSource || overlaps) {
+        if (allDay) calendarDateSpanDays(start.date, end.date);
+        else timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
+      }
       if (chargeSource && !chargedOccurrenceIds.has(sourceEventId)) {
         // An infinite RRULE has no whole-source sum. Charge the current read
         // and a bounded witness window around its first relevant occurrence;
@@ -697,7 +706,9 @@ function recurringEvents(
             const cost = calendarCommitmentFragmentDays(event);
             // One extra slot covers an event straddling either end of a
             // future read, including the timezone date-boundary slack.
-            const slots = masterOccurrence ? Math.ceil((cost + 2) / openEndedGapDays) + 1 + openEndedExtraDates : 1;
+            const slots = masterOccurrence
+              ? Math.ceil((cost + MAX_CALENDAR_PLANNING_READ_DAYS + 2) / openEndedGapDays) + 1 + openEndedExtraDates
+              : 1;
             chargeSource(event, allDay ? undefined : asEpoch(startTime, item.component, 'dtstart',
               occurrenceStartFallback(item.component), false, occurrenceProvenance), end.epochMs, slots);
             if (masterOccurrence) openEndedReserveCharged = true;
@@ -711,7 +722,7 @@ function recurringEvents(
           }
         }
       }
-      if (overlapsDateWindow(event, options.windowStartDate, options.windowEndDate)) {
+      if (overlaps) {
         if (events.length >= MAX_TOTAL_RECURRENCE_EVENTS) {
           throw new Error('Calendar recurrence exceeds the safe emitted-event limit.');
         }
@@ -825,7 +836,10 @@ export class IcsCalendarAdapter implements CalendarAdapter {
         } else {
           end = parseDateProperty(endProperty!, options.targetTimezone, warnings);
         }
-        if (start?.allDay && end?.allDay) calendarDateSpanDays(start.date, end.date);
+        if (start?.allDay && end?.allDay && (validateWholeSource ||
+          (start.date <= options.windowEndDate && end.date > options.windowStartDate))) {
+          calendarDateSpanDays(start.date, end.date);
+        }
       } catch {
         if (firstProperty(properties, 'TRANSP')?.value.toUpperCase() !== 'TRANSPARENT') {
           throw new Error(`Busy calendar event ${uid} has an unresolved timezone or local time.`);
@@ -869,7 +883,10 @@ export class IcsCalendarAdapter implements CalendarAdapter {
 
       // A BUSY event beyond today's read window can enter a later planning
       // horizon. Bound its own dated expansion before source persistence.
-      if (busy && !start.allDay) timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
+      if (busy && !start.allDay && (validateWholeSource ||
+        overlapsDateWindow(event, options.windowStartDate, options.windowEndDate))) {
+        timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
+      }
 
       chargeSource?.(event, start.epochMs, end.epochMs);
 

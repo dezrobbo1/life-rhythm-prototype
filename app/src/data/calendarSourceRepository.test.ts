@@ -70,6 +70,18 @@ beforeEach(() => {
 });
 
 describe('calendar source repository', () => {
+  it('keeps an off-window legacy BUSY event from disabling an ordinary read', async () => {
+    expect((await importIcsCalendarSource({ label: 'Existing', source: calendar, options })).ok).toBe(true);
+    const database = getCurrentLifeRhythmDatabase();
+    const legacy = calendarWith(['UID:future-legacy', 'DTSTART:20261201T090000Z', 'DURATION:P1000000D']);
+    await database.calendarSources.update('primary', { source: legacy });
+    const ordinary = await readPersistedCalendarEvents(options);
+    expect(ordinary).toMatchObject({ status: 'ok', events: [] });
+    const intersecting = await readPersistedCalendarEvents({ ...options,
+      windowStartDate: '2026-12-01', windowEndDate: '2026-12-02' });
+    expect(intersecting).toMatchObject({ status: 'error', errors: [expect.stringContaining('safe daily expansion bounds')] });
+  });
+
   it('accepts expired BUSY history above the source budget without hiding a valid current event', async () => {
     const result = await importIcsCalendarSource({
       label: 'Historical archive',
