@@ -246,6 +246,31 @@ describe('calendar source repository', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('reserves explicit future RDATE additions to an open-ended master', async () => {
+    const rdates = Array.from({ length: 101 }, (_, index) => {
+      const day = new Date(Date.UTC(2030, 0, 1 + index));
+      return `${day.getUTCFullYear()}${(day.getUTCMonth() + 1).toString().padStart(2, '0')}${day.getUTCDate().toString().padStart(2, '0')}T090000Z`;
+    });
+    const result = await importIcsCalendarSource({
+      label: 'Future RDATE cluster',
+      source: calendarWith(['UID:series', 'DTSTART:20271201T090000Z', 'DURATION:P100D',
+        'RRULE:FREQ=YEARLY', `RDATE:${rdates.join(',')}`]), options,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+  });
+
+  it('charges future BUSY moved exceptions of an open-ended recurrence before persistence', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Future busy exceptions',
+      source: calendarWith(
+        ['UID:series', 'DTSTART:20271201T090000Z', 'DURATION:P100D', 'RRULE:FREQ=YEARLY'],
+        ['UID:series', 'RECURRENCE-ID:20301201T090000Z', 'DTSTART:20301201T090000Z', 'DURATION:P6000D'],
+        ['UID:series', 'RECURRENCE-ID:20311201T090000Z', 'DTSTART:20311201T090000Z', 'DURATION:P6000D'],
+      ), options,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+  });
+
   it('does not charge a century of disjoint past open-ended yearly occurrences', async () => {
     const result = await importIcsCalendarSource({
       label: 'Long-lived yearly commitment',

@@ -70,6 +70,12 @@ const openEndedOverlapCalendar = [
   'RRULE:FREQ=YEARLY', 'END:VEVENT', 'END:VCALENDAR',
 ].join('\r\n');
 
+const variableCadenceOverlapCalendar = [
+  'BEGIN:VCALENDAR', 'VERSION:2.0',
+  'BEGIN:VEVENT', 'UID:long-monthly', 'DTSTART:20270328T090000Z', 'DURATION:P547D',
+  'RRULE:FREQ=MONTHLY', 'END:VEVENT', 'END:VCALENDAR',
+].join('\r\n');
+
 const plan = {
   placements: [],
   rejectedExistingPlacements: [],
@@ -113,6 +119,25 @@ beforeEach(() => {
 });
 
 describe('atomic calendar source mutation and repair attention', () => {
+  it('rejects later denser monthly overlap before replacing the canonical calendar', async () => {
+    const previewOptions = { ...options, windowEndDate: '2026-10-07' };
+    const future = icsCalendarAdapter.read(variableCadenceOverlapCalendar, {
+      ...options, windowStartDate: '2030-03-28', windowEndDate: '2030-03-29',
+    });
+    expect(future.events.length).toBeGreaterThanOrEqual(19);
+    expect(() => validateCalendarCommitmentExpansion(future.events))
+      .toThrow('Calendar commitments exceed safe daily expansion bounds.');
+    const database = getCurrentLifeRhythmDatabase();
+    await seedCalendarA();
+    const before = await database.calendarSources.get('primary');
+    const result = await commitCalendarSourceImport({
+      label: 'Unsafe monthly recurrence', source: variableCadenceOverlapCalendar,
+      options: previewOptions,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await database.calendarSources.get('primary')).toEqual(before);
+  });
+
   it('rejects future overlapping occurrences of an open-ended BUSY series before replacement', async () => {
     const future = icsCalendarAdapter.read(openEndedOverlapCalendar, {
       ...options, windowStartDate: '2027-12-01', windowEndDate: '2027-12-02',

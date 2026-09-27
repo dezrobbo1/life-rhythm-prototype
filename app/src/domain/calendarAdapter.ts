@@ -165,6 +165,25 @@ function timedFragmentsInAnyTimezone(startEpoch: number, endEpoch: number): numb
   return Math.max(1, lastDay - firstDay + 1);
 }
 
+// A rolling read cannot enumerate an infinite RRULE. Reserve enough dated
+// fragments for the densest possible overlap of its ordinary occurrences.
+// Selectors can add occurrences within a week/month/year, so use a one-day
+// minimum unless the rule is the simple one-occurrence cadence.
+function minimumOpenEndedRecurrenceGapDays(master: ICAL.Component): number {
+  const rules = master.getAllProperties('rrule');
+  if (rules.length !== 1) return 1;
+  const raw = rules[0].getFirstValue()?.toString().toUpperCase() ?? '';
+  const freq = raw.match(/(?:^|;)FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(?:;|$)/)?.[1];
+  const interval = Number(raw.match(/(?:^|;)INTERVAL=(\d+)(?:;|$)/)?.[1] ?? '1');
+  if (!Number.isSafeInteger(interval) || interval < 1) return 1;
+  if (freq === 'DAILY') return interval;
+  if (/\bBY(?:DAY|MONTHDAY|MONTH)=/.test(raw)) return 1;
+  if (freq === 'WEEKLY') return 7 * interval;
+  if (freq === 'MONTHLY') return 28 * interval;
+  if (freq === 'YEARLY') return 365 * interval;
+  return 1;
+}
+
 function formatTime(hour: number, minute: number): string {
   return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
@@ -413,7 +432,7 @@ function firstProperty(map: Map<string, ParsedProperty[]>, name: string): Parsed
 
 function recurringEvents(
   source: string, options: CalendarReadOptions, warnings: string[],
-  chargeSource?: (event: CalendarReadEvent, startEpoch?: number, endEpoch?: number) => void,
+  chargeSource?: (event: CalendarReadEvent, startEpoch?: number, endEpoch?: number, multiplier?: number) => void,
 ): CalendarReadEvent[] {
   // ICAL.js normalizes unknown RRULE clauses away. Validate the original VEVENT
   // text before parsing, but only when the component can contribute busy time.
@@ -573,6 +592,12 @@ function recurringEvents(
     const masterBusy = masters[0].getFirstPropertyValue('status')?.toString().toUpperCase() !== 'CANCELLED' &&
       masters[0].getFirstPropertyValue('transp')?.toString().toUpperCase() !== 'TRANSPARENT';
     const openEndedBusySeries = chargeSource && !finiteSeries && masterBusy;
+    const openEndedGapDays = openEndedBusySeries ? minimumOpenEndedRecurrenceGapDays(masters[0]) : 1;
+    // Explicit RDATEs can add slots outside the regular cadence. Reserve for
+    // each distinct future identity as well as the rolling master density.
+    const openEndedExtraDates = openEndedBusySeries ? [...rdateProvenanceByIdentity.keys()]
+      .filter((identity) => identity.slice(0, 10) >= options.windowStartDate).length : 0;
+    let openEndedReserveCharged = false;
     let firstOpenEndedOverlapScanEnd: string | undefined;
     // A transparent/cancelled master cannot charge its ordinary occurrences.
     // Scan a finite series only as far as its last potentially BUSY exception.
@@ -583,6 +608,8 @@ function recurringEvents(
           ?.toString().toUpperCase() !== 'TRANSPARENT')
       .map((part) => recurrenceIdentityKey(part.getFirstPropertyValue('recurrence-id') as ICAL.Time))
       .sort().slice(-1)[0] : undefined;
+    const emittedOccurrenceIds = new Set<string>();
+    const chargedOccurrenceIds = new Set<string>();
     const exceptionOverlapsWindow = (component: ICAL.Component) => {
       if (component.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED') return false;
       if ((component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
@@ -591,7 +618,7 @@ function recurringEvents(
       const startTime = item.startDate;
       const endTime = item.endDate;
       const allDay = startTime.isDate;
-      const start: CalendarLocalPoint = allDay
+      const start: CalendarLocalPoint & { epochMs?: number } = allDay
         ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
         : pointFromEpoch(asEpoch(startTime, component, 'dtstart', occurrenceStartFallback(component), false), options.targetTimezone);
       const end = occurrenceEnd(startTime, endTime, component);
@@ -599,16 +626,23 @@ function recurringEvents(
       // never reach addOccurrence during import. Bound its own dated work now.
       if (allDay) calendarDateSpanDays(start.date, end.date);
       else timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
-      return overlapsDateWindow({
+      const event: CalendarReadEvent = {
         adapterId: 'ics',
-        sourceEventId: uid,
+        sourceEventId: `${uid}::${(component.getFirstPropertyValue('recurrence-id') as ICAL.Time).toString()}`,
         title: item.summary || master.summary || 'Calendar commitment',
         allDay,
         busy: true,
         start,
         end,
         timezone: options.targetTimezone,
-      }, options.windowStartDate, options.windowEndDate);
+      };
+      if (openEndedBusySeries && chargeSource && !chargedOccurrenceIds.has(event.sourceEventId)) {
+        // A future authored override may be beyond the rolling RRULE scan.
+        // Reserve its BUSY cost once without emitting its replaced slot.
+        chargeSource(event, start.epochMs, end.epochMs);
+        chargedOccurrenceIds.add(event.sourceEventId);
+      }
+      return overlapsDateWindow(event, options.windowStartDate, options.windowEndDate);
     };
     const laterMovedExceptionScanKey = parts
       .filter((part) => part.hasProperty('recurrence-id'))
@@ -619,8 +653,6 @@ function recurringEvents(
       .map((part) => recurrenceIdentityKey(part.getFirstPropertyValue('recurrence-id') as ICAL.Time))
       .sort()
       .slice(-1)[0];
-    const emittedOccurrenceIds = new Set<string>();
-    const chargedOccurrenceIds = new Set<string>();
     const addOccurrence = (identity: ICAL.Time, item: ICAL.Event, startTime: ICAL.Time, endTime: ICAL.Time) => {
       if (item.component.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED') return;
       const busy = (item.component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
@@ -660,8 +692,16 @@ function recurringEvents(
             ? event.start.date <= firstOpenEndedOverlapScanEnd
             : event.start.date > options.windowEndDate);
         if (relevantOpenEndedOccurrence) {
-          chargeSource(event, allDay ? undefined : asEpoch(startTime, item.component, 'dtstart',
-            occurrenceStartFallback(item.component), false, occurrenceProvenance), end.epochMs);
+          const masterOccurrence = openEndedBusySeries && item.component === master.component;
+          if (!masterOccurrence || !openEndedReserveCharged) {
+            const cost = calendarCommitmentFragmentDays(event);
+            // One extra slot covers an event straddling either end of a
+            // future read, including the timezone date-boundary slack.
+            const slots = masterOccurrence ? Math.ceil((cost + 2) / openEndedGapDays) + 1 + openEndedExtraDates : 1;
+            chargeSource(event, allDay ? undefined : asEpoch(startTime, item.component, 'dtstart',
+              occurrenceStartFallback(item.component), false, occurrenceProvenance), end.epochMs, slots);
+            if (masterOccurrence) openEndedReserveCharged = true;
+          }
           chargedOccurrenceIds.add(sourceEventId);
           if (openEndedBusySeries && !firstOpenEndedOverlapScanEnd) {
             // Source/target zones can differ by 26 hours. Two days of slack
@@ -722,7 +762,8 @@ export class IcsCalendarAdapter implements CalendarAdapter {
     let totalSourceFragments = 0;
     const historicalCutoff = options.windowStartDate > '0001-01-02'
       ? addCalendarDays(options.windowStartDate, -2) : '0001-01-01';
-    const chargeSource = validateWholeSource ? (event: CalendarReadEvent, startEpoch?: number, endEpoch?: number) => {
+    const chargeSource = validateWholeSource ? (event: CalendarReadEvent, startEpoch?: number,
+      endEpoch?: number, multiplier = 1) => {
       if (!event.busy) return;
       // A past event cannot block this import horizon or any later horizon.
       // Two days account for the 26-hour separation of supported IANA zones.
@@ -732,8 +773,12 @@ export class IcsCalendarAdapter implements CalendarAdapter {
         if (!event.allDay && (startEpoch === undefined || endEpoch === undefined)) {
           throw new RangeError('Timed calendar event has no validated endpoints.');
         }
-        totalSourceFragments += event.allDay ? fragments
+        const chargedFragments = event.allDay ? fragments
           : Math.max(fragments, timedFragmentsInAnyTimezone(startEpoch!, endEpoch!));
+        if (multiplier > MAX_CALENDAR_EXPANSION_DAYS / chargedFragments) {
+          throw new RangeError('Calendar commitments exceed safe daily expansion bounds.');
+        }
+        totalSourceFragments += chargedFragments * multiplier;
       } catch (error) {
         if (!(error instanceof RangeError)) throw error;
         throw new RangeError('Calendar commitments exceed safe daily expansion bounds.');
