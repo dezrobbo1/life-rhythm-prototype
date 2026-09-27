@@ -8,6 +8,43 @@ const calendar = (...events: string[]) => ['BEGIN:VCALENDAR', 'VERSION:2.0', ...
 const base = ['DTSTART;TZID=Australia/Sydney:20261002T090000', 'DTEND;TZID=Australia/Sydney:20261002T093000'];
 
 describe('bounded recurring calendar authority', () => {
+  it('skips an oversized transparent recurring DATE span and retains a busy neighbour', () => {
+    const source = calendar(
+      event(['TRANSP:TRANSPARENT', 'DTSTART;VALUE=DATE:20261002', 'DURATION:P10001D', 'RRULE:FREQ=DAILY;COUNT=1']),
+      event([...base, 'RRULE:FREQ=DAILY;COUNT=1']).replace('work@example.com', 'busy@example.com'),
+    );
+    expect(adapter.read(source, options).events.filter((row) => row.busy).map((row) => row.sourceEventId))
+      .toEqual(['busy@example.com::2026-10-02T09:00:00']);
+    expect(() => adapter.read(source.replace('TRANSP:TRANSPARENT', 'TRANSP:OPAQUE'), options))
+      .toThrow();
+  });
+  it('excludes transparent timed occurrences from blocker projection even with a huge duration', () => {
+    const source = calendar(event([
+      'TRANSP:TRANSPARENT', 'DTSTART:20260101T090000Z', 'DURATION:P1000000D',
+      'RRULE:FREQ=DAILY;COUNT=1',
+    ]));
+    expect(adapter.read(source, { targetTimezone: 'UTC', windowStartDate: '2026-01-01', windowEndDate: '2026-01-02' }).events)
+      .toEqual([]);
+  });
+  it('honours exception transparency over master transparency in either direction', () => {
+    const master = (transp: string) => event([
+      `TRANSP:${transp}`, 'DTSTART:20261002T090000Z', 'DTEND:20261002T100000Z',
+      'RRULE:FREQ=DAILY;COUNT=2',
+    ]);
+    const moved = (transp: string) => event([
+      'RECURRENCE-ID:20261003T090000Z', `TRANSP:${transp}`,
+      'DTSTART:20261003T120000Z', 'DTEND:20261003T130000Z',
+    ]);
+    const read = { targetTimezone: 'UTC', windowStartDate: '2026-10-02', windowEndDate: '2026-10-04' };
+    const busyMaster = adapter.read(calendar(master('OPAQUE'), moved('TRANSPARENT')), read).events;
+    expect(busyMaster.map((row) => [row.start.date, row.start.time, row.busy]))
+      .toEqual([['2026-10-02', '09:00', true]]);
+    const transparentMaster = adapter.read(calendar(master('TRANSPARENT'), moved('OPAQUE')), read).events;
+    expect(transparentMaster.map((row) => [row.start.date, row.start.time, row.busy]))
+      .toEqual([['2026-10-03', '12:00', true]]);
+    const cancelled = moved('OPAQUE').replace('TRANSP:OPAQUE', 'STATUS:CANCELLED');
+    expect(adapter.read(calendar(master('OPAQUE'), cancelled), read).events).toHaveLength(1);
+  });
   it('uses the first repeated Sydney instant for a recurring master and for both ends', () => {
     const source = calendar(event([
       'DTSTART;TZID=Australia/Sydney:20260405T023000', 'DTEND;TZID=Australia/Sydney:20260405T024500',

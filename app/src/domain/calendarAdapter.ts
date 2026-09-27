@@ -137,6 +137,19 @@ export function calendarDateSpanDays(start: string, end: string): number {
   return days;
 }
 
+export function timedCalendarFragmentDays(start: string, end: string, endTime: string): number {
+  if (start === end) {
+    addCalendarDays(start, 0);
+    return 1;
+  }
+  const days = calendarDateSpanDays(start, end);
+  const fragments = days + (endTime === '00:00' ? 0 : 1);
+  if (fragments > MAX_CALENDAR_EXPANSION_DAYS) {
+    throw new RangeError('Calendar event exceeds safe daily expansion bounds.');
+  }
+  return fragments;
+}
+
 function formatTime(hour: number, minute: number): string {
   return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
@@ -539,6 +552,8 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
         `${formatTime(time.hour, time.minute)}:${time.second.toString().padStart(2, '0')}`}`;
     const exceptionOverlapsWindow = (component: ICAL.Component) => {
       if (component.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED') return false;
+      if ((component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
+        ?.toString().toUpperCase() === 'TRANSPARENT') return false;
       const item = new ICAL.Event(component);
       const startTime = item.startDate;
       const endTime = item.endDate;
@@ -570,6 +585,9 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
     const emittedOccurrenceIds = new Set<string>();
     const addOccurrence = (identity: ICAL.Time, item: ICAL.Event, startTime: ICAL.Time, endTime: ICAL.Time) => {
       if (item.component.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED') return;
+      const busy = (item.component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
+        ?.toString().toUpperCase() !== 'TRANSPARENT';
+      if (!busy) return;
       const sourceEventId = `${uid}::${identity.toString()}`;
       if (emittedOccurrenceIds.has(sourceEventId)) return;
       const allDay = startTime.isDate;
@@ -588,8 +606,7 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
           : (item.component.getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined) ?? occurrenceStartFallback(item.component);
       const event: CalendarReadEvent = {
         adapterId: 'ics', sourceEventId, title: item.summary || master.summary || 'Calendar commitment',
-        allDay, busy: (item.component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
-          ?.toString().toUpperCase() !== 'TRANSPARENT',
+        allDay, busy,
         start: { date: start.date, time: start.time }, end: { date: end.date, time: end.time },
         timezone: options.targetTimezone,
         ...(sourceOccurrenceTimezone ? { sourceTimezone: sourceOccurrenceTimezone } : {}),
