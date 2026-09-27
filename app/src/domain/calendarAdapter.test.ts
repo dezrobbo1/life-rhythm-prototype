@@ -22,23 +22,19 @@ function event(lines: string[]) {
 }
 
 describe('ICS calendar adapter', () => {
-  it('preflights representable million-day timed DURATION and explicit DTEND before daily projection', () => {
+  it('rejects representable million-day timed DURATION and explicit DTEND before event emission', () => {
     const read = (end: string) => new IcsCalendarAdapter().read(calendar(event([
       'UID:long-timed', 'DTSTART:20260101T090000Z', end,
     ])), { targetTimezone: 'UTC', windowStartDate: '2026-01-01', windowEndDate: '2026-01-02' }).events;
-    const duration = read('DURATION:P1000000D');
-    expect(duration).toHaveLength(1);
-    expect(duration[0].end.date.localeCompare('2026-01-01')).toBeGreaterThan(0);
-    expect(() => externalCommitmentsFromCalendarEvents(duration)).toThrow('Calendar commitments exceed safe daily expansion bounds.');
-    const explicit = read('DTEND:47631128T090000Z');
-    expect(explicit).toHaveLength(1);
-    expect(() => externalCommitmentsFromCalendarEvents(explicit)).toThrow('Calendar commitments exceed safe daily expansion bounds.');
+    expect(() => read('DURATION:P1000000D')).toThrow('Calendar event exceeds safe daily expansion bounds.');
+    expect(() => read('DTEND:47631128T090000Z')).toThrow('Calendar event exceeds safe daily expansion bounds.');
     expect(externalCommitmentsFromCalendarEvents(read('DURATION:PT1H'))).toHaveLength(1);
-    const recurring = new IcsCalendarAdapter().read(calendar(event([
+    const recurring = calendar(event([
       'UID:long-recurring', 'DTSTART:20260101T090000Z', 'DURATION:P1000000D', 'RRULE:FREQ=DAILY;COUNT=1',
-    ])), { targetTimezone: 'UTC', windowStartDate: '2026-01-01', windowEndDate: '2026-01-02' }).events;
-    expect(recurring).toHaveLength(1);
-    expect(() => externalCommitmentsFromCalendarEvents(recurring)).toThrow('Calendar commitments exceed safe daily expansion bounds.');
+    ]));
+    expect(() => new IcsCalendarAdapter().read(recurring, {
+      targetTimezone: 'UTC', windowStartDate: '2026-01-01', windowEndDate: '2026-01-02',
+    })).toThrow('Calendar event exceeds safe daily expansion bounds.');
   });
   it('rejects an overflowing busy all-day duration before commitment expansion', () => {
     const source = calendar(event([
