@@ -596,15 +596,44 @@ function recurringEvents(
       masters[0].getFirstPropertyValue('transp')?.toString().toUpperCase() !== 'TRANSPARENT';
     const openEndedBusySeries = chargeSource && !finiteSeries && masterBusy;
     const openEndedGapDays = openEndedBusySeries ? minimumOpenEndedRecurrenceGapDays(masters[0]) : 1;
-    // Explicit RDATEs can add slots outside the regular cadence. Reserve for
-    // each distinct future identity as well as the rolling master density.
-    const openEndedExtraDates = openEndedBusySeries ? [...rdateProvenanceByIdentity.keys()]
-      .filter((identity) => identity.slice(0, 10) >= options.windowStartDate).length : 0;
+    // Explicit RDATEs can add slots outside the regular cadence. Remove
+    // EXDATE/transparent identities and ordinary RRULE duplicates before
+    // reserving them. This second iterator is bounded by the same source
+    // iteration budget; it never expands dated commitments.
+    const additionalDates = new Set(openEndedBusySeries ? [...rdateProvenanceByIdentity.keys()]
+      .filter((identity) => identity.slice(0, 10) >= options.windowStartDate) : []);
+    if (additionalDates.size) {
+      for (const property of masters[0].getAllProperties('exdate')) {
+        for (const value of property.getValues() as ICAL.Time[]) additionalDates.delete(value.toString());
+      }
+      for (const part of parts.filter((candidate) => candidate.hasProperty('recurrence-id'))) {
+        if (part.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED' ||
+          (part.getFirstPropertyValue('transp') ?? masters[0].getFirstPropertyValue('transp'))
+            ?.toString().toUpperCase() === 'TRANSPARENT') {
+          additionalDates.delete((part.getFirstPropertyValue('recurrence-id') as ICAL.Time).toString());
+        }
+      }
+      const latestDate = [...additionalDates].sort().slice(-1)[0];
+      if (latestDate) {
+        const ruleOnly = new ICAL.Component(masters[0].toJSON());
+        ruleOnly.removeAllProperties('rdate');
+        const ruleIterator = new ICAL.Event(ruleOnly).iterator();
+        let logical: ICAL.Time | null;
+        while (additionalDates.size && (logical = ruleIterator.next())) {
+          if (++totalRecurrenceIterations > MAX_TOTAL_RECURRENCE_ITERATIONS) {
+            throw new Error('Calendar recurrence exceeds the safe read limit.');
+          }
+          if (logical.toString() > latestDate) break;
+          additionalDates.delete(logical.toString());
+        }
+      }
+    }
+    const openEndedExtraDates = additionalDates.size;
     let openEndedReserveCharged = false;
     let firstOpenEndedOverlapScanEnd: string | undefined;
-    // A transparent/cancelled master cannot charge its ordinary occurrences.
-    // Scan a finite series only as far as its last potentially BUSY exception.
-    const lastBusyExceptionKey = finiteSeries && !masterBusy ? parts
+    // Explicit BUSY overrides are charged only when the authoritative RRULE
+    // iterator yields their logical slot; COUNT/UNTIL/EXDATE remain decisive.
+    const lastBusyExceptionKey = chargeSource ? parts
       .filter((part) => part.hasProperty('recurrence-id') &&
         part.getFirstPropertyValue('status')?.toString().toUpperCase() !== 'CANCELLED' &&
         (part.getFirstPropertyValue('transp') ?? masters[0].getFirstPropertyValue('transp'))
@@ -625,8 +654,8 @@ function recurringEvents(
         ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
         : pointFromEpoch(asEpoch(startTime, component, 'dtstart', occurrenceStartFallback(component), false), options.targetTimezone);
       const end = occurrenceEnd(startTime, endTime, component);
-      // A moved BUSY exception may be beyond this read window and therefore
-      // never reach addOccurrence during import. Bound its own dated work now.
+      // Inspect a moved exception's window overlap; only the authoritative
+      // iterator can establish whether its original logical slot exists.
       const event: CalendarReadEvent = {
         adapterId: 'ics',
         sourceEventId: `${uid}::${(component.getFirstPropertyValue('recurrence-id') as ICAL.Time).toString()}`,
@@ -638,16 +667,6 @@ function recurringEvents(
         timezone: options.targetTimezone,
       };
       const overlaps = overlapsDateWindow(event, options.windowStartDate, options.windowEndDate);
-      if (chargeSource || overlaps) {
-        if (allDay) calendarDateSpanDays(start.date, end.date);
-        else timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
-      }
-      if (chargeSource && !chargedOccurrenceIds.has(event.sourceEventId)) {
-        // A future authored override may be beyond the rolling RRULE scan.
-        // Reserve its BUSY cost once without emitting its replaced slot.
-        chargeSource(event, start.epochMs, end.epochMs);
-        chargedOccurrenceIds.add(event.sourceEventId);
-      }
       return overlaps;
     };
     const laterMovedExceptionScanKey = parts
@@ -696,6 +715,7 @@ function recurringEvents(
         // and a bounded witness window around its first relevant occurrence;
         // past disjoint slots must not consume an infinite lifetime budget.
         const relevantOpenEndedOccurrence = !openEndedBusySeries ||
+          item.component !== master.component ||
           overlapsDateWindow(event, options.windowStartDate, options.windowEndDate) ||
           (firstOpenEndedOverlapScanEnd
             ? event.start.date <= firstOpenEndedOverlapScanEnd
