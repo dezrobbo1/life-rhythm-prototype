@@ -70,6 +70,42 @@ beforeEach(() => {
 });
 
 describe('calendar source repository', () => {
+  it('accepts expired BUSY history above the source budget without hiding a valid current event', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Historical archive',
+      source: calendarWith(
+        ['UID:old-a', 'DTSTART:19000101T090000Z', 'DURATION:P6000D'],
+        ['UID:old-b', 'DTSTART:19000102T090000Z', 'DURATION:P6000D'],
+        ['UID:current', 'DTSTART:20260907T010000Z', 'DURATION:PT1H'],
+      ), options,
+    });
+    expect(result).toMatchObject({ ok: true, busyEventCount: 1 });
+  });
+
+  it('rejects a timezone-dependent budget boundary before creating an unreadable saved source', async () => {
+    const source = calendarWith(['UID:zone-sensitive',
+      'DTSTART:20260101T163000Z', 'DTEND:20530519T160000Z']);
+    const perth = icsCalendarAdapter.read(source, { ...options, windowStartDate: '2026-01-01', windowEndDate: '2053-05-20' });
+    expect(() => validateCalendarCommitmentExpansion(perth.events)).not.toThrow();
+    expect(() => icsCalendarAdapter.read(source, { ...options, targetTimezone: 'America/New_York',
+      windowStartDate: '2026-01-01', windowEndDate: '2053-05-20' }))
+      .toThrow('Calendar event exceeds safe daily expansion bounds.');
+    const result = await importIcsCalendarSource({ label: 'Zone-dependent', source, options });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await getCurrentLifeRhythmDatabase().calendarSources.count()).toBe(0);
+  });
+
+  it('applies the timezone-independent bound to future recurring BUSY occurrences', async () => {
+    const result = await importIcsCalendarSource({
+      label: 'Zone-dependent recurrence',
+      source: calendarWith(['UID:zone-recurring', 'DTSTART:20261201T163000Z',
+        'DURATION:P10000D', 'RRULE:FREQ=YEARLY;COUNT=1']),
+      options,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await getCurrentLifeRhythmDatabase().calendarSources.count()).toBe(0);
+  });
+
   it('charges two individually legal future 6,000-fragment BUSY events before persistence', async () => {
     const a = ['UID:future-a', 'DTSTART:20261201T160000Z', 'DURATION:P6000D'];
     const b = ['UID:future-b', 'DTSTART:20261202T160000Z', 'DURATION:P6000D'];
@@ -99,8 +135,8 @@ describe('calendar source repository', () => {
     const imported = await importIcsCalendarSource({
       label: 'Future accepted',
       source: calendarWith(
-        ['UID:first', 'DTSTART:20261201T160000Z', 'DURATION:P6000D'],
-        ['UID:second', 'DTSTART:20261202T160000Z', 'DURATION:P4000D'],
+        ['UID:first', 'DTSTART;VALUE=DATE:20261201', 'DURATION:P6000D'],
+        ['UID:second', 'DTSTART;VALUE=DATE:20261202', 'DURATION:P4000D'],
       ), options,
     });
     expect(imported.ok).toBe(true);
@@ -179,7 +215,7 @@ describe('calendar source repository', () => {
         ['UID:series', 'DTSTART:20261201T160000Z', 'DURATION:P6000D',
           'RRULE:FREQ=DAILY;COUNT=4', 'EXDATE:20261204T160000Z'],
         ['UID:series', 'RECURRENCE-ID:20261202T160000Z', 'TRANSP:OPAQUE',
-          'DTSTART:20261202T160000Z', 'DURATION:P4000D'],
+          'DTSTART:20261202T160000Z', 'DURATION:P3996D'],
         ['UID:series', 'RECURRENCE-ID:20261203T160000Z', 'TRANSP:TRANSPARENT',
           'DTSTART:20261203T160000Z', 'DURATION:P1000000D'],
       ), options,
@@ -195,7 +231,7 @@ describe('calendar source repository', () => {
           'RRULE:FREQ=DAILY;COUNT=2'],
         ['UID:series', 'RECURRENCE-ID:20261202T160000Z', 'STATUS:CANCELLED',
           'DTSTART:20261202T160000Z', 'DURATION:P6000D'],
-        ['UID:other', 'DTSTART:20261203T160000Z', 'DURATION:P4000D'],
+        ['UID:other', 'DTSTART:20261203T160000Z', 'DURATION:P3996D'],
       ), options,
     });
     expect(result.ok).toBe(true);
@@ -222,7 +258,7 @@ describe('calendar source repository', () => {
   it('counts explicit future RDATE once even if it duplicates a finite RRULE occurrence', async () => {
     const result = await importIcsCalendarSource({
       label: 'Future RDATE',
-      source: calendarWith(['UID:series', 'DTSTART:20261201T160000Z', 'DURATION:P5000D',
+      source: calendarWith(['UID:series', 'DTSTART:20261201T160000Z', 'DURATION:P4998D',
         'RRULE:FREQ=DAILY;COUNT=2', 'RDATE:20261202T160000Z']), options,
     });
     expect(result.ok).toBe(true);
@@ -315,11 +351,12 @@ describe('calendar source repository', () => {
   });
 
   it('accepts exactly 10,000 timed fragments and rejects the immediately following fragment', async () => {
-    // Perth midnight on 2053-05-19 is 16:00Z on the preceding date.
-    const start = ['UID:boundary', 'DTSTART:20260101T090000Z'];
+    // This timed span costs 10,000 fragments in Perth and under the
+    // timezone-independent import bound; another calendar day costs 10,001.
+    const start = ['UID:boundary', 'DTSTART:20260101T120000Z'];
     const accepted = await importIcsCalendarSource({
       label: 'At boundary',
-      source: calendarWith([...start, 'DTEND:20530518T160000Z']),
+      source: calendarWith([...start, 'DTEND:20530518T090000Z']),
       options,
       importedAt: '2026-09-05T06:00:00.000Z',
     });
@@ -328,9 +365,16 @@ describe('calendar source repository', () => {
     const read = await readPersistedCalendarEvents(options);
     expect(read.status).toBe('ok');
     if (read.status === 'ok') expect(() => validateCalendarCommitmentExpansion(read.events)).not.toThrow();
+    const travelRead = await readPersistedCalendarEvents({ ...options,
+      targetTimezone: 'America/New_York', windowStartDate: '2026-01-01', windowEndDate: '2053-05-20' });
+    expect(travelRead.status).toBe('ok');
+    if (travelRead.status === 'ok') {
+      expect(travelRead.events).toHaveLength(1);
+      expect(() => validateCalendarCommitmentExpansion(travelRead.events)).not.toThrow();
+    }
     const rejected = await importIcsCalendarSource({
       label: 'Beyond boundary',
-      source: calendarWith([...start, 'DTEND:20530518T160100Z']),
+      source: calendarWith([...start, 'DTEND:20530519T090000Z']),
       options,
     });
     expect(rejected).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });

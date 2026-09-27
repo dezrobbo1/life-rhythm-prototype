@@ -156,6 +156,15 @@ export function calendarCommitmentFragmentDays(event: Pick<CalendarReadEvent, 'a
     : timedCalendarFragmentDays(event.start.date, event.end.date, event.end.time ?? '');
 }
 
+// An imported timed event is read again in the device's later timezone. The
+// supported IANA extremes (-12 and +14 hours) bound its earliest possible
+// start date and latest possible end date without enumerating local days.
+function timedFragmentsInAnyTimezone(startEpoch: number, endEpoch: number): number {
+  const firstDay = Math.floor((startEpoch - 12 * 3_600_000) / 86_400_000);
+  const lastDay = Math.floor((endEpoch + 14 * 3_600_000) / 86_400_000);
+  return Math.max(1, lastDay - firstDay + 1);
+}
+
 function formatTime(hour: number, minute: number): string {
   return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
@@ -404,7 +413,7 @@ function firstProperty(map: Map<string, ParsedProperty[]>, name: string): Parsed
 
 function recurringEvents(
   source: string, options: CalendarReadOptions, warnings: string[],
-  chargeSource?: (event: CalendarReadEvent) => void,
+  chargeSource?: (event: CalendarReadEvent, startEpoch?: number, endEpoch?: number) => void,
 ): CalendarReadEvent[] {
   // ICAL.js normalizes unknown RRULE clauses away. Validate the original VEVENT
   // text before parsing, but only when the component can contribute busy time.
@@ -537,7 +546,7 @@ function recurringEvents(
     const occurrenceEnd = (
       startTime: ICAL.Time, endTime: ICAL.Time, component: ICAL.Component,
       provenance?: RdateProvenance,
-    ): CalendarLocalPoint => {
+    ): CalendarLocalPoint & { epochMs?: number } => {
       if (component.hasProperty('duration') && !component.hasProperty('dtend')) {
         const duration = safeDuration(component.getFirstProperty('duration')?.getFirstValue()?.toString() ?? '', startTime.isDate);
         if (startTime.isDate) {
@@ -651,7 +660,8 @@ function recurringEvents(
             ? event.start.date <= firstOpenEndedOverlapScanEnd
             : event.start.date > options.windowEndDate);
         if (relevantOpenEndedOccurrence) {
-          chargeSource(event);
+          chargeSource(event, allDay ? undefined : asEpoch(startTime, item.component, 'dtstart',
+            occurrenceStartFallback(item.component), false, occurrenceProvenance), end.epochMs);
           chargedOccurrenceIds.add(sourceEventId);
           if (openEndedBusySeries && !firstOpenEndedOverlapScanEnd) {
             // Source/target zones can differ by 26 hours. Two days of slack
@@ -710,10 +720,20 @@ export class IcsCalendarAdapter implements CalendarAdapter {
     const warnings: string[] = [];
     const events: CalendarReadEvent[] = [];
     let totalSourceFragments = 0;
-    const chargeSource = validateWholeSource ? (event: CalendarReadEvent) => {
+    const historicalCutoff = options.windowStartDate > '0001-01-02'
+      ? addCalendarDays(options.windowStartDate, -2) : '0001-01-01';
+    const chargeSource = validateWholeSource ? (event: CalendarReadEvent, startEpoch?: number, endEpoch?: number) => {
       if (!event.busy) return;
+      // A past event cannot block this import horizon or any later horizon.
+      // Two days account for the 26-hour separation of supported IANA zones.
+      if (event.end.date < historicalCutoff) return;
       try {
-        totalSourceFragments += calendarCommitmentFragmentDays(event);
+        const fragments = calendarCommitmentFragmentDays(event);
+        if (!event.allDay && (startEpoch === undefined || endEpoch === undefined)) {
+          throw new RangeError('Timed calendar event has no validated endpoints.');
+        }
+        totalSourceFragments += event.allDay ? fragments
+          : Math.max(fragments, timedFragmentsInAnyTimezone(startEpoch!, endEpoch!));
       } catch (error) {
         if (!(error instanceof RangeError)) throw error;
         throw new RangeError('Calendar commitments exceed safe daily expansion bounds.');
@@ -806,7 +826,7 @@ export class IcsCalendarAdapter implements CalendarAdapter {
       // horizon. Bound its own dated expansion before source persistence.
       if (busy && !start.allDay) timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
 
-      chargeSource?.(event);
+      chargeSource?.(event, start.epochMs, end.epochMs);
 
       if (overlapsDateWindow(event, options.windowStartDate, options.windowEndDate)) {
         events.push(event);
