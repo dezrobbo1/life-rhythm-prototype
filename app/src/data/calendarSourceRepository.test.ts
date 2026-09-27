@@ -80,10 +80,11 @@ describe('calendar source repository', () => {
   });
 
   it('accepts exactly 10,000 timed fragments and rejects the immediately following fragment', async () => {
+    // Perth midnight on 2053-05-19 is 16:00Z on the preceding date.
     const start = ['UID:boundary', 'DTSTART:20260101T090000Z'];
     const accepted = await importIcsCalendarSource({
       label: 'At boundary',
-      source: calendarWith([...start, 'DTEND:20530519T000000Z']),
+      source: calendarWith([...start, 'DTEND:20530518T160000Z']),
       options,
       importedAt: '2026-09-05T06:00:00.000Z',
     });
@@ -94,7 +95,7 @@ describe('calendar source repository', () => {
     if (read.status === 'ok') expect(() => validateCalendarCommitmentExpansion(read.events)).not.toThrow();
     const rejected = await importIcsCalendarSource({
       label: 'Beyond boundary',
-      source: calendarWith([...start, 'DTEND:20530519T000100Z']),
+      source: calendarWith([...start, 'DTEND:20530518T160100Z']),
       options,
     });
     expect(rejected).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
