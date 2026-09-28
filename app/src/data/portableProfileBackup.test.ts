@@ -15,6 +15,7 @@ import { loadActiveTodayTasksResult } from './activeTaskRepository';
 import { loadTaskPoolItemsResult } from './taskPoolRepository';
 import { loadBehaviourEventsResult } from './behaviourEventRepository';
 import { loadCalendarSource, readPersistedCalendarEvents } from './calendarSourceRepository';
+import { confirmTaskPoolSoftPlacement } from './taskSoftPlacementRepository';
 import { buildCurrentLiveSchedulingContext, ensureCurrentPrivatePlan } from './schedulerPlanCoordinator';
 import { CURRENT_CALENDAR_SOURCE_ID } from './calendarSourceSchema';
 import {
@@ -242,6 +243,34 @@ describe('Gate 8A4 portable canonical profile', () => {
       .toEqual(expect.arrayContaining([expect.objectContaining({ templateId: 'archived-template', mode: 'disabled' })]));
     expect(facts.items)
       .toEqual(expect.arrayContaining([expect.objectContaining({ rhythmInstanceId: 'historical-instance' })]));
+  });
+
+  it('backs up and restores a real confirmed Held-item placement without a Today task', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const original = await db.taskPoolItems.get('pool');
+    await db.taskPoolItems.put(taskPoolItemSchema.parse({ ...original, id: 'held-placement' }));
+    expect(await confirmTaskPoolSoftPlacement({ id: 'held-placement-record', taskId: 'held-placement',
+      blockId: 'held-block', blockLabel: 'Open', date: '2026-09-29',
+      blockStart: '09:00', blockEnd: '09:20' }, db)).toMatchObject({ ok: true });
+    expect(await db.activeTasks.get('held-placement')).toBeUndefined();
+    const backup = (await exportPortableProfile()).json;
+    setCurrentLocalDataNamespace(namespaceB);
+    const checked = await checkPortableProfileForRestore(backup);
+    if (!checked.ok || !('expectation' in checked)) throw new Error('Check failed');
+    expect(await restorePortableProfile(backup, checked.expectation, '')).toEqual({ ok: true });
+    expect((await getCurrentLifeRhythmDatabase().softPlacements.get('held-placement-record'))?.taskId).toBe('held-placement');
+    expect((await loadTaskPoolItemsResult(getCurrentLifeRhythmDatabase())).status).toBe('ok');
+  });
+
+  it('rejects unreadable active-task sources and colliding visible placements before restore', async () => {
+    const payload = JSON.parse(exported);
+    const placement = payload.data.softPlacements[0];
+    const changed = (data: Record<string, unknown>) => JSON.stringify({ ...payload, data: { ...payload.data, ...data } });
+    expect(checkPortableProfileJson(changed({ activeTasks: [{ ...payload.data.activeTasks[0], source: 'custom' }] })).ok).toBe(false);
+    expect(checkPortableProfileJson(changed({ softPlacements: [placement,
+      { ...placement, id: 'second', blockId: 'other-block' }] })).ok).toBe(false);
+    expect(checkPortableProfileJson(changed({ softPlacements: [placement,
+      { ...placement, id: 'third', taskId: 'pool' }] })).ok).toBe(false);
   });
 
   it('restoring an empty source removes stale destination preferences, controls, calendar and tasks', async () => {

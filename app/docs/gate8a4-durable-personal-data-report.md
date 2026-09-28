@@ -18,15 +18,17 @@ Further tests cover confirmed non-empty replacement, cleared stale singletons, c
 
 PR review found a second recovery-boundary issue: the reusable Settings schema permits an arbitrary record ID, but normal loading requires `settings`. A tampered v1 artifact with another Settings ID previously passed the checker and could have reported a successful restore of an unreadable profile. A red regression reproduced this; portable checking now requires the canonical Settings ID before any write. The rejected restore leaves prior destination settings unchanged.
 
+Later review found three directly causal validation gaps. The normal `confirmTaskPoolSoftPlacement` path creates a planned placement for a Held item without a Today task, so its real source failed backup; restoration now accepts a live placement backed by either canonical class. Conversely, a crafted artifact could contain two visible placements colliding on date/task or date/block, bypassing the normal placement writer, or an active task whose `custom` source the normal Today repository hides. Red regressions reproduced both problems; checking now rejects the conflicts and unsupported source before replacement. The Held-item test exports and restores a real repository-authored placement into another namespace.
+
 ## Validation on final source tree
 
 | Check | Result |
 | --- | --- |
 | `npm ci --ignore-scripts` | Passed |
-| Focused UTC and Perth recovery, calendar, scheduler and backup matrix | 23 files / 415 tests passed in each timezone |
-| Full `TZ=UTC npm test -- --run` | 107 files / 1,258 tests passed |
-| Full `TZ=Australia/Perth npm test -- --run` | 107 files / 1,258 tests passed |
-| Focused `TZ=Australia/Sydney` recovery, calendar, scheduler and backup matrix | 23 files / 415 tests passed |
+| Focused UTC and Perth recovery, calendar, scheduler and backup matrix | 24 files / 423 tests passed in each timezone |
+| Full `TZ=UTC npm test -- --run` | 107 files / 1,260 tests passed |
+| Full `TZ=Australia/Perth npm test -- --run` | 107 files / 1,260 tests passed |
+| Focused `TZ=Australia/Sydney` recovery, calendar, scheduler and backup matrix | 24 files / 423 tests passed |
 | `npm run build` | Passed |
 | `git diff --check` | Passed |
 | Reviewed code head `f92b719c173330326e9c0f1067e7b285be99a706` App CI | Run #267, success |
@@ -37,4 +39,6 @@ The first full UTC run had one deterministic outdated copy assertion in `AppShel
 
 App Preview run #481 on the preceding head passed all 1,258 tests but failed on one late `window is not defined` rejection from `SchedulingPreferencesPanel` attributed to `AppShell.smoke.test.tsx` after jsdom teardown. The isolated CI-mode smoke test passed 1 file / 3 tests, and the complete CI-mode UTC matrix passed 107 files / 1,258 tests locally. This was classified as transient teardown timing rather than a deterministic portable-recovery defect. The remote job was retried; the final corrected head requires its own check evidence.
 
-Automated UI tests cover file choice, checker status, destructive confirmation and preview invalidation; a phone-width shell smoke test passes. A manual browser walkthrough was unavailable because the browser verification service blocked the local dev URL (`ERR_BLOCKED_BY_CLIENT`) and the deployed preview requires Vercel sign-in. This does not close issue #160's broader mobile acceptance. Portable backup is a user-controlled recovery mechanism; it does not provide automatic sync, an encrypted file format or an infinite-future recurrence precomputation. The PR's final evidence-only head must receive its own checks; the final head and their results are recorded in the PR body.
+The first full UTC run after the placement correction timed out the unchanged Gate 6 daily-loop test after five seconds (106 passed files, 1 failed; 1,259 passed tests, 1 failed). The test passed in isolation (1 file / 1 test) and the complete affected UTC matrix passed on rerun (107 files / 1,260 tests). This was classified as runner timing, not a reproducible recovery defect.
+
+Automated UI tests cover file choice, checker status, destructive confirmation and preview invalidation; a phone-width shell smoke test passes. A manual browser walkthrough was unavailable because the browser verification service blocked the local dev URL (`ERR_BLOCKED_BY_CLIENT`) and the deployed preview requires Vercel sign-in. This does not close issue #160's broader mobile acceptance. Portable backup is a user-controlled recovery mechanism; it does not provide automatic sync, an encrypted file format or an infinite-future recurrence precomputation. The final corrected head's checks are recorded in the PR body.

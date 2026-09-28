@@ -57,7 +57,12 @@ export const portableProfileSchema = z.object({
     .forEach((message) => context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances'], message }));
   const instances = new Map(d.rhythmInstances.map((row) => [row.id, row]));
   const tasks = new Map(d.activeTasks.map((row) => [row.id, row]));
+  const poolIds = new Set(d.taskPoolItems.map((row) => row.id));
   d.activeTasks.forEach((task, index) => {
+    if (task.source === 'custom') {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'activeTasks', index, 'source'],
+        message: 'This task source is not readable by the current Today repository.' });
+    }
     if (task.sourceRhythmInstanceId && (instances.get(task.sourceRhythmInstanceId)?.rhythmTemplateId !== task.templateId ||
       instances.get(task.sourceRhythmInstanceId)?.activeTaskId !== task.id)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'activeTasks', index], message: 'Rhythm occurrence/Today task identity is inconsistent.' });
@@ -70,9 +75,24 @@ export const portableProfileSchema = z.object({
   });
   // Historical facts and authored target IDs can outlive their live template or occurrence.
   // Their own strict schemas retain identity/provenance without inventing live referential authority.
+  const visibleTaskDates = new Set<string>();
+  const visibleBlockDates = new Set<string>();
   d.softPlacements.forEach((placement, index) => {
-    if ((placement.status === 'planned' || placement.status === 'moved') && !tasks.has(placement.taskId)) context.addIssue({ code: z.ZodIssueCode.custom,
-      path: ['data', 'softPlacements', index], message: 'Confirmed placement has no Today task.' });
+    if ((placement.status === 'planned' || placement.status === 'moved') &&
+      !tasks.has(placement.taskId) && !poolIds.has(placement.taskId)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'softPlacements', index],
+        message: 'Confirmed placement has no Today or Held item.' });
+    }
+    if (placement.status === 'planned' || placement.status === 'moved' || placement.status === 'completedFromToday') {
+      const taskDate = JSON.stringify([placement.date, placement.taskId]);
+      const blockDate = JSON.stringify([placement.date, placement.blockId]);
+      if (visibleTaskDates.has(taskDate)) context.addIssue({ code: z.ZodIssueCode.custom,
+        path: ['data', 'softPlacements', index, 'taskId'], message: 'Task already has a visible placement on this date.' });
+      if (visibleBlockDates.has(blockDate)) context.addIssue({ code: z.ZodIssueCode.custom,
+        path: ['data', 'softPlacements', index, 'blockId'], message: 'Block already has a visible placement on this date.' });
+      visibleTaskDates.add(taskDate);
+      visibleBlockDates.add(blockDate);
+    }
   });
 });
 

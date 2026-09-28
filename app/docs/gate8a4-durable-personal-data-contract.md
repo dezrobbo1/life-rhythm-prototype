@@ -13,9 +13,9 @@ Base: `697860427cab5008c3c13ef50b4c7201f560932a` (PR #162 merged). This contract
 | `rhythmPlans` | Canonical personal state | Yes | `rhythmPlanSchema`, template and latest revision | Replace |
 | `rhythmRecurrenceRevisions` | Canonical personal state | Yes | `rhythmRecurrenceRevisionSchema`, plan and contiguous revision identity | Replace |
 | `rhythmInstances` | Canonical personal state | Yes | `rhythmInstanceSchema`, plan/template/revision, stable occurrence identity and linked Today projection | Replace |
-| `activeTasks` | Canonical personal state | Yes | `activeTaskSchema`; generated rhythm occurrence link when present; historical Library template IDs can outlive live templates | Replace |
+| `activeTasks` | Canonical personal state | Yes | `activeTaskSchema`; persisted Today sources are `adhoc` or `library` (`custom` is not readable by the normal repository); generated rhythm occurrence link when present; historical Library template IDs can outlive live templates | Replace |
 | `taskPoolItems` | Canonical personal state | Yes | `taskPoolItemSchema`; historical template/instance hints may outlive their objects | Replace |
-| `softPlacements` | Canonical personal state | Yes | `softPlacementSchema`; live placements require a Today task; removed/completed records may retain historical task IDs | Replace |
+| `softPlacements` | Canonical personal state | Yes | `softPlacementSchema`; live placements reference a Today task or Held item; visible placements cannot collide on date/task or date/block; removed records may retain historical task IDs | Replace |
 | `taskHistory` rows with `recordKind: behaviourEvent` | Canonical factual history | Yes | `behaviourEventSchema`, unique IDs; historical task/template/instance references can outlive current authority | Replace without reinterpretation |
 | `calendarSources` | External source snapshot / canonical scheduling input | Yes | `calendarSourceRecordSchema`, `IcsCalendarAdapter.readForImport` and scheduling's fragment preflight | Replace or delete when absent; preserve source and buffers |
 | `schedulerPlanState` | Derived/rebuildable private plan | No | Scheduler plan state schema | Clear on restore; rebuild from restored authority |
