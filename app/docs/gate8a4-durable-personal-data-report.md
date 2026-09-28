@@ -16,6 +16,8 @@ The representative namespace A fixture includes reviewed settings, one Task Pool
 
 Further tests cover confirmed non-empty replacement, cleared stale singletons, changed destination, failed mid-transaction write, unsupported version, unknown class, duplicate IDs, broken rhythm references, archived historical references and duration controls, invalid duration/behaviour sidecars, over-budget calendar, selected JSON files and confirmation UI. Existing Gate 8A3 calendar safety and class-specific backup tests remain in the matrix.
 
+PR review found a second recovery-boundary issue: the reusable Settings schema permits an arbitrary record ID, but normal loading requires `settings`. A tampered v1 artifact with another Settings ID previously passed the checker and could have reported a successful restore of an unreadable profile. A red regression reproduced this; portable checking now requires the canonical Settings ID before any write. The rejected restore leaves prior destination settings unchanged.
+
 ## Validation on final source tree
 
 | Check | Result |
@@ -30,5 +32,7 @@ Further tests cover confirmed non-empty replacement, cleared stale singletons, c
 | Exact-head App CI, App Preview `/app`, Vercel | Pending remote PR checks at the time of this report; verify the final head before disposition |
 
 The first full UTC run had one deterministic outdated copy assertion in `AppShell.smoke.test.tsx` after the Setup limit wording changed: 106 files passed, 1 failed; 1,256 tests passed, 1 failed. The assertion was updated to the new copy and portable export control. The isolated test passed 1 file / 3 tests, and the subsequent full UTC run passed 107 files / 1,257 tests.
+
+App Preview run #481 on the preceding head passed all 1,258 tests but failed on one late `window is not defined` rejection from `SchedulingPreferencesPanel` attributed to `AppShell.smoke.test.tsx` after jsdom teardown. The isolated CI-mode smoke test passed 1 file / 3 tests, and the complete CI-mode UTC matrix passed 107 files / 1,258 tests locally. This was classified as transient teardown timing rather than a deterministic portable-recovery defect. The remote job was retried; the final corrected head requires its own check evidence.
 
 Automated UI tests cover file choice, checker status, destructive confirmation and preview invalidation; a phone-width shell smoke test passes. A manual browser walkthrough was unavailable because the browser verification service blocked the local dev URL (`ERR_BLOCKED_BY_CLIENT`). This does not close issue #160's broader mobile acceptance. Portable backup is a user-controlled recovery mechanism; it does not provide automatic sync, an encrypted file format or an infinite-future recurrence precomputation.

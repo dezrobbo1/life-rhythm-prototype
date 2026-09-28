@@ -47,6 +47,10 @@ export const portableProfileSchema = z.object({
   }).strict(),
 }).strict().superRefine((backup, context) => {
   const d = backup.data;
+  if (d.settings && d.settings.id !== SETTINGS_ID) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'settings', 'id'],
+      message: 'Settings must use the current canonical record ID.' });
+  }
   for (const key of ['rhythmTemplates', 'rhythmPlans', 'rhythmRecurrenceRevisions', 'rhythmInstances',
     'activeTasks', 'taskPoolItems', 'softPlacements', 'behaviourEvents'] as const) unique(d[key], key, context);
   validateRhythmAuthorityRelationships(d.rhythmTemplates, d.rhythmPlans, d.rhythmRecurrenceRevisions, d.rhythmInstances)

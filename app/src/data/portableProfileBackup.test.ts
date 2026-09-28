@@ -186,6 +186,15 @@ describe('Gate 8A4 portable canonical profile', () => {
   it('rejects malformed, unknown, duplicate, broken-reference and over-budget calendar artifacts', async () => {
     expect(checkPortableProfileJson('{').ok).toBe(false);
     const payload = JSON.parse(exported);
+    const wrongSettingsId = JSON.stringify({ ...payload, data: { ...payload.data,
+      settings: { ...payload.data.settings, id: 'not-settings' } } });
+    expect(checkPortableProfileJson(wrongSettingsId).ok).toBe(false);
+    const validPreview = await checkPortableProfileForRestore(exported);
+    if (!validPreview.ok || !('expectation' in validPreview)) throw new Error('Check failed');
+    const priorSettings = await getCurrentLifeRhythmDatabase().settings.toArray();
+    expect((await restorePortableProfile(wrongSettingsId, validPreview.expectation,
+      REPLACE_LOCAL_PROFILE_CONFIRMATION)).ok).toBe(false);
+    expect(await getCurrentLifeRhythmDatabase().settings.toArray()).toEqual(priorSettings);
     expect(checkPortableProfileJson(JSON.stringify({ ...payload, appVersion: 'future-app-with-v1-format' })).ok).toBe(true);
     expect(checkPortableProfileJson(JSON.stringify({ ...payload, formatVersion: 2 })).ok).toBe(false);
     expect(checkPortableProfileJson(JSON.stringify({ ...payload, schedulerPlanState: [] })).ok).toBe(false);
