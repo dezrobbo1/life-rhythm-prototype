@@ -7,6 +7,7 @@ import {
   type TaskPoolItem,
 } from './schemas';
 import type { LifeRhythmDatabase } from './db';
+import { profileWriteTransaction } from './profileRecoveryGeneration';
 import {
   appendBehaviourEvent,
   behaviourEventForUserPlacement,
@@ -69,8 +70,9 @@ function fallbackPoolStatus(
 export async function confirmTaskPoolSoftPlacement(
   input: ConfirmTaskSoftPlacementInput,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
+  expectedGeneration?: number,
 ): Promise<TaskSoftPlacementResult> {
-  return database.transaction('rw', database.taskPoolItems, database.softPlacements, database.taskHistory, async () => {
+  return profileWriteTransaction(database, [database.taskPoolItems, database.softPlacements, database.taskHistory], async () => {
     const storedItem = await database.taskPoolItems.get(input.taskId);
     const parsedItem = taskPoolItemSchema.safeParse(storedItem);
 
@@ -162,19 +164,16 @@ export async function confirmTaskPoolSoftPlacement(
       ok: true,
       placement: parsedPlacement.data,
     };
-  });
+  }, expectedGeneration);
 }
 
 export async function removeTaskPoolSoftPlacement(
   placementId: string,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
+  expectedGeneration?: number,
 ): Promise<TaskSoftPlacementResult> {
-  return database.transaction(
-    'rw',
-    database.softPlacements,
-    database.taskPoolItems,
-    database.activeTasks,
-    database.taskHistory,
+  return profileWriteTransaction(database,
+    [database.softPlacements, database.taskPoolItems, database.activeTasks, database.taskHistory],
     async () => {
       const storedPlacement = await database.softPlacements.get(placementId);
       const parsedPlacement = softPlacementSchema.safeParse(storedPlacement);
@@ -223,6 +222,6 @@ export async function removeTaskPoolSoftPlacement(
         ok: true,
         placement: removedPlacement,
       };
-    },
+    }, expectedGeneration,
   );
 }

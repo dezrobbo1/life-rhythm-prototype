@@ -2,6 +2,8 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLifeRhythmDatabase } from './db';
 import { activeTaskSchema, taskPoolItemSchema, type TaskPoolItem } from './schemas';
+import { advanceProfileRecoveryGeneration, readProfileRecoveryGeneration,
+  STALE_PROFILE_RECOVERY_MESSAGE } from './profileRecoveryGeneration';
 import {
   confirmTaskPoolSoftPlacement,
   removeTaskPoolSoftPlacement,
@@ -45,6 +47,34 @@ afterEach(() => {
 });
 
 describe('task soft placement repository', () => {
+  it('honours an explicit read generation for Add and Remove without affecting direct callers', async () => {
+    const database = createTestDatabase();
+    try {
+      await database.taskPoolItems.put(poolItem());
+      const readGeneration = await readProfileRecoveryGeneration(database);
+      expect(readGeneration).toBe(0);
+      await database.transaction('rw', database.settings, () => advanceProfileRecoveryGeneration(database, readGeneration));
+      const priorHistory = await database.taskHistory.toArray();
+      await expect(confirmTaskPoolSoftPlacement(placementInput, database, readGeneration))
+        .rejects.toThrow(STALE_PROFILE_RECOVERY_MESSAGE);
+      expect(await database.softPlacements.count()).toBe(0);
+      expect(await database.taskPoolItems.get('pool-school-form')).toMatchObject({ status: 'captured' });
+      expect(await database.taskHistory.toArray()).toEqual(priorHistory);
+
+      // Direct callers without a UI read token still capture the current epoch.
+      expect((await confirmTaskPoolSoftPlacement(placementInput, database)).ok).toBe(true);
+      const beforeRemoveHistory = await database.taskHistory.toArray();
+      await expect(removeTaskPoolSoftPlacement(placementInput.id, database, readGeneration))
+        .rejects.toThrow(STALE_PROFILE_RECOVERY_MESSAGE);
+      expect(await database.softPlacements.get(placementInput.id)).toMatchObject({ status: 'planned' });
+      expect(await database.taskPoolItems.get('pool-school-form')).toMatchObject({ status: 'softPlaced' });
+      expect(await database.taskHistory.toArray()).toEqual(beforeRemoveHistory);
+      expect((await removeTaskPoolSoftPlacement(placementInput.id, database)).ok).toBe(true);
+    } finally {
+      await database.delete();
+    }
+  });
+
   it('saves a user-confirmed placement and marks the Pool item softly placed', async () => {
     const database = createTestDatabase();
 
