@@ -11,6 +11,7 @@ import { validateRhythmAuthorityRelationships } from './rhythmAuthorityRepositor
 import { explicitPreferenceStoreRecordSchema, EXPLICIT_PREFERENCES_RECORD_ID } from './explicitPreferenceSchema';
 import { durationLearningControlStoreRecordSchema, DURATION_LEARNING_CONTROLS_RECORD_ID } from './durationLearningControlSchema';
 import { calendarSourceRecordSchema } from './calendarSourceSchema';
+import { persistedSchedulerPlacementSchema, schedulerPlanStateRecordSchema } from './schedulerPlanStateSchema';
 import { icsCalendarAdapter } from '../domain/calendarAdapter';
 import { validateCalendarCommitmentExpansion } from '../domain/calendarAvailability';
 import { DAY_PROFILE_FOUNDATION_ID, loadSettingsResult, SETTINGS_APP_VERSION, SETTINGS_ID } from './settingsRepository';
@@ -70,6 +71,7 @@ export const portableProfileSchema = z.object({
     activeTasks: z.array(activeTaskSchema),
     taskPoolItems: z.array(taskPoolItemSchema),
     softPlacements: z.array(softPlacementSchema),
+    routedRhythmPlacements: z.array(persistedSchedulerPlacementSchema),
     behaviourEvents: z.array(behaviourEventSchema),
     explicitPreferences: explicitPreferenceStoreRecordSchema.nullable(),
     durationControls: durationLearningControlStoreRecordSchema.nullable(),
@@ -83,11 +85,28 @@ export const portableProfileSchema = z.object({
   }
   for (const key of ['rhythmTemplates', 'rhythmPlans', 'rhythmRecurrenceRevisions', 'rhythmInstances',
     'activeTasks', 'taskPoolItems', 'softPlacements', 'behaviourEvents'] as const) unique(d[key], key, context);
+  unique(d.routedRhythmPlacements, 'routedRhythmPlacements', context);
   validateRhythmAuthorityRelationships(d.rhythmTemplates, d.rhythmPlans, d.rhythmRecurrenceRevisions, d.rhythmInstances)
     .forEach((message) => context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances'], message }));
   const instances = new Map(d.rhythmInstances.map((row) => [row.id, row]));
   const tasks = new Map(d.activeTasks.map((row) => [row.id, row]));
   const pool = new Map(d.taskPoolItems.map((row) => [row.id, row]));
+  const routed = new Map(d.routedRhythmPlacements.map((row) => [row.id, row]));
+  const routedOwners = new Map<string, number>();
+  d.routedRhythmPlacements.forEach((placement, index) => {
+    const owners = d.rhythmInstances.filter((row) => row.placementId === placement.id);
+    const instance = owners[0];
+    routedOwners.set(placement.id, owners.length);
+    if (owners.length !== 1 || !instance?.activeTaskId || !['today', 'inProgress', 'paused'].includes(instance.lifecycleState) ||
+      placement.targetKind !== 'rhythm' || placement.rhythmId !== instance.id ||
+      placement.rhythmInstanceId !== instance.id || placement.intentionId !== instance.id ||
+      placement.rhythmTemplateId !== instance.rhythmTemplateId || placement.rhythmPlanId !== instance.rhythmPlanId ||
+      placement.rhythmRecurrenceRevisionId !== instance.recurrenceRevisionId ||
+      placement.origin !== 'scheduler') {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'routedRhythmPlacements', index],
+        message: 'Accepted routed rhythm placement identity is inconsistent.' });
+    }
+  });
   d.activeTasks.forEach((task, index) => {
     if (task.showToday !== isVisibleTodayStatus(task.status)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'activeTasks', index, 'showToday'],
@@ -121,6 +140,10 @@ export const portableProfileSchema = z.object({
   });
   d.taskPoolItems.forEach((item, index) => {
     const task = tasks.get(item.id);
+    if (task?.sourceRhythmInstanceId) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'taskPoolItems', index, 'id'],
+        message: 'A generated rhythm Today task cannot also be a Pool intention.' });
+    }
     if (item.status === 'today' && (!task || !task.showToday || !isVisibleTodayStatus(task.status) ||
       !!task.sourceRhythmInstanceId)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'taskPoolItems', index, 'status'],
@@ -146,6 +169,14 @@ export const portableProfileSchema = z.object({
     if (!instance.activeTaskId && instance.placementId) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
         message: 'A placed rhythm occurrence requires its linked Today task.' });
+    }
+    if (instance.activeTaskId && instance.placementId && !routed.has(instance.placementId)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
+        message: 'A routed rhythm occurrence requires its accepted placement.' });
+    }
+    if (instance.activeTaskId && instance.placementId && routedOwners.get(instance.placementId) !== 1) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
+        message: 'A routed rhythm placement must have one occurrence owner.' });
     }
     if (!instance.activeTaskId && instance.lifecycleState === 'eligible' &&
       (instance.completionState !== 'notStarted' || !['unscheduled', 'placed'].includes(instance.planningState))) {
@@ -280,11 +311,26 @@ function payloadFromSnapshot(state: Snapshot, settings: PortableProfile['data'][
   // Local persisted v1 rows may omit buffers. Normalize only the trusted local
   // row; supplied portable v1 snapshots still require the explicit fields.
   const calendarSource = calendars.length ? calendarSourceRecordSchema.parse(calendars[0]) : null;
+  const planRows = state.schedulerPlanState;
+  if (planRows.length > 1) throw new Error('Multiple scheduler plans cannot be checked safely.');
+  const routedInstances = rhythmInstanceSchema.array().parse(state.rhythmInstances)
+    .filter((instance) => !!instance.activeTaskId && !!instance.placementId &&
+      ['today', 'inProgress', 'paused'].includes(instance.lifecycleState));
+  const acceptedPlan = planRows.length ? schedulerPlanStateRecordSchema.safeParse(planRows[0]) : null;
+  if (routedInstances.length && (!acceptedPlan || !acceptedPlan.success)) {
+    throw new Error('Routed rhythm occurrences require a readable accepted private plan.');
+  }
+  const routedRhythmPlacements = routedInstances.map((instance) => {
+    const found = acceptedPlan?.success ? acceptedPlan.data.plan.placements.filter((row) => row.id === instance.placementId) : [];
+    if (found.length !== 1) throw new Error(`Routed rhythm occurrence ${instance.id} lacks its accepted placement.`);
+    return found[0];
+  });
   return validate({ format: PORTABLE_PROFILE_FORMAT, formatVersion: PORTABLE_PROFILE_VERSION,
     appVersion: SETTINGS_APP_VERSION, exportedAt,
     data: { settings, rhythmTemplates: state.rhythmTemplates, rhythmPlans: state.rhythmPlans,
       rhythmRecurrenceRevisions: state.rhythmRecurrenceRevisions, rhythmInstances: state.rhythmInstances,
       activeTasks: state.activeTasks, taskPoolItems: state.taskPoolItems, softPlacements: state.softPlacements,
+      routedRhythmPlacements,
       behaviourEvents: history.filter((row) => row.recordKind === 'behaviourEvent'),
       explicitPreferences: preferences, durationControls: duration, calendarSource } });
 }
@@ -307,6 +353,7 @@ export function checkPortableProfileJson(json: string) {
     return { ok: true as const, payload, preview: { exportedAt: payload.exportedAt,
       settingsPresent: !!d.settings, pool: d.taskPoolItems.length, today: d.activeTasks.length,
       rhythms: d.rhythmPlans.length, instances: d.rhythmInstances.length, placements: d.softPlacements.length,
+      routedRhythmTimes: d.routedRhythmPlacements.length,
       preferences: d.explicitPreferences?.preferences.length ?? 0,
       durationControls: d.durationControls?.controls.length ?? 0,
       behaviourEvents: d.behaviourEvents.length, calendarPresent: !!d.calendarSource } };
@@ -385,6 +432,16 @@ export async function restorePortableProfile(json: string, expectation: string, 
       await db.softPlacements.bulkPut(d.softPlacements);
       await db.taskHistory.bulkPut(d.behaviourEvents);
       if (d.calendarSource) await db.calendarSources.put(d.calendarSource);
+      if (d.routedRhythmPlacements.length) {
+        // Restore only the accepted routed coordinates. The remaining scheduler
+        // output is rebuilt under this namespace's canonical inputs.
+        await db.schedulerPlanState.put(schedulerPlanStateRecordSchema.parse({ id: 'current', version: 1,
+          updatedAt: new Date().toISOString(), rhythmInputRepairPendingAt: new Date().toISOString(),
+          rhythmInputRepairTargetIds: d.rhythmInstances.filter((row) => row.placementId)
+            .map((row) => `instance:${row.id}`),
+          plan: { placements: d.routedRhythmPlacements, unscheduledIntentionIds: [],
+            unscheduledRhythmIds: [], rejectedExistingPlacements: [] } }));
+      }
       await advanceProfileRecoveryGeneration(db, generation);
       return { ok: true as const };
     });

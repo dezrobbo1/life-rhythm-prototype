@@ -988,8 +988,10 @@ export async function repairAndPersistSchedulerPlan(
 export async function undoPersistedSchedulerRepair(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
   updatedAt = new Date().toISOString(),
+  expectedRecoveryGeneration?: number,
 ): Promise<SchedulerPlanPersistActionResult> {
-  const recoveryGeneration = store instanceof LifeRhythmDatabase ? await captureProfileRecoveryGeneration(store) : undefined;
+  const recoveryGeneration = expectedRecoveryGeneration ?? (store instanceof LifeRhythmDatabase
+    ? await captureProfileRecoveryGeneration(store) : undefined);
   const current = await loadSchedulerPlanState(store);
 
   if (current.status === 'missing') {

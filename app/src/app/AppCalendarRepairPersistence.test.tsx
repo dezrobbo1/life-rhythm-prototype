@@ -231,6 +231,7 @@ describe('persisted calendar repair attention', () => {
 
     const file = new File([calendar], 'gate6f.ics', { type: 'text/calendar' });
     Object.defineProperty(file, 'text', { value: vi.fn().mockResolvedValue(calendar) });
+    await waitFor(() => expect((screen.getByLabelText('Select read-only calendar file') as HTMLInputElement).disabled).toBe(false));
     await firstUser.upload(screen.getByLabelText('Select read-only calendar file'), file);
 
     expect((await screen.findByRole('alert')).textContent).toContain('Calendar change needs attention.');
@@ -307,6 +308,7 @@ describe('persisted calendar repair attention', () => {
 
     const replacement = new File([calendar], 'replacement.ics', { type: 'text/calendar' });
     Object.defineProperty(replacement, 'text', { value: vi.fn().mockResolvedValue(calendar) });
+    await waitFor(() => expect((screen.getByLabelText('Select read-only calendar file') as HTMLInputElement).disabled).toBe(false));
     await firstUser.upload(screen.getByLabelText('Select read-only calendar file'), replacement);
 
     await screen.findByText(

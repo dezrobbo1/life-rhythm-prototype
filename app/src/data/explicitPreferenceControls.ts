@@ -9,6 +9,7 @@ import {
 } from './explicitPreferenceRepository';
 import type { ExplicitPreference } from './explicitPreferenceSchema';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
+import { profileRecoveryErrorMessage, profileWriteTransaction } from './profileRecoveryGeneration';
 import {
   CURRENT_SCHEDULER_PLAN_STATE_ID,
   markPreferenceRepairPending,
@@ -164,14 +165,13 @@ export async function commitExplicitPreferenceReset(
   confirmation: string,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
   timestamp = new Date().toISOString(),
+  expectedRecoveryGeneration?: number,
 ): Promise<ExplicitPreferenceResetCommitResult> {
   let failure: { ok: false; errors: string[] } | null = null;
 
   try {
-    return await database.transaction(
-      'rw',
-      database.settings,
-      database.schedulerPlanState,
+    return await profileWriteTransaction(database,
+      [database.settings, database.schedulerPlanState],
       async () => {
         const store = transactionPassthroughStore(database);
         const loaded: ExplicitPreferenceLoadResult = await loadExplicitPreferencesResult(store);
@@ -208,12 +208,12 @@ export async function commitExplicitPreferenceReset(
           ...reset,
           repairAttentionPersisted,
         };
-      },
+      }, expectedRecoveryGeneration,
     );
-  } catch {
+  } catch (error) {
     return failure ?? {
       ok: false,
-      errors: ['explicitPreferences: Preferences could not be cleared on this device.'],
+      errors: [profileRecoveryErrorMessage(error, 'explicitPreferences: Preferences could not be cleared on this device.')],
     };
   }
 }

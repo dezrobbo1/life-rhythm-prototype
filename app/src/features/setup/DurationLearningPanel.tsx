@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { readProfileView } from '../../data/profileRecoveryGeneration';
+import { createDurationLearningControlStore } from '../../data/durationLearningControlRepository';
 import { Button, Card } from '../../components';
 import {
   applyDurationLearningControls,
@@ -52,14 +54,29 @@ export function DurationLearningPanel({
   const [corrections, setCorrections] = useState<Record<string, string>>({});
   const [busyTemplateId, setBusyTemplateId] = useState<string | null>(null);
   const [status, setStatus] = useState('');
+  const [viewGeneration, setViewGeneration] = useState<number | null>(null);
+  const readRequest = useRef(0);
 
   const refresh = useCallback(async () => {
+    const request = ++readRequest.current;
+    setViewGeneration(null);
     const database = getCurrentLifeRhythmDatabase();
-    const [events, controls, catalogue] = await Promise.all([
-      readDurationLearningEventsResult(database),
-      loadDurationLearningControlsResult(),
-      loadDurationLearningTemplateCatalogue(database),
-    ]);
+    let events: DurationLearningEventReadResult;
+    let controls: DurationLearningControlsLoadResult;
+    let catalogue: DurationLearningTemplateCatalogueResult;
+    let generation: number;
+    try {
+      ({ generation, value: [events, controls, catalogue] } = await readProfileView(database, () => Promise.all([
+        readDurationLearningEventsResult(database),
+        loadDurationLearningControlsResult(createDurationLearningControlStore(database)),
+        loadDurationLearningTemplateCatalogue(database),
+      ])));
+    } catch {
+      if (request === readRequest.current) setStatus('The local profile changed. Reload this view and try again.');
+      return;
+    }
+    if (request !== readRequest.current) return;
+    setViewGeneration(generation);
     setEventsResult(events);
     setControlsResult(controls);
     setCatalogueResult(catalogue);
@@ -130,6 +147,7 @@ export function DurationLearningPanel({
     item: DurationLearningViewItem,
     mode: 'disabled' | 'override',
   ) {
+    if (viewGeneration === null) return;
     const expectation = durationLearningControlExpectation(controlsResult, item.templateId);
     if (!expectation) {
       setStatus('Duration controls need attention before this change can be saved.');
@@ -159,7 +177,7 @@ export function DurationLearningPanel({
         templateId: item.templateId,
         mode,
         ...(overrideMinutes !== undefined ? { overrideMinutes } : {}),
-      }, expectation);
+      }, expectation, getCurrentLifeRhythmDatabase(), new Date().toISOString(), viewGeneration);
       if (!result.ok) {
         setStatus(result.errors.join(' '));
         await refresh();
@@ -179,6 +197,7 @@ export function DurationLearningPanel({
   }
 
   async function resetControl(item: DurationLearningViewItem) {
+    if (viewGeneration === null) return;
     const expectation = durationLearningControlExpectation(controlsResult, item.templateId);
     if (!expectation) {
       setStatus('Duration controls need attention before this change can be reset.');
@@ -190,6 +209,7 @@ export function DurationLearningPanel({
       const result = await commitDurationLearningControlDelete(
         item.templateId,
         expectation,
+        getCurrentLifeRhythmDatabase(), new Date().toISOString(), viewGeneration,
       );
       if (!result.ok) {
         setStatus(result.errors.join(' '));

@@ -120,6 +120,7 @@ describe('Pool soft placement flow', () => {
       blockLabel: 'Open morning capacity', blockStart: '10:00', blockEnd: '10:30', date: localDateForNextSelectedDay('Monday') };
     expect((await confirmTaskPoolSoftPlacement(input, db)).ok).toBe(true);
     await openManualPlan(user, false);
+    await user.selectOptions(screen.getByLabelText('Selected day'), 'Monday');
     const placements = screen.getByRole('heading', { name: 'User-confirmed placements' }).closest('section');
     if (!placements) throw new Error('User-confirmed placements section was not found.');
     await within(placements).findByText('Send school form');

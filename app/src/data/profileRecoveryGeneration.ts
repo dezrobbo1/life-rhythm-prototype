@@ -32,6 +32,23 @@ export async function readProfileRecoveryGeneration(db: LifeRhythmDatabase): Pro
 /** Call before any read that can influence the later write, including UI/coordinator preflight. */
 export const captureProfileRecoveryGeneration = readProfileRecoveryGeneration;
 
+/** Bind asynchronously loaded canonical view data to the recovery epoch that
+ * preceded the read. A restore during the read makes the result unactionable. */
+export async function readProfileView<T>(db: LifeRhythmDatabase, read: () => Promise<T>): Promise<{
+  generation: number; value: T;
+}> {
+  const once = async () => {
+    const generation = await captureProfileRecoveryGeneration(db);
+    const value = await read();
+    await assertProfileRecoveryGeneration(db, generation);
+    return { generation, value };
+  };
+  try { return await once(); } catch (error) {
+    if (error instanceof StaleProfileRecoveryError) return once();
+    throw error;
+  }
+}
+
 /** Scheduling snapshots already include settings sidecars; identify an epoch
  * conflict separately from an ordinary input change so it is never retried. */
 export function recoveryGenerationFromCanonicalSnapshot(snapshot: string): number | null {

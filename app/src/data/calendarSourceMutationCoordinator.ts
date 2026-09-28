@@ -15,12 +15,12 @@ import {
 import type { LifeRhythmDatabase } from './db';
 import { loadCalendarSource } from './calendarSourceRepository';
 import { calendarSourceRecordSchema } from './calendarSourceSchema';
-import { profileRecoveryErrorMessage } from './profileRecoveryGeneration';
+import { profileRecoveryErrorMessage, profileWriteTransaction } from './profileRecoveryGeneration';
 
 export async function commitCalendarSourceBuffers(beforeBusyMinutes: number, afterBusyMinutes: number,
-  database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase()) {
+  database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(), expectedRecoveryGeneration?: number) {
   try {
-    return await database.transaction('rw', database.calendarSources, database.schedulerPlanState, async () => {
+    return await profileWriteTransaction(database, [database.calendarSources, database.schedulerPlanState], async () => {
       const existing = await loadCalendarSource(database);
       if (existing.status !== 'ok') return { ok: false as const, errors: ['Calendar must be imported and readable first.'] };
       const parsed = calendarSourceRecordSchema.safeParse({ ...existing.record, version: 2,
@@ -30,7 +30,7 @@ export async function commitCalendarSourceBuffers(beforeBusyMinutes: number, aft
       const marked = await persistRepairAttentionForExistingPlan(database);
       if (!marked.ok) throw new Error('Calendar repair attention could not be stored.');
       return { ok: true as const, record: parsed.data };
-    });
+    }, expectedRecoveryGeneration);
   } catch (error) {
     return { ok: false as const, errors: [profileRecoveryErrorMessage(error, 'Calendar buffers could not be saved safely.')] };
   }
@@ -75,14 +75,13 @@ async function persistRepairAttentionForExistingPlan(database: LifeRhythmDatabas
 export async function commitCalendarSourceImport(
   input: CalendarSourceImportInput,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
+  expectedRecoveryGeneration?: number,
 ): Promise<CalendarSourceImportCommitResult> {
   const failureState: { current?: AtomicFailure } = {};
 
   try {
-    return await database.transaction(
-      'rw',
-      database.calendarSources,
-      database.schedulerPlanState,
+    return await profileWriteTransaction(database,
+      [database.calendarSources, database.schedulerPlanState],
       async () => {
         const imported = await importIcsCalendarSource(input, database);
         if (!imported.ok) return imported;
@@ -100,7 +99,7 @@ export async function commitCalendarSourceImport(
           ...imported,
           repairAttentionPersisted: marked.persisted,
         };
-      },
+      }, expectedRecoveryGeneration,
     );
   } catch (error) {
     return {
@@ -115,14 +114,13 @@ export async function commitCalendarSourceImport(
 
 export async function commitCalendarSourceRemoval(
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
+  expectedRecoveryGeneration?: number,
 ): Promise<CalendarSourceRemoveCommitResult> {
   const failureState: { current?: AtomicFailure } = {};
 
   try {
-    return await database.transaction(
-      'rw',
-      database.calendarSources,
-      database.schedulerPlanState,
+    return await profileWriteTransaction(database,
+      [database.calendarSources, database.schedulerPlanState],
       async () => {
         const removed = await removeCalendarSource(database);
         if (!removed.ok || !removed.removed) {
@@ -142,7 +140,7 @@ export async function commitCalendarSourceRemoval(
           ...removed,
           repairAttentionPersisted: marked.persisted,
         };
-      },
+      }, expectedRecoveryGeneration,
     );
   } catch (error) {
     return {

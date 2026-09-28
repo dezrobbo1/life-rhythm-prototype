@@ -11,7 +11,7 @@ import { loadSoftPlacementsForDateResult } from '../data/softPlacementRepository
 import { loadTaskPoolItemsResult } from '../data/taskPoolRepository';
 import { getCurrentLifeRhythmDatabase } from '../data/localDataNamespace';
 import { assertProfileRecoveryGeneration, captureProfileRecoveryGeneration,
-  StaleProfileRecoveryError } from '../data/profileRecoveryGeneration';
+  StaleProfileRecoveryError, STALE_PROFILE_RECOVERY_MESSAGE } from '../data/profileRecoveryGeneration';
 import type { CollectionReadResult } from '../data/collectionReadResult';
 import {
   confirmTaskPoolSoftPlacement,
@@ -364,11 +364,20 @@ export function PersonalPlanScreen({
   }, [applyPrivatePlanResult, onPlanRecovered]);
 
   const undoPrivatePlan = useCallback(async () => {
+    if (manualPlanGeneration === null) {
+      setPrivatePlanFeedback('Reload Plan before undoing this change.');
+      return;
+    }
     setPrivatePlanBusy('undo');
     setPrivatePlanFeedback(null);
 
     try {
-      const result = await undoCurrentPrivatePlan();
+      const result = await undoCurrentPrivatePlan({}, manualPlanGeneration);
+      if (!result.ok && result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
+        await retryManualPlanData();
+        setPrivatePlanFeedback(STALE_PROFILE_RECOVERY_MESSAGE);
+        return;
+      }
       const applied = applyPrivatePlanResult(result);
       setPrivatePlanFeedback(
         applied
@@ -380,7 +389,7 @@ export function PersonalPlanScreen({
     } finally {
       setPrivatePlanBusy(null);
     }
-  }, [applyPrivatePlanResult]);
+  }, [applyPrivatePlanResult, manualPlanGeneration, retryManualPlanData]);
 
   const addSoftPlacement = useCallback(async (suggestion: PoolSoftSuggestion) => {
     const expectedGeneration = manualPlanGeneration;

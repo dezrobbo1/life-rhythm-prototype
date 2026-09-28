@@ -98,6 +98,69 @@ beforeEach(async () => {
 afterEach(() => { vi.restoreAllMocks(); resetCurrentLocalDataNamespace(); });
 
 describe('Gate 8A4 portable canonical profile', () => {
+  it.each(['captured', 'deferred', 'softPlaced', 'today', 'noLongerNeeded'])('rejects a %s Pool row colliding with a generated rhythm task', async (status) => {
+    const db = getCurrentLifeRhythmDatabase();
+    const instance = await db.rhythmInstances.toCollection().first();
+    const today = await db.activeTasks.get('today');
+    const pool = await db.taskPoolItems.get('pool');
+    if (!instance || !today || !pool) throw new Error('Fixture is missing');
+    const payload = JSON.parse(exported);
+    payload.data.activeTasks.push(activeTaskSchema.parse({ ...today, id: 'generated', source: 'library',
+      templateId: 'rhythm', sourceRhythmInstanceId: instance.id }));
+    payload.data.rhythmInstances[0] = { ...instance, activeTaskId: 'generated', lifecycleState: 'today',
+      planningState: 'today', completionState: 'notStarted' };
+    payload.data.taskPoolItems.push(taskPoolItemSchema.parse({ ...pool, id: 'generated', status }));
+    expect(checkPortableProfileJson(JSON.stringify(payload)).ok).toBe(false);
+  });
+  it('preserves an accepted routed rhythm placement across backup, restore and plan rebuild', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const oldInstance = await db.rhythmInstances.toCollection().first();
+    if (!oldInstance) throw new Error('Missing instance');
+    const instance = buildMissingRhythmInstances({ template, plan, revisions: [revision], existing: [],
+      horizonStartDate: '2026-09-28', horizonEndDate: '2026-09-28', createdAt: timestamp })[0];
+    await db.rhythmInstances.delete(oldInstance.id);
+    const placement = { id: 'accepted-rhythm', intentionId: instance.id, targetKind: 'rhythm' as const,
+      rhythmId: instance.id, rhythmTemplateId: instance.rhythmTemplateId, rhythmPlanId: instance.rhythmPlanId,
+      rhythmRecurrenceRevisionId: instance.recurrenceRevisionId, rhythmInstanceId: instance.id,
+      date: '2026-09-28', start: '07:00', end: '07:20', timezone: 'Australia/Perth',
+      origin: 'scheduler' as const, variantKind: 'normal' as const, provenance: ['accepted'] };
+    await db.activeTasks.put(activeTaskSchema.parse({ ...(await db.activeTasks.get('today'))!, id: 'generated',
+      templateId: 'rhythm', source: 'library', sourceRhythmInstanceId: instance.id }));
+    await db.rhythmInstances.put({ ...instance, activeTaskId: 'generated', placementId: placement.id,
+      lifecycleState: 'today', planningState: 'today', completionState: 'notStarted' });
+    await db.schedulerPlanState.put({ id: 'current', version: 1, updatedAt: timestamp,
+      plan: { placements: [placement], unscheduledIntentionIds: [], unscheduledRhythmIds: [], rejectedExistingPlacements: [] } });
+    await db.settings.delete('learning:duration-controls:v1');
+    const backup = await exportPortableProfile(db, timestamp);
+    expect(backup.payload.data.routedRhythmPlacements).toEqual([placement]);
+    setCurrentLocalDataNamespace(namespaceB);
+    const checked = await checkPortableProfileForRestore(backup.json);
+    if (!checked.ok || !('expectation' in checked)) throw new Error('Backup check failed');
+    expect(await restorePortableProfile(backup.json, checked.expectation, '')).toEqual({ ok: true });
+    const restored = getCurrentLifeRhythmDatabase();
+    expect((await restored.schedulerPlanState.get('current'))?.plan.placements).toContainEqual(placement);
+    const rebuilt = await ensureCurrentPrivatePlan({ now: new Date('2026-09-27T16:00:00.000Z'), timezone: 'Australia/Perth' });
+    expect(rebuilt.ok, JSON.stringify(rebuilt)).toBe(true);
+    if (rebuilt.ok) expect(rebuilt.plan.placements.filter((p) => p.id === placement.id), JSON.stringify(rebuilt.plan)).toHaveLength(1);
+  });
+  it('rejects routed instance state without an accepted placement, before destructive restore', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const instance = await db.rhythmInstances.toCollection().first();
+    const today = await db.activeTasks.get('today');
+    if (!instance || !today) throw new Error('Missing fixture');
+    await db.activeTasks.put(activeTaskSchema.parse({ ...today, id: 'generated', templateId: 'rhythm',
+      source: 'library', sourceRhythmInstanceId: instance.id }));
+    await db.rhythmInstances.put({ ...instance, activeTaskId: 'generated', placementId: 'missing-placement',
+      lifecycleState: 'today', planningState: 'today', completionState: 'notStarted' });
+    await expect(exportPortableProfile(db)).rejects.toThrow(/accepted private plan/i);
+    const crafted = JSON.parse(exported);
+    crafted.data.activeTasks.push(await db.activeTasks.get('generated'));
+    crafted.data.rhythmInstances = await db.rhythmInstances.toArray();
+    expect(checkPortableProfileJson(JSON.stringify(crafted)).ok).toBe(false);
+    setCurrentLocalDataNamespace(namespaceB);
+    expect((await checkPortableProfileForRestore(JSON.stringify(crafted))).ok).toBe(false);
+    expect(await getCurrentLifeRhythmDatabase().rhythmInstances.count()).toBe(0);
+  });
   it('exports a readable legacy v1 calendar with explicit zero buffers without changing its local row', async () => {
     const db = getCurrentLifeRhythmDatabase();
     const legacy = { id: CURRENT_CALENDAR_SOURCE_ID, adapterId: 'ics', version: 1,

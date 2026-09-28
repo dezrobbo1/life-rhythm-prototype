@@ -110,7 +110,8 @@ export function PortableProfileRecovery({ onReload = () => window.location.reloa
           {Object.entries({ Settings: checked.preview.settingsPresent ? 'Present' : 'Absent',
             'Held items': checked.preview.pool, 'Today tasks': checked.preview.today,
             'Configured rhythms': checked.preview.rhythms, 'Rhythm instances': checked.preview.instances,
-            'Soft placements': checked.preview.placements, 'Explicit preferences': checked.preview.preferences,
+            'Soft placements': checked.preview.placements, 'Routed rhythm times': checked.preview.routedRhythmTimes,
+            'Explicit preferences': checked.preview.preferences,
             'Duration controls': checked.preview.durationControls, 'Behaviour events': checked.preview.behaviourEvents,
             'Calendar source': checked.preview.calendarPresent ? 'Present' : 'Absent',
           }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}

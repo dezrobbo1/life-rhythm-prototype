@@ -136,8 +136,8 @@ describe('Reset screen', () => {
 
     await waitFor(() => expect(harness.updateTaskStatus).toHaveBeenCalledTimes(2));
     expect(harness.updateTaskStatus).not.toHaveBeenCalledWith('active-first', 'notToday');
-    expect(harness.updateTaskStatus).toHaveBeenCalledWith('active-second', 'notToday');
-    expect(harness.updateTaskStatus).toHaveBeenCalledWith('active-third', 'notToday');
+    expect(harness.updateTaskStatus).toHaveBeenCalledWith('active-second', 'notToday', 0);
+    expect(harness.updateTaskStatus).toHaveBeenCalledWith('active-third', 'notToday', 0);
     expect(screen.getByRole('status').textContent).toContain(
       'Today is narrowed to one next action. Extras are marked not today. No catch-up pile.',
     );
@@ -159,7 +159,7 @@ describe('Reset screen', () => {
 
     await waitFor(() => expect(harness.updateTaskStatus).toHaveBeenCalledTimes(1));
     expect(harness.updateTaskStatus).not.toHaveBeenCalledWith('active-first', 'parked');
-    expect(harness.updateTaskStatus).toHaveBeenCalledWith('active-second', 'parked');
+    expect(harness.updateTaskStatus).toHaveBeenCalledWith('active-second', 'parked', 0);
     expect(screen.getByRole('status').textContent).toContain(
       'Extras are parked safely. One next action remains. No catch-up pile.',
     );

@@ -21,7 +21,7 @@ describe('portable profile recovery controls', () => {
     const reload = vi.fn();
     mock.check.mockResolvedValue({ ok: true, expectation: 'snapshot', hasData: true,
       preview: { exportedAt: '2026-09-25T00:00:00.000Z', settingsPresent: true,
-        pool: 1, today: 1, rhythms: 1, instances: 1, placements: 1,
+        pool: 1, today: 1, rhythms: 1, instances: 1, placements: 1, routedRhythmTimes: 0,
         preferences: 1, durationControls: 1, behaviourEvents: 1, calendarPresent: true } });
     mock.restore.mockResolvedValue({ ok: true });
     render(<PortableProfileRecovery onReload={reload} />);

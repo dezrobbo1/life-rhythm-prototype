@@ -15,7 +15,7 @@ import {
 import { rhythmTemplateSchema, type RhythmTemplate } from './schemas';
 import { markRhythmInputRepairPending } from './schedulerPlanStateRepository';
 import { buildMissingRhythmInstances } from '../domain/rhythmRecurrence';
-import { profileRecoveryErrorMessage } from './profileRecoveryGeneration';
+import { profileRecoveryErrorMessage, profileWriteTransaction } from './profileRecoveryGeneration';
 
 function messages(label: string, issues: Array<{ message: string; path: Array<string | number> }>) {
   return issues.map((issue) => `${label}${issue.path.length ? `.${issue.path.join('.')}` : ''}: ${issue.message}`);
@@ -216,6 +216,7 @@ function localDateAt(instant: string, timezone: string) {
 export async function saveRhythmConfiguration(
   input: SaveRhythmConfigurationInput,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
+  expectedRecoveryGeneration?: number,
 ): Promise<RhythmMutationResult> {
   const timestamp = input.now ?? new Date().toISOString();
   const template = rhythmTemplateSchema.safeParse({
@@ -257,8 +258,7 @@ export async function saveRhythmConfiguration(
   }
 
   try {
-    return await database.transaction(
-      'rw',
+    return await profileWriteTransaction(database,
       [
         database.rhythmTemplates,
         database.rhythmPlans,
@@ -350,7 +350,7 @@ export async function saveRhythmConfiguration(
         const marked = await markRhythmInputRepairPending(database, `template:${template.data.id}`, timestamp);
         if (!marked.ok) throw new Error(marked.errors.join(' '));
         return { ok: true as const, template: template.data, plan, revision };
-      },
+      }, expectedRecoveryGeneration,
     );
   } catch (error) {
     return { ok: false, errors: [profileRecoveryErrorMessage(error, 'Rhythm configuration was not saved. Existing data remain unchanged.')] };
@@ -362,11 +362,12 @@ export async function setRhythmPlanState(
   nextState: RhythmPlanState,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
   now = new Date().toISOString(),
+  expectedRecoveryGeneration?: number,
 ): Promise<{ ok: true; plan: RhythmPlan } | { ok: false; errors: string[] }> {
   const parsedState = rhythmPlanStateSchema.safeParse(nextState);
   if (!parsedState.success) return { ok: false, errors: ['state: Invalid rhythm state.'] };
   try {
-    return await database.transaction('rw', database.rhythmPlans, database.schedulerPlanState, async () => {
+    return await profileWriteTransaction(database, [database.rhythmPlans, database.schedulerPlanState], async () => {
       const row = await database.rhythmPlans.where('rhythmTemplateId').equals(templateId).first();
       const parsed = rhythmPlanSchema.safeParse(row);
       if (!parsed.success) return { ok: false as const, errors: ['Configure this rhythm before changing its state.'] };
@@ -380,7 +381,7 @@ export async function setRhythmPlanState(
       const marked = await markRhythmInputRepairPending(database, `template:${templateId}`, now);
       if (!marked.ok) throw new Error(marked.errors.join(' '));
       return { ok: true as const, plan };
-    });
+    }, expectedRecoveryGeneration);
   } catch (error) {
     return { ok: false, errors: [profileRecoveryErrorMessage(error, 'Rhythm state was not saved. Existing data remain unchanged.')] };
   }
