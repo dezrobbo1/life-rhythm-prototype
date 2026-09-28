@@ -296,7 +296,7 @@ describe('Today screen', () => {
     if (mutated) {
       await waitFor(() => expect(activeTaskRepositoryMocks.loadActiveTodayTasksResult).toHaveBeenCalledTimes(before + 1));
       expect(schedulerPlanCoordinatorMocks.ensureCurrentPrivatePlan.mock.calls.length).toBeGreaterThan(beforeRepair);
-      expect(screen.queryByRole('dialog', { name: 'Start Boost' })).toBeNull();
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Start Boost' })).toBeNull());
     } else {
       expect(activeTaskRepositoryMocks.loadActiveTodayTasksResult).toHaveBeenCalledTimes(before);
       expect(schedulerPlanCoordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(beforeRepair);
