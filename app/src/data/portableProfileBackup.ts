@@ -14,6 +14,9 @@ import { calendarSourceRecordSchema } from './calendarSourceSchema';
 import { icsCalendarAdapter } from '../domain/calendarAdapter';
 import { validateCalendarCommitmentExpansion } from '../domain/calendarAvailability';
 import { DAY_PROFILE_FOUNDATION_ID, loadSettingsResult, SETTINGS_APP_VERSION, SETTINGS_ID } from './settingsRepository';
+import { isVisibleTodayStatus, poolStatusForActiveTask } from './taskLifecycleRepository';
+import { advanceProfileRecoveryGeneration, PROFILE_RECOVERY_GENERATION_ID,
+  profileRecoveryGenerationSchema, readProfileRecoveryGeneration } from './profileRecoveryGeneration';
 
 export const PORTABLE_PROFILE_FORMAT = 'life-rhythm-portable-profile-backup';
 export const PORTABLE_PROFILE_VERSION = 1;
@@ -86,6 +89,10 @@ export const portableProfileSchema = z.object({
   const tasks = new Map(d.activeTasks.map((row) => [row.id, row]));
   const poolIds = new Set(d.taskPoolItems.map((row) => row.id));
   d.activeTasks.forEach((task, index) => {
+    if (task.showToday !== isVisibleTodayStatus(task.status)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'activeTasks', index, 'showToday'],
+        message: 'Today visibility contradicts the task lifecycle.' });
+    }
     if (task.source === 'custom') {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'activeTasks', index, 'source'],
         message: 'This task source is not readable by the current Today repository.' });
@@ -99,13 +106,56 @@ export const portableProfileSchema = z.object({
       const expected = task.status === 'active' ? 'today'
         : task.status === 'paused' ? 'paused'
           : ['done', 'parked', 'skipped', 'notToday'].includes(task.status) ? 'closed' : 'inProgress';
-      if (instance && instance.lifecycleState !== expected) context.addIssue({ code: z.ZodIssueCode.custom,
-        path: ['data', 'activeTasks', index, 'status'], message: 'Linked rhythm lifecycle is inconsistent.' });
+      if (instance) {
+        const closed = expected === 'closed';
+        const completion = closed ? (task.status === 'done' ? 'done' : 'skipped')
+          : task.status === 'minimumDone' ? 'minimumDone' : null;
+        const validOpenCompletion = instance.completionState === 'notStarted' || instance.completionState === 'minimumDone';
+        if (instance.lifecycleState !== expected || instance.planningState !== (closed ? 'closed' : 'today') ||
+          (completion ? instance.completionState !== completion : !validOpenCompletion)) {
+          context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'activeTasks', index, 'status'],
+            message: 'Linked rhythm lifecycle, completion and planning states are inconsistent.' });
+        }
+      }
+    }
+  });
+  d.taskPoolItems.forEach((item, index) => {
+    const task = tasks.get(item.id);
+    if (item.status === 'today' && (!task || !task.showToday || !isVisibleTodayStatus(task.status) ||
+      !!task.sourceRhythmInstanceId)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'taskPoolItems', index, 'status'],
+        message: 'A Today Pool item requires its matching visible Today task.' });
+    }
+    const expectedPoolStatus = task ? poolStatusForActiveTask(task.status) : null;
+    const heldStatusAfterToday = task && ['parked', 'notToday', 'skipped'].includes(task.status) &&
+      (item.status === 'deferred' || item.status === 'softPlaced' ||
+        (task.status === 'skipped' && ['noLongerNeeded', 'captured'].includes(item.status)));
+    if (task && !task.sourceRhythmInstanceId && item.status !== expectedPoolStatus && !heldStatusAfterToday) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'taskPoolItems', index, 'status'],
+        message: 'Pool status contradicts the linked Today task lifecycle.' });
     }
   });
   d.rhythmInstances.forEach((instance, index) => {
     if (instance.activeTaskId && tasks.get(instance.activeTaskId)?.sourceRhythmInstanceId !== instance.id) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index], message: 'Linked Today task is missing.' });
+    }
+    if (!instance.activeTaskId && !['eligible', 'closed'].includes(instance.lifecycleState)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'activeTaskId'],
+        message: 'A routed rhythm occurrence requires its linked Today task.' });
+    }
+    if (!instance.activeTaskId && instance.placementId) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
+        message: 'A placed rhythm occurrence requires its linked Today task.' });
+    }
+    if (!instance.activeTaskId && instance.lifecycleState === 'eligible' &&
+      (instance.completionState !== 'notStarted' || !['unscheduled', 'placed'].includes(instance.planningState))) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index],
+        message: 'An eligible rhythm occurrence must remain uncompleted and not in Today.' });
+    }
+    if (!instance.activeTaskId && instance.lifecycleState === 'closed' &&
+      (instance.planningState !== 'closed' || !['skipped', 'done'].includes(instance.completionState))) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index],
+        message: 'A closed rhythm occurrence requires a closed planning and completion outcome.' });
     }
   });
   // Historical facts and authored target IDs can outlive their live template or occurrence.
@@ -181,18 +231,39 @@ function checkCalendar(calendar: PortableProfile['data']['calendarSource']) {
 function validate(input: unknown): PortableProfile {
   checkCollectionBounds(input);
   const parsed = portableProfileSchema.parse(input);
+  // Persistence schemas accept omitted fields for migration/write convenience. A
+  // recovery snapshot cannot manufacture those fields while being checked.
+  function requireSnapshotShape(raw: unknown, output: unknown, path: string): void {
+    if (Array.isArray(output) && Array.isArray(raw)) {
+      output.forEach((value, index) => requireSnapshotShape(raw[index], value, `${path}[${index}]`));
+    } else if (output && typeof output === 'object' && !Array.isArray(output) &&
+      raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      for (const [key, value] of Object.entries(output)) {
+        if (!Object.prototype.hasOwnProperty.call(raw, key)) {
+          throw new Error(`Portable profile omitted canonical field ${path}.${key}.`);
+        }
+        requireSnapshotShape((raw as Record<string, unknown>)[key], value, `${path}.${key}`);
+      }
+    }
+  }
+  requireSnapshotShape(input, parsed, 'backup');
   checkCalendar(parsed.data.calendarSource);
   return parsed;
 }
 
 function payloadFromSnapshot(state: Snapshot, settings: PortableProfile['data']['settings'], exportedAt: string) {
   const settingsRows = state.settings as Array<{ id: string }>;
-  const ids = new Set([SETTINGS_ID, DAY_PROFILE_FOUNDATION_ID, EXPLICIT_PREFERENCES_RECORD_ID, DURATION_LEARNING_CONTROLS_RECORD_ID]);
+  const ids = new Set([SETTINGS_ID, DAY_PROFILE_FOUNDATION_ID, EXPLICIT_PREFERENCES_RECORD_ID,
+    DURATION_LEARNING_CONTROLS_RECORD_ID, PROFILE_RECOVERY_GENERATION_ID]);
   if (settingsRows.some((row) => !row || !ids.has(row.id))) throw new Error('Unknown settings sidecar; backup was not created.');
   if (!settings && settingsRows.some((row) => row.id === DAY_PROFILE_FOUNDATION_ID)) throw new Error('Orphan day-profile foundation.');
   const foundation = settingsRows.find((row) => row.id === DAY_PROFILE_FOUNDATION_ID);
   if (foundation && !foundationSchema.safeParse(foundation).success) {
     throw new Error('Unreadable day-profile foundation; backup was not created.');
+  }
+  const generation = settingsRows.find((row) => row.id === PROFILE_RECOVERY_GENERATION_ID);
+  if (generation && !profileRecoveryGenerationSchema.safeParse(generation).success) {
+    throw new Error('Unreadable local recovery generation; backup was not created.');
   }
   const preferences = settingsRows.find((row) => row.id === EXPLICIT_PREFERENCES_RECORD_ID) ?? null;
   const duration = settingsRows.find((row) => row.id === DURATION_LEARNING_CONTROLS_RECORD_ID) ?? null;
@@ -260,7 +331,8 @@ export async function checkPortableProfileForRestore(json: string, db: LifeRhyth
       await readValidatedProfile(db, current, checked.payload.exportedAt);
       return current;
     });
-    const hasData = state.settings.length > 0 || state.rhythmTemplates.length > 0 || state.activeTasks.length > 0 ||
+    const hasData = state.settings.some((row) => (row as { id?: string }).id !== PROFILE_RECOVERY_GENERATION_ID) ||
+      state.rhythmTemplates.length > 0 || state.activeTasks.length > 0 ||
       state.taskPoolItems.length > 0 || state.softPlacements.length > 0 || state.rhythmPlans.length > 0 ||
       state.rhythmRecurrenceRevisions.length > 0 || state.rhythmInstances.length > 0 ||
       state.taskHistory.length > 0 || state.calendarSources.length > 0;
@@ -279,8 +351,10 @@ export async function restorePortableProfile(json: string, expectation: string, 
     return await db.transaction('rw', [...tables(db)], async () => {
       const previous = await snapshot(db);
       if (fingerprint(previous, db) !== expectation) return { ok: false as const, errors: ['Local profile changed. Check the backup again.'] };
+      const generation = await readProfileRecoveryGeneration(db);
       await readValidatedProfile(db, previous, checked.payload.exportedAt);
-      const hasData = previous.settings.length > 0 || previous.rhythmTemplates.length > 0 ||
+      const hasData = previous.settings.some((row) => (row as { id?: string }).id !== PROFILE_RECOVERY_GENERATION_ID) ||
+        previous.rhythmTemplates.length > 0 ||
         previous.activeTasks.length > 0 || previous.taskPoolItems.length > 0 || previous.softPlacements.length > 0 ||
         previous.rhythmPlans.length > 0 || previous.rhythmRecurrenceRevisions.length > 0 ||
         previous.rhythmInstances.length > 0 || previous.taskHistory.length > 0 || previous.calendarSources.length > 0;
@@ -306,6 +380,7 @@ export async function restorePortableProfile(json: string, expectation: string, 
       await db.softPlacements.bulkPut(d.softPlacements);
       await db.taskHistory.bulkPut(d.behaviourEvents);
       if (d.calendarSource) await db.calendarSources.put(d.calendarSource);
+      await advanceProfileRecoveryGeneration(db, generation);
       return { ok: true as const };
     });
   } catch {

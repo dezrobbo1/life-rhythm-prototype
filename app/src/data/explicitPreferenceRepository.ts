@@ -2,6 +2,7 @@ import type { SchedulingPreference } from '../domain/schedulingModel';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import { strictIsoDateTimeSchema } from './schemas';
 import { SETTINGS_APP_VERSION } from './settingsRepository';
+import { profileRecoveryErrorMessage } from './profileRecoveryGeneration';
 import {
   EXPLICIT_PREFERENCES_RECORD_ID,
   explicitPreferenceIdSchema,
@@ -114,7 +115,7 @@ export async function upsertExplicitPreference(
       await store.write(record.data);
       return { ok: true, preference: preference.data, preferences };
     });
-  } catch { return failure('Preference could not be saved on this device.'); }
+  } catch (error) { return failure(profileRecoveryErrorMessage(error, 'Preference could not be saved on this device.')); }
 }
 
 export async function deleteExplicitPreference(
@@ -142,7 +143,7 @@ export async function deleteExplicitPreference(
       await store.write(record.data);
       return { ok: true, removed: true, preferences };
     });
-  } catch { return failure('Preference could not be removed on this device.'); }
+  } catch (error) { return failure(profileRecoveryErrorMessage(error, 'Preference could not be removed on this device.')); }
 }
 
 /** A raw recovery/export read includes corrupt data but never treats it as authority. */
@@ -184,7 +185,7 @@ export async function resetExplicitPreferences(
         preferences: [],
       };
     });
-  } catch { return failure('Preferences could not be deleted on this device.'); }
+  } catch (error) { return failure(profileRecoveryErrorMessage(error, 'Preferences could not be deleted on this device.')); }
 }
 
 /** Input preferences must come from the strict reader; atIso is an explicit decision instant. */

@@ -15,6 +15,7 @@ import {
 import { rhythmTemplateSchema, type RhythmTemplate } from './schemas';
 import { markRhythmInputRepairPending } from './schedulerPlanStateRepository';
 import { buildMissingRhythmInstances } from '../domain/rhythmRecurrence';
+import { profileRecoveryErrorMessage } from './profileRecoveryGeneration';
 
 function messages(label: string, issues: Array<{ message: string; path: Array<string | number> }>) {
   return issues.map((issue) => `${label}${issue.path.length ? `.${issue.path.join('.')}` : ''}: ${issue.message}`);
@@ -351,8 +352,8 @@ export async function saveRhythmConfiguration(
         return { ok: true as const, template: template.data, plan, revision };
       },
     );
-  } catch {
-    return { ok: false, errors: ['Rhythm configuration was not saved. Existing data remain unchanged.'] };
+  } catch (error) {
+    return { ok: false, errors: [profileRecoveryErrorMessage(error, 'Rhythm configuration was not saved. Existing data remain unchanged.')] };
   }
 }
 
@@ -380,8 +381,8 @@ export async function setRhythmPlanState(
       if (!marked.ok) throw new Error(marked.errors.join(' '));
       return { ok: true as const, plan };
     });
-  } catch {
-    return { ok: false, errors: ['Rhythm state was not saved. Existing data remain unchanged.'] };
+  } catch (error) {
+    return { ok: false, errors: [profileRecoveryErrorMessage(error, 'Rhythm state was not saved. Existing data remain unchanged.')] };
   }
 }
 
@@ -443,7 +444,7 @@ export async function generateRhythmInstancesForHorizon(
         return { ok: true as const, created };
       },
     );
-  } catch {
-    return { ok: false, errors: ['Rhythm occurrences could not be generated safely.'] };
+  } catch (error) {
+    return { ok: false, errors: [profileRecoveryErrorMessage(error, 'Rhythm occurrences could not be generated safely.')] };
   }
 }

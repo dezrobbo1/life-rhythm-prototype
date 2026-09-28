@@ -15,6 +15,7 @@ import {
 import type { LifeRhythmDatabase } from './db';
 import { loadCalendarSource } from './calendarSourceRepository';
 import { calendarSourceRecordSchema } from './calendarSourceSchema';
+import { profileRecoveryErrorMessage } from './profileRecoveryGeneration';
 
 export async function commitCalendarSourceBuffers(beforeBusyMinutes: number, afterBusyMinutes: number,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase()) {
@@ -30,8 +31,8 @@ export async function commitCalendarSourceBuffers(beforeBusyMinutes: number, aft
       if (!marked.ok) throw new Error('Calendar repair attention could not be stored.');
       return { ok: true as const, record: parsed.data };
     });
-  } catch {
-    return { ok: false as const, errors: ['Calendar buffers could not be saved safely.'] };
+  } catch (error) {
+    return { ok: false as const, errors: [profileRecoveryErrorMessage(error, 'Calendar buffers could not be saved safely.')] };
   }
 }
 
@@ -101,11 +102,11 @@ export async function commitCalendarSourceImport(
         };
       },
     );
-  } catch {
+  } catch (error) {
     return {
       ok: false,
       errors: failureState.current?.errors ?? [
-        'calendarSource: Calendar source could not be saved on this device.',
+        profileRecoveryErrorMessage(error, 'calendarSource: Calendar source could not be saved on this device.'),
       ],
       warnings: failureState.current?.warnings ?? [],
     };
@@ -143,11 +144,11 @@ export async function commitCalendarSourceRemoval(
         };
       },
     );
-  } catch {
+  } catch (error) {
     return {
       ok: false,
       errors: failureState.current?.errors ?? [
-        'calendarSource: Saved read-only calendar source could not be removed.',
+        profileRecoveryErrorMessage(error, 'calendarSource: Saved read-only calendar source could not be removed.'),
       ],
     };
   }

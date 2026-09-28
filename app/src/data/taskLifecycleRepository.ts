@@ -93,7 +93,7 @@ function issuesToMessages(issues: Array<{ message: string; path: Array<string | 
   });
 }
 
-function isVisibleTodayStatus(status: ActiveTaskStatus) {
+export function isVisibleTodayStatus(status: ActiveTaskStatus) {
   return visibleTodayStatuses.includes(status);
 }
 
@@ -108,7 +108,7 @@ export function minimumAchievementForStatusTransition(
   return undefined;
 }
 
-function poolStatusForActiveTask(status: ActiveTaskStatus): TaskPoolItemStatus {
+export function poolStatusForActiveTask(status: ActiveTaskStatus): TaskPoolItemStatus {
   if (isVisibleTodayStatus(status)) return 'today';
   if (status === 'parked') return 'parked';
   if (status === 'notToday' || status === 'skipped') return 'notToday';

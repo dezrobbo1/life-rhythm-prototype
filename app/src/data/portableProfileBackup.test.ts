@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildMissingRhythmInstances } from '../domain/rhythmRecurrence';
 import { createAuthLocalDataNamespace, getCurrentLifeRhythmDatabase,
   getLegacyLocalDataNamespace, resetCurrentLocalDataNamespace, setCurrentLocalDataNamespace } from './localDataNamespace';
-import { createDefaultSettings, loadSettingsResult, saveSettings } from './settingsRepository';
+import { createDefaultSettings, loadSettingsResult, resetSettingsToDefaults, saveSettings } from './settingsRepository';
 import { activeTaskSchema, behaviourEventSchema, rhythmTemplateSchema, softPlacementSchema,
   taskPoolItemSchema } from './schemas';
 import { rhythmPlanSchema, rhythmRecurrenceRevisionSchema } from './rhythmAuthoritySchemas';
@@ -17,11 +17,18 @@ import { loadBehaviourEventsResult } from './behaviourEventRepository';
 import { loadCalendarSource, readPersistedCalendarEvents } from './calendarSourceRepository';
 import { confirmTaskPoolSoftPlacement } from './taskSoftPlacementRepository';
 import { buildCurrentLiveSchedulingContext, ensureCurrentPrivatePlan } from './schedulerPlanCoordinator';
+import { repairAndPersistSchedulerPlan } from './schedulerPlanStateRepository';
+import { bringTaskPoolItemToToday, markTaskLifecycleNoLongerNeeded, updateTaskLifecycleStatus } from './taskLifecycleRepository';
+import { setRhythmPlanState } from './rhythmAuthorityRepository';
+import { commitCalendarSourceBuffers } from './calendarSourceMutationCoordinator';
 import { CURRENT_CALENDAR_SOURCE_ID } from './calendarSourceSchema';
 import {
   checkPortableProfileForRestore, checkPortableProfileJson, exportPortableProfile,
   REPLACE_LOCAL_PROFILE_CONFIRMATION, restorePortableProfile,
 } from './portableProfileBackup';
+import { PROFILE_RECOVERY_GENERATION_ID, readProfileRecoveryGeneration,
+  STALE_PROFILE_RECOVERY_MESSAGE } from './profileRecoveryGeneration';
+import { createLifeRhythmDatabase } from './db';
 
 const timestamp = '2026-09-25T00:00:00.000Z';
 const namespaceA = createAuthLocalDataNamespace('portable-a');
@@ -136,7 +143,7 @@ describe('Gate 8A4 portable canonical profile', () => {
     const db = getCurrentLifeRhythmDatabase();
     await db.activeTasks.put(activeTaskSchema.parse({ id: 'old', source: 'adhoc', title: 'Old', area: 'house',
       minimum: { label: 'Old', minutes: 5 }, normal: { label: 'Old', minutes: 5 }, full: { label: 'Old', minutes: 5 },
-      createdAt: timestamp, updatedAt: timestamp }));
+      showToday: true, createdAt: timestamp, updatedAt: timestamp }));
     await db.schedulerPlanState.put({ id: 'current', updatedAt: timestamp } as never);
     const checked = await checkPortableProfileForRestore(exported);
     expect(checked).toMatchObject({ ok: true, hasData: true });
@@ -288,6 +295,291 @@ describe('Gate 8A4 portable canonical profile', () => {
     expect(checkPortableProfileJson(JSON.stringify(tampered)).ok).toBe(false);
   });
 
+  it('rejects omitted canonical fields instead of applying persistence defaults', () => {
+    const source = JSON.parse(exported);
+    const omitted = (modify: (data: Record<string, any>) => void) => {
+      const candidate = structuredClone(source);
+      modify(candidate.data);
+      return checkPortableProfileJson(JSON.stringify(candidate));
+    };
+    expect(omitted((data) => { delete data.settings.theme; }).ok).toBe(false);
+    expect(omitted((data) => { delete data.settings.lifeShape.usualWorkHours.days; }).ok).toBe(false);
+    expect(omitted((data) => { delete data.explicitPreferences.preferences[0].days; }).ok).toBe(false);
+    expect(omitted((data) => { delete data.calendarSource.beforeBusyMinutes; }).ok).toBe(false);
+    expect(omitted((data) => { delete data.calendarSource.afterBusyMinutes; }).ok).toBe(false);
+    expect(omitted((data) => { delete data.rhythmTemplates[0].schedule.frequency; }).ok).toBe(false);
+    expect(omitted((data) => { delete data.activeTasks[0].purpose; }).ok).toBe(true);
+  });
+
+  it('rejects contradictory Today visibility and orphaned Pool Today ownership', () => {
+    const source = JSON.parse(exported);
+    const changed = (modify: (data: Record<string, any>) => void) => {
+      const candidate = structuredClone(source);
+      modify(candidate.data);
+      return checkPortableProfileJson(JSON.stringify(candidate));
+    };
+    for (const status of ['active', 'inProgress', 'paused', 'minimumDone']) {
+      expect(changed((data) => { data.activeTasks[0].status = status; data.activeTasks[0].showToday = false; }).ok).toBe(false);
+    }
+    for (const status of ['done', 'parked', 'notToday', 'skipped']) {
+      expect(changed((data) => { data.activeTasks[0].status = status; data.activeTasks[0].showToday = true; }).ok).toBe(false);
+    }
+    expect(changed((data) => { data.taskPoolItems[0].status = 'today'; }).ok).toBe(false);
+    expect(changed((data) => { data.taskPoolItems[0].status = 'today';
+      data.activeTasks[0].id = data.taskPoolItems[0].id; data.activeTasks[0].status = 'parked';
+      data.activeTasks[0].showToday = false; }).ok).toBe(false);
+    expect(changed((data) => { data.taskPoolItems[0].status = 'today';
+      data.activeTasks[0].id = data.taskPoolItems[0].id;
+      data.softPlacements[0].taskId = data.taskPoolItems[0].id; }).ok).toBe(true);
+  });
+
+  it('rejects contradictory linked rhythm completion and planning states', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const instance = await db.rhythmInstances.toCollection().first();
+    const today = await db.activeTasks.get('today');
+    if (!instance || !today) throw new Error('Fixture is missing');
+    await db.activeTasks.put(activeTaskSchema.parse({ ...today, id: 'generated', source: 'library',
+      templateId: 'rhythm', sourceRhythmInstanceId: instance.id }));
+    await db.rhythmInstances.put({ ...instance, activeTaskId: 'generated', lifecycleState: 'today',
+      planningState: 'today', completionState: 'notStarted' });
+    const valid = (await exportPortableProfile()).payload;
+    const changed = (overrides: Record<string, unknown>) => checkPortableProfileJson(JSON.stringify({ ...valid,
+      data: { ...valid.data, rhythmInstances: valid.data.rhythmInstances.map((row) => row.id === instance.id
+        ? { ...row, ...overrides } : row) } }));
+    expect(changed({ completionState: 'done', planningState: 'closed' }).ok).toBe(false);
+    expect(changed({ planningState: 'unscheduled' }).ok).toBe(false);
+    expect(checkPortableProfileJson(JSON.stringify({ ...valid, data: { ...valid.data,
+      activeTasks: valid.data.activeTasks.map((row) => row.id === 'generated'
+        ? { ...row, status: 'minimumDone' } : row) } })).ok).toBe(false);
+    for (const [status, state, completion] of [
+      ['inProgress', 'inProgress', 'notStarted'], ['paused', 'paused', 'notStarted'],
+      ['minimumDone', 'inProgress', 'minimumDone'], ['done', 'closed', 'done'],
+      ['skipped', 'closed', 'skipped'],
+    ] as const) {
+      const task = { ...valid.data.activeTasks.find((row) => row.id === 'generated')!, status,
+        showToday: ['inProgress', 'paused', 'minimumDone'].includes(status) };
+      const next = { ...valid, data: { ...valid.data,
+        activeTasks: valid.data.activeTasks.map((row) => row.id === 'generated' ? task : row),
+        rhythmInstances: valid.data.rhythmInstances.map((row) => row.id === instance.id
+          ? { ...row, lifecycleState: state, planningState: state === 'closed' ? 'closed' : 'today',
+              completionState: completion } : row) } };
+      expect(checkPortableProfileJson(JSON.stringify(next)).ok).toBe(true);
+      expect(checkPortableProfileJson(JSON.stringify({ ...next, data: { ...next.data,
+        rhythmInstances: next.data.rhythmInstances.map((row) => row.id === instance.id
+          ? { ...row, planningState: 'unscheduled' } : row) } })).ok).toBe(false);
+    }
+    expect(changed({ activeTaskId: undefined, lifecycleState: 'today' }).ok).toBe(false);
+  });
+
+  it('accepts the normal Add to Today and no-longer-needed Pool lifecycle', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    expect((await bringTaskPoolItemToToday('pool', db)).ok).toBe(true);
+    expect(checkPortableProfileJson((await exportPortableProfile(db)).json).ok).toBe(true);
+    expect((await markTaskLifecycleNoLongerNeeded('pool', db)).ok).toBe(true);
+    expect(checkPortableProfileJson((await exportPortableProfile(db)).json).ok).toBe(true);
+  });
+
+  it('accepts normal linked rhythm Start, Minimum Done, continue, Pause and completion transitions', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const instance = await db.rhythmInstances.toCollection().first();
+    const today = await db.activeTasks.get('today');
+    if (!instance || !today) throw new Error('Fixture is missing');
+    await db.activeTasks.put(activeTaskSchema.parse({ ...today, id: 'generated', source: 'library',
+      templateId: 'rhythm', sourceRhythmInstanceId: instance.id }));
+    await db.rhythmInstances.put({ ...instance, activeTaskId: 'generated', lifecycleState: 'today',
+      planningState: 'today', completionState: 'notStarted' });
+    for (const status of ['inProgress', 'minimumDone', 'inProgress', 'paused', 'done'] as const) {
+      expect((await updateTaskLifecycleStatus('generated', status, db)).ok).toBe(true);
+      expect(checkPortableProfileJson((await exportPortableProfile(db)).json).ok).toBe(true);
+    }
+  });
+
+  it('rejects a Settings Save begun before a completed restore rather than recreating the old profile', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const checked = await checkPortableProfileForRestore(exported, db);
+    if (!checked.ok || !('expectation' in checked)) throw new Error('Check failed');
+    const before = await loadSettingsResult(db, { persistMigration: false });
+    const replacement = structuredClone(JSON.parse(exported));
+    replacement.data.settings.theme = 'exhale';
+    const restoreJson = JSON.stringify(replacement);
+    const actualGet = db.settings.get.bind(db.settings);
+    let release!: () => void;
+    const waiting = new Promise<void>((resolve) => { release = resolve; });
+    let entered!: () => void;
+    const reached = new Promise<void>((resolve) => { entered = resolve; });
+    vi.spyOn(db.settings, 'get').mockImplementationOnce((async (key: string) => {
+      const stale = await actualGet(key);
+      entered();
+      await waiting;
+      return stale;
+    }) as never);
+    const save = saveSettings({ theme: 'clear', lifeShape: before.settings.lifeShape,
+      startBoostSafety: before.settings.startBoostSafety }, db);
+    await reached;
+    expect(await restorePortableProfile(restoreJson, checked.expectation,
+      REPLACE_LOCAL_PROFILE_CONFIRMATION, db)).toEqual({ ok: true });
+    release();
+    expect((await save).ok).toBe(false);
+    expect((await loadSettingsResult(db, { persistMigration: false })).settings.theme).toBe('exhale');
+    expect(await readProfileRecoveryGeneration(db)).toBe(1);
+  });
+
+  it('keeps the recovery epoch local and advances the destination only on committed replacement', async () => {
+    const a = getCurrentLifeRhythmDatabase();
+    await a.settings.put({ id: PROFILE_RECOVERY_GENERATION_ID, recordType: 'profileRecoveryGeneration',
+      formatVersion: 1, generation: 12, updatedAt: timestamp } as never);
+    const backup = await exportPortableProfile(a);
+    expect(backup.json).not.toContain(PROFILE_RECOVERY_GENERATION_ID);
+    setCurrentLocalDataNamespace(namespaceB);
+    const b = getCurrentLifeRhythmDatabase();
+    await b.settings.put({ id: PROFILE_RECOVERY_GENERATION_ID, recordType: 'profileRecoveryGeneration',
+      formatVersion: 1, generation: 4, updatedAt: timestamp } as never);
+    const checked = await checkPortableProfileForRestore(backup.json, b);
+    if (!checked.ok || !('expectation' in checked)) throw new Error('Check failed');
+    expect(checked.hasData).toBe(false);
+    expect((await restorePortableProfile(backup.json, checked.expectation, '', b)).ok).toBe(true);
+    expect(await readProfileRecoveryGeneration(b)).toBe(5);
+    expect((await exportPortableProfile(b)).payload.data).toEqual(backup.payload.data);
+    expect((await restorePortableProfile(backup.json, checked.expectation,
+      REPLACE_LOCAL_PROFILE_CONFIRMATION, b)).ok).toBe(false);
+    expect(await readProfileRecoveryGeneration(b)).toBe(5);
+    const again = await checkPortableProfileForRestore(backup.json, b);
+    if (!again.ok || !('expectation' in again)) throw new Error('Check failed');
+    expect((await restorePortableProfile(backup.json, again.expectation,
+      REPLACE_LOCAL_PROFILE_CONFIRMATION, b)).ok).toBe(true);
+    expect(await readProfileRecoveryGeneration(b)).toBe(6);
+    expect(await readProfileRecoveryGeneration(a)).toBe(12);
+  });
+
+  it('does not advance the epoch on a failed write or malformed operational metadata', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const checked = await checkPortableProfileForRestore(exported, db);
+    if (!checked.ok || !('expectation' in checked)) throw new Error('Check failed');
+    vi.spyOn(db.rhythmPlans, 'bulkPut').mockRejectedValueOnce(new Error('injected failure'));
+    expect((await restorePortableProfile(exported, checked.expectation, REPLACE_LOCAL_PROFILE_CONFIRMATION, db)).ok).toBe(false);
+    expect(await readProfileRecoveryGeneration(db)).toBe(0);
+    vi.restoreAllMocks();
+    await db.settings.put({ id: PROFILE_RECOVERY_GENERATION_ID, generation: 'broken' } as never);
+    expect((await checkPortableProfileForRestore(exported, db)).ok).toBe(false);
+    await expect(readProfileRecoveryGeneration(db)).rejects.toThrow();
+  });
+
+  it('preserves a committed normal mutation when a previously checked restore is stale', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const checked = await checkPortableProfileForRestore(exported, db);
+    if (!checked.ok || !('expectation' in checked)) throw new Error('Check failed');
+    const settings = (await loadSettingsResult(db, { persistMigration: false })).settings;
+    expect((await saveSettings({ theme: 'grounded', lifeShape: settings.lifeShape,
+      startBoostSafety: settings.startBoostSafety }, db)).ok).toBe(true);
+    expect((await restorePortableProfile(exported, checked.expectation,
+      REPLACE_LOCAL_PROFILE_CONFIRMATION, db)).ok).toBe(false);
+    expect((await loadSettingsResult(db, { persistMigration: false })).settings.theme).toBe('grounded');
+    expect(await readProfileRecoveryGeneration(db)).toBe(0);
+  });
+
+  it('fences an old settings mutation across two handles of the same namespace', async () => {
+    const writer = getCurrentLifeRhythmDatabase();
+    const restorer = createLifeRhythmDatabase(writer.name);
+    try {
+      const checked = await checkPortableProfileForRestore(exported, restorer);
+      if (!checked.ok || !('expectation' in checked)) throw new Error('Check failed');
+      const old = (await loadSettingsResult(writer, { persistMigration: false })).settings;
+      const get = writer.settings.get.bind(writer.settings);
+      let release!: () => void;
+      const waiting = new Promise<void>((resolve) => { release = resolve; });
+      let entered!: () => void;
+      const reached = new Promise<void>((resolve) => { entered = resolve; });
+      vi.spyOn(writer.settings, 'get').mockImplementationOnce((async (key: string) => {
+        const value = await get(key);
+        entered(); await waiting; return value;
+      }) as never);
+      const saving = saveSettings({ theme: 'clear', lifeShape: old.lifeShape,
+        startBoostSafety: old.startBoostSafety }, writer);
+      await reached;
+      const replacement = structuredClone(JSON.parse(exported));
+      replacement.data.settings.theme = 'exhale';
+      expect((await restorePortableProfile(JSON.stringify(replacement), checked.expectation,
+        REPLACE_LOCAL_PROFILE_CONFIRMATION, restorer)).ok).toBe(true);
+      release();
+      expect((await saving).ok).toBe(false);
+      expect((await loadSettingsResult(writer, { persistMigration: false })).settings.theme).toBe('exhale');
+      expect(await readProfileRecoveryGeneration(writer)).toBe(1);
+    } finally { restorer.close(); }
+  });
+
+  async function restoreWhileOldWriteIsQueued(action: () => Promise<unknown>) {
+    const db = getCurrentLifeRhythmDatabase();
+    const replacement = structuredClone(JSON.parse(exported));
+    replacement.data.settings.theme = 'exhale';
+    const json = JSON.stringify(replacement);
+    const checked = await checkPortableProfileForRestore(json, db);
+    if (!checked.ok || !('expectation' in checked)) throw new Error('Check failed');
+    const originalGet = db.settings.get.bind(db.settings);
+    let release!: () => void;
+    const waiting = new Promise<void>((resolve) => { release = resolve; });
+    let entered!: () => void;
+    const reached = new Promise<void>((resolve) => { entered = resolve; });
+    vi.spyOn(db.settings, 'get').mockImplementationOnce((async (key: string) => {
+      const old = await originalGet(key);
+      expect(key).toBe(PROFILE_RECOVERY_GENERATION_ID);
+      entered();
+      await waiting;
+      return old;
+    }) as never);
+    const pending = action().then((result) => result, (error: unknown) => error);
+    await reached;
+    expect(await restorePortableProfile(json, checked.expectation, REPLACE_LOCAL_PROFILE_CONFIRMATION, db)).toEqual({ ok: true });
+    const restored = (await exportPortableProfile(db)).payload.data;
+    release();
+    const rejected = await pending;
+    expect((await exportPortableProfile(db)).payload.data).toEqual(restored);
+    expect(await readProfileRecoveryGeneration(db)).toBe(1);
+    vi.restoreAllMocks();
+    return rejected;
+  }
+
+  it('rejects queued Settings Reset after restore', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    expect(await restoreWhileOldWriteIsQueued(() => resetSettingsToDefaults(db))).toBeInstanceOf(Error);
+  });
+
+  it('rejects queued Task Pool lifecycle after restore', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    expect(await restoreWhileOldWriteIsQueued(() => bringTaskPoolItemToToday('pool', db))).toMatchObject({ message: STALE_PROFILE_RECOVERY_MESSAGE });
+  });
+
+  it('rejects queued rhythm configuration after restore', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    expect(await restoreWhileOldWriteIsQueued(() => setRhythmPlanState('rhythm', 'paused', db))).toMatchObject({ ok: false });
+  });
+
+  it('rejects queued preference writes after restore', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    expect(await restoreWhileOldWriteIsQueued(() => upsertExplicitPreference({ id: 'new-preference',
+      targetKind: 'area', targetValue: 'house', relation: 'prefer', days: [] },
+    createExplicitPreferenceStore(db)))).toMatchObject({ ok: false });
+  });
+
+  it('rejects a queued calendar-buffer write after restore', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    expect(await restoreWhileOldWriteIsQueued(() => commitCalendarSourceBuffers(25, 25, db))).toMatchObject({ ok: false });
+  });
+
+  it('rejects an old plan commit even when restore leaves scheduler state missing', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const before = await buildCurrentLiveSchedulingContext();
+    if (!before.ok) throw new Error(before.errors.join(' '));
+    const checked = await checkPortableProfileForRestore(exported, db);
+    if (!checked.ok || !('expectation' in checked)) throw new Error('Check failed');
+    expect((await restorePortableProfile(exported, checked.expectation, REPLACE_LOCAL_PROFILE_CONFIRMATION, db)).ok).toBe(true);
+    const result = await repairAndPersistSchedulerPlan({ nextInput: before.context.input,
+      now: before.now, reason: 'stale plan', trigger: 'manualReplan' }, db, timestamp,
+    undefined, before.context.calendarSourceSnapshot, before.context.canonicalInputSnapshot,
+    before.context.schedulerStateSnapshot);
+    expect(result).toMatchObject({ ok: false, errors: [STALE_PROFILE_RECOVERY_MESSAGE] });
+    expect(await db.schedulerPlanState.count()).toBe(0);
+  });
+
   it('does not down-convert unknown day-profile foundation fields or parse oversized artifacts', async () => {
     const db = getCurrentLifeRhythmDatabase();
     const foundation = await db.settings.get('dayProfileFoundation');
@@ -311,7 +603,7 @@ describe('Gate 8A4 portable canonical profile', () => {
     if (!checked.ok || !('expectation' in checked)) throw new Error('Check failed');
     expect(await restorePortableProfile(empty, checked.expectation, REPLACE_LOCAL_PROFILE_CONFIRMATION)).toEqual({ ok: true });
     const db = getCurrentLifeRhythmDatabase();
-    expect(await db.settings.count()).toBe(0);
+    expect((await db.settings.toArray()).map((row) => row.id)).toEqual(['profile:recovery-generation:v1']);
     expect(await db.calendarSources.count()).toBe(0);
     expect(await db.activeTasks.count()).toBe(0);
     expect(await db.rhythmPlans.count()).toBe(0);

@@ -1,4 +1,5 @@
-import Dexie, { type Table } from 'dexie';
+import Dexie, { type Table, type TransactionMode, type PromiseExtended } from 'dexie';
+import { assertProfileRecoveryGeneration, captureProfileRecoveryGeneration } from './profileRecoveryGeneration';
 import type {
   ActiveTask,
   CompletionLog,
@@ -64,6 +65,31 @@ export class LifeRhythmDatabase extends Dexie {
   rhythmPlans!: Table<RhythmPlan, string>;
   rhythmRecurrenceRevisions!: Table<RhythmRecurrenceRevision, string>;
   rhythmInstances!: Table<RhythmInstance, string>;
+
+  // All repository rw transactions share the settings-store lock with restore.
+  // This also covers nested repository helpers called from a coordinator's
+  // transaction. Operations with reads *before* opening their transaction must
+  // additionally pass their early token to the final write boundary.
+  override transaction<U>(mode: TransactionMode, tables: readonly (string | Table)[],
+    scope: (trans: never) => PromiseLike<U> | U): PromiseExtended<U>;
+  override transaction<U>(mode: TransactionMode, table: string | Table,
+    scope: (trans: never) => PromiseLike<U> | U): PromiseExtended<U>;
+  override transaction<U>(mode: TransactionMode, table: string | Table, table2: string | Table,
+    scope: (trans: never) => PromiseLike<U> | U): PromiseExtended<U>;
+  override transaction<U>(mode: TransactionMode, table: string | Table, table2: string | Table,
+    table3: string | Table, scope: (trans: never) => PromiseLike<U> | U): PromiseExtended<U>;
+  override transaction<U>(mode: TransactionMode, table: string | Table, table2: string | Table,
+    table3: string | Table, table4: string | Table, scope: (trans: never) => PromiseLike<U> | U): PromiseExtended<U>;
+  override transaction<U>(mode: TransactionMode, ...args: unknown[]): PromiseExtended<U> {
+    const scope = args[args.length - 1] as (trans: unknown) => PromiseLike<U> | U;
+    const requested = args.slice(0, -1).flat() as Array<string | Table>;
+    if (!mode.startsWith('rw')) return super.transaction(mode, requested, scope);
+    return Dexie.Promise.resolve(captureProfileRecoveryGeneration(this)).then((expected) =>
+      super.transaction(mode, [this.settings, ...requested], async (trans) => {
+        await assertProfileRecoveryGeneration(this, expected);
+        return scope(trans);
+      }));
+  }
 
   constructor(databaseName = DATABASE_NAME) {
     super(databaseName);

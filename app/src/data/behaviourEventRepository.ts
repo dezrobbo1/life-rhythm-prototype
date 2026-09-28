@@ -1,4 +1,6 @@
-import type { Table } from 'dexie';
+import Dexie, { type Table } from 'dexie';
+import { LifeRhythmDatabase } from './db';
+import { profileWriteTransaction } from './profileRecoveryGeneration';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   behaviourEventSchema,
@@ -78,7 +80,10 @@ export function createBehaviourEvent(input: CreateBehaviourEventInput): Behaviou
 export async function appendBehaviourEvent(
   event: BehaviourEvent,
   store: BehaviourEventStore = getCurrentLifeRhythmDatabase(),
-) {
+): Promise<BehaviourEvent> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.taskHistory], () => appendBehaviourEvent(event, store));
+  }
   const parsed = behaviourEventSchema.parse(event);
   const existing = await store.taskHistory.get(parsed.id);
 
