@@ -209,6 +209,32 @@ describe('Gate 8A4 portable canonical profile', () => {
     expect((await checkPortableProfileForRestore(exported)).ok).toBe(false);
   });
 
+  it('preserves historical references and a duration control whose original template is no longer present', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    await upsertDurationLearningControl({ templateId: 'archived-template', mode: 'disabled' },
+      createDurationLearningControlStore(db), timestamp);
+    const existing = await db.taskHistory.get('fact');
+    await db.taskHistory.put(behaviourEventSchema.parse({ ...existing,
+      rhythmInstanceId: 'historical-instance', templateId: 'archived-template' }));
+    const today = await db.activeTasks.get('today');
+    await db.activeTasks.put(activeTaskSchema.parse({ ...today, id: 'library-archived',
+      source: 'library', templateId: 'archived-template' }));
+    const backup = (await exportPortableProfile()).json;
+    setCurrentLocalDataNamespace(namespaceB);
+    const checked = await checkPortableProfileForRestore(backup);
+    expect(checked.ok).toBe(true);
+    if (!checked.ok || !('expectation' in checked)) throw new Error('Check failed');
+    expect(await restorePortableProfile(backup, checked.expectation, '')).toEqual({ ok: true });
+    const restored = getCurrentLifeRhythmDatabase();
+    const controls = await loadDurationLearningControlsResult(createDurationLearningControlStore(restored));
+    const facts = await loadBehaviourEventsResult(restored);
+    if (controls.status !== 'ok' || facts.status !== 'ok') throw new Error('Normal repositories did not read restored facts');
+    expect(controls.controls)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ templateId: 'archived-template', mode: 'disabled' })]));
+    expect(facts.items)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ rhythmInstanceId: 'historical-instance' })]));
+  });
+
   it('restoring an empty source removes stale destination preferences, controls, calendar and tasks', async () => {
     setCurrentLocalDataNamespace(namespaceB);
     const empty = (await exportPortableProfile()).json;

@@ -14,16 +14,17 @@ Conflict policy is **replace the current local profile**, with no merge or times
 
 The representative namespace A fixture includes reviewed settings, one Task Pool item, Today task, placement, configured rhythm, plan, recurrence revision and instance, explicit preference, duration override, trusted behaviour event and calendar source with buffers. Export A → check/restore into empty namespace B → normal repository reads and live scheduler context → export B produces the same canonical payload (excluding regenerated export metadata); A remains unchanged. The restored scheduler has no copied accepted plan and rebuilds successfully. A checked preview from empty B cannot be used in another empty namespace. Other signed-in and legacy namespaces remain unchanged.
 
-Further tests cover confirmed non-empty replacement, cleared stale singletons, changed destination, failed mid-transaction write, unsupported version, unknown class, duplicate IDs, broken rhythm references, invalid duration/behaviour sidecars, over-budget calendar, selected JSON files and confirmation UI. Existing Gate 8A3 calendar safety and class-specific backup tests remain in the matrix.
+Further tests cover confirmed non-empty replacement, cleared stale singletons, changed destination, failed mid-transaction write, unsupported version, unknown class, duplicate IDs, broken rhythm references, archived historical references and duration controls, invalid duration/behaviour sidecars, over-budget calendar, selected JSON files and confirmation UI. Existing Gate 8A3 calendar safety and class-specific backup tests remain in the matrix.
 
 ## Validation on final source tree
 
 | Check | Result |
 | --- | --- |
 | `npm ci --ignore-scripts` | Passed |
-| Full `TZ=UTC npm test -- --run` | 107 files / 1,257 tests passed |
-| Full `TZ=Australia/Perth npm test -- --run` | 107 files / 1,257 tests passed |
-| Focused `TZ=Australia/Sydney` recovery, calendar, scheduler and backup matrix | 23 files / 414 tests passed |
+| Focused UTC and Perth recovery, calendar, scheduler and backup matrix | 23 files / 415 tests passed in each timezone |
+| Full `TZ=UTC npm test -- --run` | 107 files / 1,258 tests passed |
+| Full `TZ=Australia/Perth npm test -- --run` | 107 files / 1,258 tests passed |
+| Focused `TZ=Australia/Sydney` recovery, calendar, scheduler and backup matrix | 23 files / 415 tests passed |
 | `npm run build` | Passed |
 | `git diff --check` | Passed |
 | Exact-head App CI, App Preview `/app`, Vercel | Pending remote PR checks at the time of this report; verify the final head before disposition |

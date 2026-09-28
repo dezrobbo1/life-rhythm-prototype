@@ -51,7 +51,6 @@ export const portableProfileSchema = z.object({
     'activeTasks', 'taskPoolItems', 'softPlacements', 'behaviourEvents'] as const) unique(d[key], key, context);
   validateRhythmAuthorityRelationships(d.rhythmTemplates, d.rhythmPlans, d.rhythmRecurrenceRevisions, d.rhythmInstances)
     .forEach((message) => context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances'], message }));
-  const templates = new Set(d.rhythmTemplates.map((row) => row.id));
   const instances = new Map(d.rhythmInstances.map((row) => [row.id, row]));
   const tasks = new Map(d.activeTasks.map((row) => [row.id, row]));
   d.activeTasks.forEach((task, index) => {
@@ -59,25 +58,14 @@ export const portableProfileSchema = z.object({
       instances.get(task.sourceRhythmInstanceId)?.activeTaskId !== task.id)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'activeTasks', index], message: 'Rhythm occurrence/Today task identity is inconsistent.' });
     }
-    if (task.source === 'library' && task.templateId && !templates.has(task.templateId)) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'activeTasks', index], message: 'Library template is missing.' });
-    }
   });
   d.rhythmInstances.forEach((instance, index) => {
     if (instance.activeTaskId && tasks.get(instance.activeTaskId)?.sourceRhythmInstanceId !== instance.id) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index], message: 'Linked Today task is missing.' });
     }
   });
-  d.behaviourEvents.forEach((event, index) => {
-    if (event.rhythmInstanceId && (instances.get(event.rhythmInstanceId)?.rhythmTemplateId !== event.templateId &&
-      (event.templateId || !instances.has(event.rhythmInstanceId)))) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'behaviourEvents', index], message: 'Referenced rhythm occurrence is missing.' });
-    }
-  });
-  d.durationControls?.controls.forEach((control, index) => {
-    if (!templates.has(control.templateId)) context.addIssue({ code: z.ZodIssueCode.custom,
-      path: ['data', 'durationControls', 'controls', index], message: 'Controlled template is missing.' });
-  });
+  // Historical facts and authored target IDs can outlive their live template or occurrence.
+  // Their own strict schemas retain identity/provenance without inventing live referential authority.
   d.softPlacements.forEach((placement, index) => {
     if ((placement.status === 'planned' || placement.status === 'moved') && !tasks.has(placement.taskId)) context.addIssue({ code: z.ZodIssueCode.custom,
       path: ['data', 'softPlacements', index], message: 'Confirmed placement has no Today task.' });
