@@ -293,6 +293,7 @@ describe('Reset screen', () => {
     const input = screen.getByLabelText('Type DELETE BEHAVIOUR HISTORY to delete behaviour history');
     expect(button.disabled).toBe(true);
 
+    await waitFor(() => expect((input as HTMLInputElement).disabled).toBe(false));
     await user.type(input, 'DELETE');
     expect(button.disabled).toBe(true);
     expect(deleteBehaviourHistoryAction).not.toHaveBeenCalled();
@@ -302,7 +303,7 @@ describe('Reset screen', () => {
     expect(button.disabled).toBe(false);
     await user.click(button);
 
-    expect(deleteBehaviourHistoryAction).toHaveBeenCalledWith('DELETE BEHAVIOUR HISTORY');
+    expect(deleteBehaviourHistoryAction).toHaveBeenCalledWith('DELETE BEHAVIOUR HISTORY', 0);
     expect(onBehaviourHistoryDeleted).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('status').textContent).toContain(
       'Deleted 3 behaviour events. Derived duration evidence was removed and any existing flexible plan is up to date.',

@@ -6,7 +6,7 @@ import {
   rhythmTemplateSchema, settingsSchema,
   softPlacementSchema, strictIsoDateTimeSchema, taskPoolItemSchema,
 } from './schemas';
-import { rhythmInstanceSchema, rhythmPlanSchema, rhythmRecurrenceRevisionSchema } from './rhythmAuthoritySchemas';
+import { rhythmInstanceSchema, rhythmPlanSchema, rhythmRecurrenceRevisionSchema, type RhythmInstance } from './rhythmAuthoritySchemas';
 import { validateRhythmAuthorityRelationships } from './rhythmAuthorityRepository';
 import { explicitPreferenceStoreRecordSchema, EXPLICIT_PREFERENCES_RECORD_ID } from './explicitPreferenceSchema';
 import { durationLearningControlStoreRecordSchema, DURATION_LEARNING_CONTROLS_RECORD_ID } from './durationLearningControlSchema';
@@ -24,6 +24,16 @@ export const PORTABLE_PROFILE_VERSION = 1;
 export const REPLACE_LOCAL_PROFILE_CONFIRMATION = 'REPLACE LOCAL PROFILE';
 export const MAX_PORTABLE_PROFILE_BYTES = 16 * 1024 * 1024;
 const MAX_PORTABLE_PROFILE_RECORDS = 10_000;
+
+/** Closed occurrences retain historical task/placement IDs, but only a live
+ * routed occurrence needs an accepted coordinate to resume after recovery. */
+function isLiveRoutedRhythmInstance(instance: RhythmInstance): instance is RhythmInstance & {
+  activeTaskId: string; placementId: string;
+} {
+  return !!instance.activeTaskId && !!instance.placementId &&
+    (instance.lifecycleState === 'today' || instance.lifecycleState === 'inProgress' ||
+      instance.lifecycleState === 'paused');
+}
 
 const foundationSchema = profileAwareSettingsSchema.innerType().pick({
   id: true, appVersion: true, updatedAt: true,
@@ -97,7 +107,7 @@ export const portableProfileSchema = z.object({
     const owners = d.rhythmInstances.filter((row) => row.placementId === placement.id);
     const instance = owners[0];
     routedOwners.set(placement.id, owners.length);
-    if (owners.length !== 1 || !instance?.activeTaskId || !['today', 'inProgress', 'paused'].includes(instance.lifecycleState) ||
+    if (owners.length !== 1 || !instance || !isLiveRoutedRhythmInstance(instance) ||
       placement.targetKind !== 'rhythm' || placement.rhythmId !== instance.id ||
       placement.rhythmInstanceId !== instance.id || placement.intentionId !== instance.id ||
       placement.rhythmTemplateId !== instance.rhythmTemplateId || placement.rhythmPlanId !== instance.rhythmPlanId ||
@@ -170,11 +180,11 @@ export const portableProfileSchema = z.object({
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
         message: 'A placed rhythm occurrence requires its linked Today task.' });
     }
-    if (instance.activeTaskId && instance.placementId && !routed.has(instance.placementId)) {
+    if (isLiveRoutedRhythmInstance(instance) && !routed.has(instance.placementId)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
         message: 'A routed rhythm occurrence requires its accepted placement.' });
     }
-    if (instance.activeTaskId && instance.placementId && routedOwners.get(instance.placementId) !== 1) {
+    if (isLiveRoutedRhythmInstance(instance) && routedOwners.get(instance.placementId) !== 1) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
         message: 'A routed rhythm placement must have one occurrence owner.' });
     }
@@ -314,8 +324,7 @@ function payloadFromSnapshot(state: Snapshot, settings: PortableProfile['data'][
   const planRows = state.schedulerPlanState;
   if (planRows.length > 1) throw new Error('Multiple scheduler plans cannot be checked safely.');
   const routedInstances = rhythmInstanceSchema.array().parse(state.rhythmInstances)
-    .filter((instance) => !!instance.activeTaskId && !!instance.placementId &&
-      ['today', 'inProgress', 'paused'].includes(instance.lifecycleState));
+    .filter(isLiveRoutedRhythmInstance);
   const acceptedPlan = planRows.length ? schedulerPlanStateRecordSchema.safeParse(planRows[0]) : null;
   if (routedInstances.length && (!acceptedPlan || !acceptedPlan.success)) {
     throw new Error('Routed rhythm occurrences require a readable accepted private plan.');

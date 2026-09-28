@@ -14,7 +14,8 @@ import {
 } from '../data/behaviourHistoryControl';
 import type { ActiveTask, ActiveTaskStatus } from '../data/schemas';
 import { getCurrentLifeRhythmDatabase } from '../data/localDataNamespace';
-import { readProfileView, StaleProfileRecoveryError, STALE_PROFILE_RECOVERY_MESSAGE } from '../data/profileRecoveryGeneration';
+import { captureProfileRecoveryGeneration, readProfileView,
+  StaleProfileRecoveryError, STALE_PROFILE_RECOVERY_MESSAGE } from '../data/profileRecoveryGeneration';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import { ResetActionCard } from '../features/reset/ResetActionCard';
 import {
@@ -72,7 +73,7 @@ type ResetScreenProps = {
     expectedRecoveryGeneration?: number,
   ) => Promise<ActiveTaskStatusUpdateResult>;
   exportBehaviourHistoryAction?: () => Promise<BehaviourHistoryExport>;
-  deleteBehaviourHistoryAction?: (confirmation: string) => Promise<DeleteBehaviourHistoryResult>;
+  deleteBehaviourHistoryAction?: (confirmation: string, expectedRecoveryGeneration?: number) => Promise<DeleteBehaviourHistoryResult>;
   onBehaviourHistoryDeleted?: () => Promise<boolean>;
 };
 
@@ -95,7 +96,8 @@ export function ResetScreen({
   updateTaskStatus = (id, status, generation) => updateActiveTaskStatus(id, status,
     getCurrentLifeRhythmDatabase(), generation),
   exportBehaviourHistoryAction = exportBehaviourHistory,
-  deleteBehaviourHistoryAction = deleteBehaviourHistory,
+  deleteBehaviourHistoryAction = (confirmation, generation) => deleteBehaviourHistory(
+    confirmation, getCurrentLifeRhythmDatabase(), generation),
   onBehaviourHistoryDeleted,
 }: ResetScreenProps = {}) {
   const { snapshot } = useAppSnapshot();
@@ -114,6 +116,19 @@ export function ResetScreen({
   const [fullResetInput, setFullResetInput] = useState('');
   const [fullResetConfirmed, setFullResetConfirmed] = useState(false);
   const [behaviourDeleteInput, setBehaviourDeleteInput] = useState('');
+  // This destructive control has its own rendered-profile authority. Refreshing
+  // Today tasks cannot silently authorize a confirmation typed before restore.
+  const [behaviourHistoryViewGeneration, setBehaviourHistoryViewGeneration] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    captureProfileRecoveryGeneration(getCurrentLifeRhythmDatabase()).then((generation) => {
+      if (active) setBehaviourHistoryViewGeneration(generation);
+    }).catch(() => {
+      if (active) setConfirmation('Behaviour history could not be read safely. Try again.');
+    });
+    return () => { active = false; };
+  }, []);
 
   async function refreshVisibleTodayTasks() {
     const { generation, value: tasks } = await readProfileView(getCurrentLifeRhythmDatabase(), loadTodayTasks);
@@ -246,9 +261,19 @@ export function ResetScreen({
   }
 
   async function deleteLocalBehaviourHistory() {
-    const result = await deleteBehaviourHistoryAction(behaviourDeleteInput);
+    if (behaviourHistoryViewGeneration === null) return;
+    const result = await deleteBehaviourHistoryAction(behaviourDeleteInput, behaviourHistoryViewGeneration);
     if (!result.ok) {
       setConfirmation(result.errors.join(' '));
+      if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
+        setBehaviourDeleteInput('');
+        setBehaviourHistoryViewGeneration(null);
+        try {
+          setBehaviourHistoryViewGeneration(await captureProfileRecoveryGeneration(getCurrentLifeRhythmDatabase()));
+        } catch {
+          setConfirmation('Behaviour history could not be read safely. Try again.');
+        }
+      }
       return;
     }
 
@@ -337,12 +362,13 @@ export function ResetScreen({
           <span>Type {BEHAVIOUR_HISTORY_DELETE_CONFIRMATION} to delete this ledger</span>
           <input
             aria-label={`Type ${BEHAVIOUR_HISTORY_DELETE_CONFIRMATION} to delete behaviour history`}
+            disabled={behaviourHistoryViewGeneration === null}
             onChange={(event) => setBehaviourDeleteInput(event.target.value)}
             value={behaviourDeleteInput}
           />
         </label>
         <Button
-          disabled={behaviourDeleteInput !== BEHAVIOUR_HISTORY_DELETE_CONFIRMATION}
+          disabled={behaviourHistoryViewGeneration === null || behaviourDeleteInput !== BEHAVIOUR_HISTORY_DELETE_CONFIRMATION}
           onClick={deleteLocalBehaviourHistory}
         >
           Delete behaviour history

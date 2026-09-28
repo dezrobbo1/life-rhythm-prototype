@@ -143,15 +143,70 @@ describe('Gate 8A4 portable canonical profile', () => {
     expect(rebuilt.ok, JSON.stringify(rebuilt)).toBe(true);
     if (rebuilt.ok) expect(rebuilt.plan.placements.filter((p) => p.id === placement.id), JSON.stringify(rebuilt.plan)).toHaveLength(1);
   });
-  it('rejects routed instance state without an accepted placement, before destructive restore', async () => {
+  it.each(['done', 'parked', 'skipped', 'notToday'] as const)(
+    'keeps a normally closed routed rhythm exportable after %s', async (status) => {
+      const db = getCurrentLifeRhythmDatabase();
+      const old = await db.rhythmInstances.toCollection().first();
+      const today = await db.activeTasks.get('today');
+      if (!old || !today) throw new Error('Missing routed test fixture');
+      const instance = buildMissingRhythmInstances({ template, plan, revisions: [revision], existing: [],
+        horizonStartDate: '2026-09-28', horizonEndDate: '2026-09-28', createdAt: timestamp })[0];
+      const placement = { id: 'closed-rhythm-placement', intentionId: instance.id, targetKind: 'rhythm' as const,
+        rhythmId: instance.id, rhythmTemplateId: instance.rhythmTemplateId, rhythmPlanId: instance.rhythmPlanId,
+        rhythmRecurrenceRevisionId: instance.recurrenceRevisionId, rhythmInstanceId: instance.id,
+        date: '2026-09-28', start: '07:00', end: '07:20', timezone: 'Australia/Perth',
+        origin: 'scheduler' as const, variantKind: 'normal' as const, provenance: ['accepted'] };
+      await db.rhythmInstances.delete(old.id);
+      await db.activeTasks.put(activeTaskSchema.parse({ ...today, id: 'generated', templateId: 'rhythm',
+        source: 'library', sourceRhythmInstanceId: instance.id }));
+      await db.rhythmInstances.put({ ...instance, activeTaskId: 'generated', placementId: placement.id,
+        lifecycleState: 'today', planningState: 'today', completionState: 'notStarted' });
+      await db.schedulerPlanState.put({ id: 'current', version: 1, updatedAt: timestamp,
+        plan: { placements: [placement], unscheduledIntentionIds: [], unscheduledRhythmIds: [], rejectedExistingPlacements: [] } });
+      await db.settings.delete('learning:duration-controls:v1');
+      expect((await exportPortableProfile(db)).payload.data.routedRhythmPlacements).toEqual([placement]);
+      expect((await updateTaskLifecycleStatus('generated', status, db)).ok).toBe(true);
+      const closed = await db.rhythmInstances.get(instance.id);
+      expect(closed).toMatchObject({ lifecycleState: 'closed', planningState: 'closed',
+        completionState: status === 'done' ? 'done' : 'skipped', activeTaskId: 'generated', placementId: placement.id });
+      const backup = await exportPortableProfile(db, timestamp);
+      expect(backup.payload.data.routedRhythmPlacements).toEqual([]);
+      expect(checkPortableProfileJson(backup.json).ok).toBe(true);
+      const forged = JSON.parse(backup.json);
+      forged.data.routedRhythmPlacements.push(placement);
+      expect(checkPortableProfileJson(JSON.stringify(forged)).ok).toBe(false);
+
+      setCurrentLocalDataNamespace(namespaceB);
+      const checked = await checkPortableProfileForRestore(backup.json);
+      if (!checked.ok || !('expectation' in checked)) throw new Error('Closed backup failed check');
+      expect(await restorePortableProfile(backup.json, checked.expectation, '')).toEqual({ ok: true });
+      const restored = getCurrentLifeRhythmDatabase();
+      expect(await restored.rhythmInstances.get(instance.id)).toEqual(closed);
+      expect((await restored.activeTasks.get('generated'))?.status).toBe(status);
+      expect(await restored.schedulerPlanState.count()).toBe(0);
+      if (status === 'done') {
+        const rebuilt = await ensureCurrentPrivatePlan({ now: new Date('2026-09-27T16:00:00.000Z'), timezone: 'Australia/Perth' });
+        expect(rebuilt.ok, JSON.stringify(rebuilt)).toBe(true);
+        if (rebuilt.ok) expect(rebuilt.plan.placements.some((p) => p.rhythmInstanceId === instance.id)).toBe(false);
+        expect((await restored.rhythmInstances.toArray()).filter((row) => row.id === instance.id)).toHaveLength(1);
+      }
+      expect((await exportPortableProfile(restored, timestamp)).payload.data.rhythmInstances)
+        .toContainEqual(closed);
+    },
+  );
+  it.each([
+    { taskStatus: 'active', lifecycle: 'today' },
+    { taskStatus: 'inProgress', lifecycle: 'inProgress' },
+    { taskStatus: 'paused', lifecycle: 'paused' },
+  ] as const)('rejects live $lifecycle without an accepted placement, before destructive restore', async ({ taskStatus, lifecycle }) => {
     const db = getCurrentLifeRhythmDatabase();
     const instance = await db.rhythmInstances.toCollection().first();
     const today = await db.activeTasks.get('today');
     if (!instance || !today) throw new Error('Missing fixture');
     await db.activeTasks.put(activeTaskSchema.parse({ ...today, id: 'generated', templateId: 'rhythm',
-      source: 'library', sourceRhythmInstanceId: instance.id }));
+      source: 'library', sourceRhythmInstanceId: instance.id, status: taskStatus }));
     await db.rhythmInstances.put({ ...instance, activeTaskId: 'generated', placementId: 'missing-placement',
-      lifecycleState: 'today', planningState: 'today', completionState: 'notStarted' });
+      lifecycleState: lifecycle, planningState: 'today', completionState: 'notStarted' });
     await expect(exportPortableProfile(db)).rejects.toThrow(/accepted private plan/i);
     const crafted = JSON.parse(exported);
     crafted.data.activeTasks.push(await db.activeTasks.get('generated'));

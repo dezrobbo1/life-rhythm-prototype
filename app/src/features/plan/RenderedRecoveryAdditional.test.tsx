@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLifeRhythmDatabase } from '../../data/db';
 import { createAuthLocalDataNamespace, getCurrentLifeRhythmDatabase,
   resetCurrentLocalDataNamespace, setCurrentLocalDataNamespace } from '../../data/localDataNamespace';
@@ -12,7 +12,7 @@ import { checkPortableProfileForRestore, exportPortableProfile,
 import { CURRENT_CALENDAR_SOURCE_ID } from '../../data/calendarSourceSchema';
 import { createExplicitPreferenceStore, upsertExplicitPreference } from '../../data/explicitPreferenceRepository';
 import { createDurationLearningControlStore, upsertDurationLearningControl } from '../../data/durationLearningControlRepository';
-import { activeTaskSchema, rhythmTemplateSchema } from '../../data/schemas';
+import { activeTaskSchema, behaviourEventSchema, rhythmTemplateSchema } from '../../data/schemas';
 import { rhythmPlanSchema, rhythmRecurrenceRevisionSchema } from '../../data/rhythmAuthoritySchemas';
 import { CalendarSourceControl } from './CalendarSourceControl';
 import { commitCalendarSourceBuffers, commitCalendarSourceImport } from '../../data/calendarSourceMutationCoordinator';
@@ -25,6 +25,7 @@ import { LibraryScreen } from '../../screens/LibraryScreen';
 import { SchedulingPreferencesPanel } from '../setup/SchedulingPreferencesPanel';
 import { DurationLearningPanel } from '../setup/DurationLearningPanel';
 import { ResetScreen } from '../../screens/ResetScreen';
+import { BEHAVIOUR_HISTORY_DELETE_CONFIRMATION, deleteBehaviourHistory } from '../../data/behaviourHistoryControl';
 
 const now = '2026-09-28T10:00:00.000Z';
 let counter = 0;
@@ -36,9 +37,9 @@ beforeEach(async () => {
 });
 afterEach(() => { cleanup(); resetCurrentLocalDataNamespace(); });
 
-async function restoreInAnotherHandle() {
+async function restoreInAnotherHandle(replacement?: string) {
   const db = getCurrentLifeRhythmDatabase();
-  const backup = (await exportPortableProfile(db)).json;
+  const backup = replacement ?? (await exportPortableProfile(db)).json;
   const other = createLifeRhythmDatabase(db.name);
   try {
     const checked = await checkPortableProfileForRestore(backup, other);
@@ -49,6 +50,52 @@ async function restoreInAnotherHandle() {
 }
 
 describe('read generation accompanies additional rendered actions', () => {
+  it('rejects a stale Reset history deletion and keeps the newly restored facts', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const source = createLifeRhythmDatabase(`additional-history-source-${counter}`);
+    const event = behaviourEventSchema.parse({ recordKind: 'behaviourEvent', version: 1,
+      id: 'restored-fact', eventType: 'taskStarted', occurredAt: now, localDate: '2026-09-28',
+      timezone: 'UTC', taskId: 'restored-task', source: 'user', action: 'start',
+      provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },
+      before: { taskStatus: 'active', minimumAchieved: false },
+      after: { taskStatus: 'inProgress', minimumAchieved: false } });
+    await source.taskHistory.put(event);
+    const replacement = (await exportPortableProfile(source)).json;
+    await source.delete();
+    const onBehaviourHistoryDeleted = vi.fn(async () => true);
+    const user = userEvent.setup();
+    render(<ResetScreen onBehaviourHistoryDeleted={onBehaviourHistoryDeleted} />);
+    const input = screen.getByLabelText(`Type ${BEHAVIOUR_HISTORY_DELETE_CONFIRMATION} to delete behaviour history`) as HTMLInputElement;
+    await waitFor(() => expect(input.disabled).toBe(false));
+    await user.type(input, BEHAVIOUR_HISTORY_DELETE_CONFIRMATION);
+    await restoreInAnotherHandle(replacement);
+    const before = await db.taskHistory.toArray();
+    await user.click(screen.getByRole('button', { name: 'Delete behaviour history' }));
+    await waitFor(() => expect(screen.getByText(/local profile changed/i)).toBeTruthy());
+    expect(await db.taskHistory.toArray()).toEqual(before);
+    expect(onBehaviourHistoryDeleted).not.toHaveBeenCalled();
+    expect(input.value).toBe('');
+    await waitFor(() => expect(input.disabled).toBe(false));
+    await user.type(input, BEHAVIOUR_HISTORY_DELETE_CONFIRMATION);
+    await user.click(screen.getByRole('button', { name: 'Delete behaviour history' }));
+    await waitFor(() => expect(onBehaviourHistoryDeleted).toHaveBeenCalledTimes(1));
+    expect(await db.taskHistory.toArray()).toEqual([]);
+  });
+  it('rejects a stale expected generation passed directly to history deletion', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    await db.taskHistory.put(behaviourEventSchema.parse({ recordKind: 'behaviourEvent', version: 1,
+      id: 'kept-fact', eventType: 'taskStarted', occurredAt: now, localDate: '2026-09-28',
+      timezone: 'UTC', taskId: 'kept-task', source: 'user', action: 'start',
+      provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },
+      before: { taskStatus: 'active', minimumAchieved: false },
+      after: { taskStatus: 'inProgress', minimumAchieved: false } }));
+    const expected = await readProfileRecoveryGeneration(db);
+    await restoreInAnotherHandle();
+    const before = await db.taskHistory.toArray();
+    expect(await deleteBehaviourHistory(BEHAVIOUR_HISTORY_DELETE_CONFIRMATION, db, expected))
+      .toMatchObject({ ok: false, errors: [STALE_PROFILE_RECOVERY_MESSAGE] });
+    expect(await db.taskHistory.toArray()).toEqual(before);
+  });
   it('rejects stale Reset actions on Today tasks from the prior profile', async () => {
     const db = getCurrentLifeRhythmDatabase();
     for (const id of ['first', 'second']) await db.activeTasks.put(activeTaskSchema.parse({
