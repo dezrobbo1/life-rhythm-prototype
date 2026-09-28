@@ -10,6 +10,7 @@ vi.mock('../../data/portableProfileBackup', () => ({
   restorePortableProfile: mock.restore,
   exportPortableProfile: mock.exportBackup,
   REPLACE_LOCAL_PROFILE_CONFIRMATION: 'REPLACE LOCAL PROFILE',
+  MAX_PORTABLE_PROFILE_BYTES: 16 * 1024 * 1024,
 }));
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
@@ -47,5 +48,17 @@ describe('portable profile recovery controls', () => {
     await user.click(screen.getByRole('button', { name: 'Check backup' }));
     expect(screen.getByRole('status').textContent).toContain('Unsupported portable backup.');
     expect(screen.queryByRole('button', { name: 'Restore backup' })).toBeNull();
+  });
+
+  it('rejects an oversized selected file before reading its contents', async () => {
+    const user = userEvent.setup();
+    render(<PortableProfileRecovery onReload={vi.fn()} />);
+    const file = new File(['small'], 'oversized.json', { type: 'application/json' });
+    Object.defineProperty(file, 'size', { value: 16 * 1024 * 1024 + 1 });
+    const read = vi.spyOn(file, 'text');
+    await user.upload(screen.getByLabelText('Select portable backup file'), file);
+    expect(read).not.toHaveBeenCalled();
+    expect(screen.getByRole('status').textContent).toContain('size bounds');
+    expect(screen.getByRole('button', { name: 'Check backup' })).toHaveProperty('disabled', true);
   });
 });

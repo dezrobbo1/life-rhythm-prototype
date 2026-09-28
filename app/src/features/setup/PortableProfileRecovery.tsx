@@ -3,6 +3,7 @@ import { Button } from '../../components';
 import {
   checkPortableProfileForRestore,
   exportPortableProfile,
+  MAX_PORTABLE_PROFILE_BYTES,
   REPLACE_LOCAL_PROFILE_CONFIRMATION,
   restorePortableProfile,
 } from '../../data/portableProfileBackup';
@@ -30,6 +31,10 @@ export function PortableProfileRecovery({ onReload = () => window.location.reloa
     event.target.value = '';
     if (!file) return;
     changeSource('');
+    if (file.size > MAX_PORTABLE_PROFILE_BYTES) {
+      setMessage('Backup file exceeds safe size bounds. Nothing changed.');
+      return;
+    }
     const atRevision = revision.current;
     try {
       const content = await file.text();

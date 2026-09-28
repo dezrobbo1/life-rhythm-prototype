@@ -20,15 +20,17 @@ PR review found a second recovery-boundary issue: the reusable Settings schema p
 
 Later review found three directly causal validation gaps. The normal `confirmTaskPoolSoftPlacement` path creates a planned placement for a Held item without a Today task, so its real source failed backup; restoration now accepts a live placement backed by either canonical class. Conversely, a crafted artifact could contain two visible placements colliding on date/task or date/block, bypassing the normal placement writer, or an active task whose `custom` source the normal Today repository hides. Red regressions reproduced both problems; checking now rejects the conflicts and unsupported source before replacement. The Held-item test exports and restores a real repository-authored placement into another namespace.
 
+Subsequent review found two more direct integrity gaps and an untrusted-input resource concern. A crafted closed/done rhythm instance paired with a linked active generated Today task had passed identity checking but vanished from scheduling projection; the portable checker now requires lifecycle-state agreement for linked tasks. A raw `dayProfileFoundation` row with unknown fields previously down-converted silently through settings loading; export now strictly validates that raw sidecar and refuses unknown data. Finally, files larger than 16 MiB are rejected before reading, pasted JSON beyond that byte bound is rejected before parsing, and aggregate artifact collections are capped at 10,000 records before schema traversal. Regression tests were red before these corrections and green afterward.
+
 ## Validation on final source tree
 
 | Check | Result |
 | --- | --- |
 | `npm ci --ignore-scripts` | Passed |
-| Focused UTC and Perth recovery, calendar, scheduler and backup matrix | 24 files / 423 tests passed in each timezone |
-| Full `TZ=UTC npm test -- --run` | 107 files / 1,260 tests passed |
-| Full `TZ=Australia/Perth npm test -- --run` | 107 files / 1,260 tests passed |
-| Focused `TZ=Australia/Sydney` recovery, calendar, scheduler and backup matrix | 24 files / 423 tests passed |
+| Focused UTC and Perth recovery, calendar, scheduler and backup matrix | 24 files / 426 tests passed in each timezone |
+| Full `TZ=UTC npm test -- --run` | 107 files / 1,263 tests passed |
+| Full `TZ=Australia/Perth npm test -- --run` | 107 files / 1,263 tests passed |
+| Focused `TZ=Australia/Sydney` recovery, calendar, scheduler and backup matrix | 24 files / 426 tests passed |
 | `npm run build` | Passed |
 | `git diff --check` | Passed |
 | Reviewed code head `f92b719c173330326e9c0f1067e7b285be99a706` App CI | Run #267, success |

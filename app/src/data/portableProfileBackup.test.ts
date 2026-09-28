@@ -273,6 +273,36 @@ describe('Gate 8A4 portable canonical profile', () => {
       { ...placement, id: 'third', taskId: 'pool' }] })).ok).toBe(false);
   });
 
+  it('rejects a closed rhythm instance linked to a visible generated Today task', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const instance = await db.rhythmInstances.toCollection().first();
+    const today = await db.activeTasks.get('today');
+    if (!instance || !today) throw new Error('Fixture is missing');
+    await db.activeTasks.put(activeTaskSchema.parse({ ...today, id: 'generated', source: 'library',
+      templateId: 'rhythm', sourceRhythmInstanceId: instance.id }));
+    await db.rhythmInstances.put({ ...instance, activeTaskId: 'generated', lifecycleState: 'today',
+      planningState: 'today', completionState: 'notStarted' });
+    const valid = (await exportPortableProfile()).payload;
+    const tampered = { ...valid, data: { ...valid.data, rhythmInstances: valid.data.rhythmInstances.map((item) =>
+      item.id === instance.id ? { ...item, lifecycleState: 'closed', planningState: 'closed', completionState: 'done' } : item) } };
+    expect(checkPortableProfileJson(JSON.stringify(tampered)).ok).toBe(false);
+  });
+
+  it('does not down-convert unknown day-profile foundation fields or parse oversized artifacts', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const foundation = await db.settings.get('dayProfileFoundation');
+    await db.settings.put({ ...foundation, newAuthorityFromLaterBuild: true } as never);
+    await expect(exportPortableProfile()).rejects.toThrow('foundation');
+    const oversized = checkPortableProfileJson(' '.repeat(16 * 1024 * 1024 + 1));
+    expect(oversized.ok).toBe(false);
+    if (!oversized.ok) expect(oversized.errors.join(' ')).toContain('size');
+    const parsed = JSON.parse(exported);
+    parsed.data.behaviourEvents = Array(10_001).fill(parsed.data.behaviourEvents[0]);
+    const crowded = checkPortableProfileJson(JSON.stringify(parsed));
+    expect(crowded.ok).toBe(false);
+    if (!crowded.ok) expect(crowded.errors.join(' ')).toContain('record bounds');
+  });
+
   it('restoring an empty source removes stale destination preferences, controls, calendar and tasks', async () => {
     setCurrentLocalDataNamespace(namespaceB);
     const empty = (await exportPortableProfile()).json;

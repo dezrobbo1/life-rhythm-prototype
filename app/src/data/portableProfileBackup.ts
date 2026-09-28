@@ -2,7 +2,8 @@ import { z } from 'zod';
 import type { LifeRhythmDatabase } from './db';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
-  activeTaskSchema, behaviourEventSchema, legacyTaskHistorySchema, rhythmTemplateSchema, settingsSchema,
+  activeTaskSchema, behaviourEventSchema, legacyTaskHistorySchema, profileAwareSettingsSchema,
+  rhythmTemplateSchema, settingsSchema,
   softPlacementSchema, strictIsoDateTimeSchema, taskPoolItemSchema,
 } from './schemas';
 import { rhythmInstanceSchema, rhythmPlanSchema, rhythmRecurrenceRevisionSchema } from './rhythmAuthoritySchemas';
@@ -17,6 +18,32 @@ import { DAY_PROFILE_FOUNDATION_ID, loadSettingsResult, SETTINGS_APP_VERSION, SE
 export const PORTABLE_PROFILE_FORMAT = 'life-rhythm-portable-profile-backup';
 export const PORTABLE_PROFILE_VERSION = 1;
 export const REPLACE_LOCAL_PROFILE_CONFIRMATION = 'REPLACE LOCAL PROFILE';
+export const MAX_PORTABLE_PROFILE_BYTES = 16 * 1024 * 1024;
+const MAX_PORTABLE_PROFILE_RECORDS = 10_000;
+
+const foundationSchema = profileAwareSettingsSchema.innerType().pick({
+  id: true, appVersion: true, updatedAt: true,
+  dayProfileMigrationState: true, dayProfiles: true, weekdayProfileAssignments: true,
+}).extend({ id: z.literal(DAY_PROFILE_FOUNDATION_ID) }).strict();
+
+function checkCollectionBounds(input: unknown) {
+  if (!input || typeof input !== 'object' || !('data' in input)) return;
+  const data = (input as { data: unknown }).data;
+  if (!data || typeof data !== 'object') return;
+  let count = 0;
+  for (const value of Object.values(data)) {
+    if (Array.isArray(value)) count += value.length;
+    if (count > MAX_PORTABLE_PROFILE_RECORDS) throw new Error('Portable profile exceeds safe record bounds.');
+  }
+  for (const key of ['explicitPreferences', 'durationControls'] as const) {
+    const sidecar = (data as Record<string, unknown>)[key];
+    if (sidecar && typeof sidecar === 'object') {
+      const records = (sidecar as Record<string, unknown>)[key === 'explicitPreferences' ? 'preferences' : 'controls'];
+      if (Array.isArray(records)) count += records.length;
+    }
+  }
+  if (count > MAX_PORTABLE_PROFILE_RECORDS) throw new Error('Portable profile exceeds safe record bounds.');
+}
 
 const unique = (values: Array<{ id: string }>, path: string, context: z.RefinementCtx) => {
   const seen = new Set<string>();
@@ -66,6 +93,14 @@ export const portableProfileSchema = z.object({
     if (task.sourceRhythmInstanceId && (instances.get(task.sourceRhythmInstanceId)?.rhythmTemplateId !== task.templateId ||
       instances.get(task.sourceRhythmInstanceId)?.activeTaskId !== task.id)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'activeTasks', index], message: 'Rhythm occurrence/Today task identity is inconsistent.' });
+    }
+    if (task.sourceRhythmInstanceId) {
+      const instance = instances.get(task.sourceRhythmInstanceId);
+      const expected = task.status === 'active' ? 'today'
+        : task.status === 'paused' ? 'paused'
+          : ['done', 'parked', 'skipped', 'notToday'].includes(task.status) ? 'closed' : 'inProgress';
+      if (instance && instance.lifecycleState !== expected) context.addIssue({ code: z.ZodIssueCode.custom,
+        path: ['data', 'activeTasks', index, 'status'], message: 'Linked rhythm lifecycle is inconsistent.' });
     }
   });
   d.rhythmInstances.forEach((instance, index) => {
@@ -144,6 +179,7 @@ function checkCalendar(calendar: PortableProfile['data']['calendarSource']) {
 }
 
 function validate(input: unknown): PortableProfile {
+  checkCollectionBounds(input);
   const parsed = portableProfileSchema.parse(input);
   checkCalendar(parsed.data.calendarSource);
   return parsed;
@@ -154,6 +190,10 @@ function payloadFromSnapshot(state: Snapshot, settings: PortableProfile['data'][
   const ids = new Set([SETTINGS_ID, DAY_PROFILE_FOUNDATION_ID, EXPLICIT_PREFERENCES_RECORD_ID, DURATION_LEARNING_CONTROLS_RECORD_ID]);
   if (settingsRows.some((row) => !row || !ids.has(row.id))) throw new Error('Unknown settings sidecar; backup was not created.');
   if (!settings && settingsRows.some((row) => row.id === DAY_PROFILE_FOUNDATION_ID)) throw new Error('Orphan day-profile foundation.');
+  const foundation = settingsRows.find((row) => row.id === DAY_PROFILE_FOUNDATION_ID);
+  if (foundation && !foundationSchema.safeParse(foundation).success) {
+    throw new Error('Unreadable day-profile foundation; backup was not created.');
+  }
   const preferences = settingsRows.find((row) => row.id === EXPLICIT_PREFERENCES_RECORD_ID) ?? null;
   const duration = settingsRows.find((row) => row.id === DURATION_LEARNING_CONTROLS_RECORD_ID) ?? null;
   const history = state.taskHistory as Array<{ recordKind?: unknown }>;
@@ -183,6 +223,9 @@ async function readValidatedProfile(db: LifeRhythmDatabase, state: Snapshot, tim
 
 export function checkPortableProfileJson(json: string) {
   try {
+    if (json.length > MAX_PORTABLE_PROFILE_BYTES || new TextEncoder().encode(json).byteLength > MAX_PORTABLE_PROFILE_BYTES) {
+      throw new Error('Portable profile exceeds safe backup size bounds.');
+    }
     const payload = validate(JSON.parse(json) as unknown);
     const d = payload.data;
     return { ok: true as const, payload, preview: { exportedAt: payload.exportedAt,
@@ -199,7 +242,11 @@ export function checkPortableProfileJson(json: string) {
 export async function exportPortableProfile(db: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(), exportedAt = new Date().toISOString()) {
   const payload = await db.transaction('r', [...tables(db)], async () =>
     readValidatedProfile(db, await snapshot(db), exportedAt));
-  return { payload, json: `${JSON.stringify(payload, null, 2)}\n`,
+  const json = `${JSON.stringify(payload, null, 2)}\n`;
+  if (new TextEncoder().encode(json).byteLength > MAX_PORTABLE_PROFILE_BYTES) {
+    throw new Error('Portable profile exceeds safe backup size bounds.');
+  }
+  return { payload, json,
     fileName: `life-rhythm-portable-profile-${exportedAt.slice(0, 10)}.json` };
 }
 
