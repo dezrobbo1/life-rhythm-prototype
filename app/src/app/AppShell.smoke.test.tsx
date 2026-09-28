@@ -156,7 +156,8 @@ describe('primary app shell navigation', () => {
     expect(within(secondaryNav).getByRole('button', { name: 'Reset' })).toBeTruthy();
     expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Current limits' })).toBeTruthy();
-    expect(screen.getByText('Use one browser, one device, and one stable URL for early testing. The longitudinal trial has not started.')).toBeTruthy();
+    expect(screen.getByText('Your live data remains in this browser. Use a portable backup to recover it in another browser or device. The longitudinal trial has not started.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Export portable backup' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Time to leave alone' })).toBeTruthy();
     expect(screen.getByLabelText('Select settings backup file')).toBeTruthy();
     expect(screen.getByLabelText('Select soft placement backup file')).toBeTruthy();

@@ -46,6 +46,7 @@ import { buildSetupViewModel } from '../viewModels';
 import { SchedulingPreferencesPanel } from '../features/setup/SchedulingPreferencesPanel';
 import { DurationLearningPanel } from '../features/setup/DurationLearningPanel';
 import { CalendarSourceControl } from '../features/plan/CalendarSourceControl';
+import { PortableProfileRecovery } from '../features/setup/PortableProfileRecovery';
 import { ALL_WEEKDAYS, WORKDAY_PROFILE_ID, NON_WORKDAY_PROFILE_ID, type DayProfile, type WeekdayProfileAssignment } from '../data/schemas';
 import { createDefaultSettings } from '../data/settingsRepository';
 
@@ -875,9 +876,10 @@ export function SetupScreen({
       <Card>
         <div className="setup-section-heading">
           <h2>Backup and recovery</h2>
-          <p>Export backup files or check a backup. Checking does not restore or change this device.</p>
+          <p>Export a portable profile, check it, and restore it when you choose. Checking alone changes nothing.</p>
         </div>
         <p className="setup-note">{setupViewModel.dataPreview.copy}</p>
+        <PortableProfileRecovery />
         <div className="setup-backup-panel">
           <div className="setup-subheading">
             <h3>Export settings</h3>
@@ -1123,11 +1125,11 @@ export function SetupScreen({
       <Card>
         <div className="setup-section-heading">
           <h2>Current limits</h2>
-          <p>Use one browser, one device, and one stable URL for early testing. The longitudinal trial has not started.</p>
+          <p>Your live data remains in this browser. Use a portable backup to recover it in another browser or device. The longitudinal trial has not started.</p>
         </div>
         <div className="setup-trial-limits">
           <p>Life Rhythm is local-first. This browser and device store the live data.</p>
-          <p>Login is not cloud sync. Backups can be exported and checked, but import/restore is not enabled.</p>
+          <p>Login is not cloud sync. A checked portable profile can replace this local profile with your confirmation. Individual backup types remain check-only.</p>
           <p>Plan accepts a static read-only calendar file with supported recurring events. Re-import it after changes; live provider connections, cloud sync, notifications, and individual Move/Protect for automatic times remain future work.</p>
         </div>
       </Card>
