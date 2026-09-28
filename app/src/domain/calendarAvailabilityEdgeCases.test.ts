@@ -63,6 +63,32 @@ describe('Gate 2 calendar availability edge semantics', () => {
       { ...allDay, end: { date: '2053-05-20' } },
     ])).toThrow();
   });
+  it('bounds timed fragments and their aggregate before projecting any event', () => {
+    const timed = readEvent('timed');
+    const from = (endDate: string, endTime = '09:00') => ({
+      ...timed, start: { date: '2026-01-01', time: '09:00' }, end: { date: endDate, time: endTime },
+    });
+    const within = from('2053-05-19', '00:00'); // 10,000 dates; midnight end omits the final date.
+    expect(externalCommitmentsFromCalendarEvents([within])).toHaveLength(10_000);
+    expect(() => externalCommitmentsFromCalendarEvents([from('2053-05-19', '00:01')])).toThrow('Calendar commitments exceed safe daily expansion bounds.');
+    const sixThousand = from('2042-06-06');
+    expect(() => externalCommitmentsFromCalendarEvents([sixThousand, { ...sixThousand, sourceEventId: 'second' }]))
+      .toThrow('Calendar commitments exceed safe daily expansion bounds.');
+    expect(() => externalCommitmentsFromCalendarEvents([
+      { ...timed, allDay: true, start: { date: '2026-01-01' }, end: { date: '2042-06-06' } },
+      sixThousand,
+    ])).toThrow('Calendar commitments exceed safe daily expansion bounds.');
+    expect(externalCommitmentsFromCalendarEvents([from('2026-01-01', '10:00')])).toHaveLength(1);
+    expect(externalCommitmentsFromCalendarEvents([from('2026-01-02', '00:00')])).toHaveLength(1);
+    expect(externalCommitmentsFromCalendarEvents([from('2026-01-02', '01:00')])).toHaveLength(2);
+    const nonBlocking = { ...from('4763-11-28'), busy: false };
+    expect(externalCommitmentsFromCalendarEvents([nonBlocking, from('2026-01-01', '10:00')])).toHaveLength(1);
+    let projected = false;
+    const first = { ...from('2026-01-01', '10:00'), get title() { projected = true; return 'First'; } };
+    expect(() => externalCommitmentsFromCalendarEvents([first, from('2053-05-19', '00:01')]))
+      .toThrow('Calendar commitments exceed safe daily expansion bounds.');
+    expect(projected).toBe(false);
+  });
   it('blocks reviewed work travel on both sides of midnight across different assigned profiles', () => {
     const base = settingsWithUsableWorkday();
     const settings = settingsSchema.parse({

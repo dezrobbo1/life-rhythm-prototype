@@ -16,8 +16,11 @@ import {
 } from './localDataNamespace';
 import {
   loadSchedulerPlanState,
+  markCalendarRepairPending,
   saveSchedulerPlanState,
 } from './schedulerPlanStateRepository';
+import { icsCalendarAdapter } from '../domain/calendarAdapter';
+import { validateCalendarCommitmentExpansion } from '../domain/calendarAvailability';
 
 let namespaceIndex = 0;
 
@@ -42,6 +45,44 @@ const calendarA = [
 const calendarB = calendarA
   .replace('calendar-a', 'calendar-b')
   .replace('Calendar A', 'Calendar B');
+
+const overBudgetTimed = [
+  'BEGIN:VCALENDAR',
+  'VERSION:2.0',
+  'BEGIN:VEVENT',
+  'UID:long-busy',
+  'DTSTART:20260101T090000Z',
+  'DURATION:P1000000D',
+  'END:VEVENT',
+  'END:VCALENDAR',
+].join('\r\n');
+
+const futureAggregateCalendar = [
+  'BEGIN:VCALENDAR', 'VERSION:2.0',
+  'BEGIN:VEVENT', 'UID:future-a', 'DTSTART:20261201T160000Z', 'DURATION:P6000D', 'END:VEVENT',
+  'BEGIN:VEVENT', 'UID:future-b', 'DTSTART:20261202T160000Z', 'DURATION:P6000D', 'END:VEVENT',
+  'END:VCALENDAR',
+].join('\r\n');
+
+const openEndedOverlapCalendar = [
+  'BEGIN:VCALENDAR', 'VERSION:2.0',
+  'BEGIN:VEVENT', 'UID:long-yearly', 'DTSTART:20261201T090000Z', 'DURATION:P6000D',
+  'RRULE:FREQ=YEARLY', 'END:VEVENT', 'END:VCALENDAR',
+].join('\r\n');
+
+const variableCadenceOverlapCalendar = [
+  'BEGIN:VCALENDAR', 'VERSION:2.0',
+  'BEGIN:VEVENT', 'UID:long-monthly', 'DTSTART:20270328T090000Z', 'DURATION:P547D',
+  'RRULE:FREQ=MONTHLY', 'END:VEVENT', 'END:VCALENDAR',
+].join('\r\n');
+
+const fullHorizonOverlapCalendar = [
+  'BEGIN:VCALENDAR', 'VERSION:2.0',
+  'BEGIN:VEVENT', 'UID:daily', 'DTSTART;VALUE=DATE:20270101', 'DURATION:P1D',
+  'RRULE:FREQ=DAILY', 'END:VEVENT',
+  'BEGIN:VEVENT', 'UID:long', 'DTSTART;VALUE=DATE:20270101', 'DURATION:P9970D',
+  'END:VEVENT', 'END:VCALENDAR',
+].join('\r\n');
 
 const plan = {
   placements: [],
@@ -86,6 +127,148 @@ beforeEach(() => {
 });
 
 describe('atomic calendar source mutation and repair attention', () => {
+  it('rejects source cost across the entire supported planning read horizon', async () => {
+    const later = icsCalendarAdapter.read(fullHorizonOverlapCalendar, {
+      ...options, windowStartDate: '2027-01-01', windowEndDate: '2027-02-02',
+    });
+    expect(later.events).toHaveLength(34);
+    expect(() => validateCalendarCommitmentExpansion(later.events))
+      .toThrow('Calendar commitments exceed safe daily expansion bounds.');
+    const database = getCurrentLifeRhythmDatabase();
+    await seedCalendarA();
+    const before = await database.calendarSources.get('primary');
+    const result = await commitCalendarSourceImport({
+      label: 'Future horizon overflow', source: fullHorizonOverlapCalendar, options,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await database.calendarSources.get('primary')).toEqual(before);
+  });
+
+  it('rejects later denser monthly overlap before replacing the canonical calendar', async () => {
+    const previewOptions = { ...options, windowEndDate: '2026-10-07' };
+    const future = icsCalendarAdapter.read(variableCadenceOverlapCalendar, {
+      ...options, windowStartDate: '2030-03-28', windowEndDate: '2030-03-29',
+    });
+    expect(future.events.length).toBeGreaterThanOrEqual(19);
+    expect(() => validateCalendarCommitmentExpansion(future.events))
+      .toThrow('Calendar commitments exceed safe daily expansion bounds.');
+    const database = getCurrentLifeRhythmDatabase();
+    await seedCalendarA();
+    const before = await database.calendarSources.get('primary');
+    const result = await commitCalendarSourceImport({
+      label: 'Unsafe monthly recurrence', source: variableCadenceOverlapCalendar,
+      options: previewOptions,
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await database.calendarSources.get('primary')).toEqual(before);
+  });
+
+  it('rejects future overlapping occurrences of an open-ended BUSY series before replacement', async () => {
+    const future = icsCalendarAdapter.read(openEndedOverlapCalendar, {
+      ...options, windowStartDate: '2027-12-01', windowEndDate: '2027-12-02',
+    });
+    expect(future.events).toHaveLength(2);
+    expect(() => validateCalendarCommitmentExpansion(future.events))
+      .toThrow('Calendar commitments exceed safe daily expansion bounds.');
+
+    const database = getCurrentLifeRhythmDatabase();
+    await seedCalendarA();
+    const beforeSource = await database.calendarSources.get('primary');
+    const result = await commitCalendarSourceImport({
+      label: 'Unsafe open recurrence', source: openEndedOverlapCalendar, options,
+      importedAt: '2026-09-07T00:02:00.000Z',
+    });
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await database.calendarSources.get('primary')).toEqual(beforeSource);
+  });
+
+  it('rejects two individually safe future BUSY events before first import while preserving a plan', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const beforePlan = await seedPlan();
+    const result = await commitCalendarSourceImport({
+      label: 'Future aggregate', source: futureAggregateCalendar, options,
+      importedAt: '2026-09-07T00:02:00.000Z',
+    });
+
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await database.calendarSources.get('primary')).toBeUndefined();
+    expect(await database.schedulerPlanState.get('current')).toEqual(beforePlan);
+  });
+
+  it.each([false, true])('rejects future 6,000 + 6,000 fragments without changing source, spacing or plan (pending=%s)', async (pending) => {
+    const database = getCurrentLifeRhythmDatabase();
+    await seedCalendarA();
+    await database.calendarSources.update('primary', { beforeBusyMinutes: 35, afterBusyMinutes: 25 });
+    await seedPlan();
+    if (pending) {
+      expect(await markCalendarRepairPending(database, '2026-09-07T00:01:30.000Z'))
+        .toEqual({ ok: true, persisted: true });
+    }
+    const beforeSource = await database.calendarSources.get('primary');
+    const beforePlan = await database.schedulerPlanState.get('current');
+    const result = await commitCalendarSourceImport({
+      label: 'Future aggregate', source: futureAggregateCalendar, options,
+      importedAt: '2026-09-07T00:02:00.000Z',
+    });
+
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await database.calendarSources.get('primary')).toEqual(beforeSource);
+    expect(await database.schedulerPlanState.get('current')).toEqual(beforePlan);
+  });
+
+  it('rejects a first over-budget import without changing an accepted plan or repair attention', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const beforePlan = await seedPlan();
+    const result = await commitCalendarSourceImport({
+      label: 'Long busy calendar', source: overBudgetTimed, options,
+      importedAt: '2026-09-07T00:02:00.000Z',
+    });
+
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await database.calendarSources.get('primary')).toBeUndefined();
+    expect(await database.schedulerPlanState.get('current')).toEqual(beforePlan);
+  });
+
+  it.each([false, true])('rejects an over-budget replacement without changing prior source, buffers or plan (pending=%s)', async (pending) => {
+    const database = getCurrentLifeRhythmDatabase();
+    await seedCalendarA();
+    await database.calendarSources.update('primary', { beforeBusyMinutes: 35, afterBusyMinutes: 25 });
+    await seedPlan();
+    if (pending) {
+      expect(await markCalendarRepairPending(database, '2026-09-07T00:01:30.000Z'))
+        .toEqual({ ok: true, persisted: true });
+    }
+    const beforeSource = await database.calendarSources.get('primary');
+    const beforePlan = await database.schedulerPlanState.get('current');
+
+    const result = await commitCalendarSourceImport({
+      label: 'Long busy replacement', source: overBudgetTimed, options,
+      importedAt: '2026-09-07T00:02:00.000Z',
+    });
+
+    expect(result).toMatchObject({ ok: false, errors: [expect.stringContaining('safe daily expansion bounds')] });
+    expect(await database.calendarSources.get('primary')).toEqual(beforeSource);
+    expect(await database.schedulerPlanState.get('current')).toEqual(beforePlan);
+  });
+
+  it('keeps authored spacing on a valid replacement and marks accepted plans for repair', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    await seedCalendarA();
+    await database.calendarSources.update('primary', { beforeBusyMinutes: 35, afterBusyMinutes: 25 });
+    await seedPlan();
+    const result = await commitCalendarSourceImport({
+      label: 'Calendar B', source: calendarB, options,
+      importedAt: '2026-09-07T00:02:00.000Z',
+    });
+    expect(result).toMatchObject({
+      ok: true, repairAttentionPersisted: true,
+      record: { beforeBusyMinutes: 35, afterBusyMinutes: 25 },
+    });
+    expect(await loadSchedulerPlanState()).toMatchObject({
+      status: 'ok', calendarRepairPendingAt: expect.any(String),
+    });
+  });
+
   it('does not retain a first import when an existing plan cannot be marked pending', async () => {
     const beforePlan = await seedPlan();
     failPendingMarkerWrite();

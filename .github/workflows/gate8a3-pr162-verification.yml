@@ -1,0 +1,43 @@
+name: Gate 8A3 PR 162 timezone verification
+on:
+  push:
+    branches:
+      - fix/gate8a3-post-merge-expansion-safety
+    paths:
+      - app/**
+      - .github/workflows/gate8a3-pr162-verification.yml
+
+permissions:
+  contents: read
+
+jobs:
+  timezone-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        timezone: [UTC, Australia/Perth, Australia/Sydney]
+    env:
+      TZ: ${{ matrix.timezone }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Clean install without scripts
+        run: npm ci --ignore-scripts
+      - name: Focused calendar and scheduler tests
+        run: npm test -- --run src/domain/calendarAdapter.test.ts src/domain/calendarRecurrence.test.ts src/domain/calendarAvailability.test.ts src/domain/calendarAvailabilityEdgeCases.test.ts src/data/calendarSourceRepository.test.ts src/data/calendarSourceMutationCoordinator.test.ts src/data/calendarSourceBuffers.test.ts src/data/schedulerCanonicalInputSnapshot.test.ts src/data/schedulerPlanStateRepository.test.ts src/data/schedulerPlanCoordinator.test.ts src/data/settingsPlanningRepair.test.ts src/data/schedulerCalendarRepair.test.ts src/data/schedulerDayModeState.test.ts src/data/schedulerTimeDisruption.test.ts src/data/settingsRepository.test.ts src/data/settingsExport.test.ts src/data/settingsImportValidation.test.ts src/data/durationLearningPlanReconciliation.test.ts src/app/AppCalendarRepairPersistence.test.tsx src/app/AppInitialCalendarRepairReconciliation.test.tsx src/app/AppPlanRefreshState.test.tsx src/domain/rollingRepair.test.ts src/domain/scheduler.test.ts src/features/setup/settingsForm.test.ts src/features/plan/PersonalPlanReadState.test.tsx src/features/today/TodayBoundaryRecovery.test.tsx src/features/today/TodayScreen.test.tsx
+      - name: Complete suite
+        run: npm test -- --run
+      - name: Build
+        run: npm run build
+      - name: Check PR whitespace
+        run: git -C .. diff --check origin/main...HEAD

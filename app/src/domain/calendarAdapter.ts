@@ -121,6 +121,9 @@ function addCalendarDays(date: string, days: number): string {
 // Matches the existing 10,000 emitted-recurrence guard: a single imported
 // commitment must not demand more daily records than a whole safe read.
 export const MAX_CALENDAR_EXPANSION_DAYS = 10_000;
+// A scheduler read covers up to 31 planned dates plus one calendar-spacing
+// date on either side (schedulerPlanCoordinator.ts).
+const MAX_CALENDAR_PLANNING_READ_DAYS = 33;
 
 export function calendarDateSpanDays(start: string, end: string): number {
   const epoch = (date: string) => {
@@ -135,6 +138,53 @@ export function calendarDateSpanDays(start: string, end: string): number {
     throw new RangeError('Calendar event exceeds safe daily expansion bounds.');
   }
   return days;
+}
+
+export function timedCalendarFragmentDays(start: string, end: string, endTime: string): number {
+  if (start === end) {
+    addCalendarDays(start, 0);
+    return 1;
+  }
+  const days = calendarDateSpanDays(start, end);
+  const fragments = days + (endTime === '00:00' ? 0 : 1);
+  if (fragments > MAX_CALENDAR_EXPANSION_DAYS) {
+    throw new RangeError('Calendar event exceeds safe daily expansion bounds.');
+  }
+  return fragments;
+}
+
+export function calendarCommitmentFragmentDays(event: Pick<CalendarReadEvent, 'allDay' | 'start' | 'end'>): number {
+  return event.allDay
+    ? calendarDateSpanDays(event.start.date, event.end.date)
+    : timedCalendarFragmentDays(event.start.date, event.end.date, event.end.time ?? '');
+}
+
+// An imported timed event is read again in the device's later timezone. The
+// supported IANA extremes (-12 and +14 hours) bound its earliest possible
+// start date and latest possible end date without enumerating local days.
+function timedFragmentsInAnyTimezone(startEpoch: number, endEpoch: number): number {
+  const firstDay = Math.floor((startEpoch - 12 * 3_600_000) / 86_400_000);
+  const lastDay = Math.floor((endEpoch + 14 * 3_600_000) / 86_400_000);
+  return Math.max(1, lastDay - firstDay + 1);
+}
+
+// A rolling read cannot enumerate an infinite RRULE. Reserve enough dated
+// fragments for the densest possible overlap of its ordinary occurrences.
+// Selectors can add occurrences within a week/month/year, so use a one-day
+// minimum unless the rule is the simple one-occurrence cadence.
+function minimumOpenEndedRecurrenceGapDays(master: ICAL.Component): number {
+  const rules = master.getAllProperties('rrule');
+  if (rules.length !== 1) return 1;
+  const raw = rules[0].getFirstValue()?.toString().toUpperCase() ?? '';
+  const freq = raw.match(/(?:^|;)FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(?:;|$)/)?.[1];
+  const interval = Number(raw.match(/(?:^|;)INTERVAL=(\d+)(?:;|$)/)?.[1] ?? '1');
+  if (!Number.isSafeInteger(interval) || interval < 1) return 1;
+  if (freq === 'DAILY') return interval;
+  if (/\bBY(?:DAY|MONTHDAY|MONTH)=/.test(raw)) return 1;
+  if (freq === 'WEEKLY') return 7 * interval;
+  if (freq === 'MONTHLY') return 28 * interval;
+  if (freq === 'YEARLY') return 365 * interval;
+  return 1;
 }
 
 function formatTime(hour: number, minute: number): string {
@@ -383,7 +433,10 @@ function firstProperty(map: Map<string, ParsedProperty[]>, name: string): Parsed
   return map.get(name)?.[0];
 }
 
-function recurringEvents(source: string, options: CalendarReadOptions, warnings: string[]): CalendarReadEvent[] {
+function recurringEvents(
+  source: string, options: CalendarReadOptions, warnings: string[],
+  chargeSource?: (event: CalendarReadEvent, startEpoch?: number, endEpoch?: number, multiplier?: number) => void,
+): CalendarReadEvent[] {
   // ICAL.js normalizes unknown RRULE clauses away. Validate the original VEVENT
   // text before parsing, but only when the component can contribute busy time.
   // VTIMEZONE observance rules and explicitly cancelled/transparent VEVENTs do
@@ -515,7 +568,7 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
     const occurrenceEnd = (
       startTime: ICAL.Time, endTime: ICAL.Time, component: ICAL.Component,
       provenance?: RdateProvenance,
-    ): CalendarLocalPoint => {
+    ): CalendarLocalPoint & { epochMs?: number } => {
       if (component.hasProperty('duration') && !component.hasProperty('dtend')) {
         const duration = safeDuration(component.getFirstProperty('duration')?.getFirstValue()?.toString() ?? '', startTime.isDate);
         if (startTime.isDate) {
@@ -537,26 +590,84 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
     const recurrenceIdentityKey = (time: ICAL.Time) =>
       `${formatDate(time.year, time.month, time.day)}T${time.isDate ? '00:00:00' :
         `${formatTime(time.hour, time.minute)}:${time.second.toString().padStart(2, '0')}`}`;
+    const finiteSeries = chargeSource && masters[0].getAllProperties('rrule')
+      .every((rule) => (rule.getFirstValue() as ICAL.Recur).isFinite());
+    const masterBusy = masters[0].getFirstPropertyValue('status')?.toString().toUpperCase() !== 'CANCELLED' &&
+      masters[0].getFirstPropertyValue('transp')?.toString().toUpperCase() !== 'TRANSPARENT';
+    const openEndedBusySeries = chargeSource && !finiteSeries && masterBusy;
+    const openEndedGapDays = openEndedBusySeries ? minimumOpenEndedRecurrenceGapDays(masters[0]) : 1;
+    // Explicit RDATEs can add slots outside the regular cadence. Remove
+    // EXDATE/transparent identities and ordinary RRULE duplicates before
+    // reserving them. This second iterator is bounded by the same source
+    // iteration budget; it never expands dated commitments.
+    const additionalDates = new Set(openEndedBusySeries ? [...rdateProvenanceByIdentity.keys()]
+      .filter((identity) => identity.slice(0, 10) >= options.windowStartDate) : []);
+    if (additionalDates.size) {
+      for (const property of masters[0].getAllProperties('exdate')) {
+        for (const value of property.getValues() as ICAL.Time[]) additionalDates.delete(value.toString());
+      }
+      for (const part of parts.filter((candidate) => candidate.hasProperty('recurrence-id'))) {
+        if (part.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED' ||
+          (part.getFirstPropertyValue('transp') ?? masters[0].getFirstPropertyValue('transp'))
+            ?.toString().toUpperCase() === 'TRANSPARENT') {
+          additionalDates.delete((part.getFirstPropertyValue('recurrence-id') as ICAL.Time).toString());
+        }
+      }
+      const latestDate = [...additionalDates].sort().slice(-1)[0];
+      if (latestDate) {
+        const ruleOnly = new ICAL.Component(masters[0].toJSON());
+        ruleOnly.removeAllProperties('rdate');
+        const ruleIterator = new ICAL.Event(ruleOnly).iterator();
+        let logical: ICAL.Time | null;
+        while (additionalDates.size && (logical = ruleIterator.next())) {
+          if (++totalRecurrenceIterations > MAX_TOTAL_RECURRENCE_ITERATIONS) {
+            throw new Error('Calendar recurrence exceeds the safe read limit.');
+          }
+          if (logical.toString() > latestDate) break;
+          additionalDates.delete(logical.toString());
+        }
+      }
+    }
+    const openEndedExtraDates = additionalDates.size;
+    let openEndedReserveCharged = false;
+    let firstOpenEndedOverlapScanEnd: string | undefined;
+    // Explicit BUSY overrides are charged only when the authoritative RRULE
+    // iterator yields their logical slot; COUNT/UNTIL/EXDATE remain decisive.
+    const lastBusyExceptionKey = chargeSource ? parts
+      .filter((part) => part.hasProperty('recurrence-id') &&
+        part.getFirstPropertyValue('status')?.toString().toUpperCase() !== 'CANCELLED' &&
+        (part.getFirstPropertyValue('transp') ?? masters[0].getFirstPropertyValue('transp'))
+          ?.toString().toUpperCase() !== 'TRANSPARENT')
+      .map((part) => recurrenceIdentityKey(part.getFirstPropertyValue('recurrence-id') as ICAL.Time))
+      .sort().slice(-1)[0] : undefined;
+    const emittedOccurrenceIds = new Set<string>();
+    const chargedOccurrenceIds = new Set<string>();
     const exceptionOverlapsWindow = (component: ICAL.Component) => {
       if (component.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED') return false;
+      if ((component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
+        ?.toString().toUpperCase() === 'TRANSPARENT') return false;
       const item = new ICAL.Event(component);
       const startTime = item.startDate;
       const endTime = item.endDate;
       const allDay = startTime.isDate;
-      const start: CalendarLocalPoint = allDay
+      const start: CalendarLocalPoint & { epochMs?: number } = allDay
         ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
         : pointFromEpoch(asEpoch(startTime, component, 'dtstart', occurrenceStartFallback(component), false), options.targetTimezone);
       const end = occurrenceEnd(startTime, endTime, component);
-      return overlapsDateWindow({
+      // Inspect a moved exception's window overlap; only the authoritative
+      // iterator can establish whether its original logical slot exists.
+      const event: CalendarReadEvent = {
         adapterId: 'ics',
-        sourceEventId: uid,
+        sourceEventId: `${uid}::${(component.getFirstPropertyValue('recurrence-id') as ICAL.Time).toString()}`,
         title: item.summary || master.summary || 'Calendar commitment',
         allDay,
         busy: true,
         start,
         end,
         timezone: options.targetTimezone,
-      }, options.windowStartDate, options.windowEndDate);
+      };
+      const overlaps = overlapsDateWindow(event, options.windowStartDate, options.windowEndDate);
+      return overlaps;
     };
     const laterMovedExceptionScanKey = parts
       .filter((part) => part.hasProperty('recurrence-id'))
@@ -567,9 +678,11 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
       .map((part) => recurrenceIdentityKey(part.getFirstPropertyValue('recurrence-id') as ICAL.Time))
       .sort()
       .slice(-1)[0];
-    const emittedOccurrenceIds = new Set<string>();
     const addOccurrence = (identity: ICAL.Time, item: ICAL.Event, startTime: ICAL.Time, endTime: ICAL.Time) => {
       if (item.component.getFirstPropertyValue('status')?.toString().toUpperCase() === 'CANCELLED') return;
+      const busy = (item.component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
+        ?.toString().toUpperCase() !== 'TRANSPARENT';
+      if (!busy) return;
       const sourceEventId = `${uid}::${identity.toString()}`;
       if (emittedOccurrenceIds.has(sourceEventId)) return;
       const allDay = startTime.isDate;
@@ -581,20 +694,55 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
         ? { date: formatDate(startTime.year, startTime.month, startTime.day) }
         : pointFromEpoch(asEpoch(startTime, item.component, 'dtstart', occurrenceStartFallback(item.component), occurrenceProvenance?.kind !== 'floating', occurrenceProvenance), options.targetTimezone);
       const end = occurrenceEnd(startTime, endTime, item.component, occurrenceProvenance);
-      if (allDay) calendarDateSpanDays(start.date, end.date);
       if (start.date >= end.date && (allDay || start.date !== end.date || (start.time ?? '') >= (end.time ?? ''))) throw new Error(`Invalid calendar occurrence ${uid}.`);
       const sourceOccurrenceTimezone = occurrenceProvenance?.kind === 'tzid' ? occurrenceProvenance.timezone
         : occurrenceProvenance ? undefined
           : (item.component.getFirstProperty('dtstart')?.getParameter('tzid') as string | undefined) ?? occurrenceStartFallback(item.component);
       const event: CalendarReadEvent = {
         adapterId: 'ics', sourceEventId, title: item.summary || master.summary || 'Calendar commitment',
-        allDay, busy: (item.component.getFirstPropertyValue('transp') ?? master.component.getFirstPropertyValue('transp'))
-          ?.toString().toUpperCase() !== 'TRANSPARENT',
+        allDay, busy,
         start: { date: start.date, time: start.time }, end: { date: end.date, time: end.time },
         timezone: options.targetTimezone,
         ...(sourceOccurrenceTimezone ? { sourceTimezone: sourceOccurrenceTimezone } : {}),
       };
-      if (overlapsDateWindow(event, options.windowStartDate, options.windowEndDate)) {
+      const overlaps = overlapsDateWindow(event, options.windowStartDate, options.windowEndDate);
+      if (chargeSource || overlaps) {
+        if (allDay) calendarDateSpanDays(start.date, end.date);
+        else timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
+      }
+      if (chargeSource && !chargedOccurrenceIds.has(sourceEventId)) {
+        // An infinite RRULE has no whole-source sum. Charge the current read
+        // and a bounded witness window around its first relevant occurrence;
+        // past disjoint slots must not consume an infinite lifetime budget.
+        const relevantOpenEndedOccurrence = !openEndedBusySeries ||
+          item.component !== master.component ||
+          overlapsDateWindow(event, options.windowStartDate, options.windowEndDate) ||
+          (firstOpenEndedOverlapScanEnd
+            ? event.start.date <= firstOpenEndedOverlapScanEnd
+            : event.start.date > options.windowEndDate);
+        if (relevantOpenEndedOccurrence) {
+          const masterOccurrence = openEndedBusySeries && item.component === master.component;
+          if (!masterOccurrence || !openEndedReserveCharged) {
+            const cost = calendarCommitmentFragmentDays(event);
+            // One extra slot covers an event straddling either end of a
+            // future read, including the timezone date-boundary slack.
+            const slots = masterOccurrence
+              ? Math.ceil((cost + MAX_CALENDAR_PLANNING_READ_DAYS + 2) / openEndedGapDays) + 1 + openEndedExtraDates
+              : 1;
+            chargeSource(event, allDay ? undefined : asEpoch(startTime, item.component, 'dtstart',
+              occurrenceStartFallback(item.component), false, occurrenceProvenance), end.epochMs, slots);
+            if (masterOccurrence) openEndedReserveCharged = true;
+          }
+          chargedOccurrenceIds.add(sourceEventId);
+          if (openEndedBusySeries && !firstOpenEndedOverlapScanEnd) {
+            // Source/target zones can differ by 26 hours. Two days of slack
+            // ensure an occurrence near the local endpoint is examined.
+            firstOpenEndedOverlapScanEnd = event.end.date > '9999-12-29'
+              ? '9999-12-31' : addCalendarDays(event.end.date, 2);
+          }
+        }
+      }
+      if (overlaps) {
         if (events.length >= MAX_TOTAL_RECURRENCE_EVENTS) {
           throw new Error('Calendar recurrence exceeds the safe emitted-event limit.');
         }
@@ -614,8 +762,10 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
         throw new Error('Calendar recurrence exceeds the safe read limit.');
       }
       const logicalDate = formatDate(next.year, next.month, next.day);
-      if (firstPostBoundaryDate && logicalDate > firstPostBoundaryDate &&
-          (!laterMovedExceptionScanKey || recurrenceIdentityKey(next) > laterMovedExceptionScanKey)) break;
+      if (!(finiteSeries && masterBusy) && firstPostBoundaryDate && logicalDate > firstPostBoundaryDate &&
+          (!laterMovedExceptionScanKey || recurrenceIdentityKey(next) > laterMovedExceptionScanKey) &&
+          (!lastBusyExceptionKey || recurrenceIdentityKey(next) > lastBusyExceptionKey) &&
+          (!firstOpenEndedOverlapScanEnd || logicalDate > firstOpenEndedOverlapScanEnd)) break;
       const details = master.getOccurrenceDetails(next);
       addOccurrence(details.recurrenceId, details.item, details.startDate, details.endDate);
       // Scan through a later moved override only via the master's recurrence
@@ -633,9 +783,41 @@ function recurringEvents(source: string, options: CalendarReadOptions, warnings:
 export class IcsCalendarAdapter implements CalendarAdapter {
   readonly id = 'ics';
 
-  read(source: string, options: CalendarReadOptions): CalendarReadResult {
+  readForImport(source: string, options: CalendarReadOptions): CalendarReadResult {
+    return this.read(source, options, true);
+  }
+
+  read(source: string, options: CalendarReadOptions, validateWholeSource = false): CalendarReadResult {
     const warnings: string[] = [];
     const events: CalendarReadEvent[] = [];
+    let totalSourceFragments = 0;
+    const historicalCutoff = options.windowStartDate > '0001-01-02'
+      ? addCalendarDays(options.windowStartDate, -2) : '0001-01-01';
+    const chargeSource = validateWholeSource ? (event: CalendarReadEvent, startEpoch?: number,
+      endEpoch?: number, multiplier = 1) => {
+      if (!event.busy) return;
+      // A past event cannot block this import horizon or any later horizon.
+      // Two days account for the 26-hour separation of supported IANA zones.
+      if (event.end.date < historicalCutoff) return;
+      try {
+        const fragments = calendarCommitmentFragmentDays(event);
+        if (!event.allDay && (startEpoch === undefined || endEpoch === undefined)) {
+          throw new RangeError('Timed calendar event has no validated endpoints.');
+        }
+        const chargedFragments = event.allDay ? fragments
+          : Math.max(fragments, timedFragmentsInAnyTimezone(startEpoch!, endEpoch!));
+        if (multiplier > MAX_CALENDAR_EXPANSION_DAYS / chargedFragments) {
+          throw new RangeError('Calendar commitments exceed safe daily expansion bounds.');
+        }
+        totalSourceFragments += chargedFragments * multiplier;
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error;
+        throw new RangeError('Calendar commitments exceed safe daily expansion bounds.');
+      }
+      if (totalSourceFragments > MAX_CALENDAR_EXPANSION_DAYS) {
+        throw new RangeError('Calendar commitments exceed safe daily expansion bounds.');
+      }
+    } : undefined;
 
     if (options.windowStartDate > options.windowEndDate) {
       throw new Error('Calendar read window start must not be after the end date.');
@@ -674,7 +856,10 @@ export class IcsCalendarAdapter implements CalendarAdapter {
         } else {
           end = parseDateProperty(endProperty!, options.targetTimezone, warnings);
         }
-        if (start?.allDay && end?.allDay) calendarDateSpanDays(start.date, end.date);
+        if (start?.allDay && end?.allDay && (validateWholeSource ||
+          (start.date <= options.windowEndDate && end.date > options.windowStartDate))) {
+          calendarDateSpanDays(start.date, end.date);
+        }
       } catch {
         if (firstProperty(properties, 'TRANSP')?.value.toUpperCase() !== 'TRANSPARENT') {
           throw new Error(`Busy calendar event ${uid} has an unresolved timezone or local time.`);
@@ -716,12 +901,21 @@ export class IcsCalendarAdapter implements CalendarAdapter {
         sourceTimezone: start.sourceTimezone,
       };
 
+      // A BUSY event beyond today's read window can enter a later planning
+      // horizon. Bound its own dated expansion before source persistence.
+      if (busy && !start.allDay && (validateWholeSource ||
+        overlapsDateWindow(event, options.windowStartDate, options.windowEndDate))) {
+        timedCalendarFragmentDays(start.date, end.date, end.time ?? '');
+      }
+
+      chargeSource?.(event, start.epochMs, end.epochMs);
+
       if (overlapsDateWindow(event, options.windowStartDate, options.windowEndDate)) {
         events.push(event);
       }
     }
 
-    events.push(...recurringEvents(source, options, warnings));
+    events.push(...recurringEvents(source, options, warnings, chargeSource));
 
     events.sort((left, right) => {
       const startOrder = compareLocalPoints(left.start, right.start);
@@ -732,5 +926,5 @@ export class IcsCalendarAdapter implements CalendarAdapter {
   }
 }
 
-export const icsCalendarAdapter: CalendarAdapter = new IcsCalendarAdapter();
+export const icsCalendarAdapter = new IcsCalendarAdapter();
 import ICAL from 'ical.js';

@@ -4,6 +4,7 @@ import {
   type CalendarReadEvent,
   type CalendarReadOptions,
 } from '../domain/calendarAdapter';
+import { validateCalendarCommitmentExpansion } from '../domain/calendarAvailability';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   CURRENT_CALENDAR_SOURCE_ID,
@@ -126,7 +127,7 @@ export async function readPersistedCalendarEvents(
   } catch (error) {
     return {
       status: 'error',
-      errors: [error instanceof Error && /recurren|timezone|safe read limit/i.test(error.message)
+      errors: [error instanceof Error && /recurren|timezone|safe read limit|safe daily expansion bounds/i.test(error.message)
         ? `calendarSource: ${error.message}`
         : 'calendarSource: Saved calendar data could not be interpreted safely.'],
       warnings: [],
@@ -151,11 +152,11 @@ export async function importIcsCalendarSource(
 
   let preview;
   try {
-    preview = icsCalendarAdapter.read(source, input.options);
+    preview = icsCalendarAdapter.readForImport(source, input.options);
   } catch (error) {
     return {
       ok: false,
-      errors: [error instanceof Error && /recurren|timezone|safe read limit/i.test(error.message)
+      errors: [error instanceof Error && /recurren|timezone|safe read limit|safe daily expansion bounds/i.test(error.message)
         ? `calendarSource: ${error.message}`
         : 'calendarSource: This calendar could not be interpreted safely.'],
       warnings: [],
@@ -183,6 +184,24 @@ export async function importIcsCalendarSource(
     return {
       ok: false,
       errors: issueMessages(parsed.error.issues),
+      warnings: preview.warnings,
+    };
+  }
+
+  // The parsed record contains the exact replacement buffers (including
+  // inherited v2 spacing). Each side is schema-bounded to 180 minutes and
+  // adds only O(1) adjacent fragments, so it cannot enlarge the daily loop.
+  // The adapter has already charged every non-recurring BUSY event and the
+  // bounded finite recurrence source. Keep planning's same-window defensive
+  // preflight before the first canonical write as well.
+  try {
+    validateCalendarCommitmentExpansion(preview.events);
+  } catch (error) {
+    return {
+      ok: false,
+      errors: [error instanceof RangeError && /safe daily expansion bounds/i.test(error.message)
+        ? `calendarSource: ${error.message}`
+        : 'calendarSource: This calendar could not be interpreted safely.'],
       warnings: preview.warnings,
     };
   }

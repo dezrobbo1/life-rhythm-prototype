@@ -1,5 +1,5 @@
 import type { DayOfWeek, Settings } from '../data/schemas';
-import { calendarDateSpanDays, MAX_CALENDAR_EXPANSION_DAYS, type CalendarReadEvent } from './calendarAdapter';
+import { calendarCommitmentFragmentDays, MAX_CALENDAR_EXPANSION_DAYS, type CalendarReadEvent } from './calendarAdapter';
 import type { ExternalCommitment, SchedulingInterval } from './schedulingModel';
 
 export type CandidateSchedulingInterval = {
@@ -146,16 +146,27 @@ function fixedCommitmentsFromSettings(settings: Settings): ExternalCommitment[] 
   }));
 }
 
-export function externalCommitmentsFromCalendarEvents(events: CalendarReadEvent[], beforeMinutes = 0, afterMinutes = 0): ExternalCommitment[] {
-  const commitments: ExternalCommitment[] = [];
+// Source spacing adds at most one adjacent fragment per side of an event; it
+// does not multiply the per-date loop. Import and planning share this preflight.
+export function validateCalendarCommitmentExpansion(events: CalendarReadEvent[]): void {
   let totalExpandedDays = 0;
   for (const event of events) {
-    if (!event.busy || !event.allDay) continue;
-    totalExpandedDays += calendarDateSpanDays(event.start.date, event.end.date);
+    if (!event.busy) continue;
+    try {
+      totalExpandedDays += calendarCommitmentFragmentDays(event);
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      throw new RangeError('Calendar commitments exceed safe daily expansion bounds.');
+    }
     if (totalExpandedDays > MAX_CALENDAR_EXPANSION_DAYS) {
       throw new RangeError('Calendar commitments exceed safe daily expansion bounds.');
     }
   }
+}
+
+export function externalCommitmentsFromCalendarEvents(events: CalendarReadEvent[], beforeMinutes = 0, afterMinutes = 0): ExternalCommitment[] {
+  validateCalendarCommitmentExpansion(events);
+  const commitments: ExternalCommitment[] = [];
 
   const addSpillover = (
     event: CalendarReadEvent,

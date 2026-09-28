@@ -22,6 +22,20 @@ function event(lines: string[]) {
 }
 
 describe('ICS calendar adapter', () => {
+  it('rejects representable million-day timed DURATION and explicit DTEND before event emission', () => {
+    const read = (end: string) => new IcsCalendarAdapter().read(calendar(event([
+      'UID:long-timed', 'DTSTART:20260101T090000Z', end,
+    ])), { targetTimezone: 'UTC', windowStartDate: '2026-01-01', windowEndDate: '2026-01-02' }).events;
+    expect(() => read('DURATION:P1000000D')).toThrow('Calendar event exceeds safe daily expansion bounds.');
+    expect(() => read('DTEND:47631128T090000Z')).toThrow('Calendar event exceeds safe daily expansion bounds.');
+    expect(externalCommitmentsFromCalendarEvents(read('DURATION:PT1H'))).toHaveLength(1);
+    const recurring = calendar(event([
+      'UID:long-recurring', 'DTSTART:20260101T090000Z', 'DURATION:P1000000D', 'RRULE:FREQ=DAILY;COUNT=1',
+    ]));
+    expect(() => new IcsCalendarAdapter().read(recurring, {
+      targetTimezone: 'UTC', windowStartDate: '2026-01-01', windowEndDate: '2026-01-02',
+    })).toThrow('Calendar event exceeds safe daily expansion bounds.');
+  });
   it('rejects an overflowing busy all-day duration before commitment expansion', () => {
     const source = calendar(event([
       'UID:huge-day', 'DTSTART;VALUE=DATE:20260101', 'DURATION:P100000000D',
