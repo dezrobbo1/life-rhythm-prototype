@@ -280,6 +280,36 @@ describe('Gate 8A4 portable canonical profile', () => {
       { ...placement, id: 'third', taskId: 'pool' }] })).ok).toBe(false);
   });
 
+  it('rejects a live placement backed only by completed or discarded work', () => {
+    const payload = JSON.parse(exported);
+    const today = payload.data.activeTasks[0];
+    const placement = payload.data.softPlacements[0];
+    for (const status of ['done', 'parked', 'notToday', 'skipped'] as const) {
+      const changed = { ...payload, data: { ...payload.data,
+        activeTasks: [{ ...today, status, showToday: false }] } };
+      expect(checkPortableProfileJson(JSON.stringify(changed)).ok).toBe(false);
+    }
+    const discardedHeld = { ...payload, data: { ...payload.data,
+      softPlacements: [{ ...placement, taskId: 'pool' }],
+      taskPoolItems: [{ ...payload.data.taskPoolItems[0], status: 'noLongerNeeded' }] } };
+    expect(checkPortableProfileJson(JSON.stringify(discardedHeld)).ok).toBe(false);
+  });
+
+  it('accepts the real lifecycle writer closing a Today placement on completion or parking', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    for (const status of ['done', 'parked'] as const) {
+      expect((await updateTaskLifecycleStatus('today', status, db)).ok).toBe(true);
+      expect((await db.softPlacements.get('placement'))?.status).toBe(status === 'done' ? 'completedFromToday' : 'removed');
+      expect(checkPortableProfileJson((await exportPortableProfile(db)).json).ok).toBe(true);
+      if (status === 'done') {
+        const previous = await db.activeTasks.get('today');
+        await db.activeTasks.put(activeTaskSchema.parse({ ...previous, status: 'active', showToday: true }));
+        const placement = await db.softPlacements.get('placement');
+        await db.softPlacements.put(softPlacementSchema.parse({ ...placement, status: 'planned' }));
+      }
+    }
+  });
+
   it('rejects a closed rhythm instance linked to a visible generated Today task', async () => {
     const db = getCurrentLifeRhythmDatabase();
     const instance = await db.rhythmInstances.toCollection().first();

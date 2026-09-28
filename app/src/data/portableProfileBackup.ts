@@ -87,7 +87,7 @@ export const portableProfileSchema = z.object({
     .forEach((message) => context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances'], message }));
   const instances = new Map(d.rhythmInstances.map((row) => [row.id, row]));
   const tasks = new Map(d.activeTasks.map((row) => [row.id, row]));
-  const poolIds = new Set(d.taskPoolItems.map((row) => row.id));
+  const pool = new Map(d.taskPoolItems.map((row) => [row.id, row]));
   d.activeTasks.forEach((task, index) => {
     if (task.showToday !== isVisibleTodayStatus(task.status)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'activeTasks', index, 'showToday'],
@@ -163,10 +163,12 @@ export const portableProfileSchema = z.object({
   const visibleTaskDates = new Set<string>();
   const visibleBlockDates = new Set<string>();
   d.softPlacements.forEach((placement, index) => {
+    const backingTask = tasks.get(placement.taskId);
     if ((placement.status === 'planned' || placement.status === 'moved') &&
-      !tasks.has(placement.taskId) && !poolIds.has(placement.taskId)) {
+      !(backingTask && isVisibleTodayStatus(backingTask.status)) &&
+      !(pool.get(placement.taskId)?.status === 'softPlaced' && !backingTask)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'softPlacements', index],
-        message: 'Confirmed placement has no Today or Held item.' });
+        message: 'A live placement requires a visible Today task or a confirmed soft-placed Held item.' });
     }
     if (placement.status === 'planned' || placement.status === 'moved' || placement.status === 'completedFromToday') {
       const taskDate = JSON.stringify([placement.date, placement.taskId]);
