@@ -13,6 +13,9 @@ import {
   type DeleteBehaviourHistoryResult,
 } from '../data/behaviourHistoryControl';
 import type { ActiveTask, ActiveTaskStatus } from '../data/schemas';
+import { getCurrentLifeRhythmDatabase } from '../data/localDataNamespace';
+import { captureProfileRecoveryGeneration, readProfileView,
+  StaleProfileRecoveryError, STALE_PROFILE_RECOVERY_MESSAGE } from '../data/profileRecoveryGeneration';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import { ResetActionCard } from '../features/reset/ResetActionCard';
 import {
@@ -67,9 +70,10 @@ type ResetScreenProps = {
   updateTaskStatus?: (
     taskId: string,
     status: ActiveTaskStatus,
+    expectedRecoveryGeneration?: number,
   ) => Promise<ActiveTaskStatusUpdateResult>;
   exportBehaviourHistoryAction?: () => Promise<BehaviourHistoryExport>;
-  deleteBehaviourHistoryAction?: (confirmation: string) => Promise<DeleteBehaviourHistoryResult>;
+  deleteBehaviourHistoryAction?: (confirmation: string, expectedRecoveryGeneration?: number) => Promise<DeleteBehaviourHistoryResult>;
   onBehaviourHistoryDeleted?: () => Promise<boolean>;
 };
 
@@ -89,9 +93,11 @@ function restartPreviewFromTask(task: ActiveTask): RestartPreview {
 
 export function ResetScreen({
   loadTodayTasks = loadActiveTodayTasks,
-  updateTaskStatus = updateActiveTaskStatus,
+  updateTaskStatus = (id, status, generation) => updateActiveTaskStatus(id, status,
+    getCurrentLifeRhythmDatabase(), generation),
   exportBehaviourHistoryAction = exportBehaviourHistory,
-  deleteBehaviourHistoryAction = deleteBehaviourHistory,
+  deleteBehaviourHistoryAction = (confirmation, generation) => deleteBehaviourHistory(
+    confirmation, getCurrentLifeRhythmDatabase(), generation),
   onBehaviourHistoryDeleted,
 }: ResetScreenProps = {}) {
   const { snapshot } = useAppSnapshot();
@@ -105,27 +111,41 @@ export function ResetScreen({
   );
   const [confirmation, setConfirmation] = useState('');
   const [visibleTodayTasks, setVisibleTodayTasks] = useState<ActiveTask[]>([]);
+  const [visibleTaskGeneration, setVisibleTaskGeneration] = useState<number | null>(null);
   const [selectedRestart, setSelectedRestart] = useState<RestartPreview | null>(null);
   const [fullResetInput, setFullResetInput] = useState('');
   const [fullResetConfirmed, setFullResetConfirmed] = useState(false);
   const [behaviourDeleteInput, setBehaviourDeleteInput] = useState('');
+  // This destructive control has its own rendered-profile authority. Refreshing
+  // Today tasks cannot silently authorize a confirmation typed before restore.
+  const [behaviourHistoryViewGeneration, setBehaviourHistoryViewGeneration] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    captureProfileRecoveryGeneration(getCurrentLifeRhythmDatabase()).then((generation) => {
+      if (active) setBehaviourHistoryViewGeneration(generation);
+    }).catch(() => {
+      if (active) setConfirmation('Behaviour history could not be read safely. Try again.');
+    });
+    return () => { active = false; };
+  }, []);
 
   async function refreshVisibleTodayTasks() {
-    const tasks = await loadTodayTasks();
-
+    const { generation, value: tasks } = await readProfileView(getCurrentLifeRhythmDatabase(), loadTodayTasks);
     setVisibleTodayTasks(tasks);
-
-    return tasks;
+    setVisibleTaskGeneration(generation);
+    return { tasks, generation };
   }
 
   useEffect(() => {
     let active = true;
 
-    loadTodayTasks().then((tasks) => {
+    readProfileView(getCurrentLifeRhythmDatabase(), loadTodayTasks).then(({ value: tasks, generation }) => {
       if (active) {
         setVisibleTodayTasks(tasks);
+        setVisibleTaskGeneration(generation);
       }
-    });
+    }).catch(() => { if (active) { setVisibleTaskGeneration(null); setConfirmation('Today tasks could not be read. Try again.'); } });
 
     return () => {
       active = false;
@@ -136,7 +156,11 @@ export function ResetScreen({
     status: Extract<ActiveTaskStatus, 'notToday' | 'parked'>,
     successCopy: string,
   ) {
-    const currentTasks = visibleTodayTasks.length > 0 ? visibleTodayTasks : await refreshVisibleTodayTasks();
+    let currentTasks = visibleTodayTasks;
+    let generation = visibleTaskGeneration;
+    if (generation === null) {
+      ({ tasks: currentTasks, generation } = await refreshVisibleTodayTasks());
+    }
     const [firstTask, ...extraTasks] = currentTasks;
 
     setSelectedRestart(null);
@@ -153,10 +177,21 @@ export function ResetScreen({
       return;
     }
 
-    const results = await Promise.all(extraTasks.map((task) => updateTaskStatus(task.id, status)));
+    let results: ActiveTaskStatusUpdateResult[];
+    try {
+      results = await Promise.all(extraTasks.map((task) => updateTaskStatus(task.id, status, generation ?? undefined)));
+    } catch (error) {
+      if (error instanceof StaleProfileRecoveryError) {
+        setVisibleTaskGeneration(null);
+        setConfirmation(STALE_PROFILE_RECOVERY_MESSAGE);
+        await refreshVisibleTodayTasks();
+        return;
+      }
+      throw error;
+    }
 
     if (results.some((result) => !result.ok)) {
-      const refreshedTasks = await refreshVisibleTodayTasks();
+      const { tasks: refreshedTasks } = await refreshVisibleTodayTasks();
 
       setConfirmation(
         refreshedTasks.length > 1
@@ -184,7 +219,7 @@ export function ResetScreen({
     }
 
     if (action.id === 'restartOneAction') {
-      const currentTasks = visibleTodayTasks.length > 0 ? visibleTodayTasks : await refreshVisibleTodayTasks();
+      const currentTasks = visibleTaskGeneration !== null ? visibleTodayTasks : (await refreshVisibleTodayTasks()).tasks;
       const [firstTask] = currentTasks;
 
       setSelectedRestart(firstTask ? restartPreviewFromTask(firstTask) : null);
@@ -226,9 +261,19 @@ export function ResetScreen({
   }
 
   async function deleteLocalBehaviourHistory() {
-    const result = await deleteBehaviourHistoryAction(behaviourDeleteInput);
+    if (behaviourHistoryViewGeneration === null) return;
+    const result = await deleteBehaviourHistoryAction(behaviourDeleteInput, behaviourHistoryViewGeneration);
     if (!result.ok) {
       setConfirmation(result.errors.join(' '));
+      if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
+        setBehaviourDeleteInput('');
+        setBehaviourHistoryViewGeneration(null);
+        try {
+          setBehaviourHistoryViewGeneration(await captureProfileRecoveryGeneration(getCurrentLifeRhythmDatabase()));
+        } catch {
+          setConfirmation('Behaviour history could not be read safely. Try again.');
+        }
+      }
       return;
     }
 
@@ -317,12 +362,13 @@ export function ResetScreen({
           <span>Type {BEHAVIOUR_HISTORY_DELETE_CONFIRMATION} to delete this ledger</span>
           <input
             aria-label={`Type ${BEHAVIOUR_HISTORY_DELETE_CONFIRMATION} to delete behaviour history`}
+            disabled={behaviourHistoryViewGeneration === null}
             onChange={(event) => setBehaviourDeleteInput(event.target.value)}
             value={behaviourDeleteInput}
           />
         </label>
         <Button
-          disabled={behaviourDeleteInput !== BEHAVIOUR_HISTORY_DELETE_CONFIRMATION}
+          disabled={behaviourHistoryViewGeneration === null || behaviourDeleteInput !== BEHAVIOUR_HISTORY_DELETE_CONFIRMATION}
           onClick={deleteLocalBehaviourHistory}
         >
           Delete behaviour history

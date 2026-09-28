@@ -13,6 +13,8 @@ import {
 } from './collectionReadResult';
 import { appendBehaviourEvent, createBehaviourEvent } from './behaviourEventRepository';
 import { markTaskInputRepairPending } from './schedulerPlanStateRepository';
+import Dexie from 'dexie';
+import { profileWriteTransaction } from './profileRecoveryGeneration';
 
 type TaskPoolItemsTable = Pick<Table<TaskPoolItem, string>, 'get' | 'put' | 'toArray' | 'where'>;
 
@@ -201,6 +203,9 @@ export async function updateTaskPoolItemStatus(
   status: TaskPoolItemStatus,
   store: TaskPoolStore = getCurrentLifeRhythmDatabase(),
 ): Promise<TaskPoolStatusUpdateResult> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.taskPoolItems], () => updateTaskPoolItemStatus(id, status, store));
+  }
   const parsedStatus = taskPoolItemStatusSchema.safeParse(status);
 
   if (!parsedStatus.success) {

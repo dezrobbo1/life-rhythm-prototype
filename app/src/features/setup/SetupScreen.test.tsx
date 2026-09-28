@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto';
 
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -281,7 +282,7 @@ describe('Setup screen', () => {
       lifeShape: expect.objectContaining({ usualWorkHours: expect.objectContaining({ days: ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] }) }),
       dayProfiles: [expect.objectContaining({ usableDay: { start: '06:30', end: '22:00' } }),
         expect.objectContaining({ usableDay: { start: '07:00', end: '21:00' } })],
-    }));
+    }), undefined);
   });
   it('renders all setup sections', () => {
     render(<SetupScreen />);
@@ -543,13 +544,13 @@ describe('Setup screen', () => {
     expect(screen.getByRole('button', { name: 'Export dev tickets later' })).toBeTruthy();
   });
 
-  it('renders calm personal trial limits without adding feature controls', () => {
+  it('renders truthful local portability limits without implying cloud sync', () => {
     render(<SetupScreen />);
 
     expect(screen.getByRole('heading', { name: 'Current limits' })).toBeTruthy();
-    expect(screen.getByText('Use one browser, one device, and one stable URL for early testing. The longitudinal trial has not started.')).toBeTruthy();
+    expect(screen.getByText('Your live data remains in this browser. Use a portable backup to recover it in another browser or device. The longitudinal trial has not started.')).toBeTruthy();
     expect(screen.getByText('Life Rhythm is local-first. This browser and device store the live data.')).toBeTruthy();
-    expect(screen.getByText('Login is not cloud sync. Backups can be exported and checked, but import/restore is not enabled.')).toBeTruthy();
+    expect(screen.getByText('Login is not cloud sync. A checked portable profile can replace this local profile with your confirmation. Individual backup types remain check-only.')).toBeTruthy();
     expect(
       screen.getByText(
         'Plan accepts a static read-only calendar file with supported recurring events. Re-import it after changes; live provider connections, cloud sync, notifications, and individual Move/Protect for automatic times remain future work.',

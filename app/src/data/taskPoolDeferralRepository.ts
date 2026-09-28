@@ -1,6 +1,7 @@
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import { taskPoolItemSchema, type TaskPoolItem } from './schemas';
 import type { LifeRhythmDatabase } from './db';
+import { profileWriteTransaction } from './profileRecoveryGeneration';
 import {
   appendBehaviourEvent,
   behaviourEventForDeferredTask,
@@ -36,6 +37,7 @@ export async function deferTaskPoolItem(
   bringBackAfter: string,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
   now: Date = new Date(),
+  expectedRecoveryGeneration?: number,
 ): Promise<TaskPoolDeferralResult> {
   const bringBackDate = new Date(bringBackAfter);
 
@@ -53,7 +55,7 @@ export async function deferTaskPoolItem(
     };
   }
 
-  return database.transaction('rw', database.taskPoolItems, database.taskHistory, async () => {
+  return profileWriteTransaction(database, [database.taskPoolItems, database.taskHistory], async () => {
     const storedItem = await database.taskPoolItems.get(itemId);
 
     if (!storedItem) {
@@ -101,5 +103,5 @@ export async function deferTaskPoolItem(
       item: updatedItem,
       ok: true,
     };
-  });
+  }, expectedRecoveryGeneration);
 }

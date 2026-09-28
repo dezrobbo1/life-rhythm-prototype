@@ -4,6 +4,13 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../data/profileRecoveryGeneration', async (original) => ({
+  ...await original<typeof import('../../data/profileRecoveryGeneration')>(),
+  readProfileView: async (_db: unknown, read: () => Promise<unknown>) => ({
+    generation: 0, value: await read(),
+  }),
+}));
+
 const learningMocks = vi.hoisted(() => ({
   read: vi.fn(),
 }));
@@ -141,7 +148,7 @@ describe('Gate 7E DurationLearningPanel', () => {
       templateId: 'paperwork',
       mode: 'override',
       overrideMinutes: 28,
-    }, { templateId: 'paperwork', control: null });
+    }, { templateId: 'paperwork', control: null }, expect.anything(), expect.any(String), 0);
     expect(planMocks.ensure).toHaveBeenCalledTimes(1);
     expect(onPlanChanged).toHaveBeenCalledTimes(1);
   });
@@ -206,7 +213,7 @@ describe('Gate 7E DurationLearningPanel', () => {
     }, {
       templateId: 'paperwork',
       control: existingControl,
-    });
+    }, expect.anything(), expect.any(String), 0);
   });
 
   it('shows valid partial evidence descriptively but pauses automatic learning', async () => {

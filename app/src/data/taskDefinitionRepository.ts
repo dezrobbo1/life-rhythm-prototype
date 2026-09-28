@@ -1,5 +1,6 @@
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import type { LifeRhythmDatabase } from './db';
+import { profileWriteTransaction, profileRecoveryErrorMessage } from './profileRecoveryGeneration';
 import {
   activeTaskSchema,
   taskPoolItemSchema,
@@ -50,10 +51,11 @@ export async function updateUserTaskDefinition(
   surface: 'held' | 'today',
   definition: UserTaskDefinition,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
+  expectedRecoveryGeneration?: number,
 ): Promise<UserTaskDefinitionResult> {
   try {
-    return await database.transaction(
-      'rw', [database.taskPoolItems, database.activeTasks, database.schedulerPlanState],
+    return await profileWriteTransaction(database,
+      [database.taskPoolItems, database.activeTasks, database.schedulerPlanState],
       async () => {
         const [storedPool, storedActive] = await Promise.all([
           database.taskPoolItems.get(id), database.activeTasks.get(id),
@@ -105,9 +107,10 @@ export async function updateUserTaskDefinition(
           item: nextPool?.success ? nextPool.data : null,
           task: nextTask?.success ? nextTask.data : null,
         };
-      },
+      }, expectedRecoveryGeneration,
     );
-  } catch {
-    return { ok: false, errors: ['Task correction was not saved. Check device storage and the private plan.'] };
+  } catch (error) {
+    return { ok: false, errors: [profileRecoveryErrorMessage(error,
+      'Task correction was not saved. Check device storage and the private plan.')] };
   }
 }

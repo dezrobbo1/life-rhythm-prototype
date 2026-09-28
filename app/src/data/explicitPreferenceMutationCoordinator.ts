@@ -17,6 +17,7 @@ import {
   markPreferenceRepairPending,
 } from './schedulerPlanStateRepository';
 import type { PreferenceRepairTarget } from './schedulerPlanStateSchema';
+import { profileRecoveryErrorMessage, profileWriteTransaction } from './profileRecoveryGeneration';
 
 const STALE_PREFERENCE_COMMAND =
   'explicitPreferences: This preference changed after the edit began. Reload the saved preference and try again.';
@@ -131,6 +132,7 @@ export async function commitExplicitPreferenceUpsert(
   expectation: ExplicitPreferenceTargetExpectation,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
   timestamp = new Date().toISOString(),
+  expectedRecoveryGeneration?: number,
 ): Promise<PreferenceMutationCommitResult> {
   if (input.id !== expectation.preferenceId) {
     return {
@@ -142,10 +144,8 @@ export async function commitExplicitPreferenceUpsert(
   let failure: PreferenceMutationFailure | null = null;
 
   try {
-    return await database.transaction(
-      'rw',
-      database.settings,
-      database.schedulerPlanState,
+    return await profileWriteTransaction(database,
+      [database.settings, database.schedulerPlanState],
       async () => {
         const store = transactionPassthroughStore(database);
         const loaded = await loadExplicitPreferencesResult(store);
@@ -174,12 +174,12 @@ export async function commitExplicitPreferenceUpsert(
           failure = { ok: false, errors: [REPAIR_ATTENTION_ERROR] };
           throw new Error(REPAIR_ATTENTION_ERROR);
         }
-      },
+      }, expectedRecoveryGeneration,
     );
-  } catch {
+  } catch (error) {
     return failure ?? {
       ok: false,
-      errors: ['explicitPreferences: Preference could not be saved on this device.'],
+      errors: [profileRecoveryErrorMessage(error, 'explicitPreferences: Preference could not be saved on this device.')],
     };
   }
 }
@@ -189,6 +189,7 @@ export async function commitExplicitPreferenceDelete(
   expectation: ExplicitPreferenceTargetExpectation,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
   timestamp = new Date().toISOString(),
+  expectedRecoveryGeneration?: number,
 ): Promise<PreferenceMutationCommitResult> {
   if (preferenceId !== expectation.preferenceId) {
     return {
@@ -200,10 +201,8 @@ export async function commitExplicitPreferenceDelete(
   let failure: PreferenceMutationFailure | null = null;
 
   try {
-    return await database.transaction(
-      'rw',
-      database.settings,
-      database.schedulerPlanState,
+    return await profileWriteTransaction(database,
+      [database.settings, database.schedulerPlanState],
       async () => {
         const store = transactionPassthroughStore(database);
         const loaded = await loadExplicitPreferencesResult(store);
@@ -237,12 +236,12 @@ export async function commitExplicitPreferenceDelete(
           failure = { ok: false, errors: [REPAIR_ATTENTION_ERROR] };
           throw new Error(REPAIR_ATTENTION_ERROR);
         }
-      },
+      }, expectedRecoveryGeneration,
     );
-  } catch {
+  } catch (error) {
     return failure ?? {
       ok: false,
-      errors: ['explicitPreferences: Preference could not be removed on this device.'],
+      errors: [profileRecoveryErrorMessage(error, 'explicitPreferences: Preference could not be removed on this device.')],
     };
   }
 }

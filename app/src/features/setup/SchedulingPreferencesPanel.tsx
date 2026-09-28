@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { getCurrentLifeRhythmDatabase } from '../../data/localDataNamespace';
+import { readProfileView, STALE_PROFILE_RECOVERY_MESSAGE } from '../../data/profileRecoveryGeneration';
 import { Button, Card } from '../../components';
 import {
   commitExplicitPreferenceDelete,
@@ -13,6 +15,7 @@ import {
   type PreferenceTargetOption,
 } from '../../data/explicitPreferenceControls';
 import {
+  createExplicitPreferenceStore,
   loadExplicitPreferencesResult,
   type ExplicitPreferenceLoadResult,
 } from '../../data/explicitPreferenceRepository';
@@ -158,12 +161,26 @@ export function SchedulingPreferencesPanel({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [clearInput, setClearInput] = useState('');
+  const [viewGeneration, setViewGeneration] = useState<number | null>(null);
+  const readRequest = useRef(0);
 
   const refresh = useCallback(async () => {
-    const [preferences, targets] = await Promise.all([
-      loadExplicitPreferencesResult(),
-      loadPreferenceTargetCatalogue(),
-    ]);
+    const request = ++readRequest.current;
+    setViewGeneration(null);
+    const db = getCurrentLifeRhythmDatabase();
+    let preferences: ExplicitPreferenceLoadResult;
+    let targets: Awaited<ReturnType<typeof loadPreferenceTargetCatalogue>>;
+    let generation: number;
+    try {
+      ({ generation, value: [preferences, targets] } = await readProfileView(db, () => Promise.all([
+        loadExplicitPreferencesResult(createExplicitPreferenceStore(db)), loadPreferenceTargetCatalogue(db),
+      ])));
+    } catch {
+      if (request === readRequest.current) setStatus(STALE_PROFILE_RECOVERY_MESSAGE);
+      return;
+    }
+    if (request !== readRequest.current) return;
+    setViewGeneration(generation);
     setLoadResult(preferences);
     if (targets.status === 'ok') {
       setCatalogue(targets.options);
@@ -239,7 +256,7 @@ export function SchedulingPreferencesPanel({
   }
 
   async function savePreference() {
-    if (!form || !expectation) return;
+    if (!form || !expectation || viewGeneration === null) return;
     if (!form.targetValue) {
       setStatus('Choose a target for this scheduling preference.');
       return;
@@ -271,9 +288,11 @@ export function SchedulingPreferencesPanel({
 
     setBusy(true);
     try {
-      const result = await commitExplicitPreferenceUpsert(input, expectation);
+      const result = await commitExplicitPreferenceUpsert(input, expectation,
+        getCurrentLifeRhythmDatabase(), new Date().toISOString(), viewGeneration);
       if (!result.ok) {
         setStatus(result.errors.join(' '));
+        if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) { setForm(null); setExpectation(null); }
         await refresh();
         return;
       }
@@ -289,6 +308,7 @@ export function SchedulingPreferencesPanel({
   }
 
   async function removePreference(preference: ExplicitPreference) {
+    if (viewGeneration === null) return;
     const currentExpectation = explicitPreferenceTargetExpectation(loadResult, preference.id);
     if (!currentExpectation) {
       setStatus('Reload scheduling preferences before removing this item.');
@@ -297,7 +317,8 @@ export function SchedulingPreferencesPanel({
 
     setBusy(true);
     try {
-      const result = await commitExplicitPreferenceDelete(preference.id, currentExpectation);
+      const result = await commitExplicitPreferenceDelete(preference.id, currentExpectation,
+        getCurrentLifeRhythmDatabase(), new Date().toISOString(), viewGeneration);
       if (!result.ok) {
         setStatus(result.errors.join(' '));
         await refresh();
@@ -332,11 +353,14 @@ export function SchedulingPreferencesPanel({
   }
 
   async function clearPreferences() {
+    if (viewGeneration === null) return;
     setBusy(true);
     try {
-      const result = await commitExplicitPreferenceReset(clearInput);
+      const result = await commitExplicitPreferenceReset(clearInput, getCurrentLifeRhythmDatabase(),
+        new Date().toISOString(), viewGeneration);
       if (!result.ok) {
         setStatus(result.errors.join(' '));
+        if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) { setForm(null); setExpectation(null); void refresh(); }
         return;
       }
       setClearInput('');

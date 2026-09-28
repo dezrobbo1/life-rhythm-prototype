@@ -1,6 +1,7 @@
 import type { LifeRhythmDatabase } from './db';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import { SETTINGS_APP_VERSION } from './settingsRepository';
+import { profileRecoveryErrorMessage } from './profileRecoveryGeneration';
 import { strictIsoDateTimeSchema } from './schemas';
 import {
   DURATION_LEARNING_CONTROLS_RECORD_ID,
@@ -126,8 +127,8 @@ export async function upsertDurationLearningControl(
       await store.write(record.data);
       return { ok: true as const, control: parsedControl.data, controls };
     });
-  } catch {
-    return failure('Duration control could not be saved on this device.');
+  } catch (error) {
+    return failure(profileRecoveryErrorMessage(error, 'Duration control could not be saved on this device.'));
   }
 }
 
@@ -159,7 +160,7 @@ export async function deleteDurationLearningControl(
       await store.write(record.data);
       return { ok: true as const, removed: true, controls };
     });
-  } catch {
-    return failure('Duration control could not be reset on this device.');
+  } catch (error) {
+    return failure(profileRecoveryErrorMessage(error, 'Duration control could not be reset on this device.'));
   }
 }

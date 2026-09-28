@@ -896,11 +896,12 @@ export async function repairCurrentPrivatePlan(
 
 export async function undoCurrentPrivatePlan(
   options: PrivatePlanCoordinatorOptions = {},
+  expectedRecoveryGeneration?: number,
 ): Promise<PrivatePlanActionResult> {
   const live = await buildCurrentLiveSchedulingContext(options);
   if (!live.ok) return live;
 
-  const undone = await undoPersistedSchedulerRepair();
+  const undone = await undoPersistedSchedulerRepair(undefined, undefined, expectedRecoveryGeneration);
   if (!undone.ok) {
     return { ok: false, errors: undone.errors, warnings: live.context.warnings };
   }

@@ -53,6 +53,7 @@ vi.mock('../data/softPlacementBackup', async (importOriginal) => {
 });
 
 import App from '../App';
+import { getCurrentLifeRhythmDatabase } from '../data/localDataNamespace';
 
 const now = '2026-06-15T00:00:00.000Z';
 
@@ -408,11 +409,12 @@ describe('App settings persistence wiring', () => {
     );
     expect(migrationWarning.textContent).toContain('Nothing already stored on this device was changed.');
     expect(migrationWarning.textContent).toContain('The migration will need to be retried.');
-    expect(settingsMocks.loadSettingsResult.mock.calls.filter((call) => call.length === 0)).toHaveLength(1);
-    expect(settingsMocks.loadSettingsResult).toHaveBeenCalledWith(
+    expect(settingsMocks.loadSettingsResult.mock.calls.filter((call) =>
+      call.length === 1 && call[0] === getCurrentLifeRhythmDatabase())).toHaveLength(1);
+    await waitFor(() => expect(settingsMocks.loadSettingsResult).toHaveBeenCalledWith(
       expect.anything(),
       { persistMigration: false },
-    );
+    ));
     expect(settingsMocks.saveSettings).not.toHaveBeenCalled();
     expect(settingsMocks.resetSettingsToDefaults).not.toHaveBeenCalled();
   });

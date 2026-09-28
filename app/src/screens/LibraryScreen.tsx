@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { getCurrentLifeRhythmDatabase } from '../data/localDataNamespace';
+import { readProfileView, STALE_PROFILE_RECOVERY_MESSAGE } from '../data/profileRecoveryGeneration';
 import { Button, Card, EmptyState, ScreenHero } from '../components';
 import { rhythmTemplateSchema, type RhythmTemplate } from '../data/schemas';
 import type { RhythmPlan, RhythmRecurrenceRevision } from '../data/rhythmAuthoritySchemas';
@@ -31,6 +33,7 @@ type AuthorityState =
   | { status: 'error'; errors: string[] }
   | {
       status: 'ok';
+      generation: number;
       templates: RhythmTemplate[];
       plans: RhythmPlan[];
       revisions: RhythmRecurrenceRevision[];
@@ -142,14 +145,25 @@ export function LibraryScreen() {
   const [backupJson, setBackupJson] = useState('');
   const [backupPreview, setBackupPreview] = useState<RhythmAuthorityBackupPreview | null>(null);
   const [backupErrors, setBackupErrors] = useState<string[]>([]);
+  const readRequest = useRef(0);
 
   async function reloadAuthority() {
-    const result = await loadRhythmAuthorityResult();
+    const request = ++readRequest.current;
+    const db = getCurrentLifeRhythmDatabase();
+    let result: Awaited<ReturnType<typeof loadRhythmAuthorityResult>>;
+    let generation: number;
+    try {
+      ({ value: result, generation } = await readProfileView(db, () => loadRhythmAuthorityResult(db)));
+    } catch {
+      if (request === readRequest.current) setAuthority({ status: 'error', errors: [STALE_PROFILE_RECOVERY_MESSAGE] });
+      return false;
+    }
+    if (request !== readRequest.current) return false;
     if (result.status !== 'ok') {
       setAuthority({ status: 'error', errors: result.errors });
       return false;
     }
-    setAuthority({ status: 'ok', templates: result.templates, plans: result.plans, revisions: result.revisions });
+    setAuthority({ status: 'ok', generation, templates: result.templates, plans: result.plans, revisions: result.revisions });
     return true;
   }
 
@@ -244,9 +258,10 @@ export function LibraryScreen() {
       maxPerDay: input.maxPerDay,
       timezone: input.timezone,
       effectiveFromLocalDate: input.effectiveFromLocalDate,
-    });
+    }, getCurrentLifeRhythmDatabase(), authority.generation);
     if (!result.ok) {
       setConfirmation(`Rhythm was not saved. ${result.errors.join(' ')}`);
+      if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) { setConfigTarget(null); void reloadAuthority(); }
       return false;
     }
     const reconciled = await ensureCurrentPrivatePlan();
@@ -262,9 +277,11 @@ export function LibraryScreen() {
 
   async function changeState(rhythmId: string, state: 'enabled' | 'paused' | 'disabled') {
     if (authority.status !== 'ok') return;
-    const result = await setRhythmPlanState(rhythmId, state);
+    const result = await setRhythmPlanState(rhythmId, state, getCurrentLifeRhythmDatabase(),
+      new Date().toISOString(), authority.generation);
     if (!result.ok) {
       setConfirmation(result.errors.join(' '));
+      if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) void reloadAuthority();
       return;
     }
     const reconciled = await ensureCurrentPrivatePlan();
@@ -281,9 +298,11 @@ export function LibraryScreen() {
       openConfiguration(rhythm);
       return;
     }
-    const result = await addRhythmToTodayOnce(rhythm.id, localDate());
+    const result = await addRhythmToTodayOnce(rhythm.id, localDate(), getCurrentLifeRhythmDatabase(),
+      new Date().toISOString(), authority.generation);
     if (!result.ok) {
       setConfirmation(result.errors.join(' '));
+      if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) void reloadAuthority();
       return;
     }
     await ensureCurrentPrivatePlan();

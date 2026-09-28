@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import 'fake-indexeddb/auto';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -25,6 +26,10 @@ vi.mock('../../data/taskPoolRepository', () => poolMocks);
 vi.mock('../../data/softPlacementRepository', () => placementMocks);
 
 import { AppSnapshotProvider } from '../../data/AppSnapshotProvider';
+import { createLifeRhythmDatabase } from '../../data/db';
+import { createAuthLocalDataNamespace, getCurrentLifeRhythmDatabase,
+  resetCurrentLocalDataNamespace, setCurrentLocalDataNamespace } from '../../data/localDataNamespace';
+import { advanceProfileRecoveryGeneration, readProfileRecoveryGeneration } from '../../data/profileRecoveryGeneration';
 import { PersonalPlanScreen } from '../../screens/PersonalPlanScreen';
 import { emptyAppSnapshot } from '../../viewModels';
 
@@ -117,6 +122,44 @@ afterEach(() => {
 });
 
 describe('Personal Plan read states', () => {
+  it('discards a mixed-generation read and retries once before showing manual data', async () => {
+    setCurrentLocalDataNamespace(createAuthLocalDataNamespace('plan-read-generation-test'));
+    const db = getCurrentLifeRhythmDatabase();
+    const otherHandle = createLifeRhythmDatabase(db.name);
+    await db.delete();
+    await db.open();
+    try {
+      let releaseOldRead!: (result: unknown) => void;
+      placementMocks.loadSoftPlacementsForDateResult
+        .mockImplementationOnce(() => new Promise((resolve) => { releaseOldRead = resolve; }))
+        .mockResolvedValueOnce({ invalidRecordCount: 0, items: [{
+          id: 'new-placement', taskId: 'new-task', taskTitleSnapshot: 'Restored task',
+          blockId: 'block', blockLabelSnapshot: 'Restored window', date: '2026-09-07',
+          start: '09:00', end: '09:10', placementSource: 'userConfirmed', status: 'planned',
+          createdAt: '2026-09-07T00:00:00.000Z', updatedAt: '2026-09-07T00:00:00.000Z',
+        }], status: 'ok' });
+      renderPlan();
+      await waitFor(() => expect(placementMocks.loadSoftPlacementsForDateResult).toHaveBeenCalledTimes(1));
+      expect(await readProfileRecoveryGeneration(otherHandle)).toBe(0);
+      await otherHandle.transaction('rw', otherHandle.settings, () => advanceProfileRecoveryGeneration(otherHandle, 0));
+      releaseOldRead({ invalidRecordCount: 0, items: [{
+        id: 'old-placement', taskId: 'old-task', taskTitleSnapshot: 'Old profile task',
+        blockId: 'block', blockLabelSnapshot: 'Old window', date: '2026-09-07',
+        start: '09:00', end: '09:10', placementSource: 'userConfirmed', status: 'planned',
+        createdAt: '2026-09-07T00:00:00.000Z', updatedAt: '2026-09-07T00:00:00.000Z',
+      }], status: 'ok' });
+      expect(await screen.findByText('Restored task')).toBeTruthy();
+      expect(screen.queryByText('Old profile task')).toBeNull();
+      expect(placementMocks.loadSoftPlacementsForDateResult).toHaveBeenCalledTimes(2);
+      expect(await readProfileRecoveryGeneration(db)).toBe(1);
+    } finally {
+      cleanup();
+      otherHandle.close();
+      await db.delete();
+      resetCurrentLocalDataNamespace();
+    }
+  });
+
   it('keeps planning mounted while calm Plan details are closed and toggled', async () => {
     const user = userEvent.setup();
 

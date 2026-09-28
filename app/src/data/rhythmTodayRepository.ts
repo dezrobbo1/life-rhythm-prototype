@@ -6,6 +6,7 @@ import { activeTaskSchema, rhythmTemplateSchema, type ActiveTask } from './schem
 import { appendBehaviourEvent, createBehaviourEvent } from './behaviourEventRepository';
 import { markRhythmInputRepairPending, markTaskInputRepairPending } from './schedulerPlanStateRepository';
 import { loadRhythmAuthorityResult } from './rhythmAuthorityRepository';
+import { profileRecoveryErrorMessage, profileWriteTransaction } from './profileRecoveryGeneration';
 
 export function activeTaskIdForRhythmInstance(instanceId: string) {
   return `rhythm-task:${encodeURIComponent(instanceId)}`;
@@ -145,13 +146,13 @@ export async function addRhythmToTodayOnce(
   localDate: string,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
   now = new Date().toISOString(),
+  expectedRecoveryGeneration?: number,
 ): Promise<
   | { ok: true; task: ActiveTask; reusedGeneratedOccurrence: boolean; alreadyExists: boolean }
   | { ok: false; errors: string[] }
 > {
   try {
-    return await database.transaction(
-      'rw',
+    return await profileWriteTransaction(database,
       [
         database.rhythmTemplates,
         database.rhythmPlans,
@@ -275,9 +276,10 @@ export async function addRhythmToTodayOnce(
           templateId,
         }), database);
         return { ok: true as const, task, reusedGeneratedOccurrence: false, alreadyExists: false };
-      },
+      }, expectedRecoveryGeneration,
     );
-  } catch {
-    return { ok: false, errors: ['The rhythm was not added to Today. Existing data remain unchanged.'] };
+  } catch (error) {
+    return { ok: false, errors: [profileRecoveryErrorMessage(error,
+      'The rhythm was not added to Today. Existing data remain unchanged.')] };
   }
 }

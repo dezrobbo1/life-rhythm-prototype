@@ -1,6 +1,7 @@
 import { LifeRhythmDatabase } from './db';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import type { TaskHistory } from './schemas';
+import { profileRecoveryErrorMessage, profileWriteTransaction } from './profileRecoveryGeneration';
 
 export const BEHAVIOUR_HISTORY_DELETE_CONFIRMATION = 'DELETE BEHAVIOUR HISTORY';
 
@@ -40,6 +41,7 @@ export async function exportBehaviourHistory(
 export async function deleteBehaviourHistory(
   confirmation: string,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
+  expectedRecoveryGeneration?: number,
 ): Promise<DeleteBehaviourHistoryResult> {
   if (confirmation !== BEHAVIOUR_HISTORY_DELETE_CONFIRMATION) {
     return {
@@ -49,16 +51,16 @@ export async function deleteBehaviourHistory(
   }
 
   try {
-    return await database.transaction('rw', database.taskHistory, async () => {
+    return await profileWriteTransaction(database, [database.taskHistory], async () => {
       const rows = await database.taskHistory.toArray();
       const ids = rows.filter(isGate7ABehaviourRow).map((row) => row.id);
       await database.taskHistory.bulkDelete(ids);
       return { deletedCount: ids.length, ok: true as const };
-    });
-  } catch {
+    }, expectedRecoveryGeneration);
+  } catch (error) {
     return {
       ok: false,
-      errors: ['Behaviour history could not be deleted. Nothing else was changed.'],
+      errors: [profileRecoveryErrorMessage(error, 'Behaviour history could not be deleted. Nothing else was changed.')],
     };
   }
 }

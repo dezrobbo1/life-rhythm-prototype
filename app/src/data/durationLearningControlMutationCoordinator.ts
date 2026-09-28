@@ -12,6 +12,7 @@ import type {
   DurationLearningControlWriteInput,
 } from './durationLearningControlSchema';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
+import { profileRecoveryErrorMessage, profileWriteTransaction } from './profileRecoveryGeneration';
 
 const STALE_DURATION_CONTROL =
   'durationLearning: This template control changed after editing began. Reload duration learning and try again.';
@@ -89,6 +90,7 @@ export async function commitDurationLearningControlUpsert(
   expectation: DurationLearningControlExpectation,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
   timestamp = new Date().toISOString(),
+  expectedRecoveryGeneration?: number,
 ): Promise<DurationLearningControlMutationResult> {
   if (input.templateId !== expectation.templateId) {
     return {
@@ -98,7 +100,7 @@ export async function commitDurationLearningControlUpsert(
   }
 
   try {
-    return await database.transaction('rw', database.settings, async () => {
+    return await profileWriteTransaction(database, [database.settings], async () => {
       const store = transactionPassthroughStore(database);
       const loaded = await loadDurationLearningControlsResult(store);
       if (loaded.status === 'invalid' || loaded.status === 'readFailed') {
@@ -113,11 +115,11 @@ export async function commitDurationLearningControlUpsert(
         store,
         monotonicMutationTimestamp(loaded, timestamp),
       );
-    });
-  } catch {
+    }, expectedRecoveryGeneration);
+  } catch (error) {
     return {
       ok: false,
-      errors: ['durationLearning: Duration control could not be saved on this device.'],
+      errors: [profileRecoveryErrorMessage(error, 'durationLearning: Duration control could not be saved on this device.')],
     };
   }
 }
@@ -127,6 +129,7 @@ export async function commitDurationLearningControlDelete(
   expectation: DurationLearningControlExpectation,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
   timestamp = new Date().toISOString(),
+  expectedRecoveryGeneration?: number,
 ): Promise<DurationLearningControlMutationResult> {
   if (templateId !== expectation.templateId) {
     return {
@@ -136,7 +139,7 @@ export async function commitDurationLearningControlDelete(
   }
 
   try {
-    return await database.transaction('rw', database.settings, async () => {
+    return await profileWriteTransaction(database, [database.settings], async () => {
       const store = transactionPassthroughStore(database);
       const loaded = await loadDurationLearningControlsResult(store);
       if (loaded.status === 'invalid' || loaded.status === 'readFailed') {
@@ -151,11 +154,11 @@ export async function commitDurationLearningControlDelete(
         store,
         monotonicMutationTimestamp(loaded, timestamp),
       );
-    });
-  } catch {
+    }, expectedRecoveryGeneration);
+  } catch (error) {
     return {
       ok: false,
-      errors: ['durationLearning: Duration control could not be reset on this device.'],
+      errors: [profileRecoveryErrorMessage(error, 'durationLearning: Duration control could not be reset on this device.')],
     };
   }
 }

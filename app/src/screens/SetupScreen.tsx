@@ -46,21 +46,24 @@ import { buildSetupViewModel } from '../viewModels';
 import { SchedulingPreferencesPanel } from '../features/setup/SchedulingPreferencesPanel';
 import { DurationLearningPanel } from '../features/setup/DurationLearningPanel';
 import { CalendarSourceControl } from '../features/plan/CalendarSourceControl';
+import { PortableProfileRecovery } from '../features/setup/PortableProfileRecovery';
 import { ALL_WEEKDAYS, WORKDAY_PROFILE_ID, NON_WORKDAY_PROFILE_ID, type DayProfile, type WeekdayProfileAssignment } from '../data/schemas';
 import { createDefaultSettings } from '../data/settingsRepository';
+import { STALE_PROFILE_RECOVERY_MESSAGE, StaleProfileRecoveryError } from '../data/profileRecoveryGeneration';
 
 type SetupScreenProps = {
   onExportSettingsBackup?: () => Promise<SettingsBackupExport>;
   onExportSoftPlacementBackup?: () => Promise<SoftPlacementBackupExport | null>;
   onExportTaskPoolBackup?: () => Promise<TaskPoolBackupExport | null>;
-  onResetSettings?: () => Promise<Settings>;
-  onSaveSettings?: (settings: SettingsWriteInput) => Promise<SettingsWriteResult>;
+  onResetSettings?: (expectedRecoveryGeneration?: number) => Promise<Settings>;
+  onSaveSettings?: (settings: SettingsWriteInput, expectedRecoveryGeneration?: number) => Promise<SettingsWriteResult>;
   onPreferencePlanChanged?: () => void;
   onDurationLearningPlanChanged?: () => void;
   onCalendarPlanRepaired?: () => void;
   onCalendarRepairIssueChange?: (message: string | null) => void;
   onThemeChange?: (theme: ThemeName) => void;
   settings?: Settings;
+  settingsRecoveryGeneration?: number | null;
   theme?: ThemeName;
 };
 
@@ -104,6 +107,7 @@ export function SetupScreen({
   onCalendarRepairIssueChange,
   onThemeChange,
   settings,
+  settingsRecoveryGeneration,
   theme = 'exhale',
 }: SetupScreenProps = {}) {
   const { snapshot } = useAppSnapshot();
@@ -256,6 +260,10 @@ export function SetupScreen({
       setStatus('Settings save controls are not connected in this render.');
       return;
     }
+    if (settings && settingsRecoveryGeneration === null) {
+      setStatus('Reload Settings before saving changes to this profile.');
+      return;
+    }
 
     const invalidWorkBoundary = planningProfiles.some((profile) =>
       profile.kind === 'workday' &&
@@ -280,9 +288,11 @@ export function SetupScreen({
         planningDayReviewed: planningReviewed,
         startBoostSafety: safetySettingsFromState(safetyState),
         theme: selectedTheme,
-      });
+      }, settingsRecoveryGeneration ?? undefined);
 
-      setStatus(result.ok ? 'Settings saved on this device.' : 'Settings were not saved. Check work hours and travel numbers.');
+      setStatus(result.ok ? 'Settings saved on this device.' : result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)
+        ? 'The local profile changed. Review the reloaded Settings before saving again.'
+        : 'Settings were not saved. Check work hours and travel numbers.');
     } catch {
       setStatus('Settings were not saved. Check work hours and travel numbers.');
     }
@@ -296,7 +306,11 @@ export function SetupScreen({
     }
 
     try {
-      const resetSettings = await onResetSettings();
+      if (settings && settingsRecoveryGeneration === null) {
+        setStatus('Reload Settings before resetting this profile.');
+        return;
+      }
+      const resetSettings = await onResetSettings(settingsRecoveryGeneration ?? undefined);
       setLocalTheme(resetSettings.theme);
       setSafetyState(safetyStateFromSettings(resetSettings));
       setLifeShape(lifeShapeStateFromSettings(resetSettings));
@@ -304,8 +318,10 @@ export function SetupScreen({
       setWeekdayAssignments(resetSettings.weekdayProfileAssignments);
       setPlanningReviewed(false);
       setStatus('Settings reset to defaults on this device.');
-    } catch {
-      setStatus('Settings could not be reset safely. Saved information was left in place.');
+    } catch (error) {
+      setStatus(error instanceof StaleProfileRecoveryError
+        ? 'The local profile changed. Review the reloaded Settings before resetting again.'
+        : 'Settings could not be reset safely. Saved information was left in place.');
     }
   }
 
@@ -875,9 +891,10 @@ export function SetupScreen({
       <Card>
         <div className="setup-section-heading">
           <h2>Backup and recovery</h2>
-          <p>Export backup files or check a backup. Checking does not restore or change this device.</p>
+          <p>Export a portable profile, check it, and restore it when you choose. Checking alone changes nothing.</p>
         </div>
         <p className="setup-note">{setupViewModel.dataPreview.copy}</p>
+        <PortableProfileRecovery />
         <div className="setup-backup-panel">
           <div className="setup-subheading">
             <h3>Export settings</h3>
@@ -1123,11 +1140,11 @@ export function SetupScreen({
       <Card>
         <div className="setup-section-heading">
           <h2>Current limits</h2>
-          <p>Use one browser, one device, and one stable URL for early testing. The longitudinal trial has not started.</p>
+          <p>Your live data remains in this browser. Use a portable backup to recover it in another browser or device. The longitudinal trial has not started.</p>
         </div>
         <div className="setup-trial-limits">
           <p>Life Rhythm is local-first. This browser and device store the live data.</p>
-          <p>Login is not cloud sync. Backups can be exported and checked, but import/restore is not enabled.</p>
+          <p>Login is not cloud sync. A checked portable profile can replace this local profile with your confirmation. Individual backup types remain check-only.</p>
           <p>Plan accepts a static read-only calendar file with supported recurring events. Re-import it after changes; live provider connections, cloud sync, notifications, and individual Move/Protect for automatic times remain future work.</p>
         </div>
       </Card>

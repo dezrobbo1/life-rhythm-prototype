@@ -4,6 +4,13 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../data/profileRecoveryGeneration', async (original) => ({
+  ...await original<typeof import('../../data/profileRecoveryGeneration')>(),
+  readProfileView: async (_db: unknown, read: () => Promise<unknown>) => ({
+    generation: 0, value: await read(),
+  }),
+}));
+
 const preferenceMocks = vi.hoisted(() => ({
   load: vi.fn(),
 }));

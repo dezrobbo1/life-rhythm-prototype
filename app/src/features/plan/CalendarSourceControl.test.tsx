@@ -4,6 +4,13 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../data/profileRecoveryGeneration', async (original) => ({
+  ...await original<typeof import('../../data/profileRecoveryGeneration')>(),
+  readProfileView: async (_db: unknown, read: () => Promise<unknown>) => ({
+    generation: 0, value: await read(),
+  }),
+}));
+
 const calendarMocks = vi.hoisted(() => ({
   loadCalendarSource: vi.fn(),
   commitCalendarSourceImport: vi.fn(),
@@ -105,6 +112,7 @@ describe('CalendarSourceControl Plan health reporting', () => {
     Object.defineProperty(file, 'text', {
       value: vi.fn().mockResolvedValue('BEGIN:VCALENDAR\nEND:VCALENDAR'),
     });
+    await waitFor(() => expect((screen.getByLabelText('Select read-only calendar file') as HTMLInputElement).disabled).toBe(false));
     await user.upload(screen.getByLabelText('Select read-only calendar file'), file);
 
     await screen.findByText(
@@ -203,6 +211,7 @@ describe('CalendarSourceControl Plan health reporting', () => {
       value: vi.fn().mockResolvedValue('BEGIN:VCALENDAR\nEND:VCALENDAR'),
     });
 
+    await waitFor(() => expect((screen.getByLabelText('Select read-only calendar file') as HTMLInputElement).disabled).toBe(false));
     await user.upload(screen.getByLabelText('Select read-only calendar file'), file);
 
     await waitFor(() => {
@@ -239,6 +248,7 @@ describe('CalendarSourceControl Plan health reporting', () => {
     Object.defineProperty(file, 'text', {
       value: vi.fn().mockResolvedValue('BEGIN:VCALENDAR\nEND:VCALENDAR'),
     });
+    await waitFor(() => expect((screen.getByLabelText('Select read-only calendar file') as HTMLInputElement).disabled).toBe(false));
     await user.upload(screen.getByLabelText('Select read-only calendar file'), file);
 
     const expected = 'Calendar change was saved, but the flexible private plan could not be repaired.';
@@ -261,6 +271,7 @@ describe('CalendarSourceControl Plan health reporting', () => {
     Object.defineProperty(file, 'text', {
       value: vi.fn().mockResolvedValue('BEGIN:VCALENDAR\nEND:VCALENDAR'),
     });
+    await waitFor(() => expect((screen.getByLabelText('Select read-only calendar file') as HTMLInputElement).disabled).toBe(false));
     await user.upload(screen.getByLabelText('Select read-only calendar file'), file);
 
     const expected = 'Calendar change was saved, but the flexible private plan could not be repaired.';
@@ -324,6 +335,7 @@ describe('CalendarSourceControl Plan health reporting', () => {
     Object.defineProperty(first, 'text', {
       value: vi.fn().mockResolvedValue('BEGIN:VCALENDAR\nEND:VCALENDAR'),
     });
+    await waitFor(() => expect((screen.getByLabelText('Select read-only calendar file') as HTMLInputElement).disabled).toBe(false));
     await user.upload(screen.getByLabelText('Select read-only calendar file'), first);
 
     const expected = 'Calendar change was saved, but the flexible private plan could not be repaired.';
@@ -371,6 +383,7 @@ describe('CalendarSourceControl Plan health reporting', () => {
     Object.defineProperty(file, 'text', {
       value: vi.fn().mockResolvedValue('BEGIN:VCALENDAR\nEND:VCALENDAR'),
     });
+    await waitFor(() => expect((screen.getByLabelText('Select read-only calendar file') as HTMLInputElement).disabled).toBe(false));
     await user.upload(screen.getByLabelText('Select read-only calendar file'), file);
 
     await waitFor(() => {

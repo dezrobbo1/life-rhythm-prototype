@@ -1,4 +1,7 @@
-import type { Table } from 'dexie';
+import Dexie, { type Table } from 'dexie';
+import { assertProfileRecoveryGeneration, captureProfileRecoveryGeneration,
+  profileWriteTransaction, readProfileRecoveryGeneration, recoveryGenerationFromCanonicalSnapshot,
+  StaleProfileRecoveryError, STALE_PROFILE_RECOVERY_MESSAGE } from './profileRecoveryGeneration';
 import { scheduler } from '../domain/primaryScheduler';
 import { clipSchedulingInputToNow } from '../domain/elapsedTimeCapacity';
 import type {
@@ -281,6 +284,7 @@ async function saveSchedulerPlanStateIfCurrent(
   canonicalInputSnapshot?: CanonicalSchedulingInputSnapshot,
   expectedDurationLearningEventSnapshot?: string,
   behaviourEvents: BehaviourEvent[] = [],
+  expectedRecoveryGeneration?: number,
 ): Promise<SchedulerPlanStateWriteResult> {
   const candidate = validatedSchedulerPlanStateRecord(plan, updatedAt, fields);
   if (!candidate.success) {
@@ -328,6 +332,7 @@ async function saveSchedulerPlanStateIfCurrent(
         store.taskHistory,
       ],
       async () => {
+        if (expectedRecoveryGeneration !== undefined) await assertProfileRecoveryGeneration(store, expectedRecoveryGeneration);
         const latest = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
         if (!storedStateMatchesLoaded(latest, expected)) {
           return staleSchedulerWriteResult();
@@ -360,6 +365,10 @@ async function saveSchedulerPlanStateIfCurrent(
         }
 
         if (canonicalInputSnapshot !== undefined) {
+          const snapshotGeneration = recoveryGenerationFromCanonicalSnapshot(canonicalInputSnapshot);
+          if (snapshotGeneration !== null && snapshotGeneration !== await readProfileRecoveryGeneration(store)) {
+            return { ok: false as const, errors: [STALE_PROFILE_RECOVERY_MESSAGE] };
+          }
           const latestCanonicalRows = await readCanonicalSchedulingInputRows(store);
           if (canonicalSchedulingInputSnapshot(latestCanonicalRows) !== canonicalInputSnapshot) {
             return staleSchedulerWriteResult();
@@ -385,7 +394,10 @@ async function saveSchedulerPlanStateIfCurrent(
         };
       },
     );
-  } catch {
+  } catch (error) {
+    // A recovery epoch is not an ordinary scheduler-input conflict: never
+    // replay the old action onto the newly restored profile automatically.
+    if (error instanceof StaleProfileRecoveryError) return { ok: false, errors: [STALE_PROFILE_RECOVERY_MESSAGE] };
     return {
       ok: false,
       errors: ['schedulerPlanState: Saved scheduler state could not be written.'],
@@ -432,6 +444,9 @@ export async function saveSchedulerPlanState(
   updatedAt = new Date().toISOString(),
   fields: SchedulerStateFields = {},
 ): Promise<SchedulerPlanStateWriteResult> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.schedulerPlanState], () => saveSchedulerPlanState(plan, store, updatedAt, fields));
+  }
   const parsed = validatedSchedulerPlanStateRecord(plan, updatedAt, fields);
 
   if (!parsed.success) {
@@ -462,6 +477,9 @@ export async function markCalendarRepairPending(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
   detectedAt = new Date().toISOString(),
 ): Promise<{ ok: true; persisted: boolean } | { ok: false; errors: string[] }> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.schedulerPlanState], () => markCalendarRepairPending(store, detectedAt));
+  }
   try {
     const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
 
@@ -495,6 +513,9 @@ export async function markSettingsRepairPending(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
   detectedAt = new Date().toISOString(),
 ): Promise<{ ok: true; persisted: boolean } | { ok: false; errors: string[] }> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.schedulerPlanState], () => markSettingsRepairPending(store, detectedAt));
+  }
   try {
     const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
     if (!stored) return { ok: true, persisted: false };
@@ -608,6 +629,9 @@ export async function markPreferenceRepairPending(
   detectedAt = new Date().toISOString(),
   targets: readonly PreferenceRepairTarget[] = [],
 ): Promise<{ ok: true; persisted: boolean } | { ok: false; errors: string[] }> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.schedulerPlanState], () => markPreferenceRepairPending(store, detectedAt, targets));
+  }
   try {
     const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
 
@@ -650,6 +674,9 @@ export async function markTaskInputRepairPending(
   taskId: string,
   detectedAt = new Date().toISOString(),
 ): Promise<{ ok: true } | { ok: false; errors: string[] }> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.schedulerPlanState], () => markTaskInputRepairPending(store, taskId, detectedAt));
+  }
   try {
     const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
     if (!stored) return { ok: true };
@@ -682,6 +709,9 @@ export async function markRhythmInputRepairPending(
   targetId: string,
   detectedAt = new Date().toISOString(),
 ): Promise<{ ok: true } | { ok: false; errors: string[] }> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.schedulerPlanState], () => markRhythmInputRepairPending(store, targetId, detectedAt));
+  }
   try {
     const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
     if (!stored) return { ok: true };
@@ -712,6 +742,9 @@ export async function markRhythmInputRepairPending(
 export async function clearSchedulerPlanState(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
 ): Promise<void> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.schedulerPlanState], () => clearSchedulerPlanState(store));
+  }
   await store.schedulerPlanState.delete(CURRENT_SCHEDULER_PLAN_STATE_ID);
 }
 
@@ -725,6 +758,7 @@ export async function buildAndPersistSchedulerPlan(
   expectedSchedulerState?: SchedulerPlanStateExpectation,
   durationLearning?: DurationLearningPersistInput,
 ): Promise<SchedulerPlanPersistActionResult> {
+  const recoveryGeneration = store instanceof LifeRhythmDatabase ? await captureProfileRecoveryGeneration(store) : undefined;
   const observed = await loadSchedulerPlanState(store);
   if (observed.status === 'invalid' || observed.status === 'error') {
     return { ok: false, errors: observed.errors };
@@ -755,7 +789,7 @@ export async function buildAndPersistSchedulerPlan(
             rhythmInputRepairTargetIds: current.rhythmInputRepairTargetIds }
         : {}),
     }, calendarSourceSnapshot, canonicalInputSnapshot, durationLearning?.eventSnapshot,
-    current.status === 'missing' ? behaviourEventsForInitialSchedulerPlan(plan, updatedAt) : []);
+    current.status === 'missing' ? behaviourEventsForInitialSchedulerPlan(plan, updatedAt) : [], recoveryGeneration);
 
     return saved.ok
       ? { ...saved, mode: 'built' }
@@ -778,6 +812,7 @@ export async function repairAndPersistSchedulerPlan(
   expectedSchedulerState?: SchedulerPlanStateExpectation,
   durationLearning?: DurationLearningPersistInput,
 ): Promise<SchedulerPlanPersistActionResult> {
+  const recoveryGeneration = store instanceof LifeRhythmDatabase ? await captureProfileRecoveryGeneration(store) : undefined;
   const observed = await loadSchedulerPlanState(store);
   if (observed.status === 'invalid' || observed.status === 'error') {
     return { ok: false, errors: observed.errors };
@@ -932,7 +967,7 @@ export async function repairAndPersistSchedulerPlan(
     }, calendarSourceSnapshot, canonicalInputSnapshot, durationLearning?.eventSnapshot,
     current.status === 'missing'
       ? behaviourEventsForInitialSchedulerPlan(plan, updatedAt)
-      : behaviourEventsForSchedulerRepair(plan, updatedAt));
+      : behaviourEventsForSchedulerRepair(plan, updatedAt), recoveryGeneration);
 
     if (!saved.ok) {
       return saved;
@@ -953,7 +988,10 @@ export async function repairAndPersistSchedulerPlan(
 export async function undoPersistedSchedulerRepair(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
   updatedAt = new Date().toISOString(),
+  expectedRecoveryGeneration?: number,
 ): Promise<SchedulerPlanPersistActionResult> {
+  const recoveryGeneration = expectedRecoveryGeneration ?? (store instanceof LifeRhythmDatabase
+    ? await captureProfileRecoveryGeneration(store) : undefined);
   const current = await loadSchedulerPlanState(store);
 
   if (current.status === 'missing') {
@@ -1022,7 +1060,7 @@ export async function undoPersistedSchedulerRepair(
     ...(preferenceRepairTargets.length > 0 ? { preferenceRepairTargets } : {}),
     durationLearningApplied: undoDurationLearningApplied,
     dayModeContext: current.undoDayModeContext ?? undefined,
-  }, undefined, undefined, undefined, [behaviourEventForSchedulerUndo(current.plan, updatedAt)]);
+  }, undefined, undefined, undefined, [behaviourEventForSchedulerUndo(current.plan, updatedAt)], recoveryGeneration);
 
   return saved.ok
     ? { ...saved, mode: 'undone' }

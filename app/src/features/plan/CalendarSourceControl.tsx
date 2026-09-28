@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Button, Card } from '../../components';
 import {
   loadCalendarSource,
@@ -9,6 +9,8 @@ import {
   commitCalendarSourceBuffers,
 } from '../../data/calendarSourceMutationCoordinator';
 import { repairCurrentPrivatePlan } from '../../data/schedulerPlanCoordinator';
+import { getCurrentLifeRhythmDatabase } from '../../data/localDataNamespace';
+import { readProfileView, STALE_PROFILE_RECOVERY_MESSAGE } from '../../data/profileRecoveryGeneration';
 import {
   CALENDAR_REPAIR_PENDING_MESSAGE,
 } from '../../data/schedulerPlanStateRepository';
@@ -63,17 +65,22 @@ export function CalendarSourceControl({
   onRepairIssueChange,
 }: CalendarSourceControlProps) {
   const [savedCalendar, setSavedCalendar] = useState<SavedCalendarSummary | null>(null);
+  const [viewGeneration, setViewGeneration] = useState<number | null>(null);
+  const readRequest = useRef(0);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [warnings, setWarnings] = useState<string[]>([]);
   const [beforeBusyMinutes, setBeforeBusyMinutes] = useState(0);
   const [afterBusyMinutes, setAfterBusyMinutes] = useState(0);
 
-  useEffect(() => {
-    let active = true;
-
-    loadCalendarSource().then((result) => {
-      if (!active) return;
+  const reloadCalendar = useCallback(async () => {
+    const request = ++readRequest.current;
+    setViewGeneration(null);
+    try {
+      const db = getCurrentLifeRhythmDatabase();
+      const { generation, value: result } = await readProfileView(db, () => loadCalendarSource(db));
+      if (request !== readRequest.current) return;
+      setViewGeneration(generation);
 
       if (result.status === 'ok') {
         onReadIssueChange?.(null);
@@ -87,6 +94,7 @@ export function CalendarSourceControl({
         setAfterBusyMinutes(result.record.afterBusyMinutes);
         return;
       }
+      setSavedCalendar(null);
 
       if (result.status === 'invalid' || result.status === 'error') {
         const message = 'Saved calendar data could not be read safely. The flexible plan will not use it.';
@@ -96,17 +104,15 @@ export function CalendarSourceControl({
       }
 
       onReadIssueChange?.(null);
-    }).catch(() => {
-      if (!active) return;
+    } catch {
+      if (request !== readRequest.current) return;
       const message = 'Saved calendar data could not be read. The flexible plan will not use it.';
       setStatus(message);
       onReadIssueChange?.(message);
-    });
-
-    return () => {
-      active = false;
-    };
+    }
   }, [onReadIssueChange]);
+
+  useEffect(() => { void reloadCalendar(); return () => { readRequest.current++; }; }, [reloadCalendar]);
 
   async function repairAfterCalendarChange(reason: string) {
     try {
@@ -133,6 +139,7 @@ export function CalendarSourceControl({
     const input = event.currentTarget;
     const file = input.files?.[0];
     if (!file) return;
+    if (viewGeneration === null) return;
 
     setBusy(true);
     setStatus('');
@@ -149,14 +156,14 @@ export function CalendarSourceControl({
           windowStartDate: window.start,
           windowEndDate: window.end,
         },
-      });
+      }, getCurrentLifeRhythmDatabase(), viewGeneration);
 
       if (!imported.ok) {
         setStatus(imported.errors[0] ?? 'Calendar file could not be imported. Nothing was replaced.');
         setWarnings(imported.warnings);
+        if (imported.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) void reloadCalendar();
         return;
       }
-
       onReadIssueChange?.(null);
       setSavedCalendar({
         importedAt: imported.record.importedAt,
@@ -187,9 +194,11 @@ export function CalendarSourceControl({
     setStatus('');
     setWarnings([]);
 
-    const removed = await commitCalendarSourceRemoval();
+    if (viewGeneration === null) { setBusy(false); return; }
+    const removed = await commitCalendarSourceRemoval(getCurrentLifeRhythmDatabase(), viewGeneration);
     if (!removed.ok) {
       setStatus(removed.errors[0] ?? 'Saved calendar could not be removed.');
+      if (removed.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) void reloadCalendar();
       setBusy(false);
       return;
     }
@@ -204,9 +213,14 @@ export function CalendarSourceControl({
   }
 
   async function saveBuffers() {
+    if (viewGeneration === null) return;
     setBusy(true);
-    const result = await commitCalendarSourceBuffers(beforeBusyMinutes, afterBusyMinutes);
-    if (!result.ok) setStatus(result.errors[0] ?? 'Calendar spacing could not be saved.');
+    const result = await commitCalendarSourceBuffers(beforeBusyMinutes, afterBusyMinutes,
+      getCurrentLifeRhythmDatabase(), viewGeneration);
+    if (!result.ok) {
+      setStatus(result.errors[0] ?? 'Calendar spacing could not be saved.');
+      if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) void reloadCalendar();
+    }
     else {
       setSavedCalendar((current) => current ? { ...current, beforeBusyMinutes, afterBusyMinutes } : null);
       const repaired = await repairAfterCalendarChange('Calendar spacing changed.');
@@ -249,7 +263,7 @@ export function CalendarSourceControl({
             onChange={(event) => setBeforeBusyMinutes(Number(event.target.value))} /></label>
           <label><span>Minutes after busy events</span><input type="number" min="0" max="180" value={afterBusyMinutes}
             onChange={(event) => setAfterBusyMinutes(Number(event.target.value))} /></label>
-          <Button disabled={busy || (beforeBusyMinutes === savedCalendar.beforeBusyMinutes && afterBusyMinutes === savedCalendar.afterBusyMinutes)} onClick={saveBuffers}>Save event spacing</Button>
+          <Button disabled={busy || viewGeneration === null || (beforeBusyMinutes === savedCalendar.beforeBusyMinutes && afterBusyMinutes === savedCalendar.afterBusyMinutes)} onClick={saveBuffers}>Save event spacing</Button>
         </div> : null}
 
         <div className="library-backup-actions">
@@ -258,13 +272,13 @@ export function CalendarSourceControl({
             <input
               accept="text/calendar,.ics"
               aria-label="Select read-only calendar file"
-              disabled={busy}
+              disabled={busy || viewGeneration === null}
               onChange={importCalendarFile}
               type="file"
             />
           </label>
           {savedCalendar ? (
-            <Button disabled={busy} onClick={removeSavedCalendar}>
+            <Button disabled={busy || viewGeneration === null} onClick={removeSavedCalendar}>
               Remove calendar
             </Button>
           ) : null}

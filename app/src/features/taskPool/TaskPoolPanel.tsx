@@ -20,6 +20,9 @@ import {
 import { reconcileTaskDefinitionAfterWrite } from '../../data/taskDefinitionPlanReconciliation';
 import { updateUserTaskDefinition } from '../../data/taskDefinitionRepository';
 import { resolveTaskVersions } from './taskVersionInput';
+import { getCurrentLifeRhythmDatabase } from '../../data/localDataNamespace';
+import { assertProfileRecoveryGeneration, captureProfileRecoveryGeneration, StaleProfileRecoveryError,
+  STALE_PROFILE_RECOVERY_MESSAGE } from '../../data/profileRecoveryGeneration';
 import { TaskPoolDeferModal } from './TaskPoolDeferModal';
 import {
   buildTaskPoolResurfacingGroups,
@@ -146,7 +149,10 @@ function statusLabel(item: TaskPoolItem, nowMs: number) {
 export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanelProps = {}) {
   const [taskPoolCaptureOpen, setTaskPoolCaptureOpen] = useState(false);
   const [taskPoolFeedback, setTaskPoolFeedback] = useState<TaskPoolFeedback | null>(null);
-  const [taskPoolItems, setTaskPoolItems] = useState<TaskPoolItem[]>([]);
+  const [poolView, setPoolView] = useState<{ items: TaskPoolItem[]; generation: number | null }>({ items: [], generation: null });
+  const taskPoolItems = poolView.items;
+  const setTaskPoolItems = (update: (items: TaskPoolItem[]) => TaskPoolItem[]) =>
+    setPoolView((current) => ({ ...current, items: update(current.items) }));
   const [softPlacementDates, setSoftPlacementDates] = useState<Record<string, string>>({});
   const [markingTaskPoolItemId, setMarkingTaskPoolItemId] = useState<string | null>(null);
   const [movingTaskPoolItemId, setMovingTaskPoolItemId] = useState<string | null>(null);
@@ -164,20 +170,30 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
     [clockMs, taskPoolItems],
   );
 
-  const readTaskPoolData = useCallback(() => Promise.all([
-    loadTaskPoolItemsResult(),
-    loadAllSoftPlacementsResult(),
-  ]), []);
+  const readTaskPoolData = useCallback(async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const readOnce = async () => {
+      const generation = await captureProfileRecoveryGeneration(db);
+      const [itemsResult, placementsResult] = await Promise.all([
+        loadTaskPoolItemsResult(db), loadAllSoftPlacementsResult(db),
+      ]);
+      await assertProfileRecoveryGeneration(db, generation);
+      return { generation, itemsResult, placementsResult };
+    };
+    try { return await readOnce(); } catch (error) {
+      if (error instanceof StaleProfileRecoveryError) return readOnce();
+      throw error;
+    }
+  }, []);
 
-  const applyTaskPoolData = useCallback(([
-    itemsResult,
-    placementsResult,
-  ]: Awaited<ReturnType<typeof readTaskPoolData>>) => {
+  const applyTaskPoolData = useCallback(({
+    generation, itemsResult, placementsResult,
+  }: Awaited<ReturnType<typeof readTaskPoolData>>) => {
     setTaskPoolReadState(itemsResult);
     setPlacementReadState(placementsResult);
 
     if (itemsResult.status !== 'readFailed') {
-      setTaskPoolItems(itemsResult.items);
+      setPoolView({ items: itemsResult.items, generation });
     }
     if (placementsResult.status !== 'readFailed') {
       setSoftPlacementDates(placementDatesByTaskId(placementsResult.items));
@@ -198,6 +214,16 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
       applyTaskPoolData(result);
     }
   }, [applyTaskPoolData, readTaskPoolData]);
+
+  const handleStalePoolAction = useCallback(async (error: unknown) => {
+    if (!(error instanceof StaleProfileRecoveryError)) return false;
+    setPoolView((current) => ({ ...current, generation: null }));
+    setDeferItem(null);
+    setEditItem(null);
+    setTaskPoolFeedback({ kind: 'error', lines: [STALE_PROFILE_RECOVERY_MESSAGE] });
+    await refreshTaskPoolItems();
+    return true;
+  }, [refreshTaskPoolItems]);
 
   const retryTaskPoolItems = useCallback(async () => {
     const readRequest = taskPoolReadRequestRef.current + 1;
@@ -313,6 +339,7 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
 
   const saveCorrectedTask = useCallback(async (input: TaskPoolCaptureInput): Promise<TaskPoolCaptureResult> => {
     if (!editItem) return { ok: false, errors: ['Reopen the task before editing.'] };
+    if (poolView.generation === null) return { ok: false, errors: ['Reload Held before correcting this task.'] };
     const parsed = resolveTaskVersions(input);
     if (!parsed.ok) return { ok: false, errors: [parsed.error] };
     taskPoolWriteGenerationRef.current += 1;
@@ -328,7 +355,10 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
       ...(input.missedPolicy ? { missedPolicy: input.missedPolicy } : {}),
       ...(input.notUsefulAfter ? { notUsefulAfter: input.notUsefulAfter } : {}),
       ...(input.minimumStillUsefulAfterDeadline ? { minimumStillUsefulAfterDeadline: true } : {}),
-    });
+    }, getCurrentLifeRhythmDatabase(), poolView.generation);
+    if (!saved.ok && saved.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
+      await handleStalePoolAction(new StaleProfileRecoveryError());
+    }
     if (!saved.ok || !saved.item) return { ok: false, errors: saved.ok ? ['Task could not be corrected.'] : saved.errors };
     setEditItem(null);
     await refreshTaskPoolItems();
@@ -337,15 +367,16 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
       ? 'Task corrected. The private plan is up to date.'
       : `Task corrected. The private plan needs updating. ${repaired.message ?? ''}`] });
     return { ok: true, item: saved.item };
-  }, [editItem, refreshTaskPoolItems]);
+  }, [editItem, refreshTaskPoolItems, poolView.generation, handleStalePoolAction]);
 
   const moveTaskToToday = useCallback(async (item: TaskPoolItem) => {
+    if (poolView.generation === null) return;
     setMovingTaskPoolItemId(item.id);
     setTaskPoolFeedback(null);
     taskPoolWriteGenerationRef.current += 1;
 
     try {
-      const result = await bringTaskPoolItemToToday(item.id);
+      const result = await bringTaskPoolItemToToday(item.id, getCurrentLifeRhythmDatabase(), poolView.generation);
 
       if (!result.ok) {
         setTaskPoolFeedback({
@@ -367,7 +398,8 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
           ? ['This task is already in Today. Nothing else changed.']
           : ['Added to Today.', 'Park or mark it Not today to return it here safely.'],
       });
-    } catch {
+    } catch (error) {
+      if (await handleStalePoolAction(error)) return;
       setTaskPoolFeedback({
         kind: 'error',
         lines: ['Task was not added to Today. Nothing else changed.'],
@@ -375,17 +407,19 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
     } finally {
       setMovingTaskPoolItemId(null);
     }
-  }, []);
+  }, [poolView.generation, handleStalePoolAction]);
 
   const saveTaskDeferral = useCallback(async (bringBackAfter: string): Promise<boolean> => {
     if (!deferItem) return false;
+    if (poolView.generation === null) return false;
 
     setDeferringTaskPoolItemId(deferItem.id);
     setTaskPoolFeedback(null);
     taskPoolWriteGenerationRef.current += 1;
 
     try {
-      const result = await deferTaskPoolItem(deferItem.id, bringBackAfter);
+      const result = await deferTaskPoolItem(deferItem.id, bringBackAfter,
+        getCurrentLifeRhythmDatabase(), new Date(), poolView.generation);
 
       if (!result.ok) {
         setTaskPoolFeedback({
@@ -410,7 +444,8 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
         ],
       });
       return true;
-    } catch {
+    } catch (error) {
+      if (await handleStalePoolAction(error)) return false;
       setTaskPoolFeedback({
         kind: 'error',
         lines: ['The task was not held for later. Nothing else changed.'],
@@ -419,15 +454,17 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
     } finally {
       setDeferringTaskPoolItemId(null);
     }
-  }, [deferItem]);
+  }, [deferItem, poolView.generation, handleStalePoolAction]);
 
   const markCapturedTaskNoLongerNeeded = useCallback(async (item: TaskPoolItem) => {
+    if (poolView.generation === null) return;
     setMarkingTaskPoolItemId(item.id);
     setTaskPoolFeedback(null);
     taskPoolWriteGenerationRef.current += 1;
 
     try {
-      const result = await markTaskLifecycleNoLongerNeeded(item.id);
+      const result = await markTaskLifecycleNoLongerNeeded(item.id,
+        getCurrentLifeRhythmDatabase(), poolView.generation);
 
       if (result.ok) {
         setTaskPoolItems((currentItems) =>
@@ -446,7 +483,8 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
         kind: 'error',
         lines: ['Held item was not changed. Nothing else changed.'],
       });
-    } catch {
+    } catch (error) {
+      if (await handleStalePoolAction(error)) return;
       setTaskPoolFeedback({
         kind: 'error',
         lines: ['Held item was not changed. Nothing else changed.'],
@@ -454,7 +492,7 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
     } finally {
       setMarkingTaskPoolItemId(null);
     }
-  }, []);
+  }, [poolView.generation, handleStalePoolAction]);
 
   return (
     <section className="task-pool task-pool--holding-tray" aria-labelledby="task-pool-title">

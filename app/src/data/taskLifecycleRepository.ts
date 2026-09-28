@@ -11,6 +11,7 @@ import {
   type TaskPoolItemStatus,
 } from './schemas';
 import type { LifeRhythmDatabase } from './db';
+import { profileWriteTransaction } from './profileRecoveryGeneration';
 import { rhythmInstanceSchema } from './rhythmAuthoritySchemas';
 import type { RhythmInstance } from './rhythmAuthoritySchemas';
 import { markRhythmInputRepairPending } from './schedulerPlanStateRepository';
@@ -93,7 +94,7 @@ function issuesToMessages(issues: Array<{ message: string; path: Array<string | 
   });
 }
 
-function isVisibleTodayStatus(status: ActiveTaskStatus) {
+export function isVisibleTodayStatus(status: ActiveTaskStatus) {
   return visibleTodayStatuses.includes(status);
 }
 
@@ -108,7 +109,7 @@ export function minimumAchievementForStatusTransition(
   return undefined;
 }
 
-function poolStatusForActiveTask(status: ActiveTaskStatus): TaskPoolItemStatus {
+export function poolStatusForActiveTask(status: ActiveTaskStatus): TaskPoolItemStatus {
   if (isVisibleTodayStatus(status)) return 'today';
   if (status === 'parked') return 'parked';
   if (status === 'notToday' || status === 'skipped') return 'notToday';
@@ -250,8 +251,9 @@ function taskFromPoolItem(item: TaskPoolItem, timestamp: string): BringTaskPoolI
 export async function bringTaskPoolItemToToday(
   itemId: string,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
+  expectedRecoveryGeneration?: number,
 ): Promise<BringTaskPoolItemToTodayResult> {
-  return database.transaction('rw', database.taskPoolItems, database.activeTasks, database.taskHistory, async () => {
+  return profileWriteTransaction(database, [database.taskPoolItems, database.activeTasks, database.taskHistory], async () => {
     const storedPoolItem = await database.taskPoolItems.get(itemId);
 
     if (!storedPoolItem) {
@@ -348,13 +350,14 @@ export async function bringTaskPoolItemToToday(
       ok: true,
       task: activeTask,
     };
-  });
+  }, expectedRecoveryGeneration);
 }
 
 export async function updateTaskLifecycleStatus(
   taskId: string,
   status: ActiveTaskStatus,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
+  expectedRecoveryGeneration?: number,
 ): Promise<UpdateTaskLifecycleStatusResult> {
   const parsedStatus = activeTaskStatusSchema.safeParse(status);
 
@@ -365,8 +368,7 @@ export async function updateTaskLifecycleStatus(
     };
   }
 
-  return database.transaction(
-    'rw',
+  return profileWriteTransaction(database,
     [
       database.activeTasks,
       database.taskPoolItems,
@@ -501,20 +503,17 @@ export async function updateTaskLifecycleStatus(
         task: updatedTask,
         visibleToday,
       };
-    },
+    }, expectedRecoveryGeneration,
   );
 }
 
 export async function markTaskLifecycleNoLongerNeeded(
   itemId: string,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
+  expectedRecoveryGeneration?: number,
 ): Promise<MarkTaskNoLongerNeededResult> {
-  return database.transaction(
-    'rw',
-    database.taskPoolItems,
-    database.activeTasks,
-    database.softPlacements,
-    database.taskHistory,
+  return profileWriteTransaction(database,
+    [database.taskPoolItems, database.activeTasks, database.softPlacements, database.taskHistory],
     async () => {
       const storedItem = await database.taskPoolItems.get(itemId);
 
@@ -594,6 +593,6 @@ export async function markTaskLifecycleNoLongerNeeded(
         placements,
         task: updatedTask,
       };
-    },
+    }, expectedRecoveryGeneration,
   );
 }

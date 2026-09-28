@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto';
 
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -135,8 +136,8 @@ describe('Reset screen', () => {
 
     await waitFor(() => expect(harness.updateTaskStatus).toHaveBeenCalledTimes(2));
     expect(harness.updateTaskStatus).not.toHaveBeenCalledWith('active-first', 'notToday');
-    expect(harness.updateTaskStatus).toHaveBeenCalledWith('active-second', 'notToday');
-    expect(harness.updateTaskStatus).toHaveBeenCalledWith('active-third', 'notToday');
+    expect(harness.updateTaskStatus).toHaveBeenCalledWith('active-second', 'notToday', 0);
+    expect(harness.updateTaskStatus).toHaveBeenCalledWith('active-third', 'notToday', 0);
     expect(screen.getByRole('status').textContent).toContain(
       'Today is narrowed to one next action. Extras are marked not today. No catch-up pile.',
     );
@@ -158,7 +159,7 @@ describe('Reset screen', () => {
 
     await waitFor(() => expect(harness.updateTaskStatus).toHaveBeenCalledTimes(1));
     expect(harness.updateTaskStatus).not.toHaveBeenCalledWith('active-first', 'parked');
-    expect(harness.updateTaskStatus).toHaveBeenCalledWith('active-second', 'parked');
+    expect(harness.updateTaskStatus).toHaveBeenCalledWith('active-second', 'parked', 0);
     expect(screen.getByRole('status').textContent).toContain(
       'Extras are parked safely. One next action remains. No catch-up pile.',
     );
@@ -292,6 +293,7 @@ describe('Reset screen', () => {
     const input = screen.getByLabelText('Type DELETE BEHAVIOUR HISTORY to delete behaviour history');
     expect(button.disabled).toBe(true);
 
+    await waitFor(() => expect((input as HTMLInputElement).disabled).toBe(false));
     await user.type(input, 'DELETE');
     expect(button.disabled).toBe(true);
     expect(deleteBehaviourHistoryAction).not.toHaveBeenCalled();
@@ -301,7 +303,7 @@ describe('Reset screen', () => {
     expect(button.disabled).toBe(false);
     await user.click(button);
 
-    expect(deleteBehaviourHistoryAction).toHaveBeenCalledWith('DELETE BEHAVIOUR HISTORY');
+    expect(deleteBehaviourHistoryAction).toHaveBeenCalledWith('DELETE BEHAVIOUR HISTORY', 0);
     expect(onBehaviourHistoryDeleted).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('status').textContent).toContain(
       'Deleted 3 behaviour events. Derived duration evidence was removed and any existing flexible plan is up to date.',

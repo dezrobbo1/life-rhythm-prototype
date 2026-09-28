@@ -14,6 +14,8 @@ import {
   type StartBoostSafetySettings,
 } from './schemas';
 import type { ThemeName } from '../app/theme';
+import { captureProfileRecoveryGeneration, profileWriteTransaction, StaleProfileRecoveryError,
+  STALE_PROFILE_RECOVERY_MESSAGE } from './profileRecoveryGeneration';
 
 export const SETTINGS_ID = 'settings';
 
@@ -177,6 +179,8 @@ export async function loadSettingsResult(
   store: SettingsStore = getCurrentLifeRhythmDatabase(),
   options: SettingsLoadOptions = {},
 ): Promise<SettingsLoadResult> {
+  const expectedGeneration = store instanceof LifeRhythmDatabase && options.persistMigration !== false
+    ? await captureProfileRecoveryGeneration(store) : undefined;
   let savedSettingsRow: unknown;
   let savedFoundationRow: unknown;
 
@@ -245,9 +249,12 @@ export async function loadSettingsResult(
   }
 
   try {
-    await persistSettingsRecords(store, migration.settings, {
-      rewriteSettingsRow: storedInlineFoundation,
-    });
+    if (store instanceof LifeRhythmDatabase) {
+      await profileWriteTransaction(store, [store.settings], () => persistSettingsRecords(store, migration.settings,
+        { rewriteSettingsRow: storedInlineFoundation }), expectedGeneration);
+    } else {
+      await persistSettingsRecords(store, migration.settings, { rewriteSettingsRow: storedInlineFoundation });
+    }
   } catch {
     return {
       conflicts: migration.conflicts,
@@ -349,23 +356,29 @@ function planningFingerprint(settings: Settings): string {
   });
 }
 
-async function persistWithRepairAttention(store: SettingsStore, next: Settings, changed: boolean) {
-  if (!(store instanceof LifeRhythmDatabase) || !changed) {
+async function persistWithRepairAttention(store: SettingsStore, next: Settings, changed: boolean,
+  expectedGeneration?: number) {
+  if (!(store instanceof LifeRhythmDatabase)) {
     await persistSettingsRecords(store, next, { rewriteSettingsRow: true });
     return;
   }
-  await store.transaction('rw', store.settings, store.schedulerPlanState, async () => {
+  await profileWriteTransaction(store, [store.schedulerPlanState], async () => {
     await persistSettingsRecords(store, next, { rewriteSettingsRow: true });
-    const existing = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
-    const marked = await markSettingsRepairPending(store);
-    if (!marked.ok || (existing && !marked.persisted)) throw new Error('Settings plan repair attention could not be stored.');
-  });
+    if (changed) {
+      const existing = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
+      const marked = await markSettingsRepairPending(store);
+      if (!marked.ok || (existing && !marked.persisted)) throw new Error('Settings plan repair attention could not be stored.');
+    }
+  }, expectedGeneration);
 }
 
 export async function saveSettings(
   input: SettingsWriteInput,
   store: SettingsStore = getCurrentLifeRhythmDatabase(),
+  renderedRecoveryGeneration?: number,
 ): Promise<SettingsWriteResult> {
+  const expectedGeneration = renderedRecoveryGeneration ?? (store instanceof LifeRhythmDatabase
+    ? await captureProfileRecoveryGeneration(store) : undefined);
   const loadResult = await loadSettingsResult(store);
   const current = loadResult.settings;
 
@@ -392,9 +405,10 @@ export async function saveSettings(
   }
 
   try {
-    await persistWithRepairAttention(store, parsed.data, planningFingerprint(current) !== planningFingerprint(parsed.data));
-  } catch {
-    return { ok: false, errors: ['settings: Changes could not be saved safely.'], settings: current };
+    await persistWithRepairAttention(store, parsed.data, planningFingerprint(current) !== planningFingerprint(parsed.data), expectedGeneration);
+  } catch (error) {
+    return { ok: false, errors: [error instanceof StaleProfileRecoveryError
+      ? STALE_PROFILE_RECOVERY_MESSAGE : 'settings: Changes could not be saved safely.'], settings: current };
   }
 
   return {
@@ -403,11 +417,14 @@ export async function saveSettings(
   };
 }
 
-export async function resetSettingsToDefaults(store: SettingsStore = getCurrentLifeRhythmDatabase()): Promise<Settings> {
+export async function resetSettingsToDefaults(store: SettingsStore = getCurrentLifeRhythmDatabase(),
+  renderedRecoveryGeneration?: number): Promise<Settings> {
+  const expectedGeneration = renderedRecoveryGeneration ?? (store instanceof LifeRhythmDatabase
+    ? await captureProfileRecoveryGeneration(store) : undefined);
   const defaults = createDefaultSettings();
   const current = await loadSettingsResult(store, { persistMigration: false });
   if (current.status === 'invalid' || current.status === 'readFailed') throw new Error('Current settings cannot be reset safely.');
-  await persistWithRepairAttention(store, defaults, planningFingerprint(current.settings) !== planningFingerprint(defaults));
+  await persistWithRepairAttention(store, defaults, planningFingerprint(current.settings) !== planningFingerprint(defaults), expectedGeneration);
 
   return defaults;
 }

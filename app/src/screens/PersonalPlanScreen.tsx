@@ -9,6 +9,9 @@ import {
 } from '../data/schedulerPlanCoordinator';
 import { loadSoftPlacementsForDateResult } from '../data/softPlacementRepository';
 import { loadTaskPoolItemsResult } from '../data/taskPoolRepository';
+import { getCurrentLifeRhythmDatabase } from '../data/localDataNamespace';
+import { assertProfileRecoveryGeneration, captureProfileRecoveryGeneration,
+  StaleProfileRecoveryError, STALE_PROFILE_RECOVERY_MESSAGE } from '../data/profileRecoveryGeneration';
 import type { CollectionReadResult } from '../data/collectionReadResult';
 import {
   confirmTaskPoolSoftPlacement,
@@ -67,6 +70,22 @@ type SurfaceCollectionState<T> =
   | { status: 'loading' }
   | CollectionReadResult<T>;
 
+type ManualPlanState = {
+  generation: number | null;
+  placementsResult: SurfaceCollectionState<SoftPlacement>;
+  itemsResult: SurfaceCollectionState<TaskPoolItem>;
+};
+
+function loadingManualPlanState(): ManualPlanState {
+  return { generation: null, placementsResult: { status: 'loading' }, itemsResult: { status: 'loading' } };
+}
+
+function failedManualPlanState(): ManualPlanState {
+  return { generation: null,
+    placementsResult: { errors: ['softPlacements: Saved manual placements could not be read.'], status: 'readFailed' },
+    itemsResult: { errors: ['taskPoolItems: Saved Pool tasks could not be read.'], status: 'readFailed' } };
+}
+
 type PersonalPlanScreenProps = {
   detailsFooter?: ReactNode;
   embeddedInDayLine?: boolean;
@@ -123,8 +142,7 @@ export function PersonalPlanScreen({
   const [selectedPlacementDateOverride, setSelectedPlacementDateOverride] = useState<string | null>(
     preferredPlacementDate,
   );
-  const [savedSoftPlacements, setSavedSoftPlacements] = useState<SoftPlacement[]>([]);
-  const [taskPoolItems, setTaskPoolItems] = useState<TaskPoolItem[]>([]);
+  const [manualPlanState, setManualPlanState] = useState<ManualPlanState>(loadingManualPlanState);
   const [placingSuggestionId, setPlacingSuggestionId] = useState<string | null>(null);
   const [removingPlacementId, setRemovingPlacementId] = useState<string | null>(null);
   const [placementFeedback, setPlacementFeedback] = useState<PlacementFeedback | null>(null);
@@ -132,9 +150,13 @@ export function PersonalPlanScreen({
   const [privatePlanBusy, setPrivatePlanBusy] = useState<'refresh' | 'undo' | null>(null);
   const [privatePlanFeedback, setPrivatePlanFeedback] = useState<string | null>(null);
   const [planDetailsOpen, setPlanDetailsOpen] = useState(!embeddedInDayLine);
-  const [poolReadState, setPoolReadState] = useState<SurfaceCollectionState<TaskPoolItem>>({ status: 'loading' });
-  const [placementReadState, setPlacementReadState] = useState<SurfaceCollectionState<SoftPlacement>>({ status: 'loading' });
   const manualPlanReadRequestRef = useRef(0);
+  const { generation: manualPlanGeneration, placementsResult: placementReadState,
+    itemsResult: poolReadState } = manualPlanState;
+  const savedSoftPlacements = placementReadState.status === 'loading' || placementReadState.status === 'readFailed'
+    ? [] : placementReadState.items;
+  const taskPoolItems = poolReadState.status === 'loading' || poolReadState.status === 'readFailed'
+    ? [] : poolReadState.items;
 
   const dayShapePreview = useMemo(
     () => buildDayShapePreviewViewModel(snapshot, selectedDay),
@@ -202,24 +224,30 @@ export function PersonalPlanScreen({
     return true;
   }, []);
 
-  const readManualPlanData = useCallback(() => Promise.all([
-    loadSoftPlacementsForDateResult(selectedPlacementDate),
-    loadTaskPoolItemsResult(),
-  ]), [selectedPlacementDate]);
-
-  const applyManualPlanData = useCallback(([
-    placementsResult,
-    itemsResult,
-  ]: Awaited<ReturnType<typeof readManualPlanData>>) => {
-    setPlacementReadState(placementsResult);
-    setPoolReadState(itemsResult);
-
-    if (placementsResult.status !== 'readFailed') {
-      setSavedSoftPlacements(placementsResult.items);
+  const readManualPlanData = useCallback(async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const readOnce = async () => {
+      const generation = await captureProfileRecoveryGeneration(db);
+      const [placementsResult, itemsResult] = await Promise.all([
+        loadSoftPlacementsForDateResult(selectedPlacementDate, db),
+        loadTaskPoolItemsResult(db),
+      ]);
+      await assertProfileRecoveryGeneration(db, generation);
+      return { generation, placementsResult, itemsResult };
+    };
+    try {
+      return await readOnce();
+    } catch (error) {
+      // A restore between source reads makes the result ambiguous. Refresh once,
+      // never expose that mixed read as an actionable Plan view.
+      if (error instanceof StaleProfileRecoveryError) return readOnce();
+      throw error;
     }
-    if (itemsResult.status !== 'readFailed') {
-      setTaskPoolItems(itemsResult.items);
-    }
+  }, [selectedPlacementDate]);
+
+  const applyManualPlanData = useCallback((result: Awaited<ReturnType<typeof readManualPlanData>>) => {
+    setManualPlanState({ ...result, generation: result.placementsResult.status === 'readFailed' ||
+      result.itemsResult.status === 'readFailed' ? null : result.generation });
   }, []);
 
   const refreshPlanData = useCallback(async () => {
@@ -245,14 +273,7 @@ export function PersonalPlanScreen({
     } catch {
       if (manualPlanReadRequestRef.current !== requestId) return;
 
-      setPlacementReadState({
-        errors: ['softPlacements: Saved manual placements could not be read.'],
-        status: 'readFailed',
-      });
-      setPoolReadState({
-        errors: ['taskPoolItems: Saved Pool tasks could not be read.'],
-        status: 'readFailed',
-      });
+      setManualPlanState(failedManualPlanState());
     }
   }, [applyManualPlanData, readManualPlanData]);
 
@@ -294,11 +315,8 @@ export function PersonalPlanScreen({
     const requestId = manualPlanReadRequestRef.current + 1;
     manualPlanReadRequestRef.current = requestId;
 
-    setSavedSoftPlacements([]);
-    setTaskPoolItems([]);
     setPlacementFeedback(null);
-    setPlacementReadState({ status: 'loading' });
-    setPoolReadState({ status: 'loading' });
+    setManualPlanState(loadingManualPlanState());
 
     readManualPlanData()
       .then((result) => {
@@ -306,14 +324,7 @@ export function PersonalPlanScreen({
       })
       .catch(() => {
         if (active && manualPlanReadRequestRef.current === requestId) {
-          setPlacementReadState({
-            errors: ['softPlacements: Saved manual placements could not be read.'],
-            status: 'readFailed',
-          });
-          setPoolReadState({
-            errors: ['taskPoolItems: Saved Pool tasks could not be read.'],
-            status: 'readFailed',
-          });
+          setManualPlanState(failedManualPlanState());
         }
       });
 
@@ -353,11 +364,20 @@ export function PersonalPlanScreen({
   }, [applyPrivatePlanResult, onPlanRecovered]);
 
   const undoPrivatePlan = useCallback(async () => {
+    if (manualPlanGeneration === null) {
+      setPrivatePlanFeedback('Reload Plan before undoing this change.');
+      return;
+    }
     setPrivatePlanBusy('undo');
     setPrivatePlanFeedback(null);
 
     try {
-      const result = await undoCurrentPrivatePlan();
+      const result = await undoCurrentPrivatePlan({}, manualPlanGeneration);
+      if (!result.ok && result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
+        await retryManualPlanData();
+        setPrivatePlanFeedback(STALE_PROFILE_RECOVERY_MESSAGE);
+        return;
+      }
       const applied = applyPrivatePlanResult(result);
       setPrivatePlanFeedback(
         applied
@@ -369,9 +389,11 @@ export function PersonalPlanScreen({
     } finally {
       setPrivatePlanBusy(null);
     }
-  }, [applyPrivatePlanResult]);
+  }, [applyPrivatePlanResult, manualPlanGeneration, retryManualPlanData]);
 
   const addSoftPlacement = useCallback(async (suggestion: PoolSoftSuggestion) => {
+    const expectedGeneration = manualPlanGeneration;
+    if (expectedGeneration === null) return;
     setPlacingSuggestionId(suggestion.id);
     setPlacementFeedback(null);
 
@@ -388,7 +410,7 @@ export function PersonalPlanScreen({
           taskId: suggestion.taskId,
         }),
         taskId: suggestion.taskId,
-      });
+      }, getCurrentLifeRhythmDatabase(), expectedGeneration);
 
       if (!result.ok) {
         setPlacementFeedback({
@@ -408,7 +430,12 @@ export function PersonalPlanScreen({
           repaired ? 'Flexible automatic placements were checked around it.' : 'The automatic private plan could not update; the placement is still saved.',
         ],
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof StaleProfileRecoveryError) {
+        await retryManualPlanData();
+        setPlacementFeedback({ kind: 'error', lines: ['The local profile changed. Refresh Plan and try again.'] });
+        return;
+      }
       setPlacementFeedback({
         kind: 'error',
         lines: ['User-confirmed placement was not added.', 'Nothing else changed.'],
@@ -416,14 +443,16 @@ export function PersonalPlanScreen({
     } finally {
       setPlacingSuggestionId(null);
     }
-  }, [refreshPlanData, repairAfterUserPlacementChange]);
+  }, [manualPlanGeneration, refreshPlanData, repairAfterUserPlacementChange, retryManualPlanData]);
 
   const removeSoftPlacement = useCallback(async (placement: SoftPlacement) => {
+    const expectedGeneration = manualPlanGeneration;
+    if (expectedGeneration === null) return;
     setRemovingPlacementId(placement.id);
     setPlacementFeedback(null);
 
     try {
-      const result = await removeTaskPoolSoftPlacement(placement.id);
+      const result = await removeTaskPoolSoftPlacement(placement.id, getCurrentLifeRhythmDatabase(), expectedGeneration);
 
       if (!result.ok) {
         setPlacementFeedback({
@@ -443,7 +472,12 @@ export function PersonalPlanScreen({
           repaired ? 'Flexible automatic placements were checked again.' : 'The automatic private plan could not update; the removal is still saved.',
         ],
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof StaleProfileRecoveryError) {
+        await retryManualPlanData();
+        setPlacementFeedback({ kind: 'error', lines: ['The local profile changed. Refresh Plan and try again.'] });
+        return;
+      }
       setPlacementFeedback({
         kind: 'error',
         lines: ['User-confirmed placement was not removed.', 'Nothing else changed.'],
@@ -451,7 +485,7 @@ export function PersonalPlanScreen({
     } finally {
       setRemovingPlacementId(null);
     }
-  }, [refreshPlanData, repairAfterUserPlacementChange]);
+  }, [manualPlanGeneration, refreshPlanData, repairAfterUserPlacementChange, retryManualPlanData]);
 
   const suggestionEmptyTitle = poolSoftSuggestions.openCapacityBlockCount === 0
     ? `No open capacity blocks for ${dayShapePreview.selectedDay}.`

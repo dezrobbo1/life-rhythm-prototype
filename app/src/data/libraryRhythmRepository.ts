@@ -1,4 +1,6 @@
-import type { Table } from 'dexie';
+import Dexie, { type Table } from 'dexie';
+import { LifeRhythmDatabase } from './db';
+import { profileWriteTransaction } from './profileRecoveryGeneration';
 import {
   successfulCollectionRead,
   type CollectionReadResult,
@@ -94,6 +96,9 @@ export async function saveCustomLibraryRhythm(
   input: unknown,
   store: LibraryRhythmStore = getCurrentLifeRhythmDatabase(),
 ): Promise<LibraryRhythmWriteResult> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.rhythmTemplates], () => saveCustomLibraryRhythm(input, store));
+  }
   const validated = validateCustomRhythm(input);
 
   if (!validated.ok) {

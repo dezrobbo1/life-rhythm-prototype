@@ -2714,6 +2714,18 @@ textarea:focus-visible {
   opacity: 0.94;
 }
 
+.setup-backup-panel input,
+.setup-backup-panel textarea {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+
+.setup-backup-panel textarea {
+  overflow-wrap: anywhere;
+  resize: vertical;
+}
+
 .setup-subheading {
   display: grid;
   gap: var(--space-1);

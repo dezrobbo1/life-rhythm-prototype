@@ -1,4 +1,6 @@
-import type { Table } from 'dexie';
+import Dexie, { type Table } from 'dexie';
+import { LifeRhythmDatabase } from './db';
+import { profileWriteTransaction } from './profileRecoveryGeneration';
 import {
   icsCalendarAdapter,
   type CalendarReadEvent,
@@ -139,6 +141,9 @@ export async function importIcsCalendarSource(
   input: CalendarSourceImportInput,
   store: CalendarSourceStore = getCurrentLifeRhythmDatabase(),
 ): Promise<CalendarSourceImportResult> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.calendarSources], () => importIcsCalendarSource(input, store));
+  }
   const label = input.label.trim() || 'Imported calendar';
   const source = input.source.trim();
 
@@ -228,6 +233,9 @@ export async function importIcsCalendarSource(
 export async function removeCalendarSource(
   store: CalendarSourceStore = getCurrentLifeRhythmDatabase(),
 ): Promise<CalendarSourceRemoveResult> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.calendarSources], () => removeCalendarSource(store));
+  }
   let existing: unknown;
   try {
     existing = await store.calendarSources.get(CURRENT_CALENDAR_SOURCE_ID);
