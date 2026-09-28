@@ -38,6 +38,9 @@ import {
 import { reconcileExistingPrivatePlanAfterDurationEvidenceChange } from './data/durationLearningPlanReconciliation';
 import { reconcileTaskDefinitionAfterWrite } from './data/taskDefinitionPlanReconciliation';
 import { repairCurrentPrivatePlan } from './data/schedulerPlanCoordinator';
+import { getCurrentLifeRhythmDatabase } from './data/localDataNamespace';
+import { assertProfileRecoveryGeneration, captureProfileRecoveryGeneration,
+  STALE_PROFILE_RECOVERY_MESSAGE, StaleProfileRecoveryError } from './data/profileRecoveryGeneration';
 import {
   emptyAppSnapshot,
   normalDayWithOneTaskSnapshot,
@@ -195,7 +198,10 @@ function ExamplePreview({ onReturnToPersonalTrial, theme }: ExamplePreviewProps)
 export default function App() {
   const [activeScreen, setActiveScreen] = useState<ScreenId>('today');
   const [theme, setTheme] = useState<ThemeName>('exhale');
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const [settingsView, setSettingsView] = useState<{ settings: Settings | null; generation: number | null }>({
+    settings: null, generation: null,
+  });
+  const settings = settingsView.settings;
   const [settingsLoadStatus, setSettingsLoadStatus] = useState<SettingsLoadResult['status'] | 'loading'>('loading');
   const [settingsConflicts, setSettingsConflicts] = useState<LegacySettingsConflict[]>([]);
   const [exampleOpen, setExampleOpen] = useState(false);
@@ -275,47 +281,60 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const reloadSettingsView = useCallback(async (isActive: () => boolean = () => true) => {
+    const db = getCurrentLifeRhythmDatabase();
+    const readOnce = async () => {
+      const generation = await captureProfileRecoveryGeneration(db);
+      const result = await loadSettingsResult(db);
+      await assertProfileRecoveryGeneration(db, generation);
+      return { generation, result };
+    };
+    try {
+      let view;
+      try { view = await readOnce(); } catch (error) {
+        if (!(error instanceof StaleProfileRecoveryError)) throw error;
+        view = await readOnce();
+      }
+      const { result, generation } = view;
+      if (!isActive()) return;
+
+      setSettingsLoadStatus(result.status);
+      setSettingsConflicts(result.conflicts);
+
+      if (
+        result.status === 'defaulted' ||
+        result.status === 'loaded' ||
+        result.status === 'migrated' ||
+        result.status === 'migrationPersistenceFailed'
+      ) {
+        setSettingsView({ settings: result.settings, generation });
+        setTheme(result.settings.theme);
+        return;
+      }
+
+      setSettingsView({ settings: null, generation: null });
+    } catch {
+      if (!isActive()) return;
+      setSettingsView({ settings: null, generation: null });
+      setSettingsConflicts([]);
+      setSettingsLoadStatus('readFailed');
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
-
-    loadSettingsResult()
-      .then((result) => {
-        if (!active) return;
-
-        setSettingsLoadStatus(result.status);
-        setSettingsConflicts(result.conflicts);
-
-        if (
-          result.status === 'defaulted' ||
-          result.status === 'loaded' ||
-          result.status === 'migrated' ||
-          result.status === 'migrationPersistenceFailed'
-        ) {
-          setSettings(result.settings);
-          setTheme(result.settings.theme);
-          return;
-        }
-
-        setSettings(null);
-      })
-      .catch(() => {
-        if (!active) return;
-
-        setSettings(null);
-        setSettingsConflicts([]);
-        setSettingsLoadStatus('readFailed');
-      });
+    void reloadSettingsView(() => active);
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadSettingsView]);
 
-  async function handleSaveSettings(input: SettingsWriteInput): Promise<SettingsWriteResult> {
-    const result = await saveSettings(input);
+  async function handleSaveSettings(input: SettingsWriteInput, expectedGeneration?: number): Promise<SettingsWriteResult> {
+    const result = await saveSettings(input, getCurrentLifeRhythmDatabase(), expectedGeneration);
 
     if (result.ok) {
-      setSettings(result.settings);
+      setSettingsView((current) => ({ ...current, settings: result.settings }));
       setTheme(result.settings.theme);
       setSettingsConflicts([]);
       setSettingsLoadStatus('loaded');
@@ -326,18 +345,26 @@ export default function App() {
       }
     }
 
+    if (!result.ok && result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) await reloadSettingsView();
+
     return result;
   }
 
-  async function handleResetSettings(): Promise<Settings> {
-    const resetSettings = await resetSettingsToDefaults();
+  async function handleResetSettings(expectedGeneration?: number): Promise<Settings> {
+    let resetSettings;
+    try {
+      resetSettings = await resetSettingsToDefaults(getCurrentLifeRhythmDatabase(), expectedGeneration);
+    } catch (error) {
+      if (error instanceof StaleProfileRecoveryError) await reloadSettingsView();
+      throw error;
+    }
     const savedPlan = await loadSchedulerPlanState();
     if (savedPlan.status === 'ok' && savedPlan.settingsRepairPendingAt) {
       await repairCurrentPrivatePlan({ trigger: 'settingsChanged', reason: 'Planning-day settings reset.' });
       setPlanRevision((revision) => revision + 1);
     }
 
-    setSettings(resetSettings);
+    setSettingsView((current) => ({ ...current, settings: resetSettings }));
     setTheme(resetSettings.theme);
     setSettingsConflicts([]);
     setSettingsLoadStatus('loaded');
@@ -481,6 +508,7 @@ export default function App() {
         onCalendarRepairIssueChange={setCalendarRepairIssue}
         onThemeChange={setTheme}
         settings={settings}
+        settingsRecoveryGeneration={settingsView.generation}
         theme={theme}
       />
     ),

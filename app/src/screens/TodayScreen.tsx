@@ -46,6 +46,9 @@ import {
   type TaskViewModel,
 } from '../viewModels';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
+import { getCurrentLifeRhythmDatabase } from '../data/localDataNamespace';
+import { assertProfileRecoveryGeneration, captureProfileRecoveryGeneration,
+  StaleProfileRecoveryError, STALE_PROFILE_RECOVERY_MESSAGE } from '../data/profileRecoveryGeneration';
 
 type ActiveTaskArea = ActiveTask['area'];
 type VisibleActiveTaskStatus = Extract<ActiveTaskStatus, 'active' | 'inProgress' | 'paused' | 'minimumDone'>;
@@ -452,6 +455,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
     taskFromViewModel(initialTodayViewModel.nextUsefulAction),
   );
   const [activeTasks, setActiveTasks] = useState<ActiveTask[]>([]);
+  const [renderedTaskGeneration, setRenderedTaskGeneration] = useState<number | null>(null);
   const [nextActiveTask, setNextActiveTask] = useState<ActiveTask | null>(null);
   const [taskProgress, setTaskProgress] = useState<TaskProgress>('idle');
   const [mockMinimumAchieved, setMockMinimumAchieved] = useState(false);
@@ -621,6 +625,14 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
     showPersistedTask(visibleTasks[0] ?? null);
   }
 
+  function handleStaleTaskAction(error: unknown): boolean {
+    if (!(error instanceof StaleProfileRecoveryError)) return false;
+    setRenderedTaskGeneration(null);
+    setCompletionFeedback(STALE_PROFILE_RECOVERY_MESSAGE);
+    setTodayTasksReadAttempt((attempt) => attempt + 1);
+    return true;
+  }
+
   async function persistProgress(
     status: ActiveTaskStatus,
     progress: TaskProgress,
@@ -633,9 +645,20 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       if (status === 'minimumDone') setBoostOpen(false);
       return;
     }
+    if (renderedTaskGeneration === null) {
+      setCompletionFeedback('Reload Today before changing this task.');
+      return;
+    }
 
     taskWriteGenerationRef.current += 1;
-    const result = await updateActiveTaskStatus(nextActiveTask.id, status);
+    let result;
+    try {
+      result = await updateActiveTaskStatus(nextActiveTask.id, status,
+        getCurrentLifeRhythmDatabase(), renderedTaskGeneration ?? undefined);
+    } catch (error) {
+      if (handleStaleTaskAction(error)) return;
+      throw error;
+    }
 
     if (!result.ok) {
       setCompletionFeedback('Task state was not saved. Try again.');
@@ -673,9 +696,20 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       setBoostOpen(false);
       return;
     }
+    if (renderedTaskGeneration === null) {
+      setCompletionFeedback('Reload Today before changing this task.');
+      return;
+    }
 
     taskWriteGenerationRef.current += 1;
-    const result = await updateActiveTaskStatus(nextActiveTask.id, status);
+    let result;
+    try {
+      result = await updateActiveTaskStatus(nextActiveTask.id, status,
+        getCurrentLifeRhythmDatabase(), renderedTaskGeneration ?? undefined);
+    } catch (error) {
+      if (handleStaleTaskAction(error)) return;
+      throw error;
+    }
 
     if (!result.ok) {
       setCompletionFeedback('Task state was not saved. Try again.');
@@ -696,8 +730,16 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
     status: Extract<ActiveTaskStatus, 'parked' | 'notToday'>,
     feedback: string,
   ) {
+    if (renderedTaskGeneration === null) return;
     taskWriteGenerationRef.current += 1;
-    const result = await updateActiveTaskStatus(taskId, status);
+    let result;
+    try {
+      result = await updateActiveTaskStatus(taskId, status,
+        getCurrentLifeRhythmDatabase(), renderedTaskGeneration ?? undefined);
+    } catch (error) {
+      if (handleStaleTaskAction(error)) return;
+      throw error;
+    }
 
     if (!result.ok) {
       setCompletionFeedback('Task state was not saved. Try again.');
@@ -735,15 +777,31 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
 
     setTodayTasksReadState({ status: 'loading' });
 
-    loadActiveTodayTasksResult().then(async (result) => {
-      if (!active) return;
+    const db = getCurrentLifeRhythmDatabase();
+    const readOnce = async () => {
+      const generation = await captureProfileRecoveryGeneration(db);
+      const result = await loadActiveTodayTasksResult(db);
+      const tasks = result.status === 'readFailed' ? [] : result.items;
+      const linkedIds = tasks.length > 0 ? await loadLinkedTaskPoolItemIds(tasks.map((task) => task.id), db) : [];
+      await assertProfileRecoveryGeneration(db, generation);
+      return { generation, result, tasks, linkedIds };
+    };
+    (async () => {
+      let read;
+      try { read = await readOnce(); } catch (error) {
+        if (!(error instanceof StaleProfileRecoveryError)) throw error;
+        read = await readOnce();
+      }
+      if (!active || taskWriteGenerationRef.current !== writeGenerationAtReadStart) return;
+      const { generation, result, tasks, linkedIds } = read;
 
       if (result.status === 'readFailed') {
+        setRenderedTaskGeneration(null);
         setTodayTasksReadState({ status: 'readFailed' });
         return;
       }
 
-      const tasks = result.items;
+      setRenderedTaskGeneration(generation);
       const completedReadState: TodayTasksReadState = result.status === 'partial'
         ? { invalidRecordCount: result.invalidRecordCount, status: 'partial' }
         : { status: 'ok' };
@@ -758,9 +816,6 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         return;
       }
 
-      const linkedIds = await loadLinkedTaskPoolItemIds(tasks.map((task) => task.id));
-      if (!active) return;
-
       if (taskWriteGenerationRef.current === writeGenerationAtReadStart) {
         setActiveTasks(tasks);
         setLinkedTaskPoolItemIds(linkedIds);
@@ -769,8 +824,11 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         setBoostOpen(false);
       }
       setTodayTasksReadState(completedReadState);
-    }).catch(() => {
-      if (active) setTodayTasksReadState({ status: 'readFailed' });
+    })().catch(() => {
+      if (active) {
+        setRenderedTaskGeneration(null);
+        setTodayTasksReadState({ status: 'readFailed' });
+      }
     });
 
     return () => {
@@ -952,6 +1010,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
 
   async function saveCorrectedOneOff(input: MockAddTaskInput): Promise<boolean | string> {
     if (!editTask) return 'Reopen the task before editing.';
+    if (renderedTaskGeneration === null) return 'Reload Today before correcting this task.';
     const parsed = resolveTaskVersions(input);
     if (!parsed.ok) {
       setCompletionFeedback(parsed.error);
@@ -971,10 +1030,14 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       ...(input.notUsefulAfter ? { notUsefulAfter: input.notUsefulAfter } : {}),
       ...(input.minimumStillUsefulAfterDeadline ? { minimumStillUsefulAfterDeadline: true } : {}),
       ...(input.missedPolicy ? { missedPolicy: input.missedPolicy } : {}),
-    });
-    if (!saved.ok || !saved.task) return saved.ok
-      ? 'Task correction could not be saved.'
-      : saved.errors.join(' ');
+    }, getCurrentLifeRhythmDatabase(), renderedTaskGeneration ?? undefined);
+    if (!saved.ok || !saved.task) {
+      if (!saved.ok && saved.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
+        setRenderedTaskGeneration(null);
+        setTodayTasksReadAttempt((attempt) => attempt + 1);
+      }
+      return saved.ok ? 'Task correction could not be saved.' : saved.errors.join(' ');
+    }
     setEditTask(null);
     setActiveTasks((current) => current.map((task) => task.id === saved.task!.id ? saved.task! : task));
     if (nextActiveTask?.id === saved.task.id) showPersistedTask(saved.task);
@@ -1054,8 +1117,16 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   }
 
   async function markReentryTaskNoLongerNeeded(taskId: string) {
+    if (renderedTaskGeneration === null) return;
     taskWriteGenerationRef.current += 1;
-    const result = await markTaskLifecycleNoLongerNeeded(taskId);
+    let result;
+    try {
+      result = await markTaskLifecycleNoLongerNeeded(taskId, getCurrentLifeRhythmDatabase(),
+        renderedTaskGeneration ?? undefined);
+    } catch (error) {
+      if (handleStaleTaskAction(error)) return;
+      throw error;
+    }
 
     if (!result.ok || !result.task) {
       setCompletionFeedback('Task state was not saved. Try again.');

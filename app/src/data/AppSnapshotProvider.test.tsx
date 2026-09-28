@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto';
 
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -17,6 +18,14 @@ vi.mock('./settingsRepository', async (importOriginal) => {
     loadSettingsResult: settingsRepositoryMocks.loadSettingsResult,
   };
 });
+
+// Navigation coverage does not need either Setup catalogue read to outlive jsdom.
+vi.mock('../features/setup/SchedulingPreferencesPanel', () => ({
+  SchedulingPreferencesPanel: () => <section aria-label="Preferences test boundary" />,
+}));
+vi.mock('../features/setup/DurationLearningPanel', () => ({
+  DurationLearningPanel: () => <section aria-label="Duration learning test boundary" />,
+}));
 
 import App from '../App';
 import {
@@ -112,6 +121,7 @@ describe('AppSnapshotProvider', () => {
   });
 
   it('does not perform IndexedDB or Dexie write/open calls', () => {
+    const originalIndexedDB = globalThis.indexedDB;
     const openSpy = vi.fn();
     const deleteDatabaseSpy = vi.fn();
     Object.defineProperty(globalThis, 'indexedDB', {
@@ -130,6 +140,7 @@ describe('AppSnapshotProvider', () => {
 
     expect(openSpy).not.toHaveBeenCalled();
     expect(deleteDatabaseSpy).not.toHaveBeenCalled();
+    Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: originalIndexedDB });
   });
 
   it('keeps primary and secondary surfaces rendering through the provider path', async () => {

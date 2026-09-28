@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import 'fake-indexeddb/auto';
+
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -252,7 +254,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   vi.restoreAllMocks();
 });
 
@@ -345,26 +347,27 @@ describe('Today screen', () => {
 
   it('does not present a failed Today read as a genuine empty state and can retry', async () => {
     const user = userEvent.setup();
-    activeTaskRepositoryMocks.loadActiveTodayTasksResult
-      .mockResolvedValueOnce({
-        errors: ['activeTasks: Saved Today tasks could not be read.'],
-        status: 'readFailed',
-      })
-      .mockResolvedValueOnce({
-        invalidRecordCount: 0,
-        items: [persistedOneOffTask()],
-        status: 'ok',
-      });
+    activeTaskRepositoryMocks.loadActiveTodayTasksResult.mockResolvedValue({
+      errors: ['activeTasks: Saved Today tasks could not be read.'],
+      status: 'readFailed',
+    });
 
     renderEmptyPersonalToday();
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Your saved Today tasks could not be loaded.');
+    const readFailure = await screen.findByRole('alert');
+    expect(readFailure.textContent).toContain('Your saved Today tasks could not be loaded.');
     expect(screen.queryByRole('heading', { name: 'Choose rhythms to turn on' })).toBeNull();
 
+    const readsBeforeRetry = activeTaskRepositoryMocks.loadActiveTodayTasksResult.mock.calls.length;
+    activeTaskRepositoryMocks.loadActiveTodayTasksResult.mockResolvedValue({
+      invalidRecordCount: 0,
+      items: [persistedOneOffTask()],
+      status: 'ok',
+    });
     await user.click(screen.getByRole('button', { name: 'Retry' }));
 
     expect(await screen.findByRole('heading', { name: 'Pay water bill' })).toBeTruthy();
-    expect(activeTaskRepositoryMocks.loadActiveTodayTasksResult).toHaveBeenCalledTimes(2);
+    expect(activeTaskRepositoryMocks.loadActiveTodayTasksResult).toHaveBeenCalledTimes(readsBeforeRetry + 1);
     expect(activeTaskRepositoryMocks.saveActiveTodayTask).not.toHaveBeenCalled();
     expect(activeTaskRepositoryMocks.updateActiveTaskStatus).not.toHaveBeenCalled();
   });
@@ -955,11 +958,14 @@ describe('Today screen', () => {
     const later = screen.getByRole('region', { name: 'Later' });
     expect(within(later).getByText('Scheduled task B')).toBeTruthy();
     expect(within(now).queryByText('Scheduled task B')).toBeNull();
+    // The persisted-task read can trigger a second initial plan read. Wait for
+    // that 11:59 snapshot before advancing to the scheduled boundary.
+    await vi.waitFor(() => expect(schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext)
+      .toHaveBeenCalledTimes(2), { timeout: 1000 });
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(60 * 1000);
     });
-
     expect(within(now).getByText('Scheduled for this time')).toBeTruthy();
     expect(within(now).getByText('Scheduled task B')).toBeTruthy();
     expect(within(now).getByText('Flexible private plan · normal')).toBeTruthy();
@@ -1751,6 +1757,7 @@ describe('Today screen', () => {
       expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenCalledWith(
         'adhoc-pay-water-bill',
         'inProgress',
+        expect.anything(), expect.any(Number),
       );
     });
     expect(screen.getByText('In progress. Keep it small.')).toBeTruthy();
@@ -1822,6 +1829,7 @@ describe('Today screen', () => {
       expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenLastCalledWith(
         'adhoc-pay-water-bill',
         'done',
+        expect.anything(), expect.any(Number),
       );
     });
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
@@ -1948,6 +1956,7 @@ describe('Today screen', () => {
       expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenLastCalledWith(
         'adhoc-pay-water-bill',
         'parked',
+        expect.anything(), expect.any(Number),
       );
     });
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
@@ -1968,6 +1977,7 @@ describe('Today screen', () => {
       expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenLastCalledWith(
         'adhoc-pay-water-bill',
         'notToday',
+        expect.anything(), expect.any(Number),
       );
     });
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
@@ -2506,6 +2516,7 @@ describe('Today screen', () => {
       expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenCalledWith(
         'adhoc-pay-water-bill',
         'parked',
+        expect.anything(), expect.any(Number),
       );
     });
     expect(screen.getByText('Parked safely. Still safely held. No catch-up pile.')).toBeTruthy();
@@ -2537,6 +2548,7 @@ describe('Today screen', () => {
       expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenCalledWith(
         'adhoc-pay-water-bill',
         'notToday',
+        expect.anything(), expect.any(Number),
       );
     });
     expect(screen.getByText('Marked not today. Still safely held. No catch-up pile.')).toBeTruthy();
@@ -2593,7 +2605,8 @@ describe('Today screen', () => {
     await user.click(action);
 
     await waitFor(() => {
-      expect(taskLifecycleRepositoryMocks.markTaskLifecycleNoLongerNeeded).toHaveBeenCalledWith(task.id);
+      expect(taskLifecycleRepositoryMocks.markTaskLifecycleNoLongerNeeded).toHaveBeenCalledWith(
+        task.id, expect.anything(), expect.any(Number));
     });
     expect(screen.getByText('No longer needed. It is out of Today. No catch-up pile.')).toBeTruthy();
     expect(screen.queryByRole('article', { name: task.title })).toBeNull();

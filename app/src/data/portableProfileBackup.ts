@@ -165,7 +165,7 @@ export const portableProfileSchema = z.object({
   d.softPlacements.forEach((placement, index) => {
     const backingTask = tasks.get(placement.taskId);
     if ((placement.status === 'planned' || placement.status === 'moved') &&
-      !(backingTask && isVisibleTodayStatus(backingTask.status)) &&
+      !(backingTask && !backingTask.sourceRhythmInstanceId && isVisibleTodayStatus(backingTask.status)) &&
       !(pool.get(placement.taskId)?.status === 'softPlaced' && !backingTask)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'softPlacements', index],
         message: 'A live placement requires a visible Today task or a confirmed soft-placed Held item.' });
@@ -277,13 +277,16 @@ function payloadFromSnapshot(state: Snapshot, settings: PortableProfile['data'][
   }
   const calendars = state.calendarSources;
   if (calendars.length > 1) throw new Error('Multiple calendar sources cannot be restored safely.');
+  // Local persisted v1 rows may omit buffers. Normalize only the trusted local
+  // row; supplied portable v1 snapshots still require the explicit fields.
+  const calendarSource = calendars.length ? calendarSourceRecordSchema.parse(calendars[0]) : null;
   return validate({ format: PORTABLE_PROFILE_FORMAT, formatVersion: PORTABLE_PROFILE_VERSION,
     appVersion: SETTINGS_APP_VERSION, exportedAt,
     data: { settings, rhythmTemplates: state.rhythmTemplates, rhythmPlans: state.rhythmPlans,
       rhythmRecurrenceRevisions: state.rhythmRecurrenceRevisions, rhythmInstances: state.rhythmInstances,
       activeTasks: state.activeTasks, taskPoolItems: state.taskPoolItems, softPlacements: state.softPlacements,
       behaviourEvents: history.filter((row) => row.recordKind === 'behaviourEvent'),
-      explicitPreferences: preferences, durationControls: duration, calendarSource: calendars[0] ?? null } });
+      explicitPreferences: preferences, durationControls: duration, calendarSource } });
 }
 
 async function readValidatedProfile(db: LifeRhythmDatabase, state: Snapshot, timestamp: string) {

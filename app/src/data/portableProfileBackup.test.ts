@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildMissingRhythmInstances } from '../domain/rhythmRecurrence';
+import { projectCurrentStateToSchedulingDomain } from '../domain/currentStateProjection';
 import { createAuthLocalDataNamespace, getCurrentLifeRhythmDatabase,
   getLegacyLocalDataNamespace, resetCurrentLocalDataNamespace, setCurrentLocalDataNamespace } from './localDataNamespace';
 import { createDefaultSettings, loadSettingsResult, resetSettingsToDefaults, saveSettings } from './settingsRepository';
@@ -97,6 +98,53 @@ beforeEach(async () => {
 afterEach(() => { vi.restoreAllMocks(); resetCurrentLocalDataNamespace(); });
 
 describe('Gate 8A4 portable canonical profile', () => {
+  it('exports a readable legacy v1 calendar with explicit zero buffers without changing its local row', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const legacy = { id: CURRENT_CALENDAR_SOURCE_ID, adapterId: 'ics', version: 1,
+      label: 'Legacy calendar', source: calendar, importedAt: timestamp, updatedAt: timestamp };
+    await db.calendarSources.put(legacy as never);
+    expect(await loadCalendarSource(db)).toMatchObject({ status: 'ok', record: {
+      beforeBusyMinutes: 0, afterBusyMinutes: 0,
+    } });
+    const backup = await exportPortableProfile(db);
+    expect(backup.payload.data.calendarSource).toMatchObject({ beforeBusyMinutes: 0, afterBusyMinutes: 0 });
+    expect(checkPortableProfileJson(backup.json).ok).toBe(true);
+    expect(await db.calendarSources.get(CURRENT_CALENDAR_SOURCE_ID)).toEqual(legacy);
+    setCurrentLocalDataNamespace(namespaceB);
+    const checked = await checkPortableProfileForRestore(backup.json);
+    if (!checked.ok || !('expectation' in checked)) throw new Error('Legacy backup failed check');
+    expect(await restorePortableProfile(backup.json, checked.expectation, '')).toEqual({ ok: true });
+    expect(await loadCalendarSource()).toMatchObject({ status: 'ok', record: {
+      beforeBusyMinutes: 0, afterBusyMinutes: 0,
+    } });
+  });
+
+  it('rejects live intention placements backed by a generated rhythm Today task', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const instance = await db.rhythmInstances.toCollection().first();
+    const today = await db.activeTasks.get('today');
+    if (!instance || !today) throw new Error('Fixture is missing');
+    await db.activeTasks.put(activeTaskSchema.parse({ ...today, id: 'generated', source: 'library',
+      templateId: 'rhythm', sourceRhythmInstanceId: instance.id }));
+    await db.rhythmInstances.put({ ...instance, activeTaskId: 'generated', lifecycleState: 'today',
+      planningState: 'today', completionState: 'notStarted' });
+    const source = JSON.parse(exported);
+    source.data.activeTasks.push(await db.activeTasks.get('generated'));
+    source.data.rhythmInstances = await db.rhythmInstances.toArray();
+    const model = projectCurrentStateToSchedulingDomain({ settings: source.data.settings,
+      activeTasks: source.data.activeTasks, taskPoolItems: source.data.taskPoolItems,
+      rhythmTemplates: source.data.rhythmTemplates, rhythmPlans: source.data.rhythmPlans,
+      rhythmRecurrenceRevisions: source.data.rhythmRecurrenceRevisions,
+      rhythmInstances: source.data.rhythmInstances, softPlacements: [{ ...source.data.softPlacements[0], taskId: 'generated' }] });
+    expect(model.intentions.some((item) => item.id === 'generated')).toBe(false);
+    expect(model.placements.some((item) => item.intentionId === 'generated')).toBe(true);
+    expect(model.rhythms.some((item) => item.id === instance.id)).toBe(true);
+    for (const status of ['planned', 'moved'] as const) {
+      source.data.softPlacements[0].taskId = 'generated';
+      source.data.softPlacements[0].status = status;
+      expect(checkPortableProfileJson(JSON.stringify(source)).ok).toBe(false);
+    }
+  });
   it('exports A read-only and restores A into B through normal repositories, preserving duration control and preferences', async () => {
     const aBefore = await exportPortableProfile(undefined, timestamp);
     setCurrentLocalDataNamespace(namespaceB);
@@ -337,6 +385,8 @@ describe('Gate 8A4 portable canonical profile', () => {
     expect(omitted((data) => { delete data.explicitPreferences.preferences[0].days; }).ok).toBe(false);
     expect(omitted((data) => { delete data.calendarSource.beforeBusyMinutes; }).ok).toBe(false);
     expect(omitted((data) => { delete data.calendarSource.afterBusyMinutes; }).ok).toBe(false);
+    expect(omitted((data) => { delete data.calendarSource.beforeBusyMinutes;
+      delete data.calendarSource.afterBusyMinutes; }).ok).toBe(false);
     expect(omitted((data) => { delete data.rhythmTemplates[0].schedule.frequency; }).ok).toBe(false);
     expect(omitted((data) => { delete data.activeTasks[0].purpose; }).ok).toBe(true);
   });

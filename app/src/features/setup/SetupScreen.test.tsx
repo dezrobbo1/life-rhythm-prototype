@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto';
 
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -281,7 +282,7 @@ describe('Setup screen', () => {
       lifeShape: expect.objectContaining({ usualWorkHours: expect.objectContaining({ days: ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] }) }),
       dayProfiles: [expect.objectContaining({ usableDay: { start: '06:30', end: '22:00' } }),
         expect.objectContaining({ usableDay: { start: '07:00', end: '21:00' } })],
-    }));
+    }), undefined);
   });
   it('renders all setup sections', () => {
     render(<SetupScreen />);

@@ -375,8 +375,10 @@ async function persistWithRepairAttention(store: SettingsStore, next: Settings, 
 export async function saveSettings(
   input: SettingsWriteInput,
   store: SettingsStore = getCurrentLifeRhythmDatabase(),
+  renderedRecoveryGeneration?: number,
 ): Promise<SettingsWriteResult> {
-  const expectedGeneration = store instanceof LifeRhythmDatabase ? await captureProfileRecoveryGeneration(store) : undefined;
+  const expectedGeneration = renderedRecoveryGeneration ?? (store instanceof LifeRhythmDatabase
+    ? await captureProfileRecoveryGeneration(store) : undefined);
   const loadResult = await loadSettingsResult(store);
   const current = loadResult.settings;
 
@@ -415,8 +417,10 @@ export async function saveSettings(
   };
 }
 
-export async function resetSettingsToDefaults(store: SettingsStore = getCurrentLifeRhythmDatabase()): Promise<Settings> {
-  const expectedGeneration = store instanceof LifeRhythmDatabase ? await captureProfileRecoveryGeneration(store) : undefined;
+export async function resetSettingsToDefaults(store: SettingsStore = getCurrentLifeRhythmDatabase(),
+  renderedRecoveryGeneration?: number): Promise<Settings> {
+  const expectedGeneration = renderedRecoveryGeneration ?? (store instanceof LifeRhythmDatabase
+    ? await captureProfileRecoveryGeneration(store) : undefined);
   const defaults = createDefaultSettings();
   const current = await loadSettingsResult(store, { persistMigration: false });
   if (current.status === 'invalid' || current.status === 'readFailed') throw new Error('Current settings cannot be reset safely.');
