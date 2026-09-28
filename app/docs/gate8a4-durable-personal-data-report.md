@@ -29,10 +29,12 @@ PR review found a second recovery-boundary issue: the reusable Settings schema p
 | Focused `TZ=Australia/Sydney` recovery, calendar, scheduler and backup matrix | 23 files / 415 tests passed |
 | `npm run build` | Passed |
 | `git diff --check` | Passed |
-| Exact-head App CI, App Preview `/app`, Vercel | Pending remote PR checks at the time of this report; verify the final head before disposition |
+| Reviewed code head `f92b719c173330326e9c0f1067e7b285be99a706` App CI | Run #267, success |
+| Reviewed code head App Preview `/app` | Run #482, success |
+| Reviewed code head Vercel | Deployment `dpl_AuSie1Lmt3ModS8HzLUKfEpbycNA`, READY; Git SHA matches |
 
 The first full UTC run had one deterministic outdated copy assertion in `AppShell.smoke.test.tsx` after the Setup limit wording changed: 106 files passed, 1 failed; 1,256 tests passed, 1 failed. The assertion was updated to the new copy and portable export control. The isolated test passed 1 file / 3 tests, and the subsequent full UTC run passed 107 files / 1,257 tests.
 
 App Preview run #481 on the preceding head passed all 1,258 tests but failed on one late `window is not defined` rejection from `SchedulingPreferencesPanel` attributed to `AppShell.smoke.test.tsx` after jsdom teardown. The isolated CI-mode smoke test passed 1 file / 3 tests, and the complete CI-mode UTC matrix passed 107 files / 1,258 tests locally. This was classified as transient teardown timing rather than a deterministic portable-recovery defect. The remote job was retried; the final corrected head requires its own check evidence.
 
-Automated UI tests cover file choice, checker status, destructive confirmation and preview invalidation; a phone-width shell smoke test passes. A manual browser walkthrough was unavailable because the browser verification service blocked the local dev URL (`ERR_BLOCKED_BY_CLIENT`). This does not close issue #160's broader mobile acceptance. Portable backup is a user-controlled recovery mechanism; it does not provide automatic sync, an encrypted file format or an infinite-future recurrence precomputation.
+Automated UI tests cover file choice, checker status, destructive confirmation and preview invalidation; a phone-width shell smoke test passes. A manual browser walkthrough was unavailable because the browser verification service blocked the local dev URL (`ERR_BLOCKED_BY_CLIENT`) and the deployed preview requires Vercel sign-in. This does not close issue #160's broader mobile acceptance. Portable backup is a user-controlled recovery mechanism; it does not provide automatic sync, an encrypted file format or an infinite-future recurrence precomputation. The PR's final evidence-only head must receive its own checks; the final head and their results are recorded in the PR body.
