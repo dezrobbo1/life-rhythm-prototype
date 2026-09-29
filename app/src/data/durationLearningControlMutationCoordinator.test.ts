@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   commitDurationLearningControlDelete,
   commitDurationLearningControlUpsert,
@@ -11,9 +11,11 @@ import {
 } from './durationLearningControlRepository';
 import {
   createAuthLocalDataNamespace,
+  getCurrentLifeRhythmDatabase,
   resetCurrentLocalDataNamespace,
   setCurrentLocalDataNamespace,
 } from './localDataNamespace';
+import { loadSchedulerPlanState, saveSchedulerPlanState } from './schedulerPlanStateRepository';
 
 let namespaceIndex = 0;
 const first = '2026-09-25T00:00:00.000Z';
@@ -89,6 +91,61 @@ describe('Gate 7E duration-control mutation coordination', () => {
       ['a', 'disabled'],
       ['b', 'disabled'],
     ]);
+  });
+
+  it('marks accepted scheduler state for duration repair in the same mutation path', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const emptyPlan = {
+      placements: [],
+      rejectedExistingPlacements: [],
+      unscheduledIntentionIds: [],
+      unscheduledRhythmIds: [],
+    };
+    expect((await saveSchedulerPlanState(emptyPlan, database, first)).ok).toBe(true);
+    const expectation = await expectationFor('paperwork');
+
+    const saved = await commitDurationLearningControlUpsert({
+      templateId: 'paperwork',
+      mode: 'override',
+      overrideMinutes: 30,
+    }, expectation, database, '2026-09-25T00:00:00.001Z');
+
+    expect(saved.ok).toBe(true);
+    const schedulerState = await loadSchedulerPlanState(database);
+    expect(schedulerState).toMatchObject({
+      status: 'ok',
+      durationLearningRepairPendingAt: '2026-09-25T00:00:00.001Z',
+    });
+  });
+
+  it('rolls back the duration control when repair attention cannot be persisted', async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const emptyPlan = {
+      placements: [],
+      rejectedExistingPlacements: [],
+      unscheduledIntentionIds: [],
+      unscheduledRhythmIds: [],
+    };
+    expect((await saveSchedulerPlanState(emptyPlan, database, first)).ok).toBe(true);
+    const expectation = await expectationFor('paperwork');
+    const update = vi.spyOn(database.schedulerPlanState, 'update')
+      .mockRejectedValueOnce(new Error('injected marker failure'));
+
+    const rejected = await commitDurationLearningControlUpsert({
+      templateId: 'paperwork',
+      mode: 'override',
+      overrideMinutes: 35,
+    }, expectation, database, '2026-09-25T00:00:00.001Z');
+
+    expect(rejected.ok).toBe(false);
+    expect(update).toHaveBeenCalled();
+    const loaded = await loadDurationLearningControlsResult();
+    expect(loaded.status).toBe('missing');
+    const schedulerState = await loadSchedulerPlanState(database);
+    expect(schedulerState).toMatchObject({ status: 'ok' });
+    if (schedulerState.status === 'ok') {
+      expect(schedulerState.durationLearningRepairPendingAt).toBeUndefined();
+    }
   });
 
   it('rejects a stale save after the same template control was reset', async () => {
