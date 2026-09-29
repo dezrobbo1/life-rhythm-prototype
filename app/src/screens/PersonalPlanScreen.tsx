@@ -23,7 +23,12 @@ import {
   unprotectPrivatePlacement,
 } from '../data/placementCorrectionCoordinator';
 import type { SoftPlacement, TaskPoolItem } from '../data/schemas';
-import type { InternalPlacement, SchedulerPlan, SchedulerPlanChange } from '../domain/schedulingModel';
+import type {
+  InternalPlacement,
+  SchedulerPlan,
+  SchedulerPlanChange,
+  SchedulerViolation,
+} from '../domain/schedulingModel';
 import {
   buildPoolSoftSuggestions,
   type PoolSoftSuggestion,
@@ -129,6 +134,29 @@ function moveTimingSummary(placement: InternalPlacement | null, start: string) {
   const hours = Math.floor(requestedEnd / 60).toString().padStart(2, '0');
   const minutes = (requestedEnd % 60).toString().padStart(2, '0');
   return { duration, end: `${hours}:${minutes}` };
+}
+
+function correctionConflictReason(violations: readonly SchedulerViolation[]) {
+  const codes = new Set(violations.map((violation) => violation.code));
+  if (codes.has('external-commitment-overlap')) {
+    return 'A fixed or read-only calendar commitment now overlaps this saved private time.';
+  }
+  if (codes.has('protected-window-overlap')) {
+    return 'A protected or unavailable boundary now overlaps this saved private time.';
+  }
+  if (codes.has('placement-overlap')) {
+    return 'Another private placement now overlaps this saved private time.';
+  }
+  if (codes.has('outside-candidate-interval')) {
+    return 'This saved time is no longer inside capacity Life Rhythm can use.';
+  }
+  if (codes.has('timing-constraint-violation')) {
+    return 'This saved time no longer fits the item’s current timing boundary.';
+  }
+  if (codes.has('unknown-intention') || codes.has('unknown-rhythm')) {
+    return 'This saved correction no longer has a current schedulable item.';
+  }
+  return 'Current scheduling reality no longer supports this saved correction.';
 }
 
 function formatChangedLine(
@@ -238,6 +266,17 @@ export function PersonalPlanScreen({
   const changedItems = privatePlanState.status === 'ready'
     ? privatePlanState.plan.repair?.changes ?? []
     : [];
+  const correctionConflicts = useMemo(() => {
+    if (privatePlanState.status !== 'ready') return [];
+    return privatePlanState.plan.rejectedExistingPlacements.filter(({ placement }) =>
+      placement.origin === 'existingUserConfirmed' &&
+      placement.date === selectedPlacementDate &&
+      placement.provenance.some((item) =>
+        item === 'User explicitly moved this private placement.' ||
+        item === 'User explicitly protected this private placement.',
+      ),
+    );
+  }, [privatePlanState, selectedPlacementDate]);
 
   const applyPrivatePlanResult = useCallback((result: PrivatePlanActionResult, generation: number | null) => {
     if (!result.ok || generation === null) {
@@ -847,6 +886,53 @@ export function PersonalPlanScreen({
             </p>
           </div>
         </div>
+
+        {privatePlanState.status === 'ready' && correctionConflicts.length > 0 ? (
+          <div className="soft-suggestions__feedback soft-suggestions__feedback--error" role="alert">
+            <h3>Saved private time needs a new choice.</h3>
+            <p>
+              Life Rhythm kept your correction instead of silently moving it. Current harder scheduling reality now conflicts with that time.
+            </p>
+            <ul className="soft-placements__list">
+              {correctionConflicts.map(({ placement, violations }) => {
+                const targetId = placement.targetKind === 'rhythm'
+                  ? placement.rhythmId ?? placement.intentionId
+                  : placement.intentionId;
+                const protectedPlacement = placement.provenance.includes(
+                  'User explicitly protected this private placement.',
+                );
+                return (
+                  <li key={placement.id}>
+                    <div className="soft-placements__item-copy">
+                      <strong>{placementTitle(privatePlanState.titleByTargetId, targetId)}</strong>
+                      <span>{placement.date} · {placement.start}-{placement.end}</span>
+                      <p>{correctionConflictReason(violations)}</p>
+                    </div>
+                    <div
+                      className="button-row"
+                      aria-label={`Resolve saved-time conflict for ${placementTitle(privatePlanState.titleByTargetId, targetId)}`}
+                    >
+                      <Button
+                        disabled={correctionBusyId !== null}
+                        onClick={() => openMove(placement)}
+                      >
+                        Move
+                      </Button>
+                      {protectedPlacement ? (
+                        <Button
+                          disabled={correctionBusyId !== null}
+                          onClick={() => void unprotectPlacement(placement)}
+                        >
+                          {correctionBusyId === placement.id ? 'Saving' : 'Unprotect'}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
 
         {privatePlanState.status === 'loading' ? (
           <div className="soft-placements__empty" role="status">
