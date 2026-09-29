@@ -1,6 +1,6 @@
 # Gate 8A5 — Scheduling Mutation Integrity + User Corrections V0
 
-Status: implementation contract for draft PR #164.
+Status: implemented Gate 8A5 V0 contract for PR #164; implementation/review complete pending merge.
 
 Verified base: `main` at `87e5923cf5fb15d9d6be7619bf9fc01f31355fc0` (PR #163 merged).
 
@@ -119,9 +119,9 @@ Protection is stored in the canonical correction record; transient `pinnedPlacem
 
 Ordinary repair projects the correction as `existingUserConfirmed` authority.
 
-If harder reality later makes the protected coordinate invalid, the scheduler rejects that persisted placement and suppresses automatic relocation of the same target. The correction remains saved for the user to resolve rather than being silently moved or deleted.
+If harder reality later makes the protected coordinate invalid, the scheduler rejects that persisted placement and suppresses automatic relocation of the same target. The correction remains saved for the user to resolve rather than being silently moved or deleted. Plan must surface this rejected correction in calm user-facing language and offer a direct correction path rather than leaving it only in scheduler metadata.
 
-Unprotect removes protection authority.
+Unprotect removes protection authority. For a currently routed rhythm occurrence whose protected coordinate has become invalid, V0 may require Move to a valid coordinate before protection can be removed; it must not manufacture a replacement coordinate or break the occurrence/Today linkage.
 
 - A moved-and-protected placement becomes a moved correction.
 - A protection-only correction can return to scheduler-owned placement authority without restoring an obsolete canonical input.
@@ -149,15 +149,9 @@ No LLM is used to generate placement reasons. Internal IDs, solver/debug metadat
 
 Existing one-step scheduler Undo remains plan-level and is offered only when restoring the prior accepted plan does not contradict current canonical authority.
 
-Undo remains blocked/withheld for repairs that consumed changed:
+Undo remains blocked/withheld when restoring the old plan would contradict changed settings, task input or rhythm input authority.
 
-- settings;
-- task input;
-- rhythm input;
-- preference authority;
-- duration-learning authority.
-
-Calendar repair Undo retains the pre-existing behavior that reopens calendar repair attention rather than pretending the external calendar reverted.
+Preference, duration-learning and calendar repair Undo retain their existing safe semantics: the plan snapshot may be restored only while the unchanged canonical source remains authoritative, and the relevant repair attention is reopened so the current preference, duration evidence/control or calendar truth must be reconciled again. Undo never rewrites those canonical sources.
 
 Persistent Move/Protect corrections are not offered plan-only Undo in V0 because their canonical correction record would otherwise remain inconsistent with a restored earlier plan. The user corrects them through Move/Protect/Unprotect instead.
 
