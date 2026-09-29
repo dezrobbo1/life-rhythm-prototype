@@ -351,9 +351,10 @@ describe('Gate 8A5 placement corrections', () => {
       rhythmInstanceId: automatic.rhythmInstanceId,
       start: '10:00',
     });
-    expect(await sourceDb.rhythmInstances.get(automatic.rhythmInstanceId)).toMatchObject({
-      placementId: protectedResult.placement.id,
-    });
+    const correctedInstance = await sourceDb.rhythmInstances.get(automatic.rhythmInstanceId);
+    expect(correctedInstance?.lifecycleState).toBe('eligible');
+    expect(correctedInstance?.activeTaskId).toBeUndefined();
+    expect(correctedInstance?.placementId).toBeUndefined();
 
     const exported = await exportPortableProfile(sourceDb, '2026-09-07T00:30:00.000Z');
     expect(exported.payload.data.routedRhythmPlacements).toEqual([]);
