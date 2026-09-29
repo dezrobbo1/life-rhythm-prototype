@@ -258,6 +258,12 @@ async function prepareCorrection(
   if (!Number.isInteger(duration) || duration <= 0) {
     return { ok: false as const, errors: ['The current placement duration could not be read safely.'] };
   }
+  if (
+    action === 'move' &&
+    (current.date < live.now.date || (current.date === live.now.date && current.start < live.now.time))
+  ) {
+    return { ok: false as const, errors: ['This private placement has already started and cannot be moved.'] };
+  }
 
   const date = move?.date ?? current.date;
   const start = move?.start ?? current.start;
