@@ -1115,7 +1115,7 @@ const behaviourEventVariantRules = {
   userPlacementMoved: {
     action: 'movePlacement', source: 'user', provenance: [['userAction', 'softPlacement']], ids: 'userPlacement', before: 'required', after: 'required', facts: 'placement',
     transitions: [{
-      before: { placementStatus: ['planned', 'moved'], variantKind: 'absent' },
+      before: { placementStatus: ['planned', 'moved', 'automatic'], variantKind: 'absent' },
       after: { placementStatus: ['moved'], variantKind: 'absent' },
       change: 'placementPosition',
     }],
