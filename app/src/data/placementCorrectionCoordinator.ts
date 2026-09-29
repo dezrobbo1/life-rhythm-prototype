@@ -270,6 +270,9 @@ async function prepareCorrection(
     return { ok: false as const, errors: ['This move would reach or cross the local-day boundary. Choose an earlier time.'] };
   }
   const end = timeFromMinutes(endMinutes);
+  if (action === 'move' && date === current.date && start === current.start) {
+    return { ok: false as const, errors: ['This private placement is already at that time.'] };
+  }
   if (date < live.now.date || (date === live.now.date && start < live.now.time)) {
     return { ok: false as const, errors: ['Choose a time that has not already passed.'] };
   }
