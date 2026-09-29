@@ -29,7 +29,7 @@ import {
   readProfileRecoveryGeneration,
   STALE_PROFILE_RECOVERY_MESSAGE,
 } from './profileRecoveryGeneration';
-import { loadSchedulerPlanState } from './schedulerPlanStateRepository';
+import { loadSchedulerPlanState, markSettingsRepairPending } from './schedulerPlanStateRepository';
 
 const timestamp = '2026-09-07T00:00:00.000Z';
 const monday = '2026-09-07';
@@ -250,6 +250,45 @@ describe('Gate 8A5 placement corrections', () => {
     if (movedAfterUnprotect.ok) {
       expect(movedAfterUnprotect.placement).toMatchObject({ correctionKind: 'move' });
     }
+  });
+
+  it('rejects Unprotect when newer scheduling authority is still pending repair', async () => {
+    await settings();
+    const db = getCurrentLifeRhythmDatabase();
+    await db.taskPoolItems.put(task());
+    const built = await ensureCurrentPrivatePlan(options);
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+
+    const protectedResult = await protectPrivatePlacement(
+      built.plan.placements[0],
+      await readProfileRecoveryGeneration(db),
+      options,
+    );
+    expect(protectedResult.ok).toBe(true);
+    if (!protectedResult.ok || !protectedResult.placement) return;
+    const accepted = protectedResult.plan.placements.find((placement) =>
+      placement.id === protectedResult.placement?.id,
+    );
+    expect(accepted).toBeTruthy();
+    if (!accepted) return;
+
+    const correctionBefore = await db.softPlacements.get(protectedResult.placement.id);
+    const planBefore = await db.schedulerPlanState.get('current');
+    expect((await markSettingsRepairPending(db, '2026-09-07T00:20:00.000Z')).ok).toBe(true);
+
+    const result = await unprotectPrivatePlacement(
+      accepted,
+      await readProfileRecoveryGeneration(db),
+      options,
+    );
+
+    expect(result).toMatchObject({ ok: false, conflict: 'stale' });
+    expect(await db.softPlacements.get(protectedResult.placement.id)).toEqual(correctionBefore);
+    expect((await db.schedulerPlanState.get('current'))?.plan).toEqual(planBefore?.plan);
+    expect(await db.schedulerPlanState.get('current')).toMatchObject({
+      settingsRepairPendingAt: '2026-09-07T00:20:00.000Z',
+    });
   });
 
   it('keeps a protected hard-conflicted target visible as rejected rather than silently moving it', async () => {
