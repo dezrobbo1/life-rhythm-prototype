@@ -66,6 +66,7 @@ type SchedulerStateFields = SchedulerModeFields & {
   settingsRepairPendingAt?: string;
   preferenceRepairPendingAt?: string;
   preferenceRepairTargets?: PreferenceRepairTarget[];
+  durationLearningRepairPendingAt?: string;
   durationLearningApplied?: AppliedDurationLearning[];
   taskInputRepairPendingAt?: string;
   taskInputRepairTargetIds?: string[];
@@ -143,6 +144,9 @@ function stateFields(record: SchedulerStateFields): SchedulerStateFields {
       : {}),
     ...(record.preferenceRepairTargets
       ? { preferenceRepairTargets: record.preferenceRepairTargets.map((target) => ({ ...target })) }
+      : {}),
+    ...(record.durationLearningRepairPendingAt
+      ? { durationLearningRepairPendingAt: record.durationLearningRepairPendingAt }
       : {}),
     ...(record.durationLearningApplied
       ? { durationLearningApplied: record.durationLearningApplied.map((item) => ({ ...item })) }
@@ -312,6 +316,10 @@ async function saveSchedulerPlanStateIfCurrent(
         !fields.rhythmInputRepairPendingAt && canonicalInputSnapshot === undefined) {
       return staleSchedulerWriteResult();
     }
+    if (expected.status === 'ok' && expected.durationLearningRepairPendingAt &&
+        !fields.durationLearningRepairPendingAt && expectedDurationLearningEventSnapshot === undefined) {
+      return staleSchedulerWriteResult();
+    }
     return saveSchedulerPlanState(plan, store, updatedAt, fields);
   }
 
@@ -361,6 +369,10 @@ async function saveSchedulerPlanStateIfCurrent(
         }
         if (expected.status === 'ok' && expected.rhythmInputRepairPendingAt &&
             !fields.rhythmInputRepairPendingAt && canonicalInputSnapshot === undefined) {
+          return staleSchedulerWriteResult();
+        }
+        if (expected.status === 'ok' && expected.durationLearningRepairPendingAt &&
+            !fields.durationLearningRepairPendingAt && expectedDurationLearningEventSnapshot === undefined) {
           return staleSchedulerWriteResult();
         }
 
@@ -668,6 +680,35 @@ export async function markPreferenceRepairPending(
   }
 }
 
+export async function markDurationLearningRepairPending(
+  store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
+  detectedAt = new Date().toISOString(),
+): Promise<{ ok: true } | { ok: false; errors: string[] }> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.schedulerPlanState], () =>
+      markDurationLearningRepairPending(store, detectedAt));
+  }
+  try {
+    const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
+    if (!stored) return { ok: true };
+    const parsedStored = schedulerPlanStateRecordSchema.safeParse(stored);
+    if (!parsedStored.success) return { ok: true };
+    const candidate = schedulerPlanStateRecordSchema.safeParse({
+      ...parsedStored.data,
+      durationLearningRepairPendingAt: detectedAt,
+    });
+    if (!candidate.success) return { ok: false, errors: issuesToMessages(candidate.error.issues) };
+    const updated = await store.schedulerPlanState.update(CURRENT_SCHEDULER_PLAN_STATE_ID, {
+      durationLearningRepairPendingAt: candidate.data.durationLearningRepairPendingAt,
+    });
+    return updated === 1
+      ? { ok: true }
+      : { ok: false, errors: ['schedulerPlanState: Duration-learning change could not mark the plan for repair.'] };
+  } catch {
+    return { ok: false, errors: ['schedulerPlanState: Duration-learning change could not mark the plan for repair.'] };
+  }
+}
+
 /** Call in the same Dexie transaction as a task definition write. */
 export async function markTaskInputRepairPending(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
@@ -787,6 +828,9 @@ export async function buildAndPersistSchedulerPlan(
       ...(current.status === 'ok' && current.rhythmInputRepairPendingAt
         ? { rhythmInputRepairPendingAt: current.rhythmInputRepairPendingAt,
             rhythmInputRepairTargetIds: current.rhythmInputRepairTargetIds }
+        : {}),
+      ...(current.status === 'ok' && current.durationLearningRepairPendingAt
+        ? { durationLearningRepairPendingAt: current.durationLearningRepairPendingAt }
         : {}),
     }, calendarSourceSnapshot, canonicalInputSnapshot, durationLearning?.eventSnapshot,
     current.status === 'missing' ? behaviourEventsForInitialSchedulerPlan(plan, updatedAt) : [], recoveryGeneration);
@@ -1024,6 +1068,17 @@ export async function undoPersistedSchedulerRepair(
   if (current.rhythmInputRepairPendingAt || current.plan.repair.trigger === 'rhythmDefinitionChanged' ||
       current.plan.repair.rhythmDefinitionRepairApplied) {
     return { ok: false, errors: ['schedulerPlanState: Change the rhythm again to correct it. Earlier recurrence assumptions cannot be restored as a valid plan.'] };
+  }
+  if (current.preferenceRepairPendingAt || current.plan.repair.trigger === 'preferenceChanged' ||
+      (current.plan.repair.appliedPreferenceRepairTargets?.length ?? 0) > 0) {
+    return { ok: false, errors: ['schedulerPlanState: Change the scheduling preference again to correct it. Earlier plan times cannot be restored under the current preference authority.'] };
+  }
+  if (current.durationLearningRepairPendingAt || current.plan.repair.trigger === 'durationLearningChanged' ||
+      (current.plan.repair.appliedDurationLearningTemplateIds?.length ?? 0) > 0) {
+    return { ok: false, errors: ['schedulerPlanState: Change the duration control again to correct it. Earlier plan times cannot be restored under the current duration authority.'] };
+  }
+  if (current.calendarRepairPendingAt || current.plan.repair.trigger === 'calendarChanged') {
+    return { ok: false, errors: ['schedulerPlanState: Current calendar commitments no longer support restoring the earlier private plan.'] };
   }
 
   const reverted = scheduler.undoRepair(current.plan);
