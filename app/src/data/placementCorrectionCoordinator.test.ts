@@ -103,6 +103,7 @@ describe('Gate 8A5 placement corrections', () => {
       automatic,
       { date: monday, start: '10:00' },
       generation,
+      options,
     );
     expect(moved.ok).toBe(true);
     if (!moved.ok) return;
@@ -173,6 +174,7 @@ describe('Gate 8A5 placement corrections', () => {
       automatic,
       { date: monday, start: '10:00' },
       await readProfileRecoveryGeneration(db),
+      options,
     );
     expect(moved.ok).toBe(false);
     if (!moved.ok) expect(moved.errors.join(' ')).toMatch(/commitment|outside|time/i);
@@ -191,6 +193,7 @@ describe('Gate 8A5 placement corrections', () => {
     const protectedResult = await protectPrivatePlacement(
       automatic,
       await readProfileRecoveryGeneration(db),
+      options,
     );
     expect(protectedResult.ok).toBe(true);
     if (!protectedResult.ok || !protectedResult.placement) return;
@@ -215,6 +218,7 @@ describe('Gate 8A5 placement corrections', () => {
     const unprotected = await unprotectPrivatePlacement(
       kept,
       await readProfileRecoveryGeneration(db),
+      options,
     );
     expect(unprotected.ok).toBe(true);
     if (!unprotected.ok) return;
@@ -237,6 +241,7 @@ describe('Gate 8A5 placement corrections', () => {
     const protectedResult = await protectPrivatePlacement(
       built.plan.placements[0],
       await readProfileRecoveryGeneration(db),
+      options,
     );
     expect(protectedResult.ok).toBe(true);
     if (!protectedResult.ok || !protectedResult.placement) return;
@@ -275,6 +280,7 @@ describe('Gate 8A5 placement corrections', () => {
       built.plan.placements[0],
       { date: monday, start: '10:00' },
       generation,
+      options,
     );
     expect(moved).toMatchObject({ ok: false, errors: [STALE_PROFILE_RECOVERY_MESSAGE] });
     expect(await db.softPlacements.count()).toBe(0);
