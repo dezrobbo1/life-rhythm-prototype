@@ -273,6 +273,59 @@ describe('Gate 8A5 placement corrections', () => {
     expect(await db.softPlacements.get(protectedResult.placement.id)).toMatchObject({ correctionKind: 'protect' });
   });
 
+  it('can remove protection from a hard-conflicted ordinary placement and repair from current reality', async () => {
+    await settings();
+    const db = getCurrentLifeRhythmDatabase();
+    await db.taskPoolItems.put(task());
+    const built = await ensureCurrentPrivatePlan(options);
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+
+    const protectedResult = await protectPrivatePlacement(
+      built.plan.placements[0],
+      await readProfileRecoveryGeneration(db),
+      options,
+    );
+    expect(protectedResult.ok).toBe(true);
+    if (!protectedResult.ok || !protectedResult.placement) return;
+
+    await settings([{
+      id: 'new-commitment',
+      label: 'New commitment',
+      days: ['Monday'],
+      start: protectedResult.placement.start,
+      end: protectedResult.placement.end,
+      travelMinutes: 0,
+      bufferMinutes: 0,
+    }]);
+    const conflicted = await ensureCurrentPrivatePlan(options);
+    expect(conflicted.ok).toBe(true);
+    if (!conflicted.ok) return;
+    const rejected = conflicted.plan.rejectedExistingPlacements.find((item) =>
+      item.placement.id === protectedResult.placement?.id,
+    )?.placement;
+    expect(rejected).toBeTruthy();
+    if (!rejected) return;
+
+    const unprotected = await unprotectPrivatePlacement(
+      rejected,
+      await readProfileRecoveryGeneration(db),
+      options,
+    );
+    expect(unprotected.ok).toBe(true);
+    if (!unprotected.ok) return;
+    expect(unprotected.placement).toBeNull();
+    expect(await db.softPlacements.get(protectedResult.placement.id)).toMatchObject({ status: 'removed' });
+    expect(unprotected.plan.placements).toContainEqual(expect.objectContaining({
+      intentionId: 'move-task',
+      origin: 'scheduler',
+    }));
+    expect(unprotected.plan.placements.some((placement) =>
+      placement.intentionId === 'move-task' &&
+      placement.start === protectedResult.placement?.start,
+    )).toBe(false);
+  });
+
   it('moves and protects one concrete rhythm occurrence and preserves that authority through portable recovery', async () => {
     await settings();
     const sourceDb = getCurrentLifeRhythmDatabase();
