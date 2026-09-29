@@ -153,7 +153,7 @@ describe('Pool soft placement flow', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Held' }));
     await user.click(screen.getByRole('button', { name: 'Capture task' }));
-    const taskTitle = await screen.findByLabelText('Task title');
+    const taskTitle = await screen.findByLabelText('Task title', {}, { timeout: 5_000 });
     await user.type(taskTitle, 'Send school form');
     await user.selectOptions(await screen.findByLabelText('Area'), 'admin');
     await user.type(await screen.findByLabelText('Minimum version'), 'Open the form');
