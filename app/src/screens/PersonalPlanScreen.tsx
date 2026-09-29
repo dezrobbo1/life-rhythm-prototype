@@ -17,8 +17,13 @@ import {
   confirmTaskPoolSoftPlacement,
   removeTaskPoolSoftPlacement,
 } from '../data/taskSoftPlacementRepository';
+import {
+  movePrivatePlacement,
+  protectPrivatePlacement,
+  unprotectPrivatePlacement,
+} from '../data/placementCorrectionCoordinator';
 import type { SoftPlacement, TaskPoolItem } from '../data/schemas';
-import type { SchedulerPlan, SchedulerPlanChange } from '../domain/schedulingModel';
+import type { InternalPlacement, SchedulerPlan, SchedulerPlanChange } from '../domain/schedulingModel';
 import {
   buildPoolSoftSuggestions,
   type PoolSoftSuggestion,
@@ -64,6 +69,7 @@ type PrivatePlanViewState =
       plan: SchedulerPlan;
       titleByTargetId: Record<string, string>;
       warnings: string[];
+      generation: number;
     };
 
 type SurfaceCollectionState<T> =
@@ -149,6 +155,10 @@ export function PersonalPlanScreen({
   const [privatePlanState, setPrivatePlanState] = useState<PrivatePlanViewState>({ status: 'loading' });
   const [privatePlanBusy, setPrivatePlanBusy] = useState<'refresh' | 'undo' | null>(null);
   const [privatePlanFeedback, setPrivatePlanFeedback] = useState<string | null>(null);
+  const [correctionBusyId, setCorrectionBusyId] = useState<string | null>(null);
+  const [moveTarget, setMoveTarget] = useState<InternalPlacement | null>(null);
+  const [moveDate, setMoveDate] = useState('');
+  const [moveStart, setMoveStart] = useState('');
   const [planDetailsOpen, setPlanDetailsOpen] = useState(!embeddedInDayLine);
   const manualPlanReadRequestRef = useRef(0);
   const { generation: manualPlanGeneration, placementsResult: placementReadState,
@@ -206,11 +216,11 @@ export function PersonalPlanScreen({
     ? privatePlanState.plan.repair?.changes ?? []
     : [];
 
-  const applyPrivatePlanResult = useCallback((result: PrivatePlanActionResult) => {
-    if (!result.ok) {
+  const applyPrivatePlanResult = useCallback((result: PrivatePlanActionResult, generation: number | null) => {
+    if (!result.ok || generation === null) {
       setPrivatePlanState({
         status: 'error',
-        errors: result.errors,
+        errors: result.ok ? ['Private plan could not retain a current profile view. Reload Plan and try again.'] : result.errors,
       });
       return false;
     }
@@ -220,8 +230,25 @@ export function PersonalPlanScreen({
       plan: result.plan,
       titleByTargetId: result.titleByTargetId,
       warnings: result.warnings,
+      generation,
     });
     return true;
+  }, []);
+
+  const readPrivatePlan = useCallback(async () => {
+    const database = getCurrentLifeRhythmDatabase();
+    const readOnce = async () => {
+      const generation = await captureProfileRecoveryGeneration(database);
+      const result = await ensureCurrentPrivatePlan();
+      await assertProfileRecoveryGeneration(database, generation);
+      return { generation, result };
+    };
+    try {
+      return await readOnce();
+    } catch (error) {
+      if (error instanceof StaleProfileRecoveryError) return readOnce();
+      throw error;
+    }
   }, []);
 
   const readManualPlanData = useCallback(async () => {
@@ -292,9 +319,9 @@ export function PersonalPlanScreen({
     setPrivatePlanState({ status: 'loading' });
     setPrivatePlanFeedback(null);
 
-    ensureCurrentPrivatePlan()
-      .then((result) => {
-        if (active) applyPrivatePlanResult(result);
+    readPrivatePlan()
+      .then(({ result, generation }) => {
+        if (active) applyPrivatePlanResult(result, generation);
       })
       .catch(() => {
         if (active) {
@@ -308,7 +335,7 @@ export function PersonalPlanScreen({
     return () => {
       active = false;
     };
-  }, [applyPrivatePlanResult, planRevision]);
+  }, [applyPrivatePlanResult, planRevision, readPrivatePlan]);
 
   useEffect(() => {
     let active = true;
@@ -347,7 +374,8 @@ export function PersonalPlanScreen({
         reason: 'You asked Life Rhythm to refresh flexible private work.',
         trigger: 'manualReplan',
       });
-      const applied = applyPrivatePlanResult(result);
+      const generation = await captureProfileRecoveryGeneration(getCurrentLifeRhythmDatabase());
+      const applied = applyPrivatePlanResult(result, generation);
       if (applied) {
         onPlanRecovered?.();
       }
@@ -364,7 +392,7 @@ export function PersonalPlanScreen({
   }, [applyPrivatePlanResult, onPlanRecovered]);
 
   const undoPrivatePlan = useCallback(async () => {
-    if (manualPlanGeneration === null) {
+    if (privatePlanState.status !== 'ready') {
       setPrivatePlanFeedback('Reload Plan before undoing this change.');
       return;
     }
@@ -372,13 +400,14 @@ export function PersonalPlanScreen({
     setPrivatePlanFeedback(null);
 
     try {
-      const result = await undoCurrentPrivatePlan({}, manualPlanGeneration);
+      const result = await undoCurrentPrivatePlan({}, privatePlanState.generation);
       if (!result.ok && result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
         await retryManualPlanData();
         setPrivatePlanFeedback(STALE_PROFILE_RECOVERY_MESSAGE);
         return;
       }
-      const applied = applyPrivatePlanResult(result);
+      const generation = await captureProfileRecoveryGeneration(getCurrentLifeRhythmDatabase());
+      const applied = applyPrivatePlanResult(result, generation);
       setPrivatePlanFeedback(
         applied
           ? 'The previous private plan was restored.'
@@ -389,7 +418,7 @@ export function PersonalPlanScreen({
     } finally {
       setPrivatePlanBusy(null);
     }
-  }, [applyPrivatePlanResult, manualPlanGeneration, retryManualPlanData]);
+  }, [applyPrivatePlanResult, privatePlanState, retryManualPlanData]);
 
   const addSoftPlacement = useCallback(async (suggestion: PoolSoftSuggestion) => {
     const expectedGeneration = manualPlanGeneration;
@@ -486,6 +515,173 @@ export function PersonalPlanScreen({
       setRemovingPlacementId(null);
     }
   }, [manualPlanGeneration, refreshPlanData, repairAfterUserPlacementChange, retryManualPlanData]);
+
+  const reloadPrivatePlanAfterCorrection = useCallback(async () => {
+    setPrivatePlanState({ status: 'loading' });
+    try {
+      const { result, generation } = await readPrivatePlan();
+      applyPrivatePlanResult(result, generation);
+    } catch {
+      setPrivatePlanState({
+        status: 'error',
+        errors: ['Private plan needs updating. Use Refresh flexible plan to try again.'],
+      });
+    }
+  }, [applyPrivatePlanResult, readPrivatePlan]);
+
+  const openMove = useCallback((placement: InternalPlacement) => {
+    setMoveTarget(placement);
+    setMoveDate(placement.date);
+    setMoveStart(placement.start);
+    setPlacementFeedback(null);
+  }, []);
+
+  const saveMove = useCallback(async () => {
+    if (!moveTarget || privatePlanState.status !== 'ready') return;
+    setCorrectionBusyId(moveTarget.id);
+    setPlacementFeedback(null);
+    try {
+      const result = await movePrivatePlacement(
+        moveTarget,
+        { date: moveDate, start: moveStart },
+        privatePlanState.generation,
+      );
+      if (!result.ok) {
+        if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
+          await Promise.all([retryManualPlanData(), reloadPrivatePlanAfterCorrection()]);
+        }
+        setPlacementFeedback({ kind: 'error', lines: result.errors });
+        return;
+      }
+      setMoveTarget(null);
+      await refreshPlanData();
+      if (result.repairPending) {
+        setPrivatePlanState({
+          status: 'error',
+          errors: ['Your move is saved, but the automatic private plan still needs updating.'],
+        });
+      } else {
+        setPrivatePlanState({
+          status: 'ready',
+          plan: result.plan,
+          titleByTargetId: privatePlanState.titleByTargetId,
+          warnings: privatePlanState.warnings,
+          generation: privatePlanState.generation,
+        });
+      }
+      setPlacementFeedback({
+        kind: 'success',
+        lines: [
+          'Placement moved.',
+          'No external calendar event was changed.',
+          result.repairPending ? 'The private plan still needs updating.' : 'Other flexible work was checked around your correction.',
+        ],
+      });
+    } catch {
+      setPlacementFeedback({ kind: 'error', lines: ['The placement move was not saved. Nothing else changed.'] });
+    } finally {
+      setCorrectionBusyId(null);
+    }
+  }, [
+    moveDate,
+    moveStart,
+    moveTarget,
+    privatePlanState,
+    refreshPlanData,
+    reloadPrivatePlanAfterCorrection,
+    retryManualPlanData,
+  ]);
+
+  const protectPlacement = useCallback(async (placement: InternalPlacement) => {
+    if (privatePlanState.status !== 'ready') return;
+    setCorrectionBusyId(placement.id);
+    setPlacementFeedback(null);
+    try {
+      const result = await protectPrivatePlacement(placement, privatePlanState.generation);
+      if (!result.ok) {
+        if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
+          await Promise.all([retryManualPlanData(), reloadPrivatePlanAfterCorrection()]);
+        }
+        setPlacementFeedback({ kind: 'error', lines: result.errors });
+        return;
+      }
+      await refreshPlanData();
+      if (result.repairPending) {
+        setPrivatePlanState({
+          status: 'error',
+          errors: ['Protection is saved, but the automatic private plan still needs updating.'],
+        });
+      } else {
+        setPrivatePlanState({
+          status: 'ready',
+          plan: result.plan,
+          titleByTargetId: privatePlanState.titleByTargetId,
+          warnings: privatePlanState.warnings,
+          generation: privatePlanState.generation,
+        });
+      }
+      setPlacementFeedback({
+        kind: 'success',
+        lines: [
+          'This private time is protected.',
+          'Hard calendar commitments and unavailable boundaries still take priority.',
+        ],
+      });
+    } catch {
+      setPlacementFeedback({ kind: 'error', lines: ['Protection was not saved. Nothing else changed.'] });
+    } finally {
+      setCorrectionBusyId(null);
+    }
+  }, [
+    privatePlanState,
+    refreshPlanData,
+    reloadPrivatePlanAfterCorrection,
+    retryManualPlanData,
+  ]);
+
+  const unprotectPlacement = useCallback(async (placement: InternalPlacement) => {
+    if (privatePlanState.status !== 'ready') return;
+    setCorrectionBusyId(placement.id);
+    setPlacementFeedback(null);
+    try {
+      const result = await unprotectPrivatePlacement(placement, privatePlanState.generation);
+      if (!result.ok) {
+        if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
+          await Promise.all([retryManualPlanData(), reloadPrivatePlanAfterCorrection()]);
+        }
+        setPlacementFeedback({ kind: 'error', lines: result.errors });
+        return;
+      }
+      await refreshPlanData();
+      setPrivatePlanState({
+        status: 'ready',
+        plan: result.plan,
+        titleByTargetId: privatePlanState.titleByTargetId,
+        warnings: privatePlanState.warnings,
+        generation: privatePlanState.generation,
+      });
+      setPlacementFeedback({
+        kind: 'success',
+        lines: ['Protection removed. Future automatic repair may move this flexible placement.'],
+      });
+    } catch {
+      setPlacementFeedback({ kind: 'error', lines: ['Protection was not removed. Nothing else changed.'] });
+    } finally {
+      setCorrectionBusyId(null);
+    }
+  }, [
+    privatePlanState,
+    refreshPlanData,
+    reloadPrivatePlanAfterCorrection,
+    retryManualPlanData,
+  ]);
+
+  const planPlacementForCorrection = useCallback((placement: SoftPlacement) => {
+    if (privatePlanState.status !== 'ready') return null;
+    return privatePlanState.plan.placements.find((candidate) =>
+      candidate.id === placement.id || candidate.sourcePlacementId === placement.id,
+    ) ?? null;
+  }, [privatePlanState]);
 
   const suggestionEmptyTitle = poolSoftSuggestions.openCapacityBlockCount === 0
     ? `No open capacity blocks for ${dayShapePreview.selectedDay}.`
