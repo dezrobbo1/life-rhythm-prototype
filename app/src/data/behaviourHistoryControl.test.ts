@@ -135,7 +135,10 @@ describe('behaviour history controls', () => {
       ]);
       expect(await database.taskPoolItems.get('task-one')).toEqual(task);
       expect(await database.calendarSources.get(CURRENT_CALENDAR_SOURCE_ID)).toEqual(calendar);
-      expect(await database.schedulerPlanState.get('current')).toEqual(schedulerBefore);
+      expect(await database.schedulerPlanState.get('current')).toEqual({
+        ...schedulerBefore,
+        durationLearningRepairPendingAt: expect.any(String),
+      });
     } finally {
       await database.delete();
     }
