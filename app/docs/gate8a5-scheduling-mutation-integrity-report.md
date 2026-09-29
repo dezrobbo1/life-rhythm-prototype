@@ -1,6 +1,6 @@
 # Gate 8A5 — Scheduling Mutation Integrity + User Corrections V0 Report
 
-Status: draft implementation evidence for PR #164. Do not treat this report as Gate 8A5 exit evidence until the exact final head passes review and validation.
+Status: final Gate 8A5 implementation/review evidence for PR #164. Application source is validated; PR remains open and unmerged.
 
 Verified starting `main`: `87e5923cf5fb15d9d6be7619bf9fc01f31355fc0` (merged PR #163).
 
@@ -112,7 +112,11 @@ When harder reality later invalidates the coordinate:
 
 - the protected placement is rejected;
 - the target is not silently relocated to another automatic time;
-- the protection record remains for explicit user correction.
+- the protection record remains for explicit user correction;
+- Plan surfaces the conflict as **Saved private time needs a new choice** using user-facing reason categories rather than raw scheduler IDs;
+- Move remains available from the conflict surface, and Unprotect is available where it can be applied safely.
+
+For an already-routed rhythm occurrence whose protected coordinate is invalid, V0 may require Move to a valid coordinate before protection can be removed. This avoids breaking the occurrence/Today link or inventing a replacement coordinate.
 
 Unprotect removes the protection layer:
 
@@ -209,23 +213,47 @@ No drag-only interaction or external calendar write was introduced.
 
 ## Validation
 
-Final exact-head validation will record:
+Validated application-source head:
 
-- focused Gate 8A5 matrix in UTC, Australia/Perth and Australia/Sydney;
-- full suite in UTC, Australia/Perth and Australia/Sydney;
-- clean install;
-- production build;
-- `git diff --check`;
-- exact-head App CI;
-- exact-head App Preview;
-- Vercel status;
-- review-thread disposition.
+`0308197cbb30cde8f76cfa350a4f0774a9a0dfe5`
 
-Interim CI evidence is not the final gate result because the PR remains under implementation/review.
+The dedicated Gate 8A5 matrix passed in all three required timezones:
+
+| Timezone | Focused matrix | Full suite |
+| --- | --- | --- |
+| UTC | 31 files / 484 tests | 110 files / 1,344 tests |
+| Australia/Perth | 31 files / 484 tests | 110 files / 1,344 tests |
+| Australia/Sydney | 31 files / 484 tests | 110 files / 1,344 tests |
+
+For each timezone, the workflow also passed:
+
+- `npm ci --ignore-scripts`;
+- production `npm run build`;
+- `git diff --check origin/main...HEAD`.
+
+On that same application-source head:
+
+- App CI #361 passed: 110 files / 1,344 tests and production build;
+- App Preview #577 passed;
+- Vercel reported READY.
+
+The dedicated Gate 8A5 workflow is retained as manual `workflow_dispatch` evidence tooling after this gate so later ordinary `/app` PRs do not automatically pay three full timezone suites.
+
+## Final bounded review
+
+One bounded Gate 8A5 review was performed after implementation. It covered mutation-attention atomicity, stale-plan presentation, Move/Protect persistence, hard-feasibility handling, rhythm occurrence identity, deterministic explanation, Undo boundaries, portable recovery and recovery-generation concurrency.
+
+That review found one material V0 presentation gap: a protected correction invalidated by later hard reality was preserved in `rejectedExistingPlacements` but had no explicit correction surface. The final source correction now surfaces that state in Plan, gives a calm reason and exposes Move/Unprotect actions without rendering internal placement/commitment IDs. A regression covers that path.
+
+No material blocker remains in the bounded Gate 8A5 mechanism after that correction.
+
+External automated review limitation: Codex review could not run because the account had reached its review usage limit. CodeRabbit manual review attempts made while the branch was still changing did not complete because the PR base/head changed. There are zero unresolved review threads. These unavailable external reviews are recorded rather than represented as passed.
 
 ## Manual UI status
 
-Deployed preview validation must use normal authorized access only. If the Vercel preview remains sign-in protected, that limitation is recorded rather than bypassed.
+The deployed Vercel preview is READY, but normal manual deployed walkthrough remains unavailable where preview access requires sign-in. That authentication boundary was not bypassed.
+
+Automated UI tests cover keyboard-operable native buttons, labelled Move date/time inputs, explicit Save/Cancel, deterministic Why-this-time disclosure and the protected-conflict correction surface.
 
 Issue #160 remains open for Gate 8A8 narrow/mobile actual-device acceptance.
 
@@ -247,7 +275,7 @@ Not part of Gate 8A5:
 - 8A2 COMPLETE
 - 8A3 COMPLETE
 - 8A4 COMPLETE — PR #163 merged
-- 8A5 CURRENT — PR #164
+- 8A5 IMPLEMENTED / REVIEWED — PR #164 pending merge
 - 8A6 NOT STARTED
 - 8A7 NOT STARTED
 - 8A8 NOT STARTED
