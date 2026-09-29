@@ -159,7 +159,9 @@ function currentPlanPlacement(
   return found && sameRenderedPlacement(found, expected) ? found : null;
 }
 
-function staleResult(): PlacementCorrectionResult {
+type PlacementCorrectionFailure = Extract<PlacementCorrectionResult, { ok: false }>;
+
+function staleResult(): PlacementCorrectionFailure {
   return { ok: false, conflict: 'stale', errors: [STALE_PROFILE_RECOVERY_MESSAGE] };
 }
 
