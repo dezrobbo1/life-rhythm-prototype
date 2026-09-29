@@ -16,6 +16,11 @@ import { loadSchedulerPlanState, repairAndPersistSchedulerPlan, saveSchedulerPla
 import { taskPoolItemSchema } from './schemas';
 import { createDefaultSettings, saveSettings } from './settingsRepository';
 import { scheduler } from '../domain/primaryScheduler';
+import {
+  advanceProfileRecoveryGeneration,
+  readProfileRecoveryGeneration,
+  STALE_PROFILE_RECOVERY_MESSAGE,
+} from './profileRecoveryGeneration';
 
 const timestamp = '2026-09-07T00:00:00.000Z';
 const monday = '2026-09-07';
@@ -551,4 +556,44 @@ describe('live scheduler plan coordinator', () => {
     expect(await database.schedulerPlanState.count()).toBe(1);
     expect(await database.softPlacements.count()).toBe(0);
   });
+  it('does not continue a rendered plan repair onto a later restored recovery epoch', async () => {
+    await saveLifeShape({
+      timeBlocks: [{
+        id: 'monday-available',
+        label: 'Monday available',
+        type: 'openCapacity',
+        schedulerUse: 'available',
+        days: ['Monday'],
+        start: '09:00',
+        end: '11:00',
+      }],
+    });
+    const database = getCurrentLifeRhythmDatabase();
+    await database.taskPoolItems.put(task('task-a'));
+    const built = await ensureCurrentPrivatePlan(coordinatorOptions());
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+
+    const generation = await readProfileRecoveryGeneration(database);
+    const beforePlan = await database.schedulerPlanState.get('current');
+    const beforeHistory = await database.taskHistory.toArray();
+    const beforeRhythms = await database.rhythmInstances.toArray();
+
+    await database.transaction('rw', database.settings, () =>
+      advanceProfileRecoveryGeneration(database, generation));
+
+    const result = await repairCurrentPrivatePlan({
+      ...coordinatorOptions(),
+      expectedRecoveryGeneration: generation,
+      reason: 'Rendered correction continuation must stay on its original profile.',
+      trigger: 'userCorrection',
+    });
+
+    expect(result).toMatchObject({ ok: false, errors: [STALE_PROFILE_RECOVERY_MESSAGE] });
+    expect(await database.schedulerPlanState.get('current')).toEqual(beforePlan);
+    expect(await database.taskHistory.toArray()).toEqual(beforeHistory);
+    expect(await database.rhythmInstances.toArray()).toEqual(beforeRhythms);
+    expect(await readProfileRecoveryGeneration(database)).toBe(generation + 1);
+  });
+
 });
