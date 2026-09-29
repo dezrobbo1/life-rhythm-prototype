@@ -225,7 +225,9 @@ describe('Gate 6C Plan Day Line screen', () => {
     render(<PlanDayLineScreen preferredPlacementDate={mondayDate} />);
 
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('Day Line could not be loaded.');
+    expect(alert.textContent).toContain('The flexible private plan needs updating.');
+    expect(screen.getByText('School run')).toBeTruthy();
+    expect(screen.getByText('Protected morning')).toBeTruthy();
     expect(screen.queryByText('Clear admin note')).toBeNull();
     expect(screen.getByTestId('personal-plan-proxy')).toBeTruthy();
   });
