@@ -944,10 +944,14 @@ export async function undoCurrentPrivatePlan(
   options: PrivatePlanCoordinatorOptions = {},
   expectedRecoveryGeneration?: number,
 ): Promise<PrivatePlanActionResult> {
-  const live = await buildCurrentLiveSchedulingContext(options);
+  const recoveryGeneration = expectedRecoveryGeneration ?? options.expectedRecoveryGeneration;
+  const live = await buildCurrentLiveSchedulingContext({
+    ...options,
+    ...(recoveryGeneration !== undefined ? { expectedRecoveryGeneration: recoveryGeneration } : {}),
+  });
   if (!live.ok) return live;
 
-  const undone = await undoPersistedSchedulerRepair(undefined, undefined, expectedRecoveryGeneration);
+  const undone = await undoPersistedSchedulerRepair(undefined, undefined, recoveryGeneration);
   if (!undone.ok) {
     return { ok: false, errors: undone.errors, warnings: live.context.warnings };
   }
