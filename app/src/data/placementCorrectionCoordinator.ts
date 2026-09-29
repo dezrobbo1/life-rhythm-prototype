@@ -393,11 +393,13 @@ async function persistCorrection(
           instance.data.recurrenceRevisionId !== prepared.correction.rhythmRecurrenceRevisionId) {
         throw new Error('Rhythm occurrence changed before the correction could be saved.');
       }
-      await database.rhythmInstances.put(rhythmInstanceSchema.parse({
-        ...instance.data,
-        placementId: prepared.correction.id,
-        updatedAt: prepared.correction.updatedAt,
-      }));
+      if (instance.data.activeTaskId && ['today', 'inProgress', 'paused'].includes(instance.data.lifecycleState)) {
+        await database.rhythmInstances.put(rhythmInstanceSchema.parse({
+          ...instance.data,
+          placementId: prepared.correction.id,
+          updatedAt: prepared.correction.updatedAt,
+        }));
+      }
       const pending = await markRhythmInputRepairPending(
         database,
         `instance:${instance.data.id}`,
