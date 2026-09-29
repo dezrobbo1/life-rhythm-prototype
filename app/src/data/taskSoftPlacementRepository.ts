@@ -12,6 +12,7 @@ import {
   appendBehaviourEvent,
   behaviourEventForUserPlacement,
 } from './behaviourEventRepository';
+import { markTaskInputRepairPending } from './schedulerPlanStateRepository';
 
 export type ConfirmTaskSoftPlacementInput = {
   blockEnd: string;
@@ -72,7 +73,9 @@ export async function confirmTaskPoolSoftPlacement(
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
   expectedGeneration?: number,
 ): Promise<TaskSoftPlacementResult> {
-  return profileWriteTransaction(database, [database.taskPoolItems, database.softPlacements, database.taskHistory], async () => {
+  return profileWriteTransaction(database,
+    [database.taskPoolItems, database.softPlacements, database.taskHistory, database.schedulerPlanState],
+    async () => {
     const storedItem = await database.taskPoolItems.get(input.taskId);
     const parsedItem = taskPoolItemSchema.safeParse(storedItem);
 
@@ -154,6 +157,8 @@ export async function confirmTaskPoolSoftPlacement(
 
     await database.softPlacements.put(parsedPlacement.data);
     await database.taskPoolItems.put(updatedItem);
+    const pending = await markTaskInputRepairPending(database, parsedItem.data.id, timestamp);
+    if (!pending.ok) throw new Error(pending.errors.join(' '));
     await appendBehaviourEvent(
       behaviourEventForUserPlacement(parsedPlacement.data, 'create', timestamp),
       database,
@@ -173,7 +178,8 @@ export async function removeTaskPoolSoftPlacement(
   expectedGeneration?: number,
 ): Promise<TaskSoftPlacementResult> {
   return profileWriteTransaction(database,
-    [database.softPlacements, database.taskPoolItems, database.activeTasks, database.taskHistory],
+    [database.softPlacements, database.taskPoolItems, database.activeTasks, database.taskHistory,
+      database.schedulerPlanState],
     async () => {
       const storedPlacement = await database.softPlacements.get(placementId);
       const parsedPlacement = softPlacementSchema.safeParse(storedPlacement);
@@ -207,6 +213,8 @@ export async function removeTaskPoolSoftPlacement(
       }
 
       await database.softPlacements.put(removedPlacement);
+      const pending = await markTaskInputRepairPending(database, parsedPlacement.data.taskId, timestamp);
+      if (!pending.ok) throw new Error(pending.errors.join(' '));
       if (updatedItem) {
         await database.taskPoolItems.put(updatedItem);
       }
