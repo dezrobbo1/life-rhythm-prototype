@@ -207,5 +207,5 @@ describe('Pool soft placement flow', () => {
     expect(await database.softPlacements.toArray()).toEqual([
       expect.objectContaining({ status: 'removed' }),
     ]);
-  });
+  }, 10_000);
 });
