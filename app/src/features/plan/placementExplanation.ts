@@ -6,6 +6,14 @@ export function placementReasonLines(provenance: readonly string[]): string[] {
   };
 
   for (const item of provenance) {
+    if (item === 'User explicitly moved this private placement.') {
+      push('You moved this private placement to this time.');
+      continue;
+    }
+    if (item === 'User explicitly protected this private placement.') {
+      push('You asked Life Rhythm to keep this private placement here.');
+      continue;
+    }
     if (item.startsWith('Matched explicit Prefer guidance ')) {
       push('A saved Prefer preference favored this time.');
       continue;
