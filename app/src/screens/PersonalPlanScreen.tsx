@@ -680,7 +680,9 @@ export function PersonalPlanScreen({
     if (privatePlanState.status !== 'ready') return null;
     return privatePlanState.plan.placements.find((candidate) =>
       candidate.id === placement.id || candidate.sourcePlacementId === placement.id,
-    ) ?? null;
+    ) ?? privatePlanState.plan.rejectedExistingPlacements.find((item) =>
+      item.placement.id === placement.id || item.placement.sourcePlacementId === placement.id,
+    )?.placement ?? null;
   }, [privatePlanState]);
 
   const suggestionEmptyTitle = poolSoftSuggestions.openCapacityBlockCount === 0
