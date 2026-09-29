@@ -476,6 +476,14 @@ export async function updateTaskLifecycleStatus(
         timestamp,
         database,
       );
+      if (parsedTask.data.sourceRhythmInstanceId) {
+        placements.push(...await transitionLinkedPlacements(
+          parsedTask.data.sourceRhythmInstanceId,
+          parsedStatus.data,
+          timestamp,
+          database,
+        ));
+      }
       const behaviourEvent = await behaviourEventForTaskTransition(
         parsedTask.data,
         updatedTask,
