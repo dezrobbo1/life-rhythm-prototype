@@ -433,15 +433,9 @@ async function persistCorrection(
     }
 
     const beforePlacement = parsedBefore?.success ? parsedBefore.data : null;
-    const previous = beforePlacement ?? softPlacementSchema.parse({
-      ...prepared.correction,
-      date: prepared.current.date,
-      start: prepared.current.start,
-      end: prepared.current.end,
-      status: 'planned',
-      correctionKind: undefined,
-      updatedAt: prepared.correction.updatedAt,
-    });
+    const previous = beforePlacement && (beforePlacement.status === 'planned' || beforePlacement.status === 'moved')
+      ? beforePlacement
+      : prepared.current;
     const positionChanged =
       previous.date !== prepared.correction.date ||
       previous.start !== prepared.correction.start ||
