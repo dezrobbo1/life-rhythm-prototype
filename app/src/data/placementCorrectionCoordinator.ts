@@ -188,6 +188,19 @@ function fallbackPoolStatus(
   return 'captured';
 }
 
+function hasPendingRepairAttention(
+  current: Extract<Awaited<ReturnType<typeof loadSchedulerPlanState>>, { status: 'ok' }>,
+) {
+  return Boolean(
+    current.calendarRepairPendingAt ||
+    current.settingsRepairPendingAt ||
+    current.preferenceRepairPendingAt ||
+    current.durationLearningRepairPendingAt ||
+    current.taskInputRepairPendingAt ||
+    current.rhythmInputRepairPendingAt,
+  );
+}
+
 function schedulerFields(current: Extract<Awaited<ReturnType<typeof loadSchedulerPlanState>>, { status: 'ok' }>) {
   return {
     ...(current.calendarRepairPendingAt ? { calendarRepairPendingAt: current.calendarRepairPendingAt } : {}),
@@ -558,6 +571,7 @@ export async function unprotectPrivatePlacement(
   }
   const current = currentPlanPlacement(saved.plan, expected);
   if (!current) return staleResult();
+  if (hasPendingRepairAttention(saved)) return staleResult();
   const id = correctionId(current);
   const raw = await database.softPlacements.get(id);
   const parsed = softPlacementSchema.safeParse(raw);
@@ -587,6 +601,7 @@ export async function unprotectPrivatePlacement(
         async () => {
           const latest = await loadSchedulerPlanState(database);
           if (latest.status !== 'ok' || latest.updatedAt !== saved.updatedAt ||
+              hasPendingRepairAttention(latest) ||
               !currentPlanPlacement(latest.plan, current)) return staleResult();
           await database.softPlacements.put(moved);
           if (moved.targetKind === 'rhythm') {
@@ -644,6 +659,7 @@ export async function unprotectPrivatePlacement(
         async () => {
           const latest = await loadSchedulerPlanState(database);
           if (latest.status !== 'ok' || latest.updatedAt !== saved.updatedAt ||
+              hasPendingRepairAttention(latest) ||
               !currentPlanPlacement(latest.plan, current)) return staleResult();
 
           const removed = softPlacementSchema.parse({
