@@ -214,11 +214,19 @@ function localKey(date: string, time: string): string {
   return `${date}T${time}`;
 }
 
+function isUserCorrectedPlacement(placement: InternalPlacement): boolean {
+  return placement.origin === 'existingUserConfirmed' && placement.provenance.some((item) =>
+    item === 'User explicitly moved this private placement.' ||
+    item === 'User explicitly protected this private placement.',
+  );
+}
+
 function timingViolationsForPlacement(
   placement: InternalPlacement,
   input: SchedulingDomainModel,
 ): SchedulerViolation[] {
-  if (placement.origin !== 'scheduler' || targetKind(placement) !== 'intention') return [];
+  if ((placement.origin !== 'scheduler' && !isUserCorrectedPlacement(placement)) ||
+      targetKind(placement) !== 'intention') return [];
   const intention = input.intentions.find((candidate) => candidate.id === placement.intentionId);
   if (!intention) return [];
 
@@ -390,7 +398,8 @@ function violationsForPlacement(
     });
   }
 
-  if (placement.origin === 'scheduler' && !matchingCandidate(placement, input)) {
+  if ((placement.origin === 'scheduler' || isUserCorrectedPlacement(placement)) &&
+      !matchingCandidate(placement, input)) {
     violations.push({
       code: 'outside-candidate-interval',
       placementId: placement.id,
