@@ -24,7 +24,7 @@ type PlanDayLineScreenProps = {
 
 type DayLineState =
   | { status: 'loading' }
-  | { status: 'ready'; viewModel: DayLineViewModel }
+  | { status: 'ready'; viewModel: DayLineViewModel; repairPending: boolean }
   | { status: 'error'; errors: string[] };
 
 const dayLineKindLabels = {
@@ -105,26 +105,22 @@ export function PlanDayLineScreen({
       if (savedPlan.status === 'invalid' || savedPlan.status === 'error') {
         return { status: 'error', errors: savedPlan.errors };
       }
-      if (savedPlan.status === 'ok' && (
+      const repairPending = savedPlan.status === 'ok' && Boolean(
         savedPlan.settingsRepairPendingAt ||
         savedPlan.calendarRepairPendingAt ||
         savedPlan.preferenceRepairPendingAt ||
         savedPlan.durationLearningRepairPendingAt ||
         savedPlan.taskInputRepairPendingAt ||
-        savedPlan.rhythmInputRepairPendingAt
-      )) {
-        return {
-          status: 'error',
-          errors: ['Scheduling inputs changed. Refresh the private plan before using its automatic times.'],
-        };
-      }
+        savedPlan.rhythmInputRepairPendingAt,
+      );
 
       return {
         status: 'ready',
+        repairPending,
         viewModel: buildPlanDayLine({
           date: selectedDate,
           input: live.context.input,
-          plan: savedPlan.status === 'ok' ? savedPlan.plan : null,
+          plan: savedPlan.status === 'ok' && !repairPending ? savedPlan.plan : null,
           titleByTargetId: live.context.titleByTargetId,
         }),
       };
@@ -176,6 +172,13 @@ export function PlanDayLineScreen({
             </select>
           </label>
         </div>
+
+        {dayLineState.status === 'ready' && dayLineState.repairPending ? (
+          <div className="surface-status surface-status--error" role="alert">
+            <strong>The flexible private plan needs updating.</strong>
+            <p>Fixed, protected and user-confirmed facts remain visible. Automatic private placements are hidden until repair succeeds.</p>
+          </div>
+        ) : null}
 
         {dayLineState.status === 'loading' ? (
           <div className="surface-status" aria-busy="true" role="status">
