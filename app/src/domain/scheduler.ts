@@ -221,6 +221,17 @@ function isUserCorrectedPlacement(placement: InternalPlacement): boolean {
   );
 }
 
+function isUserProtectedPlacement(placement: InternalPlacement): boolean {
+  return placement.origin === 'existingUserConfirmed' &&
+    placement.provenance.includes('User explicitly protected this private placement.');
+}
+
+function schedulerTargetKey(placement: InternalPlacement): string {
+  return targetKind(placement) === 'rhythm'
+    ? `rhythm:${rhythmIdForPlacement(placement)}`
+    : `intention:${placement.intentionId}`;
+}
+
 function timingViolationsForPlacement(
   placement: InternalPlacement,
   input: SchedulingDomainModel,
@@ -1123,20 +1134,35 @@ export class DeterministicScheduler implements SchedulerEngine {
 
     const accepted: InternalPlacement[] = [];
     const rejectedExistingPlacements: SchedulerPlan['rejectedExistingPlacements'] = [];
+    const blockedProtectedTargets = new Set<string>();
 
     for (const placement of sortPlacements(input.placements)) {
       const violations = violationsForPlacement(placement, accepted, input);
       if (violations.length > 0) {
         rejectedExistingPlacements.push({ placement, violations });
+        if (isUserProtectedPlacement(placement)) {
+          blockedProtectedTargets.add(schedulerTargetKey(placement));
+        }
         continue;
       }
       accepted.push(placement);
     }
 
-    const firstPass = input.intentions.filter(isFirstPassIntention);
-    const laterPass = input.intentions.filter((intention) => !isFirstPassIntention(intention));
+    const schedulableIntentions = input.intentions.filter((intention) =>
+      !blockedProtectedTargets.has(`intention:${intention.id}`),
+    );
+    const firstPass = schedulableIntentions.filter(isFirstPassIntention);
+    const laterPass = schedulableIntentions.filter((intention) => !isFirstPassIntention(intention));
     scheduleIntentions(firstPass, accepted, input);
-    const unscheduledRhythmIds = scheduleRhythms(input.rhythms, accepted, input);
+    const schedulableRhythms = input.rhythms.filter((rhythm) =>
+      !blockedProtectedTargets.has(`rhythm:${rhythm.id}`),
+    );
+    const unscheduledRhythmIds = [...new Set([
+      ...scheduleRhythms(schedulableRhythms, accepted, input),
+      ...input.rhythms
+        .filter((rhythm) => blockedProtectedTargets.has(`rhythm:${rhythm.id}`))
+        .map((rhythm) => rhythm.id),
+    ])].sort();
     scheduleIntentions(laterPass, accepted, input);
 
     const scheduledIntentionIds = new Set(
