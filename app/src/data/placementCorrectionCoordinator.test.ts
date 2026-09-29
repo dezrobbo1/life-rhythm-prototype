@@ -607,4 +607,26 @@ describe('Gate 8A5 placement corrections', () => {
     expect(moved).toMatchObject({ ok: false, errors: [STALE_PROFILE_RECOVERY_MESSAGE] });
     expect(await db.softPlacements.count()).toBe(0);
   });
+  it('rejects a move whose preserved duration would end exactly at local midnight', async () => {
+    await settings();
+    const db = getCurrentLifeRhythmDatabase();
+    await db.taskPoolItems.put(task());
+    const built = await ensureCurrentPrivatePlan(options);
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    const automatic = built.plan.placements[0];
+    expect(automatic).toMatchObject({ start: '09:00', end: '09:30' });
+
+    const result = await movePrivatePlacement(
+      automatic,
+      { date: monday, start: '23:30' },
+      await readProfileRecoveryGeneration(db),
+      options,
+    );
+
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) expect(result.errors.join(' ')).toMatch(/local-day boundary/i);
+    expect(await db.softPlacements.count()).toBe(0);
+  });
+
 });
