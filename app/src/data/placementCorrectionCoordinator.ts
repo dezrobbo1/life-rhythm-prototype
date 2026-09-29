@@ -270,8 +270,11 @@ async function prepareCorrection(
     return { ok: false as const, errors: ['Saved placement correction could not be read safely.'] };
   }
   const existing = existingParsed?.success ? existingParsed.data : null;
+  const activeExisting = existing && (existing.status === 'planned' || existing.status === 'moved')
+    ? existing
+    : null;
 
-  const currentKind = existing?.correctionKind;
+  const currentKind = activeExisting?.correctionKind;
   const nextKind: NonNullable<SoftPlacement['correctionKind']> = action === 'move'
     ? currentKind === 'protect' || currentKind === 'moveProtected'
       ? 'moveProtected'
