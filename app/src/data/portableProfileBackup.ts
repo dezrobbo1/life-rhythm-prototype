@@ -218,7 +218,8 @@ export const portableProfileSchema = z.object({
     if (live && placement.targetKind === 'rhythm') {
       const instance = placement.rhythmInstanceId ? instances.get(placement.rhythmInstanceId) : undefined;
       if (!placement.correctionKind || !instance || instance.lifecycleState === 'closed' ||
-          instance.placementId !== placement.id || placement.taskId !== instance.id ||
+          (isLiveRoutedRhythmInstance(instance) && instance.placementId !== placement.id) ||
+          placement.taskId !== instance.id ||
           placement.rhythmTemplateId !== instance.rhythmTemplateId ||
           placement.rhythmPlanId !== instance.rhythmPlanId ||
           placement.rhythmRecurrenceRevisionId !== instance.recurrenceRevisionId) {
