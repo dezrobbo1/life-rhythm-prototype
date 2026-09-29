@@ -230,15 +230,15 @@ Exit condition: at least a small set of scheduling choices can improve from the 
 
 ### Gate 8A — Personal-Trial Platform Readiness
 
-Status (2026-09-28): **Gate 8A1, 8A2 and 8A3 are complete. Gate 8A4 portable recovery is implemented on an open PR, pending review and merge.** Gate 8A1 merged as PR #157, Gate 8A2 as PR #158, Gate 8A3 as PR #159, its correctness correction PR #161 merged at `abffddd475f44b9adc8d26c5106e1c04fb14842d`, and its bounded resource-safety correction PR #162 merged at `697860427cab5008c3c13ef50b4c7201f560932a`. Issue #160 remains open for narrow/mobile acceptance at Gate 8A8. Gate 8A5–8A8 and Gate 8B remain not started. See `app/docs/gate8a-personal-trial-platform-readiness.md` for the trial start gate.
+Status (2026-09-29): **Gate 8A1–8A4 are complete. Gate 8A5 scheduling mutation integrity and user corrections is the current implementation milestone in draft PR #164.** Gate 8A4 merged as PR #163 at `87e5923cf5fb15d9d6be7619bf9fc01f31355fc0`. Issue #160 remains open for narrow/mobile acceptance at Gate 8A8. Gate 8A6–8A8 and Gate 8B remain not started. See `app/docs/gate8a-personal-trial-platform-readiness.md` for the trial start gate.
 
 Deliver the following bounded slices in order, reviewing each before starting the next:
 
 1. **8A1 — Canonical Input Truth — Complete (PR #157):** user-entered task variant minutes, truthful fallback, correction of existing user-created tasks, and honest scheduling authority/classification. Historical duration uncertainty is preserved.
 2. **8A2 — Rhythm End-to-End — Complete, merged PR #158:** configured personal rhythm, durable plan/revision authority, bounded flexible-quota recurrence, deterministic concrete occurrences, scheduler placement, Today/Now execution and exact instance-linked factual history. Fixed anchored cadence remains deferred.
 3. **8A3 — Availability + Calendar — Complete:** reviewed usable-day setup and workday assignments, work-bound travel, safe static recurring calendar input, settings repair and merged resource-safety corrections. Blank calendar gaps never create capacity. See `app/docs/gate8a3-availability-calendar-report.md`.
-4. **8A4 — Durable Personal Data:** preserve canonical data beyond one device/browser with an explicit recovery, portability and conflict policy. Include Gate 7E duration-control portability.
-5. **8A5 — Scheduling Mutation Integrity + Corrections:** reconcile every scheduling input write, plus individual move/protect, explanations and safe undo.
+4. **8A4 — Durable Personal Data — Complete, merged PR #163:** versioned whole-profile portability and replace-only recovery preserve canonical local authority, including duration controls, with strict validation, conflict checks and recovery-generation fencing.
+5. **8A5 — Scheduling Mutation Integrity + Corrections — Current, draft PR #164:** reconcile every scheduling input write, plus individual move/protect, explanations and safe undo.
 6. **8A6 — Learning Evidence Integrity:** distinguish completed variants and other trusted lifecycle facts before treating them as learning evidence.
 7. **8A7 — UI/UX Product Convergence:** honest surface copy and coherent mobile, desktop and keyboard daily flow.
 8. **8A8 — Trial Evidence + Final Acceptance:** current protocol, low-burden evidence, end-to-end device review and explicit readiness decision.
