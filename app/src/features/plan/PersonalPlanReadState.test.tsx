@@ -467,4 +467,44 @@ describe('Personal Plan read states', () => {
     expect(screen.getByText('Tuesday task')).toBeTruthy();
     expect(screen.queryByText('Monday task')).toBeNull();
   });
+  it('shows the preserved duration and requested end before saving a Move', async () => {
+    const user = userEvent.setup();
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: {
+        ...emptyPlan,
+        placements: [{
+          id: 'scheduler:intention:move-task:2026-09-07:09:00',
+          intentionId: 'move-task',
+          targetKind: 'intention',
+          date: '2026-09-07',
+          start: '09:00',
+          end: '09:30',
+          timezone: 'Australia/Perth',
+          origin: 'scheduler',
+          variantKind: 'normal',
+          provenance: ['Automatically placed by the deterministic scheduler.'],
+        }],
+      },
+      titleByTargetId: { 'move-task': 'Move task' },
+      warnings: [],
+    });
+
+    render(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen preferredPlacementDate="2026-09-07" />
+      </AppSnapshotProvider>,
+    );
+
+    expect(await screen.findByText('Move task')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Move' }));
+
+    expect(screen.getByText(/Keeps the current 30-minute form/)).toBeTruthy();
+    expect(screen.getByText(/requested time 09:00–09:30/)).toBeTruthy();
+
+    await user.clear(screen.getByLabelText('Move start time'));
+    await user.type(screen.getByLabelText('Move start time'), '10:15');
+    expect(await screen.findByText(/requested time 10:15–10:45/)).toBeTruthy();
+  });
+
 });
