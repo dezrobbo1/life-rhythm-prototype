@@ -10,6 +10,7 @@ import {
 import {
   buildCurrentLiveSchedulingContext,
   repairCurrentPrivatePlan,
+  type PrivatePlanCoordinatorOptions,
 } from './schedulerPlanCoordinator';
 import {
   type CalendarSourceSnapshot,
@@ -27,6 +28,7 @@ import {
 } from './schemas';
 import { rhythmInstanceSchema } from './rhythmAuthoritySchemas';
 import {
+  assertProfileRecoveryGeneration,
   profileRecoveryErrorMessage,
   profileWriteTransaction,
   STALE_PROFILE_RECOVERY_MESSAGE,
@@ -218,8 +220,9 @@ async function prepareCorrection(
   expected: InternalPlacement,
   action: 'move' | 'protect',
   move: PlacementMoveInput | null,
+  options: PrivatePlanCoordinatorOptions = {},
 ) {
-  const live = await buildCurrentLiveSchedulingContext({ readOnly: true });
+  const live = await buildCurrentLiveSchedulingContext({ ...options, readOnly: true });
   if (!live.ok) return { ok: false as const, errors: live.errors };
 
   const saved = live.context.schedulerStateSnapshot ?? await loadSchedulerPlanState();
@@ -452,8 +455,14 @@ export async function movePrivatePlacement(
   expected: InternalPlacement,
   move: PlacementMoveInput,
   expectedRecoveryGeneration: number,
+  options: PrivatePlanCoordinatorOptions = {},
 ): Promise<PlacementCorrectionResult> {
-  const prepared = await prepareCorrection(expected, 'move', move);
+  try {
+    await assertProfileRecoveryGeneration(getCurrentLifeRhythmDatabase(), expectedRecoveryGeneration);
+  } catch (error) {
+    return { ok: false, conflict: 'stale', errors: [profileRecoveryErrorMessage(error, STALE_PROFILE_RECOVERY_MESSAGE)] };
+  }
+  const prepared = await prepareCorrection(expected, 'move', move, options);
   if (!prepared.ok) return prepared;
   try {
     const persisted = await persistCorrection(prepared, expectedRecoveryGeneration);
@@ -466,6 +475,7 @@ export async function movePrivatePlacement(
   }
 
   const repaired = await repairCurrentPrivatePlan({
+    ...options,
     trigger: 'userCorrection',
     reason: 'You moved one private placement.',
     ...(expected.origin === 'scheduler' ? { releasePlacementIds: [expected.id] } : {}),
@@ -484,8 +494,14 @@ export async function movePrivatePlacement(
 export async function protectPrivatePlacement(
   expected: InternalPlacement,
   expectedRecoveryGeneration: number,
+  options: PrivatePlanCoordinatorOptions = {},
 ): Promise<PlacementCorrectionResult> {
-  const prepared = await prepareCorrection(expected, 'protect', null);
+  try {
+    await assertProfileRecoveryGeneration(getCurrentLifeRhythmDatabase(), expectedRecoveryGeneration);
+  } catch (error) {
+    return { ok: false, conflict: 'stale', errors: [profileRecoveryErrorMessage(error, STALE_PROFILE_RECOVERY_MESSAGE)] };
+  }
+  const prepared = await prepareCorrection(expected, 'protect', null, options);
   if (!prepared.ok) return prepared;
   try {
     const persisted = await persistCorrection(prepared, expectedRecoveryGeneration);
@@ -498,6 +514,7 @@ export async function protectPrivatePlacement(
   }
 
   const repaired = await repairCurrentPrivatePlan({
+    ...options,
     trigger: 'userCorrection',
     reason: 'You protected one private placement.',
     ...(expected.origin === 'scheduler' ? { releasePlacementIds: [expected.id] } : {}),
@@ -516,9 +533,15 @@ export async function protectPrivatePlacement(
 export async function unprotectPrivatePlacement(
   expected: InternalPlacement,
   expectedRecoveryGeneration: number,
+  options: PrivatePlanCoordinatorOptions = {},
 ): Promise<PlacementCorrectionResult> {
   const database = getCurrentLifeRhythmDatabase();
-  const live = await buildCurrentLiveSchedulingContext({ readOnly: true });
+  try {
+    await assertProfileRecoveryGeneration(database, expectedRecoveryGeneration);
+  } catch (error) {
+    return { ok: false, conflict: 'stale', errors: [profileRecoveryErrorMessage(error, STALE_PROFILE_RECOVERY_MESSAGE)] };
+  }
+  const live = await buildCurrentLiveSchedulingContext({ ...options, readOnly: true });
   if (!live.ok) return { ok: false, errors: live.errors };
   const saved = live.context.schedulerStateSnapshot ?? await loadSchedulerPlanState(database);
   if (saved.status !== 'ok') {
@@ -573,6 +596,7 @@ export async function unprotectPrivatePlacement(
       return { ok: false, errors: [profileRecoveryErrorMessage(error, 'Protection was not removed.')] };
     }
     const repaired = await repairCurrentPrivatePlan({
+      ...options,
       trigger: 'userCorrection',
       reason: 'You removed protection from one moved private placement.',
     });
