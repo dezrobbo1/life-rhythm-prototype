@@ -115,6 +115,48 @@ describe('Pool soft placement flow', () => {
     })]);
   });
 
+  it('does not apply an old placement-repair result after another handle restores the profile', async () => {
+    const user = userEvent.setup();
+    const db = await seedManualPlan();
+    const suggestions = await openManualPlan(user);
+    const payload = structuredClone((await exportPortableProfile(db)).payload);
+    payload.data.taskPoolItems[0].title = 'Restored during repair';
+
+    let resolveRepair!: (value: unknown) => void;
+    const repair = vi.spyOn(schedulerPlanCoordinator, 'repairCurrentPrivatePlan')
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveRepair = resolve; }));
+
+    await user.click(within(suggestions).getByRole('button', { name: 'Add manual placement' }));
+    await waitFor(() => expect(repair).toHaveBeenCalledTimes(1));
+    expect(repair).toHaveBeenCalledWith(expect.objectContaining({
+      expectedRecoveryGeneration: 0,
+      trigger: 'userCorrection',
+    }));
+    expect(await db.softPlacements.count()).toBe(1);
+
+    await replaceFromOtherHandle(JSON.stringify(payload));
+    expect(await readProfileRecoveryGeneration(db)).toBe(1);
+    resolveRepair({
+      ok: true,
+      mode: 'repaired',
+      plan: {
+        placements: [],
+        rejectedExistingPlacements: [],
+        unscheduledIntentionIds: [],
+        unscheduledRhythmIds: [],
+      },
+      titleByTargetId: {},
+      updatedAt: '2026-09-07T00:07:00.000Z',
+      warnings: [],
+    });
+
+    expect(await screen.findByText('The local profile changed. Refresh Plan and try again.')).toBeTruthy();
+    expect(screen.queryByText('User-confirmed placement added.')).toBeNull();
+    expect(await db.softPlacements.count()).toBe(0);
+    await waitFor(() => expect(screen.queryByText('Send school form')).toBeNull());
+    expect(await within(suggestions).findByText('Restored during repair')).toBeTruthy();
+  });
+
   it('rejects a stale rendered Remove when restored state reuses its placement ID', async () => {
     const user = userEvent.setup();
     const db = await seedManualPlan();
