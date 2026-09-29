@@ -236,6 +236,20 @@ describe('Gate 8A5 placement corrections', () => {
       start: kept.start,
     }));
     expect(await db.softPlacements.get(protectedResult.placement.id)).toMatchObject({ status: 'removed' });
+
+    const automaticAgain = unprotected.plan.placements.find((placement) => placement.id === kept.id);
+    expect(automaticAgain).toBeTruthy();
+    if (!automaticAgain) return;
+    const movedAfterUnprotect = await movePrivatePlacement(
+      automaticAgain,
+      { date: monday, start: '10:00' },
+      await readProfileRecoveryGeneration(db),
+      options,
+    );
+    expect(movedAfterUnprotect.ok).toBe(true);
+    if (movedAfterUnprotect.ok) {
+      expect(movedAfterUnprotect.placement).toMatchObject({ correctionKind: 'move' });
+    }
   });
 
   it('keeps a protected hard-conflicted target visible as rejected rather than silently moving it', async () => {
