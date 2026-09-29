@@ -798,8 +798,11 @@ export async function buildAndPersistSchedulerPlan(
   canonicalInputSnapshot?: CanonicalSchedulingInputSnapshot,
   expectedSchedulerState?: SchedulerPlanStateExpectation,
   durationLearning?: DurationLearningPersistInput,
+  expectedRecoveryGeneration?: number,
 ): Promise<SchedulerPlanPersistActionResult> {
-  const recoveryGeneration = store instanceof LifeRhythmDatabase ? await captureProfileRecoveryGeneration(store) : undefined;
+  const recoveryGeneration = expectedRecoveryGeneration ?? (store instanceof LifeRhythmDatabase
+    ? await captureProfileRecoveryGeneration(store)
+    : undefined);
   const observed = await loadSchedulerPlanState(store);
   if (observed.status === 'invalid' || observed.status === 'error') {
     return { ok: false, errors: observed.errors };
@@ -855,8 +858,11 @@ export async function repairAndPersistSchedulerPlan(
   canonicalInputSnapshot?: CanonicalSchedulingInputSnapshot,
   expectedSchedulerState?: SchedulerPlanStateExpectation,
   durationLearning?: DurationLearningPersistInput,
+  expectedRecoveryGeneration?: number,
 ): Promise<SchedulerPlanPersistActionResult> {
-  const recoveryGeneration = store instanceof LifeRhythmDatabase ? await captureProfileRecoveryGeneration(store) : undefined;
+  const recoveryGeneration = expectedRecoveryGeneration ?? (store instanceof LifeRhythmDatabase
+    ? await captureProfileRecoveryGeneration(store)
+    : undefined);
   const observed = await loadSchedulerPlanState(store);
   if (observed.status === 'invalid' || observed.status === 'error') {
     return { ok: false, errors: observed.errors };
