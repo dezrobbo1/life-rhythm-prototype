@@ -259,21 +259,37 @@ function placementFact(placement: SoftPlacement): BehaviourEventFact {
 
 export function behaviourEventForUserPlacement(
   placement: SoftPlacement,
-  action: 'create' | 'remove',
+  action: 'create' | 'move' | 'remove',
   occurredAt: string,
   previousPlacement?: SoftPlacement,
 ) {
+  const eventType = action === 'create'
+    ? 'userPlacementCreated'
+    : action === 'move'
+      ? 'userPlacementMoved'
+      : 'userPlacementRemoved';
+  const eventAction = action === 'create'
+    ? 'createPlacement'
+    : action === 'move'
+      ? 'movePlacement'
+      : 'removePlacement';
   return createBehaviourEvent({
-    action: action === 'create' ? 'createPlacement' : 'removePlacement',
+    action: eventAction,
     ...(action === 'create'
       ? { after: placementFact(placement) }
       : { before: placementFact(previousPlacement ?? placement), after: placementFact(placement) }),
-    eventType: action === 'create' ? 'userPlacementCreated' : 'userPlacementRemoved',
+    eventType,
     occurredAt,
     placementId: placement.id,
     provenance: { origin: 'userAction', mechanism: 'softPlacement' },
     source: 'user',
-    taskId: placement.taskId,
+    ...(placement.targetKind === 'rhythm'
+      ? {
+          rhythmId: placement.rhythmInstanceId ?? placement.taskId,
+          ...(placement.rhythmTemplateId ? { templateId: placement.rhythmTemplateId } : {}),
+          ...(placement.rhythmInstanceId ? { rhythmInstanceId: placement.rhythmInstanceId } : {}),
+        }
+      : { taskId: placement.taskId }),
   });
 }
 
