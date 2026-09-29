@@ -108,6 +108,29 @@ function placementTitle(
   return titleByTargetId[targetId] ?? 'Private task';
 }
 
+function localTimeMinutes(value: string): number | null {
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return null;
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function moveTimingSummary(placement: InternalPlacement | null, start: string) {
+  if (!placement) return null;
+  const originalStart = localTimeMinutes(placement.start);
+  const originalEnd = localTimeMinutes(placement.end);
+  const requestedStart = localTimeMinutes(start);
+  if (originalStart === null || originalEnd === null || requestedStart === null) return null;
+  const duration = originalEnd - originalStart;
+  if (duration <= 0) return null;
+  const requestedEnd = requestedStart + duration;
+  if (requestedEnd >= 24 * 60) {
+    return { duration, end: null as string | null };
+  }
+  const hours = Math.floor(requestedEnd / 60).toString().padStart(2, '0');
+  const minutes = (requestedEnd % 60).toString().padStart(2, '0');
+  return { duration, end: `${hours}:${minutes}` };
+}
+
 function formatChangedLine(
   change: SchedulerPlanChange,
   titleByTargetId: Record<string, string>,
@@ -698,6 +721,7 @@ export function PersonalPlanScreen({
   const manualDataLoading = poolReadState.status === 'loading' || placementReadState.status === 'loading';
   const manualDataFailed = poolReadState.status === 'readFailed' || placementReadState.status === 'readFailed';
   const manualDataPartial = poolReadState.status === 'partial' || placementReadState.status === 'partial';
+  const moveTiming = moveTimingSummary(moveTarget, moveStart);
 
   return (
     <div className="screen-stack plan-screen personal-plan-screen">
@@ -881,6 +905,12 @@ export function PersonalPlanScreen({
             <p>
               Choose the exact local time you want. Life Rhythm will reject hard conflicts rather than silently choosing another time.
             </p>
+            {moveTiming ? (
+              <p className="plan-section__context">
+                Keeps the current {moveTiming.duration}-minute form
+                {moveTiming.end ? ` · requested time ${moveStart}–${moveTiming.end}` : ' · this start would reach the end of the local day'}.
+              </p>
+            ) : null}
             <div className="life-shape-inline">
               <label>
                 <span>Move date</span>
