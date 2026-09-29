@@ -159,6 +159,34 @@ describe('Gate 8A5 placement corrections', () => {
     }));
   });
 
+  it('rejects a no-op Move instead of silently converting the current time into user authority', async () => {
+    await settings();
+    const db = getCurrentLifeRhythmDatabase();
+    await db.taskPoolItems.put(task());
+    const built = await ensureCurrentPrivatePlan(options);
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    const automatic = built.plan.placements.find((placement) => placement.intentionId === 'move-task');
+    expect(automatic).toMatchObject({ origin: 'scheduler', start: '09:00', end: '09:30' });
+    if (!automatic) return;
+
+    const beforeEvents = await db.taskHistory.toArray();
+    const moved = await movePrivatePlacement(
+      automatic,
+      { date: automatic.date, start: automatic.start },
+      await readProfileRecoveryGeneration(db),
+      options,
+    );
+
+    expect(moved).toMatchObject({
+      ok: false,
+      errors: ['This private placement is already at that time.'],
+    });
+    expect(await db.softPlacements.count()).toBe(0);
+    expect(await db.taskPoolItems.get('move-task')).toMatchObject({ status: 'captured' });
+    expect(await db.taskHistory.toArray()).toEqual(beforeEvents);
+  });
+
   it('rejects an explicit move into a hard fixed commitment without writing a correction', async () => {
     await settings([{
       id: 'appointment',
