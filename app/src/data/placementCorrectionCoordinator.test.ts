@@ -553,6 +553,41 @@ describe('Gate 8A5 placement corrections', () => {
     ]);
   });
 
+  it('rejects a rendered Move when repair attention appears before its correction commit', async () => {
+    await settings();
+    const db = getCurrentLifeRhythmDatabase();
+    await db.taskPoolItems.put(task());
+    const built = await ensureCurrentPrivatePlan(options);
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    const automatic = built.plan.placements[0];
+
+    const originalGet = db.softPlacements.get.bind(db.softPlacements);
+    let injected = false;
+    const getSpy = vi.spyOn(db.softPlacements, 'get').mockImplementation((async (key: string) => {
+      const row = await originalGet(key);
+      if (!injected) {
+        injected = true;
+        getSpy.mockRestore();
+        expect((await markSettingsRepairPending(db, '2026-09-07T00:22:00.000Z')).ok).toBe(true);
+      }
+      return row;
+    }) as never);
+
+    const result = await movePrivatePlacement(
+      automatic,
+      { date: monday, start: '10:00' },
+      await readProfileRecoveryGeneration(db),
+      options,
+    );
+
+    expect(result).toMatchObject({ ok: false, conflict: 'stale' });
+    expect(await db.softPlacements.count()).toBe(0);
+    expect(await db.schedulerPlanState.get('current')).toMatchObject({
+      settingsRepairPendingAt: '2026-09-07T00:22:00.000Z',
+    });
+  });
+
   it('rejects a stale correction after the recovery generation changes', async () => {
     await settings();
     const db = getCurrentLifeRhythmDatabase();
