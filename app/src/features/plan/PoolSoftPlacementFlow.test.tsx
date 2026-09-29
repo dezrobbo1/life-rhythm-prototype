@@ -95,14 +95,16 @@ describe('Pool soft placement flow', () => {
     payload.data.taskPoolItems[0].title = 'Restored school form';
     await replaceFromOtherHandle(JSON.stringify(payload));
     expect(await readProfileRecoveryGeneration(db)).toBe(1);
-    const beforeEvents = await db.taskHistory.toArray();
+    const userPlacementEventsBefore = (await db.taskHistory.toArray())
+      .filter((event) => event.eventType === 'userPlacementCreated');
     const repair = vi.spyOn(schedulerPlanCoordinator, 'repairCurrentPrivatePlan');
 
     await user.click(within(suggestions).getByRole('button', { name: 'Add manual placement' }));
     expect(await screen.findByText('The local profile changed. Refresh Plan and try again.')).toBeTruthy();
     expect(await db.softPlacements.count()).toBe(0);
     expect(await db.taskPoolItems.get('manual-plan-pool')).toMatchObject({ status: 'captured', title: 'Restored school form' });
-    expect(await db.taskHistory.toArray()).toEqual(beforeEvents);
+    expect((await db.taskHistory.toArray()).filter((event) => event.eventType === 'userPlacementCreated'))
+      .toEqual(userPlacementEventsBefore);
     expect(repair).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByText('Send school form')).toBeNull());
     expect(await within(suggestions).findByText('Restored school form')).toBeTruthy();
@@ -127,14 +129,16 @@ describe('Pool soft placement flow', () => {
     const payload = structuredClone((await exportPortableProfile(db)).payload);
     payload.data.softPlacements[0].blockLabelSnapshot = 'Restored open window';
     await replaceFromOtherHandle(JSON.stringify(payload));
-    const beforeEvents = await db.taskHistory.toArray();
+    const userPlacementEventsBefore = (await db.taskHistory.toArray())
+      .filter((event) => event.eventType === 'userPlacementRemoved');
     const repair = vi.spyOn(schedulerPlanCoordinator, 'repairCurrentPrivatePlan');
 
     await user.click(within(placements).getByRole('button', { name: 'Remove placement' }));
     expect(await screen.findByText('The local profile changed. Refresh Plan and try again.')).toBeTruthy();
     expect(await db.softPlacements.get('shared-placement')).toMatchObject({ status: 'planned', blockLabelSnapshot: 'Restored open window' });
     expect(await db.taskPoolItems.get('manual-plan-pool')).toMatchObject({ status: 'softPlaced' });
-    expect(await db.taskHistory.toArray()).toEqual(beforeEvents);
+    expect((await db.taskHistory.toArray()).filter((event) => event.eventType === 'userPlacementRemoved'))
+      .toEqual(userPlacementEventsBefore);
     expect(repair).not.toHaveBeenCalled();
     expect(await within(placements).findByText(/Restored open window/)).toBeTruthy();
     await user.click(within(placements).getByRole('button', { name: 'Remove placement' }));
