@@ -105,8 +105,18 @@ export function PlanDayLineScreen({
       if (savedPlan.status === 'invalid' || savedPlan.status === 'error') {
         return { status: 'error', errors: savedPlan.errors };
       }
-      if (savedPlan.status === 'ok' && savedPlan.settingsRepairPendingAt) {
-        return { status: 'error', errors: ['Planning hours changed. Refresh the private plan before using its times.'] };
+      if (savedPlan.status === 'ok' && (
+        savedPlan.settingsRepairPendingAt ||
+        savedPlan.calendarRepairPendingAt ||
+        savedPlan.preferenceRepairPendingAt ||
+        savedPlan.durationLearningRepairPendingAt ||
+        savedPlan.taskInputRepairPendingAt ||
+        savedPlan.rhythmInputRepairPendingAt
+      )) {
+        return {
+          status: 'error',
+          errors: ['Scheduling inputs changed. Refresh the private plan before using its automatic times.'],
+        };
       }
 
       return {
