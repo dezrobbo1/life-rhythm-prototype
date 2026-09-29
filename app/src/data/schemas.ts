@@ -1325,11 +1325,24 @@ export const behaviourEventSchema = z
       forbidField('rhythmId');
       forbidField('placementId');
     } else if (rule.ids === 'userPlacement') {
-      requireField('taskId');
       requireField('placementId');
-      forbidField('templateId');
-      forbidField('rhythmId');
-      forbidField('rhythmInstanceId');
+      if (Boolean(event.taskId) === Boolean(event.rhythmId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Exactly one user-placement target ID is required.',
+          path: ['taskId'],
+        });
+      }
+      if (event.taskId) {
+        forbidField('templateId');
+        forbidField('rhythmInstanceId');
+      } else if (event.rhythmId && !event.rhythmInstanceId) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Rhythm user placements require the concrete rhythm instance identity.',
+          path: ['rhythmInstanceId'],
+        });
+      }
     } else if (rule.ids === 'schedulerTarget') {
       if (Boolean(event.taskId) === Boolean(event.rhythmId)) {
         context.addIssue({
