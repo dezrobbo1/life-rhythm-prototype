@@ -248,11 +248,15 @@ export function behaviourEventForAddedToToday(
   });
 }
 
-function placementFact(placement: SoftPlacement): BehaviourEventFact {
+function placementFact(placement: SoftPlacement | InternalPlacement): BehaviourEventFact {
   return {
     date: placement.date,
     end: placement.end,
-    placementStatus: placement.status,
+    placementStatus: 'placementSource' in placement
+      ? placement.status
+      : placement.origin === 'scheduler'
+        ? 'automatic'
+        : 'planned',
     start: placement.start,
   };
 }
@@ -261,7 +265,7 @@ export function behaviourEventForUserPlacement(
   placement: SoftPlacement,
   action: 'create' | 'move' | 'remove',
   occurredAt: string,
-  previousPlacement?: SoftPlacement,
+  previousPlacement?: SoftPlacement | InternalPlacement,
 ) {
   const eventType = action === 'create'
     ? 'userPlacementCreated'
