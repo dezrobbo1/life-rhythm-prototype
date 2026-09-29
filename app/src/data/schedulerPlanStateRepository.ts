@@ -899,7 +899,7 @@ export async function repairAndPersistSchedulerPlan(
       ? new Set(current.rhythmInputRepairTargetIds ?? []) : new Set<string>();
     const releasedRhythmPlacements = current.status === 'ok' && change.now
       ? current.plan.placements.filter((placement) => {
-          if (placement.origin !== 'scheduler' || placement.targetKind !== 'rhythm') return false;
+          if (placement.targetKind !== 'rhythm') return false;
           const targetMatches =
             (placement.rhythmTemplateId && pendingRhythmTargets.has(`template:${placement.rhythmTemplateId}`)) ||
             (placement.rhythmInstanceId && pendingRhythmTargets.has(`instance:${placement.rhythmInstanceId}`)) ||
