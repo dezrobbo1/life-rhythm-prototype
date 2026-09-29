@@ -122,9 +122,10 @@ describe('Pool soft placement flow', () => {
     const payload = structuredClone((await exportPortableProfile(db)).payload);
     payload.data.taskPoolItems[0].title = 'Restored during repair';
 
-    let resolveRepair!: (value: unknown) => void;
+    type RepairResult = Awaited<ReturnType<typeof schedulerPlanCoordinator.repairCurrentPrivatePlan>>;
+    let resolveRepair!: (value: RepairResult | PromiseLike<RepairResult>) => void;
     const repair = vi.spyOn(schedulerPlanCoordinator, 'repairCurrentPrivatePlan')
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveRepair = resolve; }));
+      .mockImplementationOnce(() => new Promise<RepairResult>((resolve) => { resolveRepair = resolve; }));
 
     await user.click(within(suggestions).getByRole('button', { name: 'Add manual placement' }));
     await waitFor(() => expect(repair).toHaveBeenCalledTimes(1));
