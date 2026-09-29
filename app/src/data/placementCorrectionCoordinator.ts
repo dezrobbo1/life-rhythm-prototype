@@ -12,6 +12,7 @@ import {
   repairCurrentPrivatePlan,
 } from './schedulerPlanCoordinator';
 import {
+  type CalendarSourceSnapshot,
   loadSchedulerPlanState,
   markRhythmInputRepairPending,
   markTaskInputRepairPending,
@@ -161,12 +162,7 @@ function staleResult(): PlacementCorrectionResult {
 
 async function calendarStillMatches(
   database: LifeRhythmDatabase,
-  snapshot: Awaited<ReturnType<typeof buildCurrentLiveSchedulingContext>> extends infer _ ? {
-    source: string;
-    updatedAt: string;
-    beforeBusyMinutes?: number;
-    afterBusyMinutes?: number;
-  } | null : never,
+  snapshot: CalendarSourceSnapshot,
 ) {
   const stored = await database.calendarSources.get(CURRENT_CALENDAR_SOURCE_ID);
   if (snapshot === null) return stored === undefined;
