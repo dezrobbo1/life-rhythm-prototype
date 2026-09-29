@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createAuthLocalDataNamespace,
   getCurrentLifeRhythmDatabase,
@@ -288,6 +288,53 @@ describe('Gate 8A5 placement corrections', () => {
     expect((await db.schedulerPlanState.get('current'))?.plan).toEqual(planBefore?.plan);
     expect(await db.schedulerPlanState.get('current')).toMatchObject({
       settingsRepairPendingAt: '2026-09-07T00:20:00.000Z',
+    });
+  });
+
+  it('rejects Unprotect when repair attention appears after its plan read but before commit', async () => {
+    await settings();
+    const db = getCurrentLifeRhythmDatabase();
+    await db.taskPoolItems.put(task());
+    const built = await ensureCurrentPrivatePlan(options);
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+
+    const protectedResult = await protectPrivatePlacement(
+      built.plan.placements[0],
+      await readProfileRecoveryGeneration(db),
+      options,
+    );
+    expect(protectedResult.ok).toBe(true);
+    if (!protectedResult.ok || !protectedResult.placement) return;
+    const accepted = protectedResult.plan.placements.find((placement) =>
+      placement.id === protectedResult.placement?.id,
+    );
+    expect(accepted).toBeTruthy();
+    if (!accepted) return;
+
+    const correctionBefore = await db.softPlacements.get(protectedResult.placement.id);
+    const originalGet = db.softPlacements.get.bind(db.softPlacements);
+    let injected = false;
+    const getSpy = vi.spyOn(db.softPlacements, 'get').mockImplementation(async (key) => {
+      const row = await originalGet(key);
+      if (!injected) {
+        injected = true;
+        getSpy.mockRestore();
+        expect((await markSettingsRepairPending(db, '2026-09-07T00:21:00.000Z')).ok).toBe(true);
+      }
+      return row;
+    });
+
+    const result = await unprotectPrivatePlacement(
+      accepted,
+      await readProfileRecoveryGeneration(db),
+      options,
+    );
+
+    expect(result).toMatchObject({ ok: false, conflict: 'stale' });
+    expect(await db.softPlacements.get(protectedResult.placement.id)).toEqual(correctionBefore);
+    expect(await db.schedulerPlanState.get('current')).toMatchObject({
+      settingsRepairPendingAt: '2026-09-07T00:21:00.000Z',
     });
   });
 
