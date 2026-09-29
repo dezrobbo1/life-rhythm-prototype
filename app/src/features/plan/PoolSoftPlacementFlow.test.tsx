@@ -153,7 +153,7 @@ describe('Pool soft placement flow', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Held' }));
     const captureButton = await screen.findByRole('button', { name: 'Capture task' });
-    await waitFor(() => expect(captureButton).not.toBeDisabled());
+    await waitFor(() => expect((captureButton as HTMLButtonElement).disabled).toBe(false));
     await user.click(captureButton);
     const taskTitle = await screen.findByLabelText('Task title');
     await user.type(taskTitle, 'Send school form');
