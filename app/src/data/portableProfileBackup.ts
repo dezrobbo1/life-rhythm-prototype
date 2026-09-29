@@ -102,6 +102,10 @@ export const portableProfileSchema = z.object({
   const tasks = new Map(d.activeTasks.map((row) => [row.id, row]));
   const pool = new Map(d.taskPoolItems.map((row) => [row.id, row]));
   const routed = new Map(d.routedRhythmPlacements.map((row) => [row.id, row]));
+  const liveRhythmCorrections = new Map(d.softPlacements
+    .filter((row) => row.targetKind === 'rhythm' && row.correctionKind &&
+      (row.status === 'planned' || row.status === 'moved'))
+    .map((row) => [row.id, row]));
   const routedOwners = new Map<string, number>();
   d.routedRhythmPlacements.forEach((placement, index) => {
     const owners = d.rhythmInstances.filter((row) => row.placementId === placement.id);
@@ -180,13 +184,18 @@ export const portableProfileSchema = z.object({
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
         message: 'A placed rhythm occurrence requires its linked Today task.' });
     }
-    if (isLiveRoutedRhythmInstance(instance) && !routed.has(instance.placementId)) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
-        message: 'A routed rhythm occurrence requires its accepted placement.' });
-    }
-    if (isLiveRoutedRhythmInstance(instance) && routedOwners.get(instance.placementId) !== 1) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
-        message: 'A routed rhythm placement must have one occurrence owner.' });
+    if (isLiveRoutedRhythmInstance(instance)) {
+      const correction = liveRhythmCorrections.get(instance.placementId);
+      if (correction && routed.has(instance.placementId)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
+          message: 'A routed rhythm occurrence cannot have both scheduler and user-correction placement authority.' });
+      } else if (!correction && !routed.has(instance.placementId)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
+          message: 'A routed rhythm occurrence requires its accepted placement.' });
+      } else if (!correction && routedOwners.get(instance.placementId) !== 1) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
+          message: 'A routed rhythm placement must have one occurrence owner.' });
+      }
     }
     if (!instance.activeTaskId && instance.lifecycleState === 'eligible' &&
       (instance.completionState !== 'notStarted' || !['unscheduled', 'placed'].includes(instance.planningState))) {
@@ -205,7 +214,18 @@ export const portableProfileSchema = z.object({
   const visibleBlockDates = new Set<string>();
   d.softPlacements.forEach((placement, index) => {
     const backingTask = tasks.get(placement.taskId);
-    if ((placement.status === 'planned' || placement.status === 'moved') &&
+    const live = placement.status === 'planned' || placement.status === 'moved';
+    if (live && placement.targetKind === 'rhythm') {
+      const instance = placement.rhythmInstanceId ? instances.get(placement.rhythmInstanceId) : undefined;
+      if (!placement.correctionKind || !instance || instance.lifecycleState === 'closed' ||
+          instance.placementId !== placement.id || placement.taskId !== instance.id ||
+          placement.rhythmTemplateId !== instance.rhythmTemplateId ||
+          placement.rhythmPlanId !== instance.rhythmPlanId ||
+          placement.rhythmRecurrenceRevisionId !== instance.recurrenceRevisionId) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'softPlacements', index],
+          message: 'A live rhythm correction requires one matching live rhythm occurrence.' });
+      }
+    } else if (live &&
       !(backingTask && !backingTask.sourceRhythmInstanceId && isVisibleTodayStatus(backingTask.status)) &&
       !(pool.get(placement.taskId)?.status === 'softPlaced' && !backingTask)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'softPlacements', index],
@@ -323,8 +343,14 @@ function payloadFromSnapshot(state: Snapshot, settings: PortableProfile['data'][
   const calendarSource = calendars.length ? calendarSourceRecordSchema.parse(calendars[0]) : null;
   const planRows = state.schedulerPlanState;
   if (planRows.length > 1) throw new Error('Multiple scheduler plans cannot be checked safely.');
+  const normalizedSoftPlacements = softPlacementSchema.array().parse(state.softPlacements);
+  const liveRhythmCorrectionIds = new Set(normalizedSoftPlacements
+    .filter((row) => row.targetKind === 'rhythm' && row.correctionKind &&
+      (row.status === 'planned' || row.status === 'moved'))
+    .map((row) => row.id));
   const routedInstances = rhythmInstanceSchema.array().parse(state.rhythmInstances)
-    .filter(isLiveRoutedRhythmInstance);
+    .filter((instance) => isLiveRoutedRhythmInstance(instance) &&
+      !liveRhythmCorrectionIds.has(instance.placementId!));
   const acceptedPlan = planRows.length ? schedulerPlanStateRecordSchema.safeParse(planRows[0]) : null;
   if (routedInstances.length && (!acceptedPlan || !acceptedPlan.success)) {
     throw new Error('Routed rhythm occurrences require a readable accepted private plan.');
