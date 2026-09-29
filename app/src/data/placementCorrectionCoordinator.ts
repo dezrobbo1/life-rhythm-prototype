@@ -248,6 +248,7 @@ async function prepareCorrection(
         : saved.errors,
     };
   }
+  if (hasPendingRepairAttention(saved)) return staleResult();
   const current = currentPlanPlacement(saved.plan, expected);
   if (!current) return { ok: false as const, conflict: 'stale' as const, errors: [STALE_PROFILE_RECOVERY_MESSAGE] };
 
@@ -386,6 +387,7 @@ async function persistCorrection(
   ], async () => {
     const latest = await loadSchedulerPlanState(database);
     if (latest.status !== 'ok' || latest.updatedAt !== prepared.saved.updatedAt ||
+        hasPendingRepairAttention(latest) ||
         !currentPlanPlacement(latest.plan, prepared.current)) {
       return staleResult();
     }
