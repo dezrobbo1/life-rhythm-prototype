@@ -587,4 +587,76 @@ describe('Personal Plan read states', () => {
     expect(await screen.findByText(/requested time 10:15–10:45/)).toBeTruthy();
   });
 
+  it('surfaces a protected correction that current hard reality rejects without exposing internal IDs', async () => {
+    const rejectedPlacement = {
+      id: 'correction:intention:protected-task',
+      intentionId: 'protected-task',
+      targetKind: 'intention' as const,
+      date: '2026-09-07',
+      start: '09:00',
+      end: '09:30',
+      timezone: 'Australia/Perth',
+      origin: 'existingUserConfirmed' as const,
+      sourcePlacementId: 'correction:intention:protected-task',
+      variantKind: 'normal' as const,
+      provenance: ['User explicitly protected this private placement.'],
+    };
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: {
+        ...emptyPlan,
+        rejectedExistingPlacements: [{
+          placement: rejectedPlacement,
+          violations: [{
+            code: 'external-commitment-overlap',
+            placementId: rejectedPlacement.id,
+            conflictingId: 'commitment:private-appointment',
+            message: 'Placement correction:intention:protected-task overlaps commitment Private appointment.',
+          }],
+        }],
+        unscheduledIntentionIds: ['protected-task'],
+      },
+      titleByTargetId: { 'protected-task': 'Protected task' },
+      warnings: [],
+    });
+    placementMocks.loadSoftPlacementsForDateResult.mockResolvedValue({
+      invalidRecordCount: 0,
+      items: [{
+        id: rejectedPlacement.id,
+        taskId: 'protected-task',
+        taskTitleSnapshot: 'Protected task',
+        blockId: 'correction-slot:protected-task',
+        blockLabelSnapshot: 'User-corrected private time',
+        date: '2026-09-07',
+        start: '09:00',
+        end: '09:30',
+        timezone: 'Australia/Perth',
+        variantKind: 'normal',
+        placementSource: 'userConfirmed',
+        status: 'planned',
+        correctionKind: 'protect',
+        targetKind: 'intention',
+        createdAt: '2026-09-07T00:00:00.000Z',
+        updatedAt: '2026-09-07T00:00:00.000Z',
+      }],
+      status: 'ok',
+    });
+
+    render(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen preferredPlacementDate="2026-09-07" />
+      </AppSnapshotProvider>,
+    );
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Saved private time needs a new choice.');
+    expect(alert.textContent).toContain(
+      'A fixed or read-only calendar commitment now overlaps this saved private time.',
+    );
+    expect(alert.textContent).not.toContain('correction:intention:protected-task');
+    expect(alert.textContent).not.toContain('commitment:private-appointment');
+    expect(screen.getByRole('button', { name: 'Move' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Unprotect' })).toBeTruthy();
+  });
+
 });
