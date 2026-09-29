@@ -2,6 +2,7 @@ import { LifeRhythmDatabase } from './db';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import type { TaskHistory } from './schemas';
 import { profileRecoveryErrorMessage, profileWriteTransaction } from './profileRecoveryGeneration';
+import { markDurationLearningRepairPending } from './schedulerPlanStateRepository';
 
 export const BEHAVIOUR_HISTORY_DELETE_CONFIRMATION = 'DELETE BEHAVIOUR HISTORY';
 
@@ -51,12 +52,20 @@ export async function deleteBehaviourHistory(
   }
 
   try {
-    return await profileWriteTransaction(database, [database.taskHistory], async () => {
-      const rows = await database.taskHistory.toArray();
-      const ids = rows.filter(isGate7ABehaviourRow).map((row) => row.id);
-      await database.taskHistory.bulkDelete(ids);
-      return { deletedCount: ids.length, ok: true as const };
-    }, expectedRecoveryGeneration);
+    return await profileWriteTransaction(database,
+      [database.taskHistory, database.schedulerPlanState],
+      async () => {
+        const rows = await database.taskHistory.toArray();
+        const ids = rows.filter(isGate7ABehaviourRow).map((row) => row.id);
+        await database.taskHistory.bulkDelete(ids);
+        if (ids.length > 0) {
+          const pending = await markDurationLearningRepairPending(database);
+          if (!pending.ok) throw new Error(pending.errors.join(' '));
+        }
+        return { deletedCount: ids.length, ok: true as const };
+      },
+      expectedRecoveryGeneration,
+    );
   } catch (error) {
     return {
       ok: false,
