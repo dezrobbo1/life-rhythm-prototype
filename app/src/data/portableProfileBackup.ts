@@ -102,10 +102,18 @@ export const portableProfileSchema = z.object({
   const tasks = new Map(d.activeTasks.map((row) => [row.id, row]));
   const pool = new Map(d.taskPoolItems.map((row) => [row.id, row]));
   const routed = new Map(d.routedRhythmPlacements.map((row) => [row.id, row]));
-  const liveRhythmCorrections = new Map(d.softPlacements
+  const liveRhythmCorrectionsByInstance = new Map<string, (typeof d.softPlacements)[number]>();
+  d.softPlacements
     .filter((row) => row.targetKind === 'rhythm' && row.correctionKind &&
-      (row.status === 'planned' || row.status === 'moved'))
-    .map((row) => [row.id, row]));
+      (row.status === 'planned' || row.status === 'moved') && row.rhythmInstanceId)
+    .forEach((row, index) => {
+      if (liveRhythmCorrectionsByInstance.has(row.rhythmInstanceId!)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'softPlacements', index],
+          message: 'A rhythm occurrence cannot have more than one live user correction.' });
+        return;
+      }
+      liveRhythmCorrectionsByInstance.set(row.rhythmInstanceId!, row);
+    });
   const routedOwners = new Map<string, number>();
   d.routedRhythmPlacements.forEach((placement, index) => {
     const owners = d.rhythmInstances.filter((row) => row.placementId === placement.id);
@@ -185,7 +193,7 @@ export const portableProfileSchema = z.object({
         message: 'A placed rhythm occurrence requires its linked Today task.' });
     }
     if (isLiveRoutedRhythmInstance(instance)) {
-      const correction = liveRhythmCorrections.get(instance.placementId);
+      const correction = liveRhythmCorrectionsByInstance.get(instance.id);
       if (correction && routed.has(instance.placementId)) {
         context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'rhythmInstances', index, 'placementId'],
           message: 'A routed rhythm occurrence cannot have both scheduler and user-correction placement authority.' });
@@ -218,7 +226,6 @@ export const portableProfileSchema = z.object({
     if (live && placement.targetKind === 'rhythm') {
       const instance = placement.rhythmInstanceId ? instances.get(placement.rhythmInstanceId) : undefined;
       if (!placement.correctionKind || !instance || instance.lifecycleState === 'closed' ||
-          (isLiveRoutedRhythmInstance(instance) && instance.placementId !== placement.id) ||
           placement.taskId !== instance.id ||
           placement.rhythmTemplateId !== instance.rhythmTemplateId ||
           placement.rhythmPlanId !== instance.rhythmPlanId ||
@@ -345,13 +352,13 @@ function payloadFromSnapshot(state: Snapshot, settings: PortableProfile['data'][
   const planRows = state.schedulerPlanState;
   if (planRows.length > 1) throw new Error('Multiple scheduler plans cannot be checked safely.');
   const normalizedSoftPlacements = softPlacementSchema.array().parse(state.softPlacements);
-  const liveRhythmCorrectionIds = new Set(normalizedSoftPlacements
+  const liveRhythmCorrectionInstanceIds = new Set(normalizedSoftPlacements
     .filter((row) => row.targetKind === 'rhythm' && row.correctionKind &&
-      (row.status === 'planned' || row.status === 'moved'))
-    .map((row) => row.id));
+      (row.status === 'planned' || row.status === 'moved') && row.rhythmInstanceId)
+    .map((row) => row.rhythmInstanceId!));
   const routedInstances = rhythmInstanceSchema.array().parse(state.rhythmInstances)
     .filter((instance) => isLiveRoutedRhythmInstance(instance) &&
-      !liveRhythmCorrectionIds.has(instance.placementId!));
+      !liveRhythmCorrectionInstanceIds.has(instance.id));
   const acceptedPlan = planRows.length ? schedulerPlanStateRecordSchema.safeParse(planRows[0]) : null;
   if (routedInstances.length && (!acceptedPlan || !acceptedPlan.success)) {
     throw new Error('Routed rhythm occurrences require a readable accepted private plan.');
