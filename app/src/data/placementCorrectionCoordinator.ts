@@ -266,8 +266,8 @@ async function prepareCorrection(
     return { ok: false as const, errors: ['Choose a valid local start time.'] };
   }
   const endMinutes = startMinutes + duration;
-  if (endMinutes > 24 * 60) {
-    return { ok: false as const, errors: ['This move would cross the local-day boundary. Choose an earlier time.'] };
+  if (endMinutes >= 24 * 60) {
+    return { ok: false as const, errors: ['This move would reach or cross the local-day boundary. Choose an earlier time.'] };
   }
   const end = timeFromMinutes(endMinutes);
   if (date < live.now.date || (date === live.now.date && start < live.now.time)) {
@@ -502,11 +502,13 @@ export async function movePrivatePlacement(
 
   const repaired = await repairCurrentPrivatePlan({
     ...options,
+    expectedRecoveryGeneration,
     trigger: 'userCorrection',
     reason: 'You moved one private placement.',
     ...(expected.origin === 'scheduler' ? { releasePlacementIds: [expected.id] } : {}),
   });
   if (!repaired.ok) {
+    if (repaired.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) return staleResult();
     return {
       ok: true,
       placement: prepared.correction,
@@ -541,11 +543,13 @@ export async function protectPrivatePlacement(
 
   const repaired = await repairCurrentPrivatePlan({
     ...options,
+    expectedRecoveryGeneration,
     trigger: 'userCorrection',
     reason: 'You protected one private placement.',
     ...(expected.origin === 'scheduler' ? { releasePlacementIds: [expected.id] } : {}),
   });
   if (!repaired.ok) {
+    if (repaired.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) return staleResult();
     return {
       ok: true,
       placement: prepared.correction,
@@ -625,9 +629,11 @@ export async function unprotectPrivatePlacement(
     }
     const repaired = await repairCurrentPrivatePlan({
       ...options,
+      expectedRecoveryGeneration,
       trigger: 'userCorrection',
       reason: 'You removed protection from one moved private placement.',
     });
+    if (!repaired.ok && repaired.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) return staleResult();
     return repaired.ok
       ? { ok: true, placement: moved, repairPending: false, plan: repaired.plan }
       : { ok: true, placement: moved, repairPending: true, plan: saved.plan };
@@ -709,9 +715,11 @@ export async function unprotectPrivatePlacement(
 
     const repaired = await repairCurrentPrivatePlan({
       ...options,
+      expectedRecoveryGeneration,
       trigger: 'userCorrection',
       reason: 'You removed protection from one conflicted private placement.',
     });
+    if (!repaired.ok && repaired.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) return staleResult();
     return repaired.ok
       ? { ok: true, placement: null, repairPending: false, plan: repaired.plan }
       : { ok: true, placement: null, repairPending: true, plan: saved.plan };
