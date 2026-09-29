@@ -752,6 +752,14 @@ export async function ensureCurrentPrivatePlan(
     });
   }
 
+  if (current.status === 'ok' && current.durationLearningRepairPendingAt) {
+    return repairCurrentPrivatePlan({
+      ...options,
+      reason: 'Apply current duration learning to the private plan.',
+      trigger: 'durationLearningChanged',
+    });
+  }
+
   if (
     current.status === 'ok' &&
     changedDurationLearningTemplateIds(
