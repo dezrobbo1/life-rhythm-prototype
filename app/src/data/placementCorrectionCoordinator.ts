@@ -154,7 +154,8 @@ function currentPlanPlacement(
   plan: SchedulerPlan,
   expected: InternalPlacement,
 ) {
-  const found = plan.placements.find((placement) => placement.id === expected.id);
+  const found = plan.placements.find((placement) => placement.id === expected.id) ??
+    plan.rejectedExistingPlacements.find((item) => item.placement.id === expected.id)?.placement;
   return found && sameRenderedPlacement(found, expected) ? found : null;
 }
 
@@ -331,8 +332,10 @@ async function prepareCorrection(
   const corrected = internalPlacementFromCorrection(parsed.data);
   const candidatePlan: SchedulerPlan = {
     ...saved.plan,
-    placements: saved.plan.placements.map((placement) =>
-      placement.id === current.id ? corrected : placement),
+    placements: [
+      ...saved.plan.placements.filter((placement) => placement.id !== current.id),
+      corrected,
+    ],
   };
   const violations = scheduler.validatePlan(candidatePlan, live.context.input)
     .filter((violation) =>
@@ -612,6 +615,89 @@ export async function unprotectPrivatePlacement(
     return repaired.ok
       ? { ok: true, placement: moved, repairPending: false, plan: repaired.plan }
       : { ok: true, placement: moved, repairPending: true, plan: saved.plan };
+  }
+
+  const currentIsRejected = !saved.plan.placements.some((placement) => placement.id === current.id);
+  if (currentIsRejected) {
+    if (parsed.data.targetKind === 'rhythm') {
+      const instance = rhythmInstanceSchema.safeParse(
+        await database.rhythmInstances.get(parsed.data.rhythmInstanceId!),
+      );
+      if (!instance.success) {
+        return { ok: false, errors: ['This rhythm occurrence could not be read safely.'] };
+      }
+      if (instance.data.lifecycleState !== 'eligible') {
+        return {
+          ok: false,
+          errors: ['Move this protected active rhythm occurrence to a valid time before removing protection.'],
+        };
+      }
+    }
+
+    try {
+      const mutation = await profileWriteTransaction(database,
+        [
+          database.softPlacements,
+          database.schedulerPlanState,
+          database.taskPoolItems,
+          database.activeTasks,
+          database.rhythmInstances,
+          database.taskHistory,
+        ],
+        async () => {
+          const latest = await loadSchedulerPlanState(database);
+          if (latest.status !== 'ok' || latest.updatedAt !== saved.updatedAt ||
+              !currentPlanPlacement(latest.plan, current)) return staleResult();
+
+          const removed = softPlacementSchema.parse({
+            ...parsed.data,
+            status: 'removed',
+            updatedAt: timestamp,
+          });
+          await database.softPlacements.put(removed);
+
+          if (removed.targetKind === 'rhythm') {
+            const pending = await markRhythmInputRepairPending(
+              database,
+              `instance:${removed.rhythmInstanceId}`,
+              timestamp,
+            );
+            if (!pending.ok) throw new Error(pending.errors.join(' '));
+          } else {
+            const poolRow = await database.taskPoolItems.get(removed.taskId);
+            const pool = poolRow ? taskPoolItemSchema.safeParse(poolRow) : null;
+            if (pool?.success && pool.data.status === 'softPlaced') {
+              await database.taskPoolItems.put(taskPoolItemSchema.parse({
+                ...pool.data,
+                status: fallbackPoolStatus(await database.activeTasks.get(pool.data.id), pool.data),
+                updatedAt: timestamp,
+              }));
+            }
+            const pending = await markTaskInputRepairPending(database, removed.taskId, timestamp);
+            if (!pending.ok) throw new Error(pending.errors.join(' '));
+          }
+
+          await appendBehaviourEvent(
+            behaviourEventForUserPlacement(removed, 'remove', timestamp, parsed.data),
+            database,
+          );
+          return { ok: true as const };
+        },
+        expectedRecoveryGeneration,
+      );
+      if (!mutation.ok) return mutation;
+    } catch (error) {
+      return { ok: false, errors: [profileRecoveryErrorMessage(error, 'Protection was not removed.')] };
+    }
+
+    const repaired = await repairCurrentPrivatePlan({
+      ...options,
+      trigger: 'userCorrection',
+      reason: 'You removed protection from one conflicted private placement.',
+    });
+    return repaired.ok
+      ? { ok: true, placement: null, repairPending: false, plan: repaired.plan }
+      : { ok: true, placement: null, repairPending: true, plan: saved.plan };
   }
 
   try {
