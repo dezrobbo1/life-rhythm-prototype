@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import 'fake-indexeddb/auto';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,15 +21,23 @@ const placementMocks = vi.hoisted(() => ({
   loadSoftPlacementsForDateResult: vi.fn(),
 }));
 
+const correctionMocks = vi.hoisted(() => ({
+  movePrivatePlacement: vi.fn(),
+  protectPrivatePlacement: vi.fn(),
+  unprotectPrivatePlacement: vi.fn(),
+}));
+
 vi.mock('../../data/schedulerPlanCoordinator', () => coordinatorMocks);
 vi.mock('../../data/taskPoolRepository', () => poolMocks);
 vi.mock('../../data/softPlacementRepository', () => placementMocks);
+vi.mock('../../data/placementCorrectionCoordinator', () => correctionMocks);
 
 import { AppSnapshotProvider } from '../../data/AppSnapshotProvider';
 import { createLifeRhythmDatabase } from '../../data/db';
 import { createAuthLocalDataNamespace, getCurrentLifeRhythmDatabase,
   resetCurrentLocalDataNamespace, setCurrentLocalDataNamespace } from '../../data/localDataNamespace';
-import { advanceProfileRecoveryGeneration, readProfileRecoveryGeneration } from '../../data/profileRecoveryGeneration';
+import { advanceProfileRecoveryGeneration, readProfileRecoveryGeneration,
+  STALE_PROFILE_RECOVERY_MESSAGE } from '../../data/profileRecoveryGeneration';
 import { PersonalPlanScreen } from '../../screens/PersonalPlanScreen';
 import { emptyAppSnapshot } from '../../viewModels';
 
@@ -114,6 +122,9 @@ beforeEach(() => {
     items: [],
     status: 'ok',
   });
+  correctionMocks.movePrivatePlacement.mockReset();
+  correctionMocks.protectPrivatePlacement.mockReset();
+  correctionMocks.unprotectPrivatePlacement.mockReset();
 });
 
 afterEach(() => {
@@ -237,6 +248,109 @@ describe('Personal Plan read states', () => {
       expect(onPlanRecovered).toHaveBeenCalledTimes(1);
     });
     expect(screen.getByText('Flexible private work was refreshed. External calendar events were not changed.')).toBeTruthy();
+  });
+
+  it('does not apply an old manual refresh result after another handle restores the profile', async () => {
+    setCurrentLocalDataNamespace(createAuthLocalDataNamespace('plan-refresh-generation-race'));
+    const db = getCurrentLifeRhythmDatabase();
+    const otherHandle = createLifeRhythmDatabase(db.name);
+    await db.delete();
+    await db.open();
+    try {
+      let resolveRepair!: (value: unknown) => void;
+      coordinatorMocks.repairCurrentPrivatePlan.mockImplementationOnce(() =>
+        new Promise((resolve) => { resolveRepair = resolve; }));
+      const onPlanRecovered = vi.fn();
+
+      render(
+        <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+          <PersonalPlanScreen embeddedInDayLine onPlanRecovered={onPlanRecovered} />
+        </AppSnapshotProvider>,
+      );
+
+      await waitFor(() => expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(1));
+      await userEvent.setup().click(screen.getByText('Plan details'));
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Refresh flexible plan' }));
+      await waitFor(() => expect(coordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledTimes(1));
+      expect(coordinatorMocks.repairCurrentPrivatePlan).toHaveBeenCalledWith(expect.objectContaining({
+        expectedRecoveryGeneration: 0,
+        trigger: 'manualReplan',
+      }));
+
+      await otherHandle.transaction('rw', otherHandle.settings, () => advanceProfileRecoveryGeneration(otherHandle, 0));
+      resolveRepair({
+        ok: true,
+        mode: 'repaired',
+        plan: changedPlan,
+        titleByTargetId: { 'task-moved': 'Old profile move' },
+        updatedAt: '2026-09-07T00:05:00.000Z',
+        warnings: [],
+      });
+
+      expect(await screen.findByText(STALE_PROFILE_RECOVERY_MESSAGE)).toBeTruthy();
+      await waitFor(() => expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(2));
+      expect(screen.queryByRole('heading', { name: 'Changed' })).toBeNull();
+      expect(onPlanRecovered).not.toHaveBeenCalled();
+      expect(await readProfileRecoveryGeneration(db)).toBe(1);
+    } finally {
+      cleanup();
+      otherHandle.close();
+      await db.delete();
+      resetCurrentLocalDataNamespace();
+    }
+  });
+
+  it('does not bless an old Undo result with a newer recovery generation', async () => {
+    setCurrentLocalDataNamespace(createAuthLocalDataNamespace('plan-undo-generation-race'));
+    const db = getCurrentLifeRhythmDatabase();
+    const otherHandle = createLifeRhythmDatabase(db.name);
+    await db.delete();
+    await db.open();
+    try {
+      coordinatorMocks.ensureCurrentPrivatePlan
+        .mockResolvedValueOnce({
+          ok: true,
+          plan: changedPlan,
+          titleByTargetId: { 'task-moved': 'Move the form' },
+          warnings: [],
+        })
+        .mockResolvedValue({
+          ok: true,
+          plan: emptyPlan,
+          titleByTargetId: {},
+          warnings: [],
+        });
+      let resolveUndo!: (value: unknown) => void;
+      coordinatorMocks.undoCurrentPrivatePlan.mockImplementationOnce(() =>
+        new Promise((resolve) => { resolveUndo = resolve; }));
+
+      renderEmbeddedPlan();
+      await screen.findByRole('heading', { name: 'Changed' });
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Undo last repair' }));
+      await waitFor(() => expect(coordinatorMocks.undoCurrentPrivatePlan).toHaveBeenCalledTimes(1));
+      expect(coordinatorMocks.undoCurrentPrivatePlan).toHaveBeenCalledWith({}, 0);
+
+      await otherHandle.transaction('rw', otherHandle.settings, () => advanceProfileRecoveryGeneration(otherHandle, 0));
+      resolveUndo({
+        ok: true,
+        mode: 'undone',
+        plan: changedPlan,
+        titleByTargetId: { 'task-moved': 'Old profile move' },
+        updatedAt: '2026-09-07T00:06:00.000Z',
+        warnings: [],
+      });
+
+      expect(await screen.findByText(STALE_PROFILE_RECOVERY_MESSAGE)).toBeTruthy();
+      await waitFor(() => expect(coordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalledTimes(2));
+      expect(screen.queryByRole('heading', { name: 'Changed' })).toBeNull();
+      expect(screen.queryByText('The previous private plan was restored.')).toBeNull();
+      expect(await readProfileRecoveryGeneration(db)).toBe(1);
+    } finally {
+      cleanup();
+      otherHandle.close();
+      await db.delete();
+      resetCurrentLocalDataNamespace();
+    }
   });
 
   it('does not show an empty Changed section on the default Plan surface', async () => {
@@ -467,4 +581,186 @@ describe('Personal Plan read states', () => {
     expect(screen.getByText('Tuesday task')).toBeTruthy();
     expect(screen.queryByText('Monday task')).toBeNull();
   });
+  it('shows repair attention when Unprotect saves but its automatic repair fails', async () => {
+    const user = userEvent.setup();
+    const protectedPlacement = {
+      id: 'correction:intention:protected-task',
+      intentionId: 'protected-task',
+      targetKind: 'intention' as const,
+      date: '2026-09-07',
+      start: '09:00',
+      end: '09:30',
+      timezone: 'Australia/Perth',
+      origin: 'existingUserConfirmed' as const,
+      sourcePlacementId: 'correction:intention:protected-task',
+      variantKind: 'normal' as const,
+      provenance: ['User explicitly protected this private placement.'],
+    };
+    const acceptedPlan = {
+      ...emptyPlan,
+      placements: [protectedPlacement],
+    };
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: acceptedPlan,
+      titleByTargetId: { 'protected-task': 'Protected task' },
+      warnings: [],
+    });
+    placementMocks.loadSoftPlacementsForDateResult.mockResolvedValue({
+      invalidRecordCount: 0,
+      items: [{
+        id: 'correction:intention:protected-task',
+        taskId: 'protected-task',
+        taskTitleSnapshot: 'Protected task',
+        blockId: 'correction-slot:protected-task',
+        blockLabelSnapshot: 'User-corrected private time',
+        date: '2026-09-07',
+        start: '09:00',
+        end: '09:30',
+        timezone: 'Australia/Perth',
+        variantKind: 'normal',
+        placementSource: 'userConfirmed',
+        status: 'planned',
+        correctionKind: 'protect',
+        targetKind: 'intention',
+        createdAt: '2026-09-07T00:00:00.000Z',
+        updatedAt: '2026-09-07T00:00:00.000Z',
+      }],
+      status: 'ok',
+    });
+    correctionMocks.unprotectPrivatePlacement.mockResolvedValue({
+      ok: true,
+      placement: null,
+      repairPending: true,
+      plan: acceptedPlan,
+    });
+
+    render(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen preferredPlacementDate="2026-09-07" />
+      </AppSnapshotProvider>,
+    );
+
+    expect(await screen.findByText('Protected task')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Unprotect' }));
+
+    expect(await screen.findByText(
+      'Protection was removed, but the automatic private plan still needs updating.',
+    )).toBeTruthy();
+    expect(screen.getByText('The automatic private plan still needs updating.')).toBeTruthy();
+    expect(correctionMocks.unprotectPrivatePlacement).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the preserved duration and requested end before saving a Move', async () => {
+    const user = userEvent.setup();
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: {
+        ...emptyPlan,
+        placements: [{
+          id: 'scheduler:intention:move-task:2026-09-07:09:00',
+          intentionId: 'move-task',
+          targetKind: 'intention',
+          date: '2026-09-07',
+          start: '09:00',
+          end: '09:30',
+          timezone: 'Australia/Perth',
+          origin: 'scheduler',
+          variantKind: 'normal',
+          provenance: ['Automatically placed by the deterministic scheduler.'],
+        }],
+      },
+      titleByTargetId: { 'move-task': 'Move task' },
+      warnings: [],
+    });
+
+    render(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen preferredPlacementDate="2026-09-07" />
+      </AppSnapshotProvider>,
+    );
+
+    expect(await screen.findByText('Move task')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Move' }));
+
+    expect(screen.getByText(/Keeps the current 30-minute form/)).toBeTruthy();
+    expect(screen.getByText(/requested time 09:00–09:30/)).toBeTruthy();
+
+    await user.clear(screen.getByLabelText('Move start time'));
+    await user.type(screen.getByLabelText('Move start time'), '10:15');
+    expect(await screen.findByText(/requested time 10:15–10:45/)).toBeTruthy();
+  });
+
+  it('surfaces a protected correction that current hard reality rejects without exposing internal IDs', async () => {
+    const rejectedPlacement = {
+      id: 'correction:intention:protected-task',
+      intentionId: 'protected-task',
+      targetKind: 'intention' as const,
+      date: '2026-09-07',
+      start: '09:00',
+      end: '09:30',
+      timezone: 'Australia/Perth',
+      origin: 'existingUserConfirmed' as const,
+      sourcePlacementId: 'correction:intention:protected-task',
+      variantKind: 'normal' as const,
+      provenance: ['User explicitly protected this private placement.'],
+    };
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: {
+        ...emptyPlan,
+        rejectedExistingPlacements: [{
+          placement: rejectedPlacement,
+          violations: [{
+            code: 'external-commitment-overlap',
+            placementId: rejectedPlacement.id,
+            conflictingId: 'commitment:private-appointment',
+            message: 'Placement correction:intention:protected-task overlaps commitment Private appointment.',
+          }],
+        }],
+        unscheduledIntentionIds: ['protected-task'],
+      },
+      titleByTargetId: { 'protected-task': 'Protected task' },
+      warnings: [],
+    });
+    placementMocks.loadSoftPlacementsForDateResult.mockResolvedValue({
+      invalidRecordCount: 0,
+      items: [{
+        id: rejectedPlacement.id,
+        taskId: 'protected-task',
+        taskTitleSnapshot: 'Protected task',
+        blockId: 'correction-slot:protected-task',
+        blockLabelSnapshot: 'User-corrected private time',
+        date: '2026-09-07',
+        start: '09:00',
+        end: '09:30',
+        timezone: 'Australia/Perth',
+        variantKind: 'normal',
+        placementSource: 'userConfirmed',
+        status: 'planned',
+        correctionKind: 'protect',
+        targetKind: 'intention',
+        createdAt: '2026-09-07T00:00:00.000Z',
+        updatedAt: '2026-09-07T00:00:00.000Z',
+      }],
+      status: 'ok',
+    });
+
+    render(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen preferredPlacementDate="2026-09-07" />
+      </AppSnapshotProvider>,
+    );
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Saved private time needs a new choice.');
+    expect(alert.textContent).toContain(
+      'A fixed or read-only calendar commitment now overlaps this saved private time.',
+    );
+    expect(alert.textContent).not.toContain('correction:intention:protected-task');
+    expect(alert.textContent).not.toContain('commitment:private-appointment');
+    expect(within(alert).getByRole('button', { name: 'Move' })).toBeTruthy();
+    expect(within(alert).getByRole('button', { name: 'Unprotect' })).toBeTruthy();
+  });
+
 });

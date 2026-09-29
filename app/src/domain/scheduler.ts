@@ -214,11 +214,30 @@ function localKey(date: string, time: string): string {
   return `${date}T${time}`;
 }
 
+function isUserCorrectedPlacement(placement: InternalPlacement): boolean {
+  return placement.origin === 'existingUserConfirmed' && placement.provenance.some((item) =>
+    item === 'User explicitly moved this private placement.' ||
+    item === 'User explicitly protected this private placement.',
+  );
+}
+
+function isUserProtectedPlacement(placement: InternalPlacement): boolean {
+  return placement.origin === 'existingUserConfirmed' &&
+    placement.provenance.includes('User explicitly protected this private placement.');
+}
+
+function schedulerTargetKey(placement: InternalPlacement): string {
+  return targetKind(placement) === 'rhythm'
+    ? `rhythm:${rhythmIdForPlacement(placement)}`
+    : `intention:${placement.intentionId}`;
+}
+
 function timingViolationsForPlacement(
   placement: InternalPlacement,
   input: SchedulingDomainModel,
 ): SchedulerViolation[] {
-  if (placement.origin !== 'scheduler' || targetKind(placement) !== 'intention') return [];
+  if ((placement.origin !== 'scheduler' && !isUserCorrectedPlacement(placement)) ||
+      targetKind(placement) !== 'intention') return [];
   const intention = input.intentions.find((candidate) => candidate.id === placement.intentionId);
   if (!intention) return [];
 
@@ -390,7 +409,8 @@ function violationsForPlacement(
     });
   }
 
-  if (placement.origin === 'scheduler' && !matchingCandidate(placement, input)) {
+  if ((placement.origin === 'scheduler' || isUserCorrectedPlacement(placement)) &&
+      !matchingCandidate(placement, input)) {
     violations.push({
       code: 'outside-candidate-interval',
       placementId: placement.id,
@@ -1114,20 +1134,35 @@ export class DeterministicScheduler implements SchedulerEngine {
 
     const accepted: InternalPlacement[] = [];
     const rejectedExistingPlacements: SchedulerPlan['rejectedExistingPlacements'] = [];
+    const blockedProtectedTargets = new Set<string>();
 
     for (const placement of sortPlacements(input.placements)) {
       const violations = violationsForPlacement(placement, accepted, input);
       if (violations.length > 0) {
         rejectedExistingPlacements.push({ placement, violations });
+        if (isUserProtectedPlacement(placement)) {
+          blockedProtectedTargets.add(schedulerTargetKey(placement));
+        }
         continue;
       }
       accepted.push(placement);
     }
 
-    const firstPass = input.intentions.filter(isFirstPassIntention);
-    const laterPass = input.intentions.filter((intention) => !isFirstPassIntention(intention));
+    const schedulableIntentions = input.intentions.filter((intention) =>
+      !blockedProtectedTargets.has(`intention:${intention.id}`),
+    );
+    const firstPass = schedulableIntentions.filter(isFirstPassIntention);
+    const laterPass = schedulableIntentions.filter((intention) => !isFirstPassIntention(intention));
     scheduleIntentions(firstPass, accepted, input);
-    const unscheduledRhythmIds = scheduleRhythms(input.rhythms, accepted, input);
+    const schedulableRhythms = input.rhythms.filter((rhythm) =>
+      !blockedProtectedTargets.has(`rhythm:${rhythm.id}`),
+    );
+    const unscheduledRhythmIds = [...new Set([
+      ...scheduleRhythms(schedulableRhythms, accepted, input),
+      ...input.rhythms
+        .filter((rhythm) => blockedProtectedTargets.has(`rhythm:${rhythm.id}`))
+        .map((rhythm) => rhythm.id),
+    ])].sort();
     scheduleIntentions(laterPass, accepted, input);
 
     const scheduledIntentionIds = new Set(

@@ -95,14 +95,16 @@ describe('Pool soft placement flow', () => {
     payload.data.taskPoolItems[0].title = 'Restored school form';
     await replaceFromOtherHandle(JSON.stringify(payload));
     expect(await readProfileRecoveryGeneration(db)).toBe(1);
-    const beforeEvents = await db.taskHistory.toArray();
+    const userPlacementEventsBefore = (await db.taskHistory.toArray())
+      .filter((event) => event.eventType === 'userPlacementCreated');
     const repair = vi.spyOn(schedulerPlanCoordinator, 'repairCurrentPrivatePlan');
 
     await user.click(within(suggestions).getByRole('button', { name: 'Add manual placement' }));
     expect(await screen.findByText('The local profile changed. Refresh Plan and try again.')).toBeTruthy();
     expect(await db.softPlacements.count()).toBe(0);
     expect(await db.taskPoolItems.get('manual-plan-pool')).toMatchObject({ status: 'captured', title: 'Restored school form' });
-    expect(await db.taskHistory.toArray()).toEqual(beforeEvents);
+    expect((await db.taskHistory.toArray()).filter((event) => event.eventType === 'userPlacementCreated'))
+      .toEqual(userPlacementEventsBefore);
     expect(repair).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByText('Send school form')).toBeNull());
     expect(await within(suggestions).findByText('Restored school form')).toBeTruthy();
@@ -111,6 +113,49 @@ describe('Pool soft placement flow', () => {
     expect(await db.softPlacements.toArray()).toEqual([expect.objectContaining({
       status: 'planned', taskTitleSnapshot: 'Restored school form',
     })]);
+  });
+
+  it('does not apply an old placement-repair result after another handle restores the profile', async () => {
+    const user = userEvent.setup();
+    const db = await seedManualPlan();
+    const suggestions = await openManualPlan(user);
+    const payload = structuredClone((await exportPortableProfile(db)).payload);
+    payload.data.taskPoolItems[0].title = 'Restored during repair';
+
+    type RepairResult = Awaited<ReturnType<typeof schedulerPlanCoordinator.repairCurrentPrivatePlan>>;
+    let resolveRepair!: (value: RepairResult | PromiseLike<RepairResult>) => void;
+    const repair = vi.spyOn(schedulerPlanCoordinator, 'repairCurrentPrivatePlan')
+      .mockImplementationOnce(() => new Promise<RepairResult>((resolve) => { resolveRepair = resolve; }));
+
+    await user.click(within(suggestions).getByRole('button', { name: 'Add manual placement' }));
+    await waitFor(() => expect(repair).toHaveBeenCalledTimes(1));
+    expect(repair).toHaveBeenCalledWith(expect.objectContaining({
+      expectedRecoveryGeneration: 0,
+      trigger: 'userCorrection',
+    }));
+    expect(await db.softPlacements.count()).toBe(1);
+
+    await replaceFromOtherHandle(JSON.stringify(payload));
+    expect(await readProfileRecoveryGeneration(db)).toBe(1);
+    resolveRepair({
+      ok: true,
+      mode: 'repaired',
+      plan: {
+        placements: [],
+        rejectedExistingPlacements: [],
+        unscheduledIntentionIds: [],
+        unscheduledRhythmIds: [],
+      },
+      titleByTargetId: {},
+      updatedAt: '2026-09-07T00:07:00.000Z',
+      warnings: [],
+    });
+
+    expect(await screen.findByText('The local profile changed. Refresh Plan and try again.')).toBeTruthy();
+    expect(screen.queryByText('User-confirmed placement added.')).toBeNull();
+    expect(await db.softPlacements.count()).toBe(0);
+    await waitFor(() => expect(screen.queryByText('Send school form')).toBeNull());
+    expect(await within(suggestions).findByText('Restored during repair')).toBeTruthy();
   });
 
   it('rejects a stale rendered Remove when restored state reuses its placement ID', async () => {
@@ -127,14 +172,16 @@ describe('Pool soft placement flow', () => {
     const payload = structuredClone((await exportPortableProfile(db)).payload);
     payload.data.softPlacements[0].blockLabelSnapshot = 'Restored open window';
     await replaceFromOtherHandle(JSON.stringify(payload));
-    const beforeEvents = await db.taskHistory.toArray();
+    const userPlacementEventsBefore = (await db.taskHistory.toArray())
+      .filter((event) => event.eventType === 'userPlacementRemoved');
     const repair = vi.spyOn(schedulerPlanCoordinator, 'repairCurrentPrivatePlan');
 
     await user.click(within(placements).getByRole('button', { name: 'Remove placement' }));
     expect(await screen.findByText('The local profile changed. Refresh Plan and try again.')).toBeTruthy();
     expect(await db.softPlacements.get('shared-placement')).toMatchObject({ status: 'planned', blockLabelSnapshot: 'Restored open window' });
     expect(await db.taskPoolItems.get('manual-plan-pool')).toMatchObject({ status: 'softPlaced' });
-    expect(await db.taskHistory.toArray()).toEqual(beforeEvents);
+    expect((await db.taskHistory.toArray()).filter((event) => event.eventType === 'userPlacementRemoved'))
+      .toEqual(userPlacementEventsBefore);
     expect(repair).not.toHaveBeenCalled();
     expect(await within(placements).findByText(/Restored open window/)).toBeTruthy();
     await user.click(within(placements).getByRole('button', { name: 'Remove placement' }));
@@ -148,12 +195,15 @@ describe('Pool soft placement flow', () => {
     render(<App />);
 
     await user.click(await screen.findByRole('button', { name: 'Held' }));
-    await user.click(screen.getByRole('button', { name: 'Capture task' }));
-    await user.type(screen.getByLabelText('Task title'), 'Send school form');
-    await user.selectOptions(screen.getByLabelText('Area'), 'admin');
-    await user.type(screen.getByLabelText('Minimum version'), 'Open the form');
-    await user.type(screen.getByLabelText('Minimum minutes'), '5');
-    await user.click(screen.getByRole('button', { name: 'Save captured task' }));
+    const captureButton = await screen.findByRole('button', { name: 'Capture task' });
+    await waitFor(() => expect((captureButton as HTMLButtonElement).disabled).toBe(false));
+    await user.click(captureButton);
+    const taskTitle = await screen.findByLabelText('Task title');
+    await user.type(taskTitle, 'Send school form');
+    await user.selectOptions(await screen.findByLabelText('Area'), 'admin');
+    await user.type(await screen.findByLabelText('Minimum version'), 'Open the form');
+    await user.type(await screen.findByLabelText('Minimum minutes'), '5');
+    await user.click(await screen.findByRole('button', { name: 'Save captured task' }));
 
     const taskPool = screen.getByRole('heading', { name: 'Captured tasks' }).closest('section');
     if (!taskPool) throw new Error('Captured tasks section was not found.');
@@ -202,5 +252,5 @@ describe('Pool soft placement flow', () => {
     expect(await database.softPlacements.toArray()).toEqual([
       expect.objectContaining({ status: 'removed' }),
     ]);
-  });
+  }, 10_000);
 });

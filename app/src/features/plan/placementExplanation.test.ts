@@ -41,6 +41,16 @@ describe('Gate 7D2 placement explanation presentation', () => {
     ]);
     expect(reasons.join(' ')).not.toContain('prefer-10');
   });
+  it('explains explicit Move and Protect provenance without inventing a reason', () => {
+    expect(placementReasonLines([
+      'User explicitly moved this private placement.',
+      'User explicitly protected this private placement.',
+    ])).toEqual([
+      'You moved this private placement to this time.',
+      'You asked Life Rhythm to keep this private placement here.',
+    ]);
+  });
+
   it('explains learned and user-corrected durations from persisted scheduler provenance', () => {
     expect(placementReasonLines([
       'Used learned normal duration from 5 trusted completions: median 30 minutes; conservative duration 35 minutes; saved normal duration is 20 minutes.',

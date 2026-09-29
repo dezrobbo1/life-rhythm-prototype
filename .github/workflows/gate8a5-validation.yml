@@ -1,0 +1,95 @@
+name: Gate 8A5 validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  timezone-validation:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        timezone:
+          - UTC
+          - Australia/Perth
+          - Australia/Sydney
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci --ignore-scripts
+
+      - name: Focused Gate 8A5 tests
+        working-directory: app
+        env:
+          TZ: ${{ matrix.timezone }}
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test -- \
+            src/data/schedulerPlanStateRepository.test.ts \
+            src/data/schedulerPlanCoordinator.test.ts \
+            src/data/schedulerCanonicalInputSnapshot.test.ts \
+            src/domain/currentStateProjection.test.ts \
+            src/domain/scheduler.test.ts \
+            src/domain/rollingRepair.test.ts \
+            src/domain/rollingRepairInertia.test.ts \
+            src/data/activeTaskRepository.test.ts \
+            src/data/taskLifecycleRepository.test.ts \
+            src/data/taskPoolRepository.test.ts \
+            src/data/taskPoolDeferralRepository.test.ts \
+            src/data/taskDefinitionRepository.test.ts \
+            src/data/taskSoftPlacementRepository.test.ts \
+            src/data/softPlacementRepository.test.ts \
+            src/data/calendarSourceMutationCoordinator.test.ts \
+            src/data/settingsPlanningRepair.test.ts \
+            src/data/explicitPreferenceMutationCoordinator.test.ts \
+            src/data/explicitPreferenceControls.test.ts \
+            src/data/durationLearningControlMutationCoordinator.test.ts \
+            src/data/durationLearningPlanReconciliation.test.ts \
+            src/data/behaviourHistoryControl.test.ts \
+            src/data/rhythmAuthorityRepository.test.ts \
+            src/data/rhythmTodayRepository.test.ts \
+            src/data/schedulerTimeDisruption.test.ts \
+            src/data/placementCorrectionCoordinator.test.ts \
+            src/data/portableProfileBackup.test.ts \
+            src/features/plan/placementExplanation.test.ts \
+            src/features/plan/PersonalPlanReadState.test.tsx \
+            src/features/plan/PoolSoftPlacementFlow.test.tsx \
+            src/features/today/TodayScreen.test.tsx \
+            src/screens/PlanDayLineScreen.test.tsx \
+            2>&1 | tee gate8a5-focused-${TZ//\//-}.txt
+
+      - name: Full test suite
+        working-directory: app
+        env:
+          TZ: ${{ matrix.timezone }}
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test -- --run 2>&1 | tee gate8a5-full-${TZ//\//-}.txt
+
+      - name: Build production app
+        working-directory: app
+        env:
+          TZ: ${{ matrix.timezone }}
+        run: npm run build
+
+      - name: Diff check
+        run: git diff --check origin/main...HEAD

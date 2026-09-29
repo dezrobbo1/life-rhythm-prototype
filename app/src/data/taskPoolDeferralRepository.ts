@@ -6,6 +6,7 @@ import {
   appendBehaviourEvent,
   behaviourEventForDeferredTask,
 } from './behaviourEventRepository';
+import { markTaskInputRepairPending } from './schedulerPlanStateRepository';
 
 export type TaskPoolDeferralResult =
   | {
@@ -55,7 +56,9 @@ export async function deferTaskPoolItem(
     };
   }
 
-  return profileWriteTransaction(database, [database.taskPoolItems, database.taskHistory], async () => {
+  return profileWriteTransaction(database,
+    [database.taskPoolItems, database.taskHistory, database.schedulerPlanState],
+    async () => {
     const storedItem = await database.taskPoolItems.get(itemId);
 
     if (!storedItem) {
@@ -89,6 +92,8 @@ export async function deferTaskPoolItem(
     });
 
     await database.taskPoolItems.put(updatedItem);
+    const pending = await markTaskInputRepairPending(database, updatedItem.id, updatedItem.updatedAt);
+    if (!pending.ok) throw new Error(pending.errors.join(' '));
     if (
       parsedItem.data.status !== updatedItem.status ||
       parsedItem.data.bringBackAfter !== updatedItem.bringBackAfter
@@ -103,5 +108,7 @@ export async function deferTaskPoolItem(
       item: updatedItem,
       ok: true,
     };
-  }, expectedRecoveryGeneration);
+    },
+    expectedRecoveryGeneration,
+  );
 }

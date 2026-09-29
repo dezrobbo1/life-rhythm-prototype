@@ -13,6 +13,7 @@ import type {
 } from './durationLearningControlSchema';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import { profileRecoveryErrorMessage, profileWriteTransaction } from './profileRecoveryGeneration';
+import { markDurationLearningRepairPending } from './schedulerPlanStateRepository';
 
 const STALE_DURATION_CONTROL =
   'durationLearning: This template control changed after editing began. Reload duration learning and try again.';
@@ -100,7 +101,7 @@ export async function commitDurationLearningControlUpsert(
   }
 
   try {
-    return await profileWriteTransaction(database, [database.settings], async () => {
+    return await profileWriteTransaction(database, [database.settings, database.schedulerPlanState], async () => {
       const store = transactionPassthroughStore(database);
       const loaded = await loadDurationLearningControlsResult(store);
       if (loaded.status === 'invalid' || loaded.status === 'readFailed') {
@@ -110,11 +111,12 @@ export async function commitDurationLearningControlUpsert(
         return { ok: false as const, conflict: 'stale' as const, errors: [STALE_DURATION_CONTROL] };
       }
 
-      return upsertDurationLearningControl(
-        input,
-        store,
-        monotonicMutationTimestamp(loaded, timestamp),
-      );
+      const writeTimestamp = monotonicMutationTimestamp(loaded, timestamp);
+      const saved = await upsertDurationLearningControl(input, store, writeTimestamp);
+      if (!saved.ok) return saved;
+      const pending = await markDurationLearningRepairPending(database, writeTimestamp);
+      if (!pending.ok) throw new Error(pending.errors.join(' '));
+      return saved;
     }, expectedRecoveryGeneration);
   } catch (error) {
     return {
@@ -139,7 +141,7 @@ export async function commitDurationLearningControlDelete(
   }
 
   try {
-    return await profileWriteTransaction(database, [database.settings], async () => {
+    return await profileWriteTransaction(database, [database.settings, database.schedulerPlanState], async () => {
       const store = transactionPassthroughStore(database);
       const loaded = await loadDurationLearningControlsResult(store);
       if (loaded.status === 'invalid' || loaded.status === 'readFailed') {
@@ -149,11 +151,12 @@ export async function commitDurationLearningControlDelete(
         return { ok: false as const, conflict: 'stale' as const, errors: [STALE_DURATION_CONTROL] };
       }
 
-      return deleteDurationLearningControl(
-        templateId,
-        store,
-        monotonicMutationTimestamp(loaded, timestamp),
-      );
+      const writeTimestamp = monotonicMutationTimestamp(loaded, timestamp);
+      const deleted = await deleteDurationLearningControl(templateId, store, writeTimestamp);
+      if (!deleted.ok) return deleted;
+      const pending = await markDurationLearningRepairPending(database, writeTimestamp);
+      if (!pending.ok) throw new Error(pending.errors.join(' '));
+      return deleted;
     }, expectedRecoveryGeneration);
   } catch (error) {
     return {

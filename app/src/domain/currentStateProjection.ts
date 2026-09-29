@@ -282,19 +282,44 @@ function projectDayProfile(profile: DayProfile, settings: Settings): DayProfileC
 function projectPlacements(placements: SoftPlacement[]): InternalPlacement[] {
   return placements
     .filter((placement) => placement.status === 'planned' || placement.status === 'moved')
-    .map((placement) => ({
-      id: placement.id,
-      intentionId: placement.taskId,
-      date: placement.date,
-      start: placement.start,
-      end: placement.end,
-      origin: 'existingUserConfirmed' as const,
-      sourcePlacementId: placement.id,
-      provenance: [
-        'Projected from an existing user-confirmed private soft placement.',
-        `Source block: ${placement.blockLabelSnapshot}`,
-      ],
-    }))
+    .map((placement) => {
+      const targetKind = placement.targetKind ?? 'intention';
+      const correctionProvenance = placement.correctionKind
+        ? [
+            ...(placement.correctionKind === 'move' || placement.correctionKind === 'moveProtected'
+              ? ['User explicitly moved this private placement.']
+              : []),
+            ...(placement.correctionKind === 'protect' || placement.correctionKind === 'moveProtected'
+              ? ['User explicitly protected this private placement.']
+              : []),
+          ]
+        : [
+            'Projected from an existing user-confirmed private soft placement.',
+            `Source block: ${placement.blockLabelSnapshot}`,
+          ];
+      return {
+        id: placement.id,
+        intentionId: placement.taskId,
+        targetKind,
+        ...(targetKind === 'rhythm'
+          ? {
+              rhythmId: placement.rhythmInstanceId ?? placement.taskId,
+              rhythmTemplateId: placement.rhythmTemplateId,
+              rhythmPlanId: placement.rhythmPlanId,
+              rhythmRecurrenceRevisionId: placement.rhythmRecurrenceRevisionId,
+              rhythmInstanceId: placement.rhythmInstanceId,
+            }
+          : {}),
+        date: placement.date,
+        start: placement.start,
+        end: placement.end,
+        ...(placement.timezone ? { timezone: placement.timezone } : {}),
+        origin: 'existingUserConfirmed' as const,
+        sourcePlacementId: placement.id,
+        ...(placement.variantKind ? { variantKind: placement.variantKind } : {}),
+        provenance: correctionProvenance,
+      };
+    })
     .sort((a, b) => `${a.date}:${a.start}:${a.id}`.localeCompare(`${b.date}:${b.start}:${b.id}`));
 }
 

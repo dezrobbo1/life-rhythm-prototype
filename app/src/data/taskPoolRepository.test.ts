@@ -12,6 +12,7 @@ import {
   updateTaskPoolItemStatus,
 } from './taskPoolRepository';
 import { taskPoolItemSchema, type TaskPoolItem } from './schemas';
+import { saveSchedulerPlanState } from './schedulerPlanStateRepository';
 
 let testDatabaseIndex = 0;
 
@@ -207,6 +208,35 @@ describe('task pool repository', () => {
       expect(loaded[0].status).toBe('deferred');
       expect(loaded[0].updatedAt).not.toBe('2026-06-20T00:00:00.000Z');
       await expectOnlyTaskPoolItemsWritten(database, 1);
+    } finally {
+      await database.delete();
+    }
+  });
+
+  it('rolls back a direct Pool status mutation when scheduler repair attention cannot be stored', async () => {
+    const database = createTestDatabase();
+
+    try {
+      await saveTaskPoolItem(validTaskPoolItem(), database);
+      const plan = {
+        placements: [],
+        rejectedExistingPlacements: [],
+        unscheduledIntentionIds: [],
+        unscheduledRhythmIds: [],
+      };
+      expect((await saveSchedulerPlanState(plan, database, '2026-06-20T00:01:00.000Z')).ok).toBe(true);
+      const before = await database.taskPoolItems.get('task-pool-pay-water-bill');
+      vi.spyOn(database.schedulerPlanState, 'update').mockResolvedValue(0);
+
+      const result = await updateTaskPoolItemStatus(
+        'task-pool-pay-water-bill',
+        'deferred',
+        database,
+      );
+
+      expect(result.ok).toBe(false);
+      expect(await database.taskPoolItems.get('task-pool-pay-water-bill')).toEqual(before);
+      expect(await database.schedulerPlanState.get('current')).not.toHaveProperty('taskInputRepairPendingAt');
     } finally {
       await database.delete();
     }

@@ -207,6 +207,31 @@ describe('Gate 6C Plan Day Line screen', () => {
     });
   });
 
+  it.each([
+    'calendarRepairPendingAt',
+    'settingsRepairPendingAt',
+    'preferenceRepairPendingAt',
+    'durationLearningRepairPendingAt',
+    'taskInputRepairPendingAt',
+    'rhythmInputRepairPendingAt',
+  ] as const)('does not present stale automatic Day Line times while %s is pending', async (field) => {
+    schedulerStateMocks.loadSchedulerPlanState.mockResolvedValue({
+      status: 'ok',
+      plan: savedPlan,
+      updatedAt: '2026-09-14T00:00:00.000Z',
+      [field]: '2026-09-14T00:01:00.000Z',
+    });
+
+    render(<PlanDayLineScreen preferredPlacementDate={mondayDate} />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('The flexible private plan needs updating.');
+    expect(screen.getByText('School run')).toBeTruthy();
+    expect(screen.getByText('Protected morning')).toBeTruthy();
+    expect(screen.queryByText('Clear admin note')).toBeNull();
+    expect(screen.getByTestId('personal-plan-proxy')).toBeTruthy();
+  });
+
   it('fails visibly without replacing detailed Plan and can retry the read-only Day Line', async () => {
     const user = userEvent.setup();
     coordinatorMocks.buildCurrentLiveSchedulingContext

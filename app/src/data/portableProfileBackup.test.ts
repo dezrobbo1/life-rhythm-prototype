@@ -143,6 +143,65 @@ describe('Gate 8A4 portable canonical profile', () => {
     expect(rebuilt.ok, JSON.stringify(rebuilt)).toBe(true);
     if (rebuilt.ok) expect(rebuilt.plan.placements.filter((p) => p.id === placement.id), JSON.stringify(rebuilt.plan)).toHaveLength(1);
   });
+  it('keeps a live rhythm correction authoritative when routing later points at another scheduler placement', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    const oldInstance = await db.rhythmInstances.toCollection().first();
+    const today = await db.activeTasks.get('today');
+    if (!oldInstance || !today) throw new Error('Missing routed correction fixture');
+    const instance = buildMissingRhythmInstances({ template, plan, revisions: [revision], existing: [],
+      horizonStartDate: '2026-09-28', horizonEndDate: '2026-09-28', createdAt: timestamp })[0];
+    const automatic = { id: 'rescheduled-rhythm', intentionId: instance.id, targetKind: 'rhythm' as const,
+      rhythmId: instance.id, rhythmTemplateId: instance.rhythmTemplateId, rhythmPlanId: instance.rhythmPlanId,
+      rhythmRecurrenceRevisionId: instance.recurrenceRevisionId, rhythmInstanceId: instance.id,
+      date: '2026-09-28', start: '07:00', end: '07:20', timezone: 'Australia/Perth',
+      origin: 'scheduler' as const, variantKind: 'normal' as const, provenance: ['accepted after rejected correction'] };
+    const correction = softPlacementSchema.parse({
+      id: 'rhythm-move-correction',
+      taskId: instance.id,
+      taskTitleSnapshot: 'Paperwork',
+      date: '2026-09-28',
+      blockId: 'correction-slot:rhythm-move-correction',
+      blockLabelSnapshot: 'User-corrected private time',
+      start: '10:00',
+      end: '10:20',
+      placementSource: 'userConfirmed',
+      status: 'moved',
+      correctionKind: 'move',
+      targetKind: 'rhythm',
+      timezone: 'Australia/Perth',
+      variantKind: 'normal',
+      rhythmTemplateId: instance.rhythmTemplateId,
+      rhythmPlanId: instance.rhythmPlanId,
+      rhythmRecurrenceRevisionId: instance.recurrenceRevisionId,
+      rhythmInstanceId: instance.id,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+
+    await db.rhythmInstances.delete(oldInstance.id);
+    await db.activeTasks.put(activeTaskSchema.parse({ ...today, id: 'generated-correction',
+      templateId: 'rhythm', source: 'library', sourceRhythmInstanceId: instance.id }));
+    await db.rhythmInstances.put({ ...instance, activeTaskId: 'generated-correction',
+      placementId: automatic.id, lifecycleState: 'today', planningState: 'today',
+      completionState: 'notStarted' });
+    await db.softPlacements.put(correction);
+    await db.schedulerPlanState.put({ id: 'current', version: 1, updatedAt: timestamp,
+      plan: { placements: [automatic], unscheduledIntentionIds: [], unscheduledRhythmIds: [],
+        rejectedExistingPlacements: [] } });
+    await db.settings.delete('learning:duration-controls:v1');
+
+    const backup = await exportPortableProfile(db, timestamp);
+    expect(backup.payload.data.softPlacements).toContainEqual(correction);
+    expect(backup.payload.data.routedRhythmPlacements).toEqual([]);
+    expect(checkPortableProfileJson(backup.json).ok).toBe(true);
+
+    setCurrentLocalDataNamespace(namespaceB);
+    const checked = await checkPortableProfileForRestore(backup.json);
+    if (!checked.ok || !('expectation' in checked)) throw new Error('Correction backup failed check');
+    expect(await restorePortableProfile(backup.json, checked.expectation, '')).toEqual({ ok: true });
+    expect(await getCurrentLifeRhythmDatabase().softPlacements.get(correction.id)).toEqual(correction);
+  });
+
   it.each(['done', 'parked', 'skipped', 'notToday'] as const)(
     'keeps a normally closed routed rhythm exportable after %s', async (status) => {
       const db = getCurrentLifeRhythmDatabase();

@@ -14,7 +14,7 @@ import type { LifeRhythmDatabase } from './db';
 import { profileWriteTransaction } from './profileRecoveryGeneration';
 import { rhythmInstanceSchema } from './rhythmAuthoritySchemas';
 import type { RhythmInstance } from './rhythmAuthoritySchemas';
-import { markRhythmInputRepairPending } from './schedulerPlanStateRepository';
+import { markRhythmInputRepairPending, markTaskInputRepairPending } from './schedulerPlanStateRepository';
 import {
   appendBehaviourEvent,
   behaviourEventForAddedToToday,
@@ -253,7 +253,9 @@ export async function bringTaskPoolItemToToday(
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
   expectedRecoveryGeneration?: number,
 ): Promise<BringTaskPoolItemToTodayResult> {
-  return profileWriteTransaction(database, [database.taskPoolItems, database.activeTasks, database.taskHistory], async () => {
+  return profileWriteTransaction(database,
+    [database.taskPoolItems, database.activeTasks, database.taskHistory, database.schedulerPlanState],
+    async () => {
     const storedPoolItem = await database.taskPoolItems.get(itemId);
 
     if (!storedPoolItem) {
@@ -337,6 +339,8 @@ export async function bringTaskPoolItemToToday(
       await database.activeTasks.put(activeTask);
     }
     await database.taskPoolItems.put(updatedPoolItem);
+    const pending = await markTaskInputRepairPending(database, updatedPoolItem.id, timestamp);
+    if (!pending.ok) throw new Error(pending.errors.join(' '));
     if (!alreadyInToday) {
       await appendBehaviourEvent(
         behaviourEventForAddedToToday(parsedPoolItem.data, timestamp),
@@ -472,6 +476,14 @@ export async function updateTaskLifecycleStatus(
         timestamp,
         database,
       );
+      if (parsedTask.data.sourceRhythmInstanceId) {
+        placements.push(...await transitionLinkedPlacements(
+          parsedTask.data.sourceRhythmInstanceId,
+          parsedStatus.data,
+          timestamp,
+          database,
+        ));
+      }
       const behaviourEvent = await behaviourEventForTaskTransition(
         parsedTask.data,
         updatedTask,
@@ -487,6 +499,9 @@ export async function updateTaskLifecycleStatus(
           `instance:${updatedRhythmInstance.id}`,
           timestamp,
         );
+        if (!marked.ok) throw new Error(marked.errors.join(' '));
+      } else {
+        const marked = await markTaskInputRepairPending(database, parsedTask.data.id, timestamp);
         if (!marked.ok) throw new Error(marked.errors.join(' '));
       }
       if (updatedPoolItem) {
@@ -513,7 +528,8 @@ export async function markTaskLifecycleNoLongerNeeded(
   expectedRecoveryGeneration?: number,
 ): Promise<MarkTaskNoLongerNeededResult> {
   return profileWriteTransaction(database,
-    [database.taskPoolItems, database.activeTasks, database.softPlacements, database.taskHistory],
+    [database.taskPoolItems, database.activeTasks, database.softPlacements, database.taskHistory,
+      database.schedulerPlanState],
     async () => {
       const storedItem = await database.taskPoolItems.get(itemId);
 
@@ -573,6 +589,8 @@ export async function markTaskLifecycleNoLongerNeeded(
       if (updatedTask) {
         await database.activeTasks.put(updatedTask);
       }
+      const marked = await markTaskInputRepairPending(database, updatedItem.id, timestamp);
+      if (!marked.ok) throw new Error(marked.errors.join(' '));
       if (parsedItem.data.status !== 'noLongerNeeded') {
         await appendBehaviourEvent(createBehaviourEvent({
           action: 'noLongerNeeded',

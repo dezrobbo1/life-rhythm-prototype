@@ -392,10 +392,11 @@ export async function generateRhythmInstancesForHorizon(
   horizonEndDate: string,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
   now = new Date().toISOString(),
+  expectedRecoveryGeneration?: number,
 ): Promise<{ ok: true; created: RhythmInstance[] } | { ok: false; errors: string[] }> {
   try {
-    return await database.transaction(
-      'rw',
+    return await profileWriteTransaction(
+      database,
       [
         database.rhythmTemplates,
         database.rhythmPlans,
@@ -444,6 +445,7 @@ export async function generateRhythmInstancesForHorizon(
         }
         return { ok: true as const, created };
       },
+      expectedRecoveryGeneration,
     );
   } catch (error) {
     return { ok: false, errors: [profileRecoveryErrorMessage(error, 'Rhythm occurrences could not be generated safely.')] };

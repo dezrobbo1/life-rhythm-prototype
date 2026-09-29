@@ -91,6 +91,7 @@ export const taskPoolItemStatusSchema = z.enum([
 export const taskPoolItemSourceSchema = z.enum(['adhoc', 'rhythm', 'library', 'custom']);
 export const softPlacementSourceSchema = z.literal('userConfirmed');
 export const softPlacementStatusSchema = z.enum(['planned', 'moved', 'removed', 'completedFromToday']);
+export const softPlacementCorrectionKindSchema = z.enum(['move', 'protect', 'moveProtected']);
 export const startBarrierSchema = z.enum([
   'none',
   'big',
@@ -847,9 +848,43 @@ export const softPlacementSchema = z
     createdAt: activeTaskDeadlineIsoDateTimeSchema,
     updatedAt: activeTaskDeadlineIsoDateTimeSchema,
     status: softPlacementStatusSchema,
+    correctionKind: softPlacementCorrectionKindSchema.optional(),
+    targetKind: z.enum(['intention', 'rhythm']).optional(),
+    timezone: z.string().min(1).optional(),
+    variantKind: z.enum(['minimum', 'normal', 'full']).optional(),
+    rhythmTemplateId: idSchema.optional(),
+    rhythmPlanId: idSchema.optional(),
+    rhythmRecurrenceRevisionId: idSchema.optional(),
+    rhythmInstanceId: idSchema.optional(),
   })
   .strict()
   .superRefine((placement, context) => {
+    if (placement.targetKind === 'rhythm') {
+      const identity = [
+        placement.rhythmTemplateId,
+        placement.rhythmPlanId,
+        placement.rhythmRecurrenceRevisionId,
+        placement.rhythmInstanceId,
+      ];
+      if (identity.some((value) => !value) || placement.taskId !== placement.rhythmInstanceId) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Rhythm placement corrections require complete occurrence identity.',
+          path: ['rhythmInstanceId'],
+        });
+      }
+    } else if (
+      placement.rhythmTemplateId ||
+      placement.rhythmPlanId ||
+      placement.rhythmRecurrenceRevisionId ||
+      placement.rhythmInstanceId
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ordinary intention placements cannot carry rhythm occurrence identity.',
+        path: ['targetKind'],
+      });
+    }
     const startTime = timeOfDay.safeParse(placement.start);
     const endTime = timeOfDay.safeParse(placement.end);
 
@@ -1080,7 +1115,7 @@ const behaviourEventVariantRules = {
   userPlacementMoved: {
     action: 'movePlacement', source: 'user', provenance: [['userAction', 'softPlacement']], ids: 'userPlacement', before: 'required', after: 'required', facts: 'placement',
     transitions: [{
-      before: { placementStatus: ['planned', 'moved'], variantKind: 'absent' },
+      before: { placementStatus: ['planned', 'moved', 'automatic'], variantKind: 'absent' },
       after: { placementStatus: ['moved'], variantKind: 'absent' },
       change: 'placementPosition',
     }],
@@ -1290,11 +1325,24 @@ export const behaviourEventSchema = z
       forbidField('rhythmId');
       forbidField('placementId');
     } else if (rule.ids === 'userPlacement') {
-      requireField('taskId');
       requireField('placementId');
-      forbidField('templateId');
-      forbidField('rhythmId');
-      forbidField('rhythmInstanceId');
+      if (Boolean(event.taskId) === Boolean(event.rhythmId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Exactly one user-placement target ID is required.',
+          path: ['taskId'],
+        });
+      }
+      if (event.taskId) {
+        forbidField('templateId');
+        forbidField('rhythmInstanceId');
+      } else if (event.rhythmId && !event.rhythmInstanceId) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Rhythm user placements require the concrete rhythm instance identity.',
+          path: ['rhythmInstanceId'],
+        });
+      }
     } else if (rule.ids === 'schedulerTarget') {
       if (Boolean(event.taskId) === Boolean(event.rhythmId)) {
         context.addIssue({

@@ -72,6 +72,8 @@ type TodayPlanReadState =
       status: 'ready';
       calendarRepairPending: boolean;
       settingsRepairPending: boolean;
+      preferenceRepairPending: boolean;
+      durationLearningRepairPending: boolean;
       taskInputRepairPending: boolean;
       rhythmInputRepairPending: boolean;
       readDate: string;
@@ -552,6 +554,40 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
     }
   }
 
+  async function retryPendingPreferenceRepair() {
+    setCalendarRepairRetryBusy(true);
+    setCalendarRepairRetryError('');
+    try {
+      const repaired = await repairCurrentPrivatePlan({
+        reason: 'Retry the saved scheduling preference using current scheduling information.',
+        trigger: 'preferenceChanged',
+      });
+      if (!repaired.ok) setCalendarRepairRetryError(repaired.errors.join(' '));
+    } catch {
+      setCalendarRepairRetryError('The flexible private plan could not be updated.');
+    } finally {
+      setCalendarRepairRetryBusy(false);
+      refreshTodayPlanFacts();
+    }
+  }
+
+  async function retryPendingDurationLearningRepair() {
+    setCalendarRepairRetryBusy(true);
+    setCalendarRepairRetryError('');
+    try {
+      const repaired = await repairCurrentPrivatePlan({
+        reason: 'Retry the saved duration information using current scheduling information.',
+        trigger: 'durationLearningChanged',
+      });
+      if (!repaired.ok) setCalendarRepairRetryError(repaired.errors.join(' '));
+    } catch {
+      setCalendarRepairRetryError('The flexible private plan could not be updated.');
+    } finally {
+      setCalendarRepairRetryBusy(false);
+      refreshTodayPlanFacts();
+    }
+  }
+
   async function retryPendingTaskInputRepair() {
     setCalendarRepairRetryBusy(true);
     setCalendarRepairRetryError('');
@@ -856,9 +892,16 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       if (!active || planReadGenerationRef.current !== generation) return;
 
       let currentSaved = saved;
-      if (saved.status === 'ok' && !saved.settingsRepairPendingAt && saved.plan.placements.some((placement) =>
-        placement.targetKind === 'rhythm' && placement.rhythmInstanceId && placement.date === readDate,
-      )) {
+      if (saved.status === 'ok' &&
+          !saved.settingsRepairPendingAt &&
+          !saved.calendarRepairPendingAt &&
+          !saved.preferenceRepairPendingAt &&
+          !saved.durationLearningRepairPendingAt &&
+          !saved.taskInputRepairPendingAt &&
+          !saved.rhythmInputRepairPendingAt &&
+          saved.plan.placements.some((placement) =>
+            placement.targetKind === 'rhythm' && placement.rhythmInstanceId && placement.date === readDate,
+          )) {
         const synced = await syncScheduledRhythmOccurrencesToToday(saved.plan, readDate);
         if (!synced.ok) throw new Error(synced.errors.join(' '));
         if (synced.mutated) {
@@ -884,10 +927,14 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
 
       const settingsRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.settingsRepairPendingAt);
       const calendarRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.calendarRepairPendingAt);
+      const preferenceRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.preferenceRepairPendingAt);
+      const durationLearningRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.durationLearningRepairPendingAt);
       const taskInputRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.taskInputRepairPendingAt);
       const rhythmInputRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.rhythmInputRepairPendingAt);
+      const anyRepairPending = settingsRepairPending || calendarRepairPending || preferenceRepairPending ||
+        durationLearningRepairPending || taskInputRepairPending || rhythmInputRepairPending;
       const planStatus = currentSaved.status === 'ok'
-        ? settingsRepairPending || calendarRepairPending || taskInputRepairPending || rhythmInputRepairPending
+        ? anyRepairPending
           ? 'error' as const
           : 'available' as const
         : currentSaved.status;
@@ -896,7 +943,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         nowTime: live.now.time,
         input: live.context.input,
         planStatus,
-        plan: currentSaved.status === 'ok' && !settingsRepairPending && !calendarRepairPending && !taskInputRepairPending && !rhythmInputRepairPending
+        plan: currentSaved.status === 'ok' && !anyRepairPending
           ? currentSaved.plan
           : null,
         titleByTargetId: live.context.titleByTargetId,
@@ -913,6 +960,8 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         status: 'ready',
         calendarRepairPending,
         settingsRepairPending,
+        preferenceRepairPending,
+        durationLearningRepairPending,
         taskInputRepairPending,
         rhythmInputRepairPending,
         readDate,
@@ -1477,6 +1526,24 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
                   <p>Today work remains available. Automatic placements are hidden until the plan is repaired.</p>
                   {calendarRepairRetryError ? <p>{calendarRepairRetryError}</p> : null}
                   <Button disabled={calendarRepairRetryBusy} onClick={() => { void retryPendingRhythmInputRepair(); }}>
+                    {calendarRepairRetryBusy ? 'Updating...' : 'Retry repair'}
+                  </Button>
+                </div>
+              ) : todayPlanReadState.preferenceRepairPending ? (
+                <div className="surface-read-state surface-read-state--error" role="alert">
+                  <h3>The flexible private plan needs updating after a scheduling preference changed.</h3>
+                  <p>Today work remains available. Automatic placements are hidden until the plan is repaired.</p>
+                  {calendarRepairRetryError ? <p>{calendarRepairRetryError}</p> : null}
+                  <Button disabled={calendarRepairRetryBusy} onClick={() => { void retryPendingPreferenceRepair(); }}>
+                    {calendarRepairRetryBusy ? 'Updating...' : 'Retry repair'}
+                  </Button>
+                </div>
+              ) : todayPlanReadState.durationLearningRepairPending ? (
+                <div className="surface-read-state surface-read-state--error" role="alert">
+                  <h3>The flexible private plan needs updating after duration information changed.</h3>
+                  <p>Today work remains available. Automatic placements are hidden until the plan is repaired.</p>
+                  {calendarRepairRetryError ? <p>{calendarRepairRetryError}</p> : null}
+                  <Button disabled={calendarRepairRetryBusy} onClick={() => { void retryPendingDurationLearningRepair(); }}>
                     {calendarRepairRetryBusy ? 'Updating...' : 'Retry repair'}
                   </Button>
                 </div>

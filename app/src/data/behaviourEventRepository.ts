@@ -248,32 +248,52 @@ export function behaviourEventForAddedToToday(
   });
 }
 
-function placementFact(placement: SoftPlacement): BehaviourEventFact {
+function placementFact(placement: SoftPlacement | InternalPlacement): BehaviourEventFact {
   return {
     date: placement.date,
     end: placement.end,
-    placementStatus: placement.status,
+    placementStatus: 'placementSource' in placement
+      ? placement.status
+      : placement.origin === 'scheduler'
+        ? 'automatic'
+        : 'planned',
     start: placement.start,
   };
 }
 
 export function behaviourEventForUserPlacement(
   placement: SoftPlacement,
-  action: 'create' | 'remove',
+  action: 'create' | 'move' | 'remove',
   occurredAt: string,
-  previousPlacement?: SoftPlacement,
+  previousPlacement?: SoftPlacement | InternalPlacement,
 ) {
+  const eventType = action === 'create'
+    ? 'userPlacementCreated'
+    : action === 'move'
+      ? 'userPlacementMoved'
+      : 'userPlacementRemoved';
+  const eventAction = action === 'create'
+    ? 'createPlacement'
+    : action === 'move'
+      ? 'movePlacement'
+      : 'removePlacement';
   return createBehaviourEvent({
-    action: action === 'create' ? 'createPlacement' : 'removePlacement',
+    action: eventAction,
     ...(action === 'create'
       ? { after: placementFact(placement) }
       : { before: placementFact(previousPlacement ?? placement), after: placementFact(placement) }),
-    eventType: action === 'create' ? 'userPlacementCreated' : 'userPlacementRemoved',
+    eventType,
     occurredAt,
     placementId: placement.id,
     provenance: { origin: 'userAction', mechanism: 'softPlacement' },
     source: 'user',
-    taskId: placement.taskId,
+    ...(placement.targetKind === 'rhythm'
+      ? {
+          rhythmId: placement.rhythmInstanceId ?? placement.taskId,
+          ...(placement.rhythmTemplateId ? { templateId: placement.rhythmTemplateId } : {}),
+          ...(placement.rhythmInstanceId ? { rhythmInstanceId: placement.rhythmInstanceId } : {}),
+        }
+      : { taskId: placement.taskId }),
   });
 }
 

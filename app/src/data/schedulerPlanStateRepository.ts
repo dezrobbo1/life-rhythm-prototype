@@ -66,6 +66,7 @@ type SchedulerStateFields = SchedulerModeFields & {
   settingsRepairPendingAt?: string;
   preferenceRepairPendingAt?: string;
   preferenceRepairTargets?: PreferenceRepairTarget[];
+  durationLearningRepairPendingAt?: string;
   durationLearningApplied?: AppliedDurationLearning[];
   taskInputRepairPendingAt?: string;
   taskInputRepairTargetIds?: string[];
@@ -143,6 +144,9 @@ function stateFields(record: SchedulerStateFields): SchedulerStateFields {
       : {}),
     ...(record.preferenceRepairTargets
       ? { preferenceRepairTargets: record.preferenceRepairTargets.map((target) => ({ ...target })) }
+      : {}),
+    ...(record.durationLearningRepairPendingAt
+      ? { durationLearningRepairPendingAt: record.durationLearningRepairPendingAt }
       : {}),
     ...(record.durationLearningApplied
       ? { durationLearningApplied: record.durationLearningApplied.map((item) => ({ ...item })) }
@@ -312,6 +316,10 @@ async function saveSchedulerPlanStateIfCurrent(
         !fields.rhythmInputRepairPendingAt && canonicalInputSnapshot === undefined) {
       return staleSchedulerWriteResult();
     }
+    if (expected.status === 'ok' && expected.durationLearningRepairPendingAt &&
+        !fields.durationLearningRepairPendingAt && expectedDurationLearningEventSnapshot === undefined) {
+      return staleSchedulerWriteResult();
+    }
     return saveSchedulerPlanState(plan, store, updatedAt, fields);
   }
 
@@ -361,6 +369,10 @@ async function saveSchedulerPlanStateIfCurrent(
         }
         if (expected.status === 'ok' && expected.rhythmInputRepairPendingAt &&
             !fields.rhythmInputRepairPendingAt && canonicalInputSnapshot === undefined) {
+          return staleSchedulerWriteResult();
+        }
+        if (expected.status === 'ok' && expected.durationLearningRepairPendingAt &&
+            !fields.durationLearningRepairPendingAt && expectedDurationLearningEventSnapshot === undefined) {
           return staleSchedulerWriteResult();
         }
 
@@ -668,6 +680,35 @@ export async function markPreferenceRepairPending(
   }
 }
 
+export async function markDurationLearningRepairPending(
+  store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
+  detectedAt = new Date().toISOString(),
+): Promise<{ ok: true } | { ok: false; errors: string[] }> {
+  if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
+    return profileWriteTransaction(store, [store.schedulerPlanState], () =>
+      markDurationLearningRepairPending(store, detectedAt));
+  }
+  try {
+    const stored = await store.schedulerPlanState.get(CURRENT_SCHEDULER_PLAN_STATE_ID);
+    if (!stored) return { ok: true };
+    const parsedStored = schedulerPlanStateRecordSchema.safeParse(stored);
+    if (!parsedStored.success) return { ok: true };
+    const candidate = schedulerPlanStateRecordSchema.safeParse({
+      ...parsedStored.data,
+      durationLearningRepairPendingAt: detectedAt,
+    });
+    if (!candidate.success) return { ok: false, errors: issuesToMessages(candidate.error.issues) };
+    const updated = await store.schedulerPlanState.update(CURRENT_SCHEDULER_PLAN_STATE_ID, {
+      durationLearningRepairPendingAt: candidate.data.durationLearningRepairPendingAt,
+    });
+    return updated === 1
+      ? { ok: true }
+      : { ok: false, errors: ['schedulerPlanState: Duration-learning change could not mark the plan for repair.'] };
+  } catch {
+    return { ok: false, errors: ['schedulerPlanState: Duration-learning change could not mark the plan for repair.'] };
+  }
+}
+
 /** Call in the same Dexie transaction as a task definition write. */
 export async function markTaskInputRepairPending(
   store: SchedulerPlanStateStore = getCurrentLifeRhythmDatabase(),
@@ -757,8 +798,11 @@ export async function buildAndPersistSchedulerPlan(
   canonicalInputSnapshot?: CanonicalSchedulingInputSnapshot,
   expectedSchedulerState?: SchedulerPlanStateExpectation,
   durationLearning?: DurationLearningPersistInput,
+  expectedRecoveryGeneration?: number,
 ): Promise<SchedulerPlanPersistActionResult> {
-  const recoveryGeneration = store instanceof LifeRhythmDatabase ? await captureProfileRecoveryGeneration(store) : undefined;
+  const recoveryGeneration = expectedRecoveryGeneration ?? (store instanceof LifeRhythmDatabase
+    ? await captureProfileRecoveryGeneration(store)
+    : undefined);
   const observed = await loadSchedulerPlanState(store);
   if (observed.status === 'invalid' || observed.status === 'error') {
     return { ok: false, errors: observed.errors };
@@ -788,6 +832,9 @@ export async function buildAndPersistSchedulerPlan(
         ? { rhythmInputRepairPendingAt: current.rhythmInputRepairPendingAt,
             rhythmInputRepairTargetIds: current.rhythmInputRepairTargetIds }
         : {}),
+      ...(current.status === 'ok' && current.durationLearningRepairPendingAt
+        ? { durationLearningRepairPendingAt: current.durationLearningRepairPendingAt }
+        : {}),
     }, calendarSourceSnapshot, canonicalInputSnapshot, durationLearning?.eventSnapshot,
     current.status === 'missing' ? behaviourEventsForInitialSchedulerPlan(plan, updatedAt) : [], recoveryGeneration);
 
@@ -811,8 +858,11 @@ export async function repairAndPersistSchedulerPlan(
   canonicalInputSnapshot?: CanonicalSchedulingInputSnapshot,
   expectedSchedulerState?: SchedulerPlanStateExpectation,
   durationLearning?: DurationLearningPersistInput,
+  expectedRecoveryGeneration?: number,
 ): Promise<SchedulerPlanPersistActionResult> {
-  const recoveryGeneration = store instanceof LifeRhythmDatabase ? await captureProfileRecoveryGeneration(store) : undefined;
+  const recoveryGeneration = expectedRecoveryGeneration ?? (store instanceof LifeRhythmDatabase
+    ? await captureProfileRecoveryGeneration(store)
+    : undefined);
   const observed = await loadSchedulerPlanState(store);
   if (observed.status === 'invalid' || observed.status === 'error') {
     return { ok: false, errors: observed.errors };
@@ -826,17 +876,25 @@ export async function repairAndPersistSchedulerPlan(
     const pendingTaskIds = current.status === 'ok'
       ? new Set(current.taskInputRepairTargetIds ?? []) : new Set<string>();
     const releasedTaskPlacements = current.status === 'ok' && change.now
-      ? current.plan.placements.filter((placement) =>
-          placement.origin === 'scheduler' &&
-          (placement.targetKind ?? 'intention') === 'intention' &&
-          pendingTaskIds.has(placement.intentionId) &&
-          (placement.date > change.now!.date ||
-            (placement.date === change.now!.date && (
-              placement.start >= change.now!.time ||
-              change.nextInput.intentions.find((item) => item.id === placement.intentionId)
-                ?.lifecycle.activeTaskStatus !== 'inProgress'
-            ))),
-        ).map((placement) => placement.id)
+      ? current.plan.placements.filter((placement) => {
+          if ((placement.targetKind ?? 'intention') !== 'intention' ||
+              !pendingTaskIds.has(placement.intentionId)) return false;
+          const canonicalPlacement = change.nextInput.placements.find((candidate) =>
+            candidate.id === placement.id &&
+            (candidate.targetKind ?? 'intention') === 'intention' &&
+            candidate.intentionId === placement.intentionId,
+          );
+          if (placement.origin === 'existingUserConfirmed') {
+            return !canonicalPlacement;
+          }
+          return placement.origin === 'scheduler' &&
+            (placement.date > change.now!.date ||
+              (placement.date === change.now!.date && (
+                placement.start >= change.now!.time ||
+                change.nextInput.intentions.find((item) => item.id === placement.intentionId)
+                  ?.lifecycle.activeTaskStatus !== 'inProgress'
+              )));
+        }).map((placement) => placement.id)
       : [];
     const taskAwareChange: SchedulerChange = releasedTaskPlacements.length > 0
       ? { ...change, releasePlacementIds: [...new Set([
@@ -847,19 +905,28 @@ export async function repairAndPersistSchedulerPlan(
       ? new Set(current.rhythmInputRepairTargetIds ?? []) : new Set<string>();
     const releasedRhythmPlacements = current.status === 'ok' && change.now
       ? current.plan.placements.filter((placement) => {
-          if (placement.origin !== 'scheduler' || placement.targetKind !== 'rhythm') return false;
+          if (placement.targetKind !== 'rhythm') return false;
           const targetMatches =
             (placement.rhythmTemplateId && pendingRhythmTargets.has(`template:${placement.rhythmTemplateId}`)) ||
             (placement.rhythmInstanceId && pendingRhythmTargets.has(`instance:${placement.rhythmInstanceId}`)) ||
             pendingRhythmTargets.has(`legacy:${placement.rhythmId ?? placement.intentionId}`);
           if (!targetMatches) return false;
-          // Generated instance snapshots are immutable. If the exact instance
-          // remains live after a template or recurrence edit, its accepted
-          // placement remains valid and preserves schedule inertia. Pause,
-          // disable, completion, or skip removes it from nextInput and releases
-          // only that occurrence. Legacy template-level placements have no
-          // concrete owner and are always released for v6 repair.
+          // Generated instance snapshots are immutable. A concrete instance
+          // normally keeps its accepted placement while it remains live. Gate
+          // 8A5 user corrections are an exception: when canonical input now
+          // contains an exact user-confirmed placement for the same occurrence,
+          // release the prior scheduler placement so the correction becomes
+          // authoritative. Removing a user-confirmed correction also releases
+          // that no-longer-canonical accepted row.
           if (!placement.rhythmInstanceId) return true;
+          const canonicalForInstance = change.nextInput.placements.find((candidate) =>
+            candidate.targetKind === 'rhythm' &&
+            candidate.rhythmInstanceId === placement.rhythmInstanceId,
+          );
+          if (placement.origin === 'existingUserConfirmed') {
+            return !canonicalForInstance || canonicalForInstance.id !== placement.id;
+          }
+          if (canonicalForInstance && canonicalForInstance.id !== placement.id) return true;
           return !change.nextInput.rhythms.some((item) =>
             item.rhythmInstanceId === placement.rhythmInstanceId,
           );
@@ -1025,7 +1092,6 @@ export async function undoPersistedSchedulerRepair(
       current.plan.repair.rhythmDefinitionRepairApplied) {
     return { ok: false, errors: ['schedulerPlanState: Change the rhythm again to correct it. Earlier recurrence assumptions cannot be restored as a valid plan.'] };
   }
-
   const reverted = scheduler.undoRepair(current.plan);
   const calendarRepairPendingAt = current.calendarRepairPendingAt ??
     (current.plan.repair?.trigger === 'calendarChanged' ? updatedAt : undefined);
@@ -1053,11 +1119,17 @@ export async function undoPersistedSchedulerRepair(
   const undoDurationLearningApplied = current.plan.repair?.previousDurationLearningApplied
     ? orderedDurationLearning(current.plan.repair.previousDurationLearningApplied)
     : orderedDurationLearning(current.durationLearningApplied ?? []);
+  const durationLearningRepairPendingAt = current.durationLearningRepairPendingAt ??
+    ((current.plan.repair?.appliedDurationLearningTemplateIds?.length ?? 0) > 0 ||
+      current.plan.repair?.trigger === 'durationLearningChanged'
+      ? updatedAt
+      : undefined);
   const saved = await saveSchedulerPlanStateIfCurrent(reverted, current, store, updatedAt, {
     calendarRepairPendingAt,
     settingsRepairPendingAt: current.settingsRepairPendingAt,
     preferenceRepairPendingAt,
     ...(preferenceRepairTargets.length > 0 ? { preferenceRepairTargets } : {}),
+    ...(durationLearningRepairPendingAt ? { durationLearningRepairPendingAt } : {}),
     durationLearningApplied: undoDurationLearningApplied,
     dayModeContext: current.undoDayModeContext ?? undefined,
   }, undefined, undefined, undefined, [behaviourEventForSchedulerUndo(current.plan, updatedAt)], recoveryGeneration);

@@ -204,7 +204,15 @@ export async function updateTaskPoolItemStatus(
   store: TaskPoolStore = getCurrentLifeRhythmDatabase(),
 ): Promise<TaskPoolStatusUpdateResult> {
   if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
-    return profileWriteTransaction(store, [store.taskPoolItems], () => updateTaskPoolItemStatus(id, status, store));
+    try {
+      return await profileWriteTransaction(store, [store.taskPoolItems, store.schedulerPlanState],
+        () => updateTaskPoolItemStatus(id, status, store));
+    } catch {
+      return {
+        errors: ['Task pool status was not saved. Check device storage and the private plan.'],
+        ok: false,
+      };
+    }
   }
   const parsedStatus = taskPoolItemStatusSchema.safeParse(status);
 
@@ -240,6 +248,10 @@ export async function updateTaskPoolItemStatus(
   });
 
   await store.taskPoolItems.put(updatedItem);
+  if (store instanceof LifeRhythmDatabase) {
+    const pending = await markTaskInputRepairPending(store, updatedItem.id, updatedItem.updatedAt);
+    if (!pending.ok) throw new Error(pending.errors.join(' '));
+  }
 
   return {
     item: updatedItem,

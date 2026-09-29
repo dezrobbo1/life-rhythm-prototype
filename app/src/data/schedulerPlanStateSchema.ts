@@ -255,6 +255,7 @@ export const schedulerPlanStateRecordSchema = z
     settingsRepairPendingAt: strictIsoDateTimeSchema.optional(),
     preferenceRepairPendingAt: strictIsoDateTimeSchema.optional(),
     preferenceRepairTargets: z.array(preferenceRepairTargetSchema).optional(),
+    durationLearningRepairPendingAt: strictIsoDateTimeSchema.optional(),
     taskInputRepairPendingAt: strictIsoDateTimeSchema.optional(),
     taskInputRepairTargetIds: z.array(idSchema).optional(),
     rhythmInputRepairPendingAt: strictIsoDateTimeSchema.optional(),
