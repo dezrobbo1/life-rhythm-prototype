@@ -7,7 +7,14 @@ import {
   setCurrentLocalDataNamespace,
 } from './localDataNamespace';
 import { createDefaultSettings, saveSettings } from './settingsRepository';
-import { taskPoolItemSchema } from './schemas';
+import { rhythmTemplateSchema, taskPoolItemSchema } from './schemas';
+import { saveRhythmConfiguration } from './rhythmAuthorityRepository';
+import {
+  checkPortableProfileForRestore,
+  exportPortableProfile,
+  REPLACE_LOCAL_PROFILE_CONFIRMATION,
+  restorePortableProfile,
+} from './portableProfileBackup';
 import {
   ensureCurrentPrivatePlan,
   repairCurrentPrivatePlan,
@@ -264,6 +271,132 @@ describe('Gate 8A5 placement corrections', () => {
     }));
     expect(repaired.plan.unscheduledIntentionIds).toContain('move-task');
     expect(await db.softPlacements.get(protectedResult.placement.id)).toMatchObject({ correctionKind: 'protect' });
+  });
+
+  it('moves and protects one concrete rhythm occurrence and preserves that authority through portable recovery', async () => {
+    await settings();
+    const sourceDb = getCurrentLifeRhythmDatabase();
+    const template = rhythmTemplateSchema.parse({
+      id: 'rhythm-correction',
+      source: 'custom',
+      title: 'Correct this rhythm',
+      area: 'admin',
+      minimum: { label: 'Minimum rhythm', minutes: 10 },
+      normal: { label: 'Normal rhythm', minutes: 20 },
+      full: { label: 'Full rhythm', minutes: 30 },
+      enabled: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+    const configured = await saveRhythmConfiguration({
+      template,
+      state: 'enabled',
+      frequency: 1,
+      period: 'day',
+      preferredDays: [],
+      preferredTime: 'anytime',
+      maxPerDay: 1,
+      timezone,
+      effectiveFromLocalDate: monday,
+      now: timestamp,
+    }, sourceDb);
+    expect(configured.ok).toBe(true);
+
+    const built = await ensureCurrentPrivatePlan(options);
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    const automatic = built.plan.placements.find((placement) =>
+      placement.targetKind === 'rhythm' && placement.rhythmTemplateId === template.id,
+    );
+    expect(automatic).toMatchObject({
+      origin: 'scheduler',
+      targetKind: 'rhythm',
+      rhythmTemplateId: template.id,
+      start: '09:00',
+      end: '09:20',
+    });
+    if (!automatic?.rhythmInstanceId) return;
+
+    const moved = await movePrivatePlacement(
+      automatic,
+      { date: monday, start: '10:00' },
+      await readProfileRecoveryGeneration(sourceDb),
+      options,
+    );
+    expect(moved.ok).toBe(true);
+    if (!moved.ok || !moved.placement) return;
+    const movedAccepted = moved.plan.placements.find((placement) => placement.id === moved.placement?.id);
+    expect(movedAccepted).toMatchObject({
+      origin: 'existingUserConfirmed',
+      targetKind: 'rhythm',
+      rhythmInstanceId: automatic.rhythmInstanceId,
+      start: '10:00',
+      end: '10:20',
+    });
+    if (!movedAccepted) return;
+
+    const protectedResult = await protectPrivatePlacement(
+      movedAccepted,
+      await readProfileRecoveryGeneration(sourceDb),
+      options,
+    );
+    expect(protectedResult.ok).toBe(true);
+    if (!protectedResult.ok || !protectedResult.placement) return;
+    expect(protectedResult.placement).toMatchObject({
+      correctionKind: 'moveProtected',
+      targetKind: 'rhythm',
+      rhythmTemplateId: automatic.rhythmTemplateId,
+      rhythmPlanId: automatic.rhythmPlanId,
+      rhythmRecurrenceRevisionId: automatic.rhythmRecurrenceRevisionId,
+      rhythmInstanceId: automatic.rhythmInstanceId,
+      start: '10:00',
+    });
+    expect(await sourceDb.rhythmInstances.get(automatic.rhythmInstanceId)).toMatchObject({
+      placementId: protectedResult.placement.id,
+    });
+
+    const exported = await exportPortableProfile(sourceDb, '2026-09-07T00:30:00.000Z');
+    expect(exported.payload.data.routedRhythmPlacements).toEqual([]);
+    expect(exported.payload.data.softPlacements).toContainEqual(expect.objectContaining({
+      id: protectedResult.placement.id,
+      correctionKind: 'moveProtected',
+      rhythmInstanceId: automatic.rhythmInstanceId,
+    }));
+
+    sourceDb.close();
+    await sourceDb.delete();
+
+    setCurrentLocalDataNamespace(
+      createAuthLocalDataNamespace(`gate8a5-corrections-restored-${namespaceIndex}`),
+    );
+    const checked = await checkPortableProfileForRestore(exported.json);
+    expect(checked.ok).toBe(true);
+    if (!checked.ok || !('expectation' in checked)) return;
+    expect(await restorePortableProfile(
+      exported.json,
+      checked.expectation,
+      REPLACE_LOCAL_PROFILE_CONFIRMATION,
+    )).toEqual({ ok: true });
+
+    const restoredDb = getCurrentLifeRhythmDatabase();
+    expect(await restoredDb.softPlacements.get(protectedResult.placement.id)).toMatchObject({
+      correctionKind: 'moveProtected',
+      rhythmInstanceId: automatic.rhythmInstanceId,
+      start: '10:00',
+    });
+    const rebuilt = await ensureCurrentPrivatePlan(options);
+    expect(rebuilt.ok).toBe(true);
+    if (!rebuilt.ok) return;
+    expect(rebuilt.plan.placements.filter((placement) =>
+      placement.rhythmInstanceId === automatic.rhythmInstanceId,
+    )).toEqual([
+      expect.objectContaining({
+        id: protectedResult.placement.id,
+        origin: 'existingUserConfirmed',
+        start: '10:00',
+        end: '10:20',
+      }),
+    ]);
   });
 
   it('rejects a stale correction after the recovery generation changes', async () => {
