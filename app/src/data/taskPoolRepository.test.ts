@@ -236,9 +236,7 @@ describe('task pool repository', () => {
 
       expect(result.ok).toBe(false);
       expect(await database.taskPoolItems.get('task-pool-pay-water-bill')).toEqual(before);
-      expect(await database.schedulerPlanState.get('current')).toMatchObject({
-        taskInputRepairPendingAt: undefined,
-      });
+      expect(await database.schedulerPlanState.get('current')).not.toHaveProperty('taskInputRepairPendingAt');
     } finally {
       await database.delete();
     }
