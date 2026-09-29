@@ -425,17 +425,24 @@ async function persistCorrection(
     }
 
     const beforePlacement = parsedBefore?.success ? parsedBefore.data : null;
-    if (prepared.correction.correctionKind === 'move' ||
-        prepared.correction.correctionKind === 'moveProtected') {
-      const previous = beforePlacement ?? softPlacementSchema.parse({
-        ...prepared.correction,
-        date: prepared.current.date,
-        start: prepared.current.start,
-        end: prepared.current.end,
-        status: 'planned',
-        correctionKind: undefined,
-        updatedAt: prepared.correction.updatedAt,
-      });
+    const previous = beforePlacement ?? softPlacementSchema.parse({
+      ...prepared.correction,
+      date: prepared.current.date,
+      start: prepared.current.start,
+      end: prepared.current.end,
+      status: 'planned',
+      correctionKind: undefined,
+      updatedAt: prepared.correction.updatedAt,
+    });
+    const positionChanged =
+      previous.date !== prepared.correction.date ||
+      previous.start !== prepared.correction.start ||
+      previous.end !== prepared.correction.end;
+    if (
+      positionChanged &&
+      (prepared.correction.correctionKind === 'move' ||
+        prepared.correction.correctionKind === 'moveProtected')
+    ) {
       await appendBehaviourEvent(
         behaviourEventForUserPlacement(
           prepared.correction,
