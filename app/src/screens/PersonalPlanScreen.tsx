@@ -313,6 +313,20 @@ export function PersonalPlanScreen({
     }
   }, []);
 
+  const reloadPrivatePlan = useCallback(async () => {
+    setPrivatePlanState({ status: 'loading' });
+    try {
+      const { result, generation } = await readPrivatePlan();
+      return applyPrivatePlanResult(result, generation);
+    } catch {
+      setPrivatePlanState({
+        status: 'error',
+        errors: ['Private plan needs updating. Use Refresh flexible plan to try again.'],
+      });
+      return false;
+    }
+  }, [applyPrivatePlanResult, readPrivatePlan]);
+
   const readManualPlanData = useCallback(async () => {
     const db = getCurrentLifeRhythmDatabase();
     const readOnce = async () => {
@@ -366,14 +380,28 @@ export function PersonalPlanScreen({
     }
   }, [applyManualPlanData, readManualPlanData]);
 
-  const repairAfterUserPlacementChange = useCallback(async () => {
-    const result = await repairCurrentPrivatePlan({
-      reason: 'A user-confirmed private placement changed.',
-      trigger: 'userCorrection',
-    });
-    const generation = await captureProfileRecoveryGeneration(getCurrentLifeRhythmDatabase());
-    return applyPrivatePlanResult(result, generation);
-  }, [applyPrivatePlanResult]);
+  const repairAfterUserPlacementChange = useCallback(async (expectedGeneration: number) => {
+    const database = getCurrentLifeRhythmDatabase();
+    try {
+      const result = await repairCurrentPrivatePlan({
+        reason: 'A user-confirmed private placement changed.',
+        trigger: 'userCorrection',
+        expectedRecoveryGeneration: expectedGeneration,
+      });
+      await assertProfileRecoveryGeneration(database, expectedGeneration);
+      if (!result.ok && result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
+        await reloadPrivatePlan();
+        return 'stale' as const;
+      }
+      return applyPrivatePlanResult(result, expectedGeneration) ? 'repaired' as const : 'pending' as const;
+    } catch (error) {
+      if (error instanceof StaleProfileRecoveryError) {
+        await reloadPrivatePlan();
+        return 'stale' as const;
+      }
+      throw error;
+    }
+  }, [applyPrivatePlanResult, reloadPrivatePlan]);
 
   useEffect(() => {
     let active = true;
@@ -431,12 +459,23 @@ export function PersonalPlanScreen({
     setPrivatePlanBusy('refresh');
     setPrivatePlanFeedback(null);
 
+    const database = getCurrentLifeRhythmDatabase();
+    const generation = privatePlanState.status === 'ready'
+      ? privatePlanState.generation
+      : await captureProfileRecoveryGeneration(database);
+
     try {
       const result = await repairCurrentPrivatePlan({
         reason: 'You asked Life Rhythm to refresh flexible private work.',
         trigger: 'manualReplan',
+        expectedRecoveryGeneration: generation,
       });
-      const generation = await captureProfileRecoveryGeneration(getCurrentLifeRhythmDatabase());
+      await assertProfileRecoveryGeneration(database, generation);
+      if (!result.ok && result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
+        await Promise.all([reloadPrivatePlan(), retryManualPlanData()]);
+        setPrivatePlanFeedback(STALE_PROFILE_RECOVERY_MESSAGE);
+        return;
+      }
       const applied = applyPrivatePlanResult(result, generation);
       if (applied) {
         onPlanRecovered?.();
@@ -446,12 +485,23 @@ export function PersonalPlanScreen({
           ? 'Flexible private work was refreshed. External calendar events were not changed.'
           : 'Private plan was not changed.',
       );
-    } catch {
-      setPrivatePlanFeedback('Private plan was not changed.');
+    } catch (error) {
+      if (error instanceof StaleProfileRecoveryError) {
+        await Promise.all([reloadPrivatePlan(), retryManualPlanData()]);
+        setPrivatePlanFeedback(STALE_PROFILE_RECOVERY_MESSAGE);
+      } else {
+        setPrivatePlanFeedback('Private plan was not changed.');
+      }
     } finally {
       setPrivatePlanBusy(null);
     }
-  }, [applyPrivatePlanResult, onPlanRecovered]);
+  }, [
+    applyPrivatePlanResult,
+    onPlanRecovered,
+    privatePlanState,
+    reloadPrivatePlan,
+    retryManualPlanData,
+  ]);
 
   const undoPrivatePlan = useCallback(async () => {
     if (privatePlanState.status !== 'ready') {
@@ -461,26 +511,34 @@ export function PersonalPlanScreen({
     setPrivatePlanBusy('undo');
     setPrivatePlanFeedback(null);
 
+    const database = getCurrentLifeRhythmDatabase();
+    const generation = privatePlanState.generation;
+
     try {
-      const result = await undoCurrentPrivatePlan({}, privatePlanState.generation);
+      const result = await undoCurrentPrivatePlan({}, generation);
+      await assertProfileRecoveryGeneration(database, generation);
       if (!result.ok && result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
-        await retryManualPlanData();
+        await Promise.all([reloadPrivatePlan(), retryManualPlanData()]);
         setPrivatePlanFeedback(STALE_PROFILE_RECOVERY_MESSAGE);
         return;
       }
-      const generation = await captureProfileRecoveryGeneration(getCurrentLifeRhythmDatabase());
       const applied = applyPrivatePlanResult(result, generation);
       setPrivatePlanFeedback(
         applied
           ? 'The previous private plan was restored.'
           : 'The previous private plan could not be restored.',
       );
-    } catch {
-      setPrivatePlanFeedback('The previous private plan could not be restored.');
+    } catch (error) {
+      if (error instanceof StaleProfileRecoveryError) {
+        await Promise.all([reloadPrivatePlan(), retryManualPlanData()]);
+        setPrivatePlanFeedback(STALE_PROFILE_RECOVERY_MESSAGE);
+      } else {
+        setPrivatePlanFeedback('The previous private plan could not be restored.');
+      }
     } finally {
       setPrivatePlanBusy(null);
     }
-  }, [applyPrivatePlanResult, privatePlanState, retryManualPlanData]);
+  }, [applyPrivatePlanResult, privatePlanState, reloadPrivatePlan, retryManualPlanData]);
 
   const addSoftPlacement = useCallback(async (suggestion: PoolSoftSuggestion) => {
     const expectedGeneration = manualPlanGeneration;
@@ -512,13 +570,20 @@ export function PersonalPlanScreen({
       }
 
       await refreshPlanData();
-      const repaired = await repairAfterUserPlacementChange();
+      const repairState = await repairAfterUserPlacementChange(expectedGeneration);
+      if (repairState === 'stale') {
+        await retryManualPlanData();
+        setPlacementFeedback({ kind: 'error', lines: ['The local profile changed. Refresh Plan and try again.'] });
+        return;
+      }
       setPlacementFeedback({
         kind: 'success',
         lines: [
           'User-confirmed placement added.',
           'No calendar event created.',
-          repaired ? 'Flexible automatic placements were checked around it.' : 'The automatic private plan could not update; the placement is still saved.',
+          repairState === 'repaired'
+            ? 'Flexible automatic placements were checked around it.'
+            : 'The automatic private plan could not update; the placement is still saved.',
         ],
       });
     } catch (error) {
@@ -554,13 +619,20 @@ export function PersonalPlanScreen({
       }
 
       await refreshPlanData();
-      const repaired = await repairAfterUserPlacementChange();
+      const repairState = await repairAfterUserPlacementChange(expectedGeneration);
+      if (repairState === 'stale') {
+        await retryManualPlanData();
+        setPlacementFeedback({ kind: 'error', lines: ['The local profile changed. Refresh Plan and try again.'] });
+        return;
+      }
       setPlacementFeedback({
         kind: 'success',
         lines: [
           'User-confirmed placement removed.',
           'Task was not deleted. No calendar event changed.',
-          repaired ? 'Flexible automatic placements were checked again.' : 'The automatic private plan could not update; the removal is still saved.',
+          repairState === 'repaired'
+            ? 'Flexible automatic placements were checked again.'
+            : 'The automatic private plan could not update; the removal is still saved.',
         ],
       });
     } catch (error) {
@@ -577,19 +649,6 @@ export function PersonalPlanScreen({
       setRemovingPlacementId(null);
     }
   }, [manualPlanGeneration, refreshPlanData, repairAfterUserPlacementChange, retryManualPlanData]);
-
-  const reloadPrivatePlanAfterCorrection = useCallback(async () => {
-    setPrivatePlanState({ status: 'loading' });
-    try {
-      const { result, generation } = await readPrivatePlan();
-      applyPrivatePlanResult(result, generation);
-    } catch {
-      setPrivatePlanState({
-        status: 'error',
-        errors: ['Private plan needs updating. Use Refresh flexible plan to try again.'],
-      });
-    }
-  }, [applyPrivatePlanResult, readPrivatePlan]);
 
   const openMove = useCallback((placement: InternalPlacement) => {
     setMoveTarget(placement);
@@ -610,7 +669,7 @@ export function PersonalPlanScreen({
       );
       if (!result.ok) {
         if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
-          await Promise.all([retryManualPlanData(), reloadPrivatePlanAfterCorrection()]);
+          await Promise.all([retryManualPlanData(), reloadPrivatePlan()]);
         }
         setPlacementFeedback({ kind: 'error', lines: result.errors });
         return;
@@ -650,7 +709,7 @@ export function PersonalPlanScreen({
     moveTarget,
     privatePlanState,
     refreshPlanData,
-    reloadPrivatePlanAfterCorrection,
+    reloadPrivatePlan,
     retryManualPlanData,
   ]);
 
@@ -662,7 +721,7 @@ export function PersonalPlanScreen({
       const result = await protectPrivatePlacement(placement, privatePlanState.generation);
       if (!result.ok) {
         if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
-          await Promise.all([retryManualPlanData(), reloadPrivatePlanAfterCorrection()]);
+          await Promise.all([retryManualPlanData(), reloadPrivatePlan()]);
         }
         setPlacementFeedback({ kind: 'error', lines: result.errors });
         return;
@@ -697,7 +756,7 @@ export function PersonalPlanScreen({
   }, [
     privatePlanState,
     refreshPlanData,
-    reloadPrivatePlanAfterCorrection,
+    reloadPrivatePlan,
     retryManualPlanData,
   ]);
 
@@ -709,7 +768,7 @@ export function PersonalPlanScreen({
       const result = await unprotectPrivatePlacement(placement, privatePlanState.generation);
       if (!result.ok) {
         if (result.errors.includes(STALE_PROFILE_RECOVERY_MESSAGE)) {
-          await Promise.all([retryManualPlanData(), reloadPrivatePlanAfterCorrection()]);
+          await Promise.all([retryManualPlanData(), reloadPrivatePlan()]);
         }
         setPlacementFeedback({ kind: 'error', lines: result.errors });
         return;
@@ -746,7 +805,7 @@ export function PersonalPlanScreen({
   }, [
     privatePlanState,
     refreshPlanData,
-    reloadPrivatePlanAfterCorrection,
+    reloadPrivatePlan,
     retryManualPlanData,
   ]);
 
