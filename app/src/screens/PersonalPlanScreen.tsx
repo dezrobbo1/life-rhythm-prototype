@@ -676,16 +676,28 @@ export function PersonalPlanScreen({
         return;
       }
       await refreshPlanData();
-      setPrivatePlanState({
-        status: 'ready',
-        plan: result.plan,
-        titleByTargetId: privatePlanState.titleByTargetId,
-        warnings: privatePlanState.warnings,
-        generation: privatePlanState.generation,
-      });
+      if (result.repairPending) {
+        setPrivatePlanState({
+          status: 'error',
+          errors: ['Protection was removed, but the automatic private plan still needs updating.'],
+        });
+      } else {
+        setPrivatePlanState({
+          status: 'ready',
+          plan: result.plan,
+          titleByTargetId: privatePlanState.titleByTargetId,
+          warnings: privatePlanState.warnings,
+          generation: privatePlanState.generation,
+        });
+      }
       setPlacementFeedback({
         kind: 'success',
-        lines: ['Protection removed. Future automatic repair may move this flexible placement.'],
+        lines: [
+          'Protection removed.',
+          result.repairPending
+            ? 'The automatic private plan still needs updating.'
+            : 'Future automatic repair may move this flexible placement.',
+        ],
       });
     } catch {
       setPlacementFeedback({ kind: 'error', lines: ['Protection was not removed. Nothing else changed.'] });
