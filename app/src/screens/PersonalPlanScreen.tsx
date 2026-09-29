@@ -309,8 +309,8 @@ export function PersonalPlanScreen({
       reason: 'A user-confirmed private placement changed.',
       trigger: 'userCorrection',
     });
-
-    return applyPrivatePlanResult(result);
+    const generation = await captureProfileRecoveryGeneration(getCurrentLifeRhythmDatabase());
+    return applyPrivatePlanResult(result, generation);
   }, [applyPrivatePlanResult]);
 
   useEffect(() => {
@@ -746,7 +746,12 @@ export function PersonalPlanScreen({
             privatePlanState.plan.repair.trigger !== 'taskDefinitionChanged' &&
             !privatePlanState.plan.repair.taskDefinitionRepairApplied &&
             privatePlanState.plan.repair.trigger !== 'rhythmDefinitionChanged' &&
-            !privatePlanState.plan.repair.rhythmDefinitionRepairApplied ? (
+            !privatePlanState.plan.repair.rhythmDefinitionRepairApplied &&
+            privatePlanState.plan.repair.trigger !== 'calendarChanged' &&
+            privatePlanState.plan.repair.trigger !== 'preferenceChanged' &&
+            !(privatePlanState.plan.repair.appliedPreferenceRepairTargets?.length) &&
+            privatePlanState.plan.repair.trigger !== 'durationLearningChanged' &&
+            !(privatePlanState.plan.repair.appliedDurationLearningTemplateIds?.length) ? (
             <Button
               disabled={privatePlanBusy !== null}
               onClick={() => void undoPrivatePlan()}
@@ -848,6 +853,20 @@ export function PersonalPlanScreen({
                       </details>
                     ) : null}
                   </div>
+                  <div className="button-row" aria-label={`Correction actions for ${placementTitle(privatePlanState.titleByTargetId, targetId)}`}>
+                    <Button
+                      disabled={correctionBusyId !== null}
+                      onClick={() => openMove(placement)}
+                    >
+                      Move
+                    </Button>
+                    <Button
+                      disabled={correctionBusyId !== null}
+                      onClick={() => void protectPlacement(placement)}
+                    >
+                      {correctionBusyId === placement.id ? 'Saving' : 'Protect this time'}
+                    </Button>
+                  </div>
                 </li>
               );
             })}
@@ -858,6 +877,50 @@ export function PersonalPlanScreen({
             <p>Blank time is not assumed to be usable capacity.</p>
           </div>
         )}
+
+        {moveTarget ? (
+          <section className="soft-suggestions__feedback" aria-labelledby="move-private-placement-title">
+            <h3 id="move-private-placement-title">Move this private placement</h3>
+            <p>
+              Choose the exact local time you want. Life Rhythm will reject hard conflicts rather than silently choosing another time.
+            </p>
+            <div className="life-shape-inline">
+              <label>
+                <span>Move date</span>
+                <input
+                  aria-label="Move date"
+                  type="date"
+                  value={moveDate}
+                  onChange={(event) => setMoveDate(event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Move start time</span>
+                <input
+                  aria-label="Move start time"
+                  type="time"
+                  value={moveStart}
+                  onChange={(event) => setMoveStart(event.target.value)}
+                />
+              </label>
+            </div>
+            <div className="button-row">
+              <Button
+                disabled={correctionBusyId !== null || !moveDate || !moveStart}
+                onClick={() => void saveMove()}
+                variant="primary"
+              >
+                {correctionBusyId ? 'Saving move' : 'Save move'}
+              </Button>
+              <Button
+                disabled={correctionBusyId !== null}
+                onClick={() => setMoveTarget(null)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </section>
+        ) : null}
 
         <div className="button-row">
           <Button
@@ -1045,24 +1108,71 @@ export function PersonalPlanScreen({
             </div>
           ) : placementReadState.status === 'readFailed' ? null : visibleSoftPlacements.length > 0 ? (
             <ul className="soft-placements__list">
-              {visibleSoftPlacements.map((placement) => (
-                <li key={placement.id}>
-                  <div className="soft-placements__item-copy">
-                    <div>
-                      <strong>{placement.taskTitleSnapshot}</strong>
-                      <span>{placement.blockLabelSnapshot} · {placement.start}-{placement.end}</span>
+              {visibleSoftPlacements.map((placement) => {
+                const accepted = placement.correctionKind ? planPlacementForCorrection(placement) : null;
+                const protectedPlacement = placement.correctionKind === 'protect' ||
+                  placement.correctionKind === 'moveProtected';
+                return (
+                  <li key={placement.id}>
+                    <div className="soft-placements__item-copy">
+                      <div>
+                        <strong>{placement.taskTitleSnapshot}</strong>
+                        <span>{placement.blockLabelSnapshot} · {placement.start}-{placement.end}</span>
+                      </div>
+                      <p>
+                        {placement.correctionKind
+                          ? protectedPlacement
+                            ? 'User-corrected · Protected'
+                            : 'User-corrected'
+                          : softPlacementStatusLabels[placement.status]}
+                      </p>
+                      {accepted && placementReasonLines(accepted.provenance).length > 0 ? (
+                        <details className="plan-section__details">
+                          <summary>Why this time?</summary>
+                          <ul>
+                            {placementReasonLines(accepted.provenance).map((reason) => (
+                              <li key={reason}>{reason}</li>
+                            ))}
+                          </ul>
+                        </details>
+                      ) : null}
                     </div>
-                    <p>{softPlacementStatusLabels[placement.status]}</p>
-                  </div>
-                  <Button
-                    className="soft-placements__remove-action"
-                    disabled={removingPlacementId === placement.id}
-                    onClick={() => void removeSoftPlacement(placement)}
-                  >
-                    {removingPlacementId === placement.id ? 'Removing placement' : 'Remove placement'}
-                  </Button>
-                </li>
-              ))}
+                    {placement.correctionKind ? (
+                      <div className="button-row" aria-label={`Correction actions for ${placement.taskTitleSnapshot}`}>
+                        <Button
+                          disabled={!accepted || correctionBusyId !== null}
+                          onClick={() => accepted && openMove(accepted)}
+                        >
+                          Move
+                        </Button>
+                        {protectedPlacement ? (
+                          <Button
+                            disabled={!accepted || correctionBusyId !== null}
+                            onClick={() => accepted && void unprotectPlacement(accepted)}
+                          >
+                            {correctionBusyId === placement.id ? 'Saving' : 'Unprotect'}
+                          </Button>
+                        ) : (
+                          <Button
+                            disabled={!accepted || correctionBusyId !== null}
+                            onClick={() => accepted && void protectPlacement(accepted)}
+                          >
+                            {correctionBusyId === placement.id ? 'Saving' : 'Protect this time'}
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <Button
+                        className="soft-placements__remove-action"
+                        disabled={removingPlacementId === placement.id}
+                        onClick={() => void removeSoftPlacement(placement)}
+                      >
+                        {removingPlacementId === placement.id ? 'Removing placement' : 'Remove placement'}
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           ) : placementReadState.status === 'partial' ? null : (
             <div className="soft-placements__empty">
