@@ -16,6 +16,7 @@ import {
   appendBehaviourEvent,
   behaviourEventForUserPlacement,
 } from './behaviourEventRepository';
+import { markTaskInputRepairPending } from './schedulerPlanStateRepository';
 
 type SoftPlacementsTable = Pick<Table<SoftPlacement, string>, 'get' | 'put' | 'toArray' | 'where'>;
 
@@ -82,7 +83,7 @@ export async function saveSoftPlacement(
   }
 
   if (store instanceof LifeRhythmDatabase) {
-    return store.transaction('rw', store.softPlacements, store.taskHistory, async () => {
+    return store.transaction('rw', store.softPlacements, store.taskHistory, store.schedulerPlanState, async () => {
       const existing = await store.softPlacements.get(validated.placement.id);
       if (existing) {
         return {
@@ -92,6 +93,12 @@ export async function saveSoftPlacement(
       }
 
       await store.softPlacements.put(validated.placement);
+      const pending = await markTaskInputRepairPending(
+        store,
+        validated.placement.taskId,
+        validated.placement.updatedAt,
+      );
+      if (!pending.ok) throw new Error(pending.errors.join(' '));
       await appendBehaviourEvent(
         behaviourEventForUserPlacement(
           validated.placement,
@@ -214,7 +221,7 @@ export async function updateSoftPlacementStatus(
   }
 
   if (store instanceof LifeRhythmDatabase) {
-    return store.transaction('rw', store.softPlacements, store.taskHistory, async () => {
+    return store.transaction('rw', store.softPlacements, store.taskHistory, store.schedulerPlanState, async () => {
       const storedPlacement = await store.softPlacements.get(id);
       if (!storedPlacement) {
         return { errors: ['id: Soft placement was not found.'], ok: false as const };
@@ -234,6 +241,12 @@ export async function updateSoftPlacementStatus(
         updatedAt: timestamp,
       });
       await store.softPlacements.put(updatedPlacement);
+      const pending = await markTaskInputRepairPending(
+        store,
+        updatedPlacement.taskId,
+        updatedPlacement.updatedAt,
+      );
+      if (!pending.ok) throw new Error(pending.errors.join(' '));
       if (statusResult.data === 'removed') {
         await appendBehaviourEvent(
           behaviourEventForUserPlacement(updatedPlacement, 'remove', timestamp, parsedPlacement.data),
