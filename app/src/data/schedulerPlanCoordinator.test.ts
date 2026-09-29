@@ -596,4 +596,46 @@ describe('live scheduler plan coordinator', () => {
     expect(await readProfileRecoveryGeneration(database)).toBe(generation + 1);
   });
 
+  it('does not prepare or apply Undo on a profile restored after the rendered plan', async () => {
+    await saveLifeShape({
+      timeBlocks: [{
+        id: 'monday-available',
+        label: 'Monday available',
+        type: 'openCapacity',
+        schedulerUse: 'available',
+        days: ['Monday'],
+        start: '09:00',
+        end: '11:00',
+      }],
+    });
+    const database = getCurrentLifeRhythmDatabase();
+    await database.taskPoolItems.bulkPut([task('task-a'), task('task-b')]);
+    const built = await ensureCurrentPrivatePlan(coordinatorOptions());
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+
+    const repaired = await repairCurrentPrivatePlan({
+      ...coordinatorOptions(),
+      reason: 'Create one reversible repair before the restore.',
+      trigger: 'manualReplan',
+      releasePlacementIds: built.plan.placements.slice(0, 1).map((placement) => placement.id),
+    });
+    expect(repaired.ok).toBe(true);
+    if (!repaired.ok || !repaired.plan.repair?.undo) return;
+
+    const generation = await readProfileRecoveryGeneration(database);
+    const beforePlan = await database.schedulerPlanState.get('current');
+    const beforeHistory = await database.taskHistory.toArray();
+    const beforeRhythms = await database.rhythmInstances.toArray();
+    await database.transaction('rw', database.settings, () =>
+      advanceProfileRecoveryGeneration(database, generation));
+
+    const result = await undoCurrentPrivatePlan(coordinatorOptions(), generation);
+
+    expect(result).toMatchObject({ ok: false, errors: [STALE_PROFILE_RECOVERY_MESSAGE] });
+    expect(await database.schedulerPlanState.get('current')).toEqual(beforePlan);
+    expect(await database.taskHistory.toArray()).toEqual(beforeHistory);
+    expect(await database.rhythmInstances.toArray()).toEqual(beforeRhythms);
+  });
+
 });
