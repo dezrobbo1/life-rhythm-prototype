@@ -247,7 +247,25 @@ That review found one material V0 presentation gap: a protected correction inval
 
 No material blocker remains in the bounded Gate 8A5 mechanism after that correction.
 
-External automated review limitation: Codex review could not run because the account had reached its review usage limit. CodeRabbit manual review attempts made while the branch was still changing did not complete because the PR base/head changed. There are zero unresolved review threads. These unavailable external reviews are recorded rather than represented as passed.
+External automated review: CodeRabbit completed a review of head `7247a71c5e2fe9b07b613cc54fb307b3807cdd5e` and reported two actionable findings. Both were independently verified and corrected before merge. Codex review remained unavailable because the account had reached its review usage limit.
+
+## Final CodeRabbit correction
+
+CodeRabbit's review of `7247a71c5e2fe9b07b613cc54fb307b3807cdd5e` identified two real integrity gaps.
+
+1. **Live rhythm correction export after scheduler rerouting.** A non-protected rhythm Move correction can remain canonical while later repair rejects that coordinate and the live `RhythmInstance.placementId` follows a different automatic placement. Portable validation/export had incorrectly treated matching placement IDs as the authority test and could reject this valid state. Live correction authority is now matched by concrete `rhythmInstanceId`; a same-occurrence correction suppresses the scheduler-only routed adjunct even when the instance currently points at another accepted scheduler placement. Duplicate live corrections for one occurrence are rejected. A regression constructs this exact divergent-ID state, exports it without a routed adjunct, validates it and restores the correction.
+
+2. **Plan repair/Undo recovery-generation race.** Manual placement repair, Refresh flexible plan and Undo previously read the recovery generation after the operation returned. A restore in that interval could therefore pair old plan data with the new profile generation. These actions now carry the rendered/preceding generation into the repair or Undo, assert the same generation after completion and reload through the fenced Plan read when a restore intervenes. Manual placement Add/Remove carries the same generation from the canonical placement write through its follow-up repair. Regressions cover restore-during-refresh, restore-during-Undo and restore-during-manual-placement repair.
+
+Corrected application/test head: `0e2b7af15a5ff57c4310d7934f41083495bf5f07`.
+
+Exact-head hosted evidence:
+
+- App CI #370: **110 files / 1,348 tests passed** and production build passed.
+- App Preview (/app) #586: **success**.
+- Vercel deployment `dpl_3oZFKN8RruTXZGq7LzEbpD48TiUQ`: **READY**, with Git SHA matching the corrected head.
+
+The earlier comprehensive Gate 8A5 timezone matrix remains the full three-timezone evidence for the unchanged broader mechanism; this final correction was additionally exercised by the complete App CI suite above.
 
 ## Manual UI status
 
