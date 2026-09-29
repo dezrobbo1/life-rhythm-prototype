@@ -635,6 +635,42 @@ describe('Gate 8A5 placement corrections', () => {
     expect(moved).toMatchObject({ ok: false, errors: [STALE_PROFILE_RECOVERY_MESSAGE] });
     expect(await db.softPlacements.count()).toBe(0);
   });
+  it('rejects moving a placement whose current start is already in the past', async () => {
+    await settings();
+    const db = getCurrentLifeRhythmDatabase();
+    await db.taskPoolItems.put(task());
+    const built = await ensureCurrentPrivatePlan(options);
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    const automatic = built.plan.placements.find((placement) => placement.intentionId === 'move-task');
+    expect(automatic).toMatchObject({ origin: 'scheduler', start: '09:00', end: '09:30' });
+    if (!automatic) return;
+
+    const generation = await readProfileRecoveryGeneration(db);
+    const beforeEvents = await db.taskHistory.toArray();
+    const beforePlan = await loadSchedulerPlanState(db);
+    const lateOptions = {
+      ...options,
+      now: new Date('2026-09-07T02:00:00.000Z'),
+    };
+
+    const moved = await movePrivatePlacement(
+      automatic,
+      { date: monday, start: '11:00' },
+      generation,
+      lateOptions,
+    );
+
+    expect(moved).toMatchObject({
+      ok: false,
+      errors: ['This private placement has already started and cannot be moved.'],
+    });
+    expect(await db.softPlacements.count()).toBe(0);
+    expect(await db.taskPoolItems.get('move-task')).toMatchObject({ status: 'captured' });
+    expect(await db.taskHistory.toArray()).toEqual(beforeEvents);
+    expect(await loadSchedulerPlanState(db)).toEqual(beforePlan);
+  });
+
   it('rejects a move whose preserved duration would end exactly at local midnight', async () => {
     await settings();
     const db = getCurrentLifeRhythmDatabase();
