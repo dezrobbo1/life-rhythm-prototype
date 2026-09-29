@@ -315,7 +315,7 @@ describe('Gate 8A5 placement corrections', () => {
     const correctionBefore = await db.softPlacements.get(protectedResult.placement.id);
     const originalGet = db.softPlacements.get.bind(db.softPlacements);
     let injected = false;
-    const getSpy = vi.spyOn(db.softPlacements, 'get').mockImplementation(async (key) => {
+    const getSpy = vi.spyOn(db.softPlacements, 'get').mockImplementation((async (key: string) => {
       const row = await originalGet(key);
       if (!injected) {
         injected = true;
@@ -323,7 +323,7 @@ describe('Gate 8A5 placement corrections', () => {
         expect((await markSettingsRepairPending(db, '2026-09-07T00:21:00.000Z')).ok).toBe(true);
       }
       return row;
-    });
+    }) as never);
 
     const result = await unprotectPrivatePlacement(
       accepted,
