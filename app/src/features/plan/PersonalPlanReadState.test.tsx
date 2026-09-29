@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import 'fake-indexeddb/auto';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -655,8 +655,8 @@ describe('Personal Plan read states', () => {
     );
     expect(alert.textContent).not.toContain('correction:intention:protected-task');
     expect(alert.textContent).not.toContain('commitment:private-appointment');
-    expect(screen.getByRole('button', { name: 'Move' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Unprotect' })).toBeTruthy();
+    expect(within(alert).getByRole('button', { name: 'Move' })).toBeTruthy();
+    expect(within(alert).getByRole('button', { name: 'Unprotect' })).toBeTruthy();
   });
 
 });
