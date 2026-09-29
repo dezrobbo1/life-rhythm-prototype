@@ -746,12 +746,7 @@ export function PersonalPlanScreen({
             privatePlanState.plan.repair.trigger !== 'taskDefinitionChanged' &&
             !privatePlanState.plan.repair.taskDefinitionRepairApplied &&
             privatePlanState.plan.repair.trigger !== 'rhythmDefinitionChanged' &&
-            !privatePlanState.plan.repair.rhythmDefinitionRepairApplied &&
-            privatePlanState.plan.repair.trigger !== 'calendarChanged' &&
-            privatePlanState.plan.repair.trigger !== 'preferenceChanged' &&
-            !(privatePlanState.plan.repair.appliedPreferenceRepairTargets?.length) &&
-            privatePlanState.plan.repair.trigger !== 'durationLearningChanged' &&
-            !(privatePlanState.plan.repair.appliedDurationLearningTemplateIds?.length) ? (
+            !privatePlanState.plan.repair.rhythmDefinitionRepairApplied ? (
             <Button
               disabled={privatePlanBusy !== null}
               onClick={() => void undoPrivatePlan()}
