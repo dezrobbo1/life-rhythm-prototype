@@ -62,6 +62,11 @@ import {
   generateRhythmInstancesForHorizon,
   validateRhythmAuthorityRelationships,
 } from './rhythmAuthorityRepository';
+import {
+  assertProfileRecoveryGeneration,
+  StaleProfileRecoveryError,
+  STALE_PROFILE_RECOVERY_MESSAGE,
+} from './profileRecoveryGeneration';
 
 const DEFAULT_HORIZON_DAYS = 7;
 const weekdayNames = [
@@ -114,6 +119,12 @@ export type PrivatePlanCoordinatorOptions = {
   planningPolicy?: SchedulerPlanningPolicy;
   /** Prevents settings migration writes while producing an explanatory preview. */
   readOnly?: boolean;
+  /**
+   * Carries the recovery epoch that authorized a rendered action through every
+   * read/write stage. When supplied, the action must never continue on a
+   * profile restored into a later epoch.
+   */
+  expectedRecoveryGeneration?: number;
 };
 
 export type PrivatePlanRepairRequest = PrivatePlanCoordinatorOptions & {
@@ -358,8 +369,23 @@ export async function buildCurrentLiveSchedulingContext(
   | { ok: false; errors: string[]; warnings: string[] }
 > {
   const database = getCurrentLifeRhythmDatabase();
+  if (options.expectedRecoveryGeneration !== undefined) {
+    try {
+      await assertProfileRecoveryGeneration(database, options.expectedRecoveryGeneration);
+    } catch (error) {
+      if (error instanceof StaleProfileRecoveryError) {
+        return { ok: false, errors: [STALE_PROFILE_RECOVERY_MESSAGE], warnings: [] };
+      }
+      return { ok: false, errors: ['scheduler: Recovery state could not be verified safely.'], warnings: [] };
+    }
+  }
   if (!options.readOnly) {
-    const migrationResult = await loadSettingsResult(database);
+    const migrationResult = await loadSettingsResult(database, {
+      // A rendered command must not perform an opportunistic migration after
+      // another tab has replaced the profile. The guarded scheduling write is
+      // responsible only for the action the user actually authorized.
+      persistMigration: options.expectedRecoveryGeneration === undefined,
+    });
     if (
       migrationResult.status === 'invalid' ||
       migrationResult.status === 'readFailed' ||
@@ -400,6 +426,7 @@ export async function buildCurrentLiveSchedulingContext(
       endDate,
       database,
       decisionInstant.toISOString(),
+      options.expectedRecoveryGeneration,
     );
     if (!generated.ok) return { ok: false, errors: generated.errors, warnings: [] };
   }
@@ -469,6 +496,17 @@ export async function buildCurrentLiveSchedulingContext(
       errors: ['scheduler: Current local planning data could not be read.'],
       warnings: [],
     };
+  }
+
+  if (options.expectedRecoveryGeneration !== undefined) {
+    try {
+      await assertProfileRecoveryGeneration(database, options.expectedRecoveryGeneration);
+    } catch (error) {
+      if (error instanceof StaleProfileRecoveryError) {
+        return { ok: false, errors: [STALE_PROFILE_RECOVERY_MESSAGE], warnings: [] };
+      }
+      return { ok: false, errors: ['scheduler: Recovery state could not be verified safely.'], warnings: [] };
+    }
   }
 
   const {
@@ -795,7 +833,7 @@ export async function ensureCurrentPrivatePlan(
     ...(live.context.durationLearningEventSnapshot
       ? { eventSnapshot: live.context.durationLearningEventSnapshot }
       : {}),
-  });
+  }, options.expectedRecoveryGeneration);
   if (!built.ok) {
     if (!isStaleSchedulerPlanWrite(built)) {
       return { ok: false, errors: built.errors, warnings: live.context.warnings };
@@ -828,7 +866,7 @@ export async function ensureCurrentPrivatePlan(
       ...(freshLive.context.durationLearningEventSnapshot
         ? { eventSnapshot: freshLive.context.durationLearningEventSnapshot }
         : {}),
-    });
+    }, options.expectedRecoveryGeneration);
     if (!retried.ok) {
       return {
         ok: false,
@@ -876,7 +914,7 @@ export async function repairCurrentPrivatePlan(
       ...(live.context.durationLearningEventSnapshot
         ? { eventSnapshot: live.context.durationLearningEventSnapshot }
         : {}),
-    });
+    }, request.expectedRecoveryGeneration);
 
     if (!repaired.ok) {
       return {
