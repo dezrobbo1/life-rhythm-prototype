@@ -204,7 +204,8 @@ export async function updateTaskPoolItemStatus(
   store: TaskPoolStore = getCurrentLifeRhythmDatabase(),
 ): Promise<TaskPoolStatusUpdateResult> {
   if (store instanceof LifeRhythmDatabase && Dexie.currentTransaction?.db !== store) {
-    return profileWriteTransaction(store, [store.taskPoolItems], () => updateTaskPoolItemStatus(id, status, store));
+    return profileWriteTransaction(store, [store.taskPoolItems, store.schedulerPlanState],
+      () => updateTaskPoolItemStatus(id, status, store));
   }
   const parsedStatus = taskPoolItemStatusSchema.safeParse(status);
 
@@ -240,6 +241,12 @@ export async function updateTaskPoolItemStatus(
   });
 
   await store.taskPoolItems.put(updatedItem);
+  if (store instanceof LifeRhythmDatabase) {
+    const pending = await markTaskInputRepairPending(store, updatedItem.id, updatedItem.updatedAt);
+    if (!pending.ok) {
+      return { errors: pending.errors, ok: false };
+    }
+  }
 
   return {
     item: updatedItem,
