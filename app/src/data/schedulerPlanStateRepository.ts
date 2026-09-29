@@ -1086,18 +1086,6 @@ export async function undoPersistedSchedulerRepair(
       current.plan.repair.rhythmDefinitionRepairApplied) {
     return { ok: false, errors: ['schedulerPlanState: Change the rhythm again to correct it. Earlier recurrence assumptions cannot be restored as a valid plan.'] };
   }
-  if (current.preferenceRepairPendingAt || current.plan.repair.trigger === 'preferenceChanged' ||
-      (current.plan.repair.appliedPreferenceRepairTargets?.length ?? 0) > 0) {
-    return { ok: false, errors: ['schedulerPlanState: Change the scheduling preference again to correct it. Earlier plan times cannot be restored under the current preference authority.'] };
-  }
-  if (current.durationLearningRepairPendingAt || current.plan.repair.trigger === 'durationLearningChanged' ||
-      (current.plan.repair.appliedDurationLearningTemplateIds?.length ?? 0) > 0) {
-    return { ok: false, errors: ['schedulerPlanState: Change the duration control again to correct it. Earlier plan times cannot be restored under the current duration authority.'] };
-  }
-  if (current.calendarRepairPendingAt || current.plan.repair.trigger === 'calendarChanged') {
-    return { ok: false, errors: ['schedulerPlanState: Current calendar commitments no longer support restoring the earlier private plan.'] };
-  }
-
   const reverted = scheduler.undoRepair(current.plan);
   const calendarRepairPendingAt = current.calendarRepairPendingAt ??
     (current.plan.repair?.trigger === 'calendarChanged' ? updatedAt : undefined);
@@ -1125,11 +1113,17 @@ export async function undoPersistedSchedulerRepair(
   const undoDurationLearningApplied = current.plan.repair?.previousDurationLearningApplied
     ? orderedDurationLearning(current.plan.repair.previousDurationLearningApplied)
     : orderedDurationLearning(current.durationLearningApplied ?? []);
+  const durationLearningRepairPendingAt = current.durationLearningRepairPendingAt ??
+    ((current.plan.repair?.appliedDurationLearningTemplateIds?.length ?? 0) > 0 ||
+      current.plan.repair?.trigger === 'durationLearningChanged'
+      ? updatedAt
+      : undefined);
   const saved = await saveSchedulerPlanStateIfCurrent(reverted, current, store, updatedAt, {
     calendarRepairPendingAt,
     settingsRepairPendingAt: current.settingsRepairPendingAt,
     preferenceRepairPendingAt,
     ...(preferenceRepairTargets.length > 0 ? { preferenceRepairTargets } : {}),
+    ...(durationLearningRepairPendingAt ? { durationLearningRepairPendingAt } : {}),
     durationLearningApplied: undoDurationLearningApplied,
     dayModeContext: current.undoDayModeContext ?? undefined,
   }, undefined, undefined, undefined, [behaviourEventForSchedulerUndo(current.plan, updatedAt)], recoveryGeneration);
