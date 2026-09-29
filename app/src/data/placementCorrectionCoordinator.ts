@@ -725,6 +725,7 @@ export async function unprotectPrivatePlacement(
       async () => {
         const latest = await loadSchedulerPlanState(database);
         if (latest.status !== 'ok' || latest.updatedAt !== saved.updatedAt ||
+            hasPendingRepairAttention(latest) ||
             !currentPlanPlacement(latest.plan, current)) return staleResult();
 
         const removed = softPlacementSchema.parse({
