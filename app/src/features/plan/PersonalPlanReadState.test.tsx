@@ -21,9 +21,16 @@ const placementMocks = vi.hoisted(() => ({
   loadSoftPlacementsForDateResult: vi.fn(),
 }));
 
+const correctionMocks = vi.hoisted(() => ({
+  movePrivatePlacement: vi.fn(),
+  protectPrivatePlacement: vi.fn(),
+  unprotectPrivatePlacement: vi.fn(),
+}));
+
 vi.mock('../../data/schedulerPlanCoordinator', () => coordinatorMocks);
 vi.mock('../../data/taskPoolRepository', () => poolMocks);
 vi.mock('../../data/softPlacementRepository', () => placementMocks);
+vi.mock('../../data/placementCorrectionCoordinator', () => correctionMocks);
 
 import { AppSnapshotProvider } from '../../data/AppSnapshotProvider';
 import { createLifeRhythmDatabase } from '../../data/db';
@@ -114,6 +121,9 @@ beforeEach(() => {
     items: [],
     status: 'ok',
   });
+  correctionMocks.movePrivatePlacement.mockReset();
+  correctionMocks.protectPrivatePlacement.mockReset();
+  correctionMocks.unprotectPrivatePlacement.mockReset();
 });
 
 afterEach(() => {
@@ -467,6 +477,76 @@ describe('Personal Plan read states', () => {
     expect(screen.getByText('Tuesday task')).toBeTruthy();
     expect(screen.queryByText('Monday task')).toBeNull();
   });
+  it('shows repair attention when Unprotect saves but its automatic repair fails', async () => {
+    const user = userEvent.setup();
+    const protectedPlacement = {
+      id: 'correction:intention:protected-task',
+      intentionId: 'protected-task',
+      targetKind: 'intention' as const,
+      date: '2026-09-07',
+      start: '09:00',
+      end: '09:30',
+      timezone: 'Australia/Perth',
+      origin: 'existingUserConfirmed' as const,
+      sourcePlacementId: 'correction:intention:protected-task',
+      variantKind: 'normal' as const,
+      provenance: ['User explicitly protected this private placement.'],
+    };
+    const acceptedPlan = {
+      ...emptyPlan,
+      placements: [protectedPlacement],
+    };
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: acceptedPlan,
+      titleByTargetId: { 'protected-task': 'Protected task' },
+      warnings: [],
+    });
+    placementMocks.loadSoftPlacementsForDateResult.mockResolvedValue({
+      invalidRecordCount: 0,
+      items: [{
+        id: 'correction:intention:protected-task',
+        taskId: 'protected-task',
+        taskTitleSnapshot: 'Protected task',
+        blockId: 'correction-slot:protected-task',
+        blockLabelSnapshot: 'User-corrected private time',
+        date: '2026-09-07',
+        start: '09:00',
+        end: '09:30',
+        timezone: 'Australia/Perth',
+        variantKind: 'normal',
+        placementSource: 'userConfirmed',
+        status: 'planned',
+        correctionKind: 'protect',
+        targetKind: 'intention',
+        createdAt: '2026-09-07T00:00:00.000Z',
+        updatedAt: '2026-09-07T00:00:00.000Z',
+      }],
+      status: 'ok',
+    });
+    correctionMocks.unprotectPrivatePlacement.mockResolvedValue({
+      ok: true,
+      placement: null,
+      repairPending: true,
+      plan: acceptedPlan,
+    });
+
+    render(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen preferredPlacementDate="2026-09-07" />
+      </AppSnapshotProvider>,
+    );
+
+    expect(await screen.findByText('Protected task')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Unprotect' }));
+
+    expect(await screen.findByText(
+      'Protection was removed, but the automatic private plan still needs updating.',
+    )).toBeTruthy();
+    expect(screen.getByText('The automatic private plan still needs updating.')).toBeTruthy();
+    expect(correctionMocks.unprotectPrivatePlacement).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the preserved duration and requested end before saving a Move', async () => {
     const user = userEvent.setup();
     coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
