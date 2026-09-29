@@ -155,10 +155,10 @@ describe('Pool soft placement flow', () => {
     await user.click(screen.getByRole('button', { name: 'Capture task' }));
     const taskTitle = await screen.findByLabelText('Task title');
     await user.type(taskTitle, 'Send school form');
-    await user.selectOptions(screen.getByLabelText('Area'), 'admin');
-    await user.type(screen.getByLabelText('Minimum version'), 'Open the form');
-    await user.type(screen.getByLabelText('Minimum minutes'), '5');
-    await user.click(screen.getByRole('button', { name: 'Save captured task' }));
+    await user.selectOptions(await screen.findByLabelText('Area'), 'admin');
+    await user.type(await screen.findByLabelText('Minimum version'), 'Open the form');
+    await user.type(await screen.findByLabelText('Minimum minutes'), '5');
+    await user.click(await screen.findByRole('button', { name: 'Save captured task' }));
 
     const taskPool = screen.getByRole('heading', { name: 'Captured tasks' }).closest('section');
     if (!taskPool) throw new Error('Captured tasks section was not found.');
