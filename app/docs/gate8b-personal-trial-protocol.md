@@ -6,9 +6,16 @@
 
 This is an initial single-owner, longitudinal, non-clinical product trial. Its primary question is whether ordinary Life Rhythm use reduces executive and planning burden while preserving trust and control. Task completion is secondary. It is not an ADHD treatment study, a productivity competition, or an adherence programme. No clinical, dopamine, neurological-state or optimal-schedule claim follows from it.
 
-After Gate 8A8 PASS, record **one prospective baseline week** of the owner's ordinary planning method before Life Rhythm Day 1, then **four calendar weeks** of ordinary Life Rhythm use. Do not reconstruct a “usual week” from memory after use starts. For the baseline week, make one approximate weekly planning/replanning-minute total, one 1–5 trust and autonomy/control rating each, and a short note about any unusual disruption; no daily research form is required. Record the seven-day dates and whether the week was representative. If that baseline cannot be obtained, the planning-minute comparison is inconclusive. Baseline preparation and Day 1 are Gate 8B activities and must not start while Gate 8A8 is BLOCK.
+After Gate 8A8 PASS, record **one prospective baseline week** of the owner's ordinary planning method before Life Rhythm Day 1, then **four calendar weeks** of ordinary Life Rhythm use. Do not reconstruct a “usual week” from memory after use starts. For the baseline week, make one approximate **numeric total in minutes** for planning/replanning, one trust and one autonomy/control rating using the fixed questions below, and a short note about any unusual disruption; no daily research form is required. Record the seven-day dates and whether the week was representative. If that baseline cannot be obtained, the planning-minute comparison is inconclusive. Baseline preparation and Day 1 are Gate 8B activities and must not start while Gate 8A8 is BLOCK.
 
-Before use, predeclare the descriptive decision: obtain at least three of the four weekly use reports and compare their median approximate planning minutes with the prospective baseline. A practical positive signal requires both **at least 15 fewer minutes per week and at least 20% fewer minutes**, no trial stop condition, no material recurring conflict/churn burden, and neither trust nor autonomy/control falling by more than one point from baseline in the median weekly report. Otherwise report “no positive signal” or “inconclusive” when data are missing, the baseline is under 15 minutes, or the week is not comparable. Do not move the threshold after seeing results. This single-owner before/after observation does not establish causality or treatment efficacy; inspect incidents and voluntary use alongside the minutes, and preserve disagreement between indicators.
+Use these **same questions and anchors** for the prospective baseline and every weekly Life Rhythm report; higher always means better:
+
+| Rating | Question | 1 | 5 |
+| --- | --- | --- | --- |
+| Trust | How much did you trust your planning system to reflect reality this week? | Not at all | Completely |
+| Autonomy/control | How much did you feel in control of your plan this week? | Not at all | Completely |
+
+Before use, predeclare the descriptive decision: obtain at least three of the four weekly use reports and compare the median of their **numeric minute estimates** with the prospective numeric baseline. A practical positive signal requires both **at least 15 fewer minutes per week and at least 20% fewer minutes**, no trial stop condition, no material recurring conflict/churn burden, and neither trust nor autonomy/control falling by more than one point from baseline in the median weekly report. Otherwise report “no positive signal” or “inconclusive” when data are missing, the baseline is under 15 minutes, or the week is not comparable. Do not move the threshold after seeing results. This single-owner before/after observation does not establish causality or treatment efficacy; inspect incidents and voluntary use alongside the minutes, and preserve disagreement between indicators.
 
 ## Stable environment record before Day 1
 
@@ -22,7 +29,7 @@ Fill this only **after** Gate 8A8 records PASS on the exact build and the owner 
 | Authentication enabled? Signed-in account/namespace without recording secrets | Pending |
 | Portable profile export/check date and separate safe copy location | Pending |
 | Supported calendar source/reimport date, if used | Pending |
-| Prospective baseline seven-day dates, approximate weekly planning minutes, trust/control ratings and unusual context | Pending |
+| Prospective baseline seven-day dates, one approximate numeric weekly planning-minute total, trust/control ratings using the fixed questions and unusual context | Pending |
 | Day 1 exact UTC instant, local date/timezone, checked backup and its behaviour-event ID set | Pending |
 
 Keep one stable URL and one primary browser/device during the evidence period. Record any build, URL, browser, device or timezone change as a protocol deviation; do not merge measurements across origins as though they shared local data. Back up before any deliberate local-data replacement. Never use the owner's only live profile as a destructive restore fixture.
@@ -48,13 +55,13 @@ No mandatory daily questionnaire. Record a short incident only when something ma
 
 Once per week during the four use weeks, spend at most about two minutes on:
 
-- approximate **total planning/replanning time** for that week (minutes or a broad range), compared only with the recorded prospective baseline;
+- one approximate **numeric total of planning/replanning minutes** for that week, compared only with the recorded prospective baseline; no stopwatch precision is needed, and an optional range or confidence/context note may accompany the number, but only the number enters the predeclared calculation;
 - any important forgotten intention, disruption recovery or Reduced Day/re-entry burden that ordinary app facts cannot establish (one short example if applicable, without sensitive task text in a shared issue);
 - whether visible plan movement or clarification steps made the day harder to understand;
-- trust and autonomy/control, each 1–5 with an optional one-sentence reason;
+- trust and autonomy/control, each 1–5 using the exact baseline questions and anchors above, with an optional one-sentence reason;
 - whether use was voluntary and whether the learnt Normal reservation felt useful or required repeated correction, only if encountered.
 
-These are sparse self-reports, not instrumented timings or causal estimates. Missing answers remain missing. Review factual events and plan provenance alongside them, with exact eligibility and denominators stated in the Gate 8A8 evidence map. Do not publish private task content or raw behavioural history as trial telemetry.
+These are sparse self-reports, not instrumented timings or causal estimates. Missing numeric minute estimates remain missing; do not choose a midpoint or bound from an optional range after seeing results. Review factual events and plan provenance alongside them, reporting bounded counts with their known scope. No matched opportunity denominator exists for a general override/correction/Undo rate, so calculate no such rate or percentage. Do not publish private task content or raw behavioural history as trial telemetry.
 
 ## Pause conditions
 

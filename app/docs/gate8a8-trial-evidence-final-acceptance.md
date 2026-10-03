@@ -10,18 +10,18 @@ Categories: **A** existing factual application data; **B** safely derived from t
 
 | Intended outcome | Category | Defensible source and limit |
 | --- | --- | --- |
-| Minutes spent planning | C | Prospective one-week ordinary-method baseline and approximate totals for four Life Rhythm weeks, with at least three weekly reports for a comparison. No app start/end record for planning sessions. |
+| Minutes spent planning | C | One approximate numeric weekly minute total for the prospective ordinary-method baseline and each of four Life Rhythm weeks; at least three numeric weekly reports are required for a comparison. Optional ranges do not enter the calculation. No app start/end record for planning sessions. |
 | Number of manual scheduling actions | B | Count schema-valid `userPlacementCreated/Moved/Removed` and `schedulerRepairUndone` facts for the **recorded subset**. Protect and many other corrections lack a complete historical event; never label this count “all manual actions”. |
 | Forgotten important intentions | C | Optional weekly incident report; an intention never captured cannot be detected from app state. |
 | Invalid or conflicting placements | B | Validate accepted plan against current hard/protected authority and inspect rejected corrections/repair attention. This is a current-state/observed-incident measure, not a complete historical conflict rate. |
-| Override / correction / Undo rate | B | Count the trusted recorded placement/Undo events and inspect explicit duration controls/current correction records with stated denominators. Protection history and all UI attempts are not complete. Do not report a universal override rate. |
+| General override / correction / Undo rate | D | There is no matched opportunity denominator, so no general rate, percentage or acceptance rate is calculated. Trusted placement/correction/Undo events support only a bounded descriptive **count of the recorded subset** (category B diagnostic, as above), not all manual actions. Protection history and UI attempts are incomplete. |
 | Initiation latency | D | `taskStarted.occurredAt` is factual, but no durable unambiguous “planned start as seen at initiation” pairing survives every repair/Today transition. A retrospective subtraction would invent precision. |
 | Effort/time to recover after disruption | C | Brief weekly report when a real disruption occurs; repair events show plan changes, not the owner's effort or disruption onset. |
 | Reduced Day burden and next-day re-entry | C | Brief report on naturally occurring use; current plan/day-mode and lifecycle facts do not measure felt burden or full longitudinal episodes. |
 | Unnecessary **visible** schedule movement/churn | C | Report surprising/onerous movement. Scheduler move events are factual but do not prove the placement was seen or the movement unnecessary. |
 | Clarification / interaction burden | C | One brief weekly impression or material incident; no complete interaction-count or time-on-screen ledger. |
-| Perceived trust | C | Weekly 1–5 response, optional reason; subjective by design. |
-| Perceived autonomy/control | C | Weekly 1–5 response, optional reason; subjective by design. |
+| Perceived trust | C | Prospective baseline and weekly 1–5 answer to the same fixed planning-system trust question; 1 = not at all, 5 = completely. Subjective by design. |
+| Perceived autonomy/control | C | Prospective baseline and weekly 1–5 answer to the same fixed control-of-plan question; 1 = not at all, 5 = completely. Subjective by design. |
 | Continued voluntary use | C | Weekly yes/no and context; no passive session/adherence telemetry or streak target. |
 | Whether learnt Normal duration improves an estimate without excessive correction | D | Eligible Normal samples, scheduler reservation/provenance and explicit controls are factual diagnostics. A reliable improvement claim needs a defined counterfactual and correction denominator unavailable today. Ask only whether the estimate felt useful when encountered; do not present that as causal improvement. |
 | Task completion (secondary) | A | Trusted `taskCompleted` event and explicit variant evidence; unknown legacy/Stop forms stay unknown. Completion count is not the primary product outcome. |
