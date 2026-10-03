@@ -1,6 +1,6 @@
 # Gate 8A7 — UI/UX Product Convergence Report
 
-Status: implemented on `feat/gate8a7-ui-ux-product-convergence`; hosted PR checks and review remain to be recorded.
+Status: **MERGE WITH FOLLOW-UPS** in PR #166 on `feat/gate8a7-ui-ux-product-convergence`; PR remains unmerged. The implementation commit on GitHub is `79f5b19a46f2fe4eb1200abff2f077540625e699`, with the exact locally validated tree `1bcdbf858667221e91786dcd0ee640039557db93`.
 
 Verified starting `main`: `f30eb4ea271e4e92a73c015778a0d9de76fb51e1` (PR #165 merged). Issue #160 remains open for Gate 8A8 actual-device narrow/mobile acceptance. Gate 8A8 and Gate 8B have not started.
 
@@ -24,8 +24,10 @@ No changed date presentation requires a Sydney-specific focused run. No schema/v
 
 ## Bounded browser review
 
-The local Vite server started on `127.0.0.1:5173`. The available cloud browser blocked loopback with `net::ERR_BLOCKED_BY_CLIENT`; the `agent-browser` executable and local Chrome/Chromium/Firefox/Playwright executables were unavailable. Therefore desktop, 390 px narrow and keyboard-only walkthroughs could not be performed in this environment. The hosted preview will be attempted if it permits ordinary access. Automated semantic, disclosure, navigation, modal/focus and action tests passed, but do not substitute for actual device acceptance. Issue #160 remains open for Gate 8A8.
+The local Vite server started on `127.0.0.1:5173`. The available cloud browser blocked loopback with `net::ERR_BLOCKED_BY_CLIENT`; the `agent-browser` executable and local Chrome/Chromium/Firefox/Playwright executables were unavailable. The exact hosted `/app` preview redirected to Vercel login, and no authentication boundary was bypassed. Therefore desktop, 390 px narrow and keyboard-only walkthroughs could not be performed in this environment. Automated semantic, disclosure, navigation, modal/focus and action tests passed, but do not substitute for actual device acceptance. Issue #160 remains open for Gate 8A8.
 
 ## PR review and disposition
 
-Hosted checks, review threads, any confirmed correction and final merge disposition are pending the draft PR. Do not infer a manual visual pass from the automated results. Gate 8A8 and Gate 8B remain unstarted.
+App CI #377 and App Preview (/app) #595 passed on the implementation commit. Vercel reported success and the exact preview deployment ready. PR #166 was opened as a draft and marked ready after these checks passed. CodeRabbit does not auto-review this repository; the one manual request completed with no actionable comments. The configured Codex review also completed on `79f5b19` with no suggestions. The live review-thread count was zero. A bounded source review found no confirmed blocker, so no correction pass was necessary.
+
+**Disposition: MERGE WITH FOLLOW-UPS.** The implementation can advance to Gate 8A8 actual-device acceptance, with the unperformed desktop/narrow/keyboard manual walkthrough as the explicit follow-up under open issue #160. Do not infer a manual visual pass from automated results. Gate 8A8 and Gate 8B remain unstarted, and this PR must not be merged automatically.
