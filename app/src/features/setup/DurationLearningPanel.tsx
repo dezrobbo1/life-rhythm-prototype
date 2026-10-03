@@ -244,7 +244,7 @@ export function DurationLearningPanel({
       <div className="setup-section-heading">
         <h2>Duration learning</h2>
         <p>
-          Life Rhythm can reserve more realistic time after repeated completed instances.
+          Life Rhythm can reserve more realistic Normal time after repeated explicit Normal completions.
           Saved Minimum, Normal, and Full definitions are not rewritten.
         </p>
       </div>
@@ -262,7 +262,7 @@ export function DurationLearningPanel({
         <p className="setup-note">Reading duration evidence…</p>
       ) : items.length === 0 ? (
         <p className="setup-note">
-          No repeated template-linked completion durations are available yet.
+          No eligible positive Normal completion samples are available yet.
         </p>
       ) : (
         <ul className="soft-placements__list" aria-label="Duration learning">
@@ -279,19 +279,19 @@ export function DurationLearningPanel({
                   ) : null}
                   {item.evidence ? (
                     <p>
-                      {item.evidence.sampleCount} trusted completed {item.evidence.sampleCount === 1 ? 'instance' : 'instances'}.
+                      {item.evidence.sampleCount} trusted Normal {item.evidence.sampleCount === 1 ? 'completion' : 'completions'}.
                       {' '}Median {formatMinutes(item.evidence.medianActualMinutes)} minutes;
                       conservative observed estimate {item.evidence.upperQuartileActualMinutes} minutes.
                     </p>
                   ) : (
-                    <p>No trusted positive completion samples are currently available.</p>
+                    <p>No trusted positive Normal completion samples are currently available.</p>
                   )}
                   {control?.mode === 'disabled' ? (
                     <p>Learning is disabled for this template; the saved duration is used.</p>
                   ) : control?.mode === 'override' ? (
                     <p>Your corrected duration is {control.overrideMinutes} minutes.</p>
                   ) : item.evidence?.confidence === 'insufficient' ? (
-                    <p>At least 3 positive completed instances are needed before automatic adaptation.</p>
+                    <p>At least 3 positive Normal completions are needed before automatic adaptation.</p>
                   ) : current?.source === 'learned' ? (
                     <p>
                       Life Rhythm currently reserves {current.schedulerMinutes} minutes
@@ -347,7 +347,7 @@ export function DurationLearningPanel({
       )}
 
       <p className="setup-note setup-note--quiet">
-        Duration learning is local, template-scoped, and based only on trusted positive completion durations.
+        Duration learning is local, template-scoped, and based only on trusted positive Normal completion durations.
         It does not infer why a task took that long.
       </p>
       {status ? <p role="status">{status}</p> : null}

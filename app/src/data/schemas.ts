@@ -1261,6 +1261,7 @@ export const behaviourEventSchema = z
     before: behaviourEventFactSchema.optional(),
     after: behaviourEventFactSchema.optional(),
     actualMinutes: z.number().int().nonnegative().optional(),
+    completedVariantKind: z.enum(['normal', 'full', 'unspecified']).optional(),
     provenance: z
       .object({
         origin: z.enum(['userAction', 'initialPlanBuild', 'automaticRepair', 'undo']),
@@ -1436,6 +1437,13 @@ export const behaviourEventSchema = z
         code: z.ZodIssueCode.custom,
         message: 'actualMinutes is only valid for task completion.',
         path: ['actualMinutes'],
+      });
+    }
+    if (event.completedVariantKind !== undefined && event.eventType !== 'taskCompleted') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'completedVariantKind is only valid for task completion.',
+        path: ['completedVariantKind'],
       });
     }
   });

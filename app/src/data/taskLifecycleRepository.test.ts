@@ -59,6 +59,46 @@ async function addSoftPlacement(database: ReturnType<typeof createTestDatabase>)
 }
 
 describe('task lifecycle repository', () => {
+  it.each([
+    ['normal', 'normal'],
+    ['full', 'full'],
+    ['unspecified', 'unspecified'],
+  ] as const)('persists explicit %s completion evidence independently of the planned form', async (intent, expected) => {
+    const database = createTestDatabase();
+    try {
+      await saveTaskPoolItem(validTaskPoolItem(), database);
+      await bringTaskPoolItemToToday('task-pool-form', database);
+      await database.activeTasks.update('task-pool-form', { plannedVariantKind: 'minimum' });
+      await updateTaskLifecycleStatus('task-pool-form', 'done', database, undefined, intent);
+      const completed = (await database.taskHistory.toArray()).find((event) => event.eventType === 'taskCompleted');
+      expect(completed).toMatchObject({ completedVariantKind: expected });
+    } finally { await database.delete(); }
+  });
+
+  it('keeps the first completed fact when an already-done task receives another terminal command', async () => {
+    const database = createTestDatabase();
+    try {
+      await saveTaskPoolItem(validTaskPoolItem(), database);
+      await bringTaskPoolItemToToday('task-pool-form', database);
+      await updateTaskLifecycleStatus('task-pool-form', 'done', database, undefined, 'normal');
+      await updateTaskLifecycleStatus('task-pool-form', 'done', database, undefined, 'full');
+      const completions = (await database.taskHistory.toArray()).filter((event) => event.eventType === 'taskCompleted');
+      expect(completions).toHaveLength(1);
+      expect(completions[0]).toMatchObject({ completedVariantKind: 'normal' });
+    } finally { await database.delete(); }
+  });
+
+  it('does not infer Normal evidence from a generic completion planned as Normal', async () => {
+    const database = createTestDatabase();
+    try {
+      await saveTaskPoolItem(validTaskPoolItem(), database);
+      await bringTaskPoolItemToToday('task-pool-form', database);
+      await database.activeTasks.update('task-pool-form', { plannedVariantKind: 'normal' });
+      await updateTaskLifecycleStatus('task-pool-form', 'done', database);
+      const completed = (await database.taskHistory.toArray()).find((event) => event.eventType === 'taskCompleted');
+      expect(completed).toMatchObject({ completedVariantKind: 'unspecified' });
+    } finally { await database.delete(); }
+  });
   it('finds only validated, active Pool links for the supplied Today task identities', async () => {
     const database = createTestDatabase();
 

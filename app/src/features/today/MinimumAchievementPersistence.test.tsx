@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
 import 'fake-indexeddb/auto';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { saveActiveTodayTask } from '../../data/activeTaskRepository';
 import {
   createAuthLocalDataNamespace,
@@ -11,7 +11,11 @@ import {
   resetCurrentLocalDataNamespace,
   setCurrentLocalDataNamespace,
 } from '../../data/localDataNamespace';
-import { activeTaskSchema } from '../../data/schemas';
+import { activeTaskSchema, taskPoolItemSchema } from '../../data/schemas';
+import { createBehaviourEvent } from '../../data/behaviourEventRepository';
+import { createDefaultSettings, saveSettings } from '../../data/settingsRepository';
+import { saveSchedulerPlanState, loadSchedulerPlanState } from '../../data/schedulerPlanStateRepository';
+import { createDurationLearningControlStore, upsertDurationLearningControl } from '../../data/durationLearningControlRepository';
 import { TodayScreen } from '../../screens/TodayScreen';
 
 describe('Minimum achievement persistence', () => {
@@ -19,6 +23,71 @@ describe('Minimum achievement persistence', () => {
     cleanup();
     await getCurrentLifeRhythmDatabase().delete();
     resetCurrentLocalDataNamespace();
+    vi.useRealTimers();
+  });
+
+  it.each([null, 25])('repairs a legacy learned plan on ordinary Today load with override=%s', async (override) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 7, 8, 30));
+    setCurrentLocalDataNamespace(createAuthLocalDataNamespace(`today-legacy-learning-${override ?? 'saved'}`));
+    const db = getCurrentLifeRhythmDatabase();
+    const timestamp = new Date().toISOString();
+    const date = '2026-09-07';
+    const defaults = createDefaultSettings(timestamp);
+    expect((await saveSettings({
+      ...defaults, lifeShape: { ...defaults.lifeShape, timeBlocks: [{ id: 'monday-open',
+        label: 'Monday open', type: 'openCapacity', schedulerUse: 'available', days: ['Monday'],
+        start: '09:00', end: '11:00' }] },
+    }, db)).ok).toBe(true);
+    await db.taskPoolItems.put(taskPoolItemSchema.parse({
+      id: 'upgrade-task', source: 'adhoc', title: 'Upgrade task', area: 'admin', status: 'captured',
+      templateId: 'paperwork', minimum: { label: 'Start', minutes: 5 },
+      normal: { label: 'Do it', minutes: 30 }, full: { label: 'Finish', minutes: 60 },
+      createdAt: timestamp, updatedAt: timestamp,
+    }));
+    for (const [index, minutes] of [35, 40, 45].entries()) {
+      await db.taskHistory.put(createBehaviourEvent({
+        id: `old-completion-${index}`, action: 'complete', eventType: 'taskCompleted',
+        taskId: `old-task-${index}`, templateId: 'paperwork', actualMinutes: minutes,
+        occurredAt: `2026-09-0${index + 1}T00:00:00.000Z`, source: 'user',
+        provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },
+        before: { taskStatus: 'inProgress', minimumAchieved: false },
+        after: { taskStatus: 'done', minimumAchieved: false },
+      }));
+    }
+    if (override !== null) {
+      expect((await upsertDurationLearningControl({ templateId: 'paperwork', mode: 'override',
+        overrideMinutes: override }, createDurationLearningControlStore(db), timestamp)).ok).toBe(true);
+    }
+    const historyBefore = await db.taskHistory.toArray();
+    const accepted = await saveSchedulerPlanState({
+      placements: [{ id: 'legacy-placement', intentionId: 'upgrade-task', targetKind: 'intention',
+        date, start: '09:00', end: '09:45', origin: 'scheduler', variantKind: 'normal',
+        provenance: ['Used learned normal duration from 3 trusted completions: median 40 minutes; conservative duration 45 minutes; saved normal duration is 30 minutes.'] }],
+      unscheduledIntentionIds: [], unscheduledRhythmIds: [], rejectedExistingPlacements: [],
+    }, db, timestamp, { durationLearningApplied: [{ templateId: 'paperwork', source: 'learned',
+      schedulerMinutes: 45, sampleCount: 3, confidence: 'low', medianActualMinutes: 40,
+      upperQuartileActualMinutes: 45 }] });
+    expect(accepted.ok).toBe(true);
+
+    render(<TodayScreen />);
+    const expectedMinutes = override ?? 30;
+    const expectedEnd = `09:${String(expectedMinutes).padStart(2, '0')}`;
+    await waitFor(async () => {
+      const current = await loadSchedulerPlanState(db);
+      expect(current.status).toBe('ok');
+      if (current.status !== 'ok') return;
+      expect(current.durationLearningApplied).toMatchObject(override === null ? [] : [{
+        templateId: 'paperwork', source: 'userOverride', schedulerMinutes: override,
+      }]);
+      expect(current.plan.placements[0]).toMatchObject({ intentionId: 'upgrade-task',
+        start: '09:00', end: expectedEnd });
+    });
+    const historyAfter = await db.taskHistory.toArray();
+    expect(historyAfter.filter((row) => row.id.startsWith('old-completion-'))).toEqual(historyBefore);
+    expect(historyAfter.filter((row) => row.eventType === 'schedulerPlacementMoved')).toHaveLength(1);
+    expect((await db.taskPoolItems.get('upgrade-task'))?.normal.minutes).toBe(30);
+    expect(within(screen.getByRole('region', { name: 'Later' })).queryByText(/09:00–09:45/)).toBeNull();
   });
 
   it('reconstructs Minimum achievement after Keep going and a Today reload', async () => {

@@ -53,15 +53,23 @@ describe('Gate 7D2 placement explanation presentation', () => {
 
   it('explains learned and user-corrected durations from persisted scheduler provenance', () => {
     expect(placementReasonLines([
-      'Used learned normal duration from 5 trusted completions: median 30 minutes; conservative duration 35 minutes; saved normal duration is 20 minutes.',
+      'Used learned normal duration from 5 trusted Normal completions: median 30 minutes; conservative duration 35 minutes; saved normal duration is 20 minutes.',
     ])).toEqual([
-      'Life Rhythm reserved 35 minutes from 5 completed instances (median 30 minutes; saved duration 20 minutes).',
+      'Life Rhythm reserved 35 minutes from 5 Normal completions (median 30 minutes; saved duration 20 minutes).',
     ]);
 
     expect(placementReasonLines([
       'Used user-corrected normal duration: 28 minutes; saved normal duration is 20 minutes.',
     ])).toEqual([
       'You corrected this duration to 28 minutes (saved duration 20 minutes).',
+    ]);
+  });
+
+  it('keeps the older learned-duration explanation without claiming Normal-only evidence', () => {
+    expect(placementReasonLines([
+      'Used learned normal duration from 5 trusted completions: median 30 minutes; conservative duration 35 minutes; saved normal duration is 20 minutes.',
+    ])).toEqual([
+      'Life Rhythm reserved 35 minutes from 5 historical completions (median 30 minutes; saved duration 20 minutes).',
     ]);
   });
 

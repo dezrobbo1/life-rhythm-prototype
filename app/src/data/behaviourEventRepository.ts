@@ -183,6 +183,7 @@ export async function behaviourEventForTaskTransition(
   after: ActiveTask,
   occurredAt: string,
   store: BehaviourEventStore,
+  completedVariantKind: 'normal' | 'full' | 'unspecified' = 'unspecified',
 ): Promise<BehaviourEvent | null> {
   if (before.status === after.status) return null;
 
@@ -218,6 +219,7 @@ export async function behaviourEventForTaskTransition(
       ...common,
       action: 'complete',
       eventType: 'taskCompleted',
+      completedVariantKind,
       ...(actualMinutes === undefined ? {} : { actualMinutes }),
     });
   }

@@ -10,7 +10,7 @@ The slice is deliberately narrow:
 
 - template-scoped evidence only;
 - schema-valid `taskCompleted` behaviour events only;
-- positive `actualMinutes` samples only;
+- positive `actualMinutes` samples from explicitly completed Normal variants only;
 - no overall-person fallback;
 - no Area or Task type duration inference;
 - no preferred-time inference;
@@ -21,7 +21,7 @@ The slice is deliberately narrow:
 
 Gate 7A completion `actualMinutes` remains the observed fact. Gate 7B duration summaries remain descriptive statistics.
 
-Gate 7E adds a separate scheduling hypothesis. For each template with positive completion samples it derives:
+Gate 7E adds a separate scheduling hypothesis. Gate 8A6 tightens its evidence to schema-valid, template-linked `taskCompleted` facts with positive `actualMinutes` and explicit `completedVariantKind: normal`. These may include generated rhythm occurrences with exact template and instance provenance. Full, Stop/unspecified, legacy variant-unknown, Minimum-achieved, malformed, and non-positive duration events do not contribute. For each template with eligible samples it derives:
 
 - sample count;
 - median actual minutes;
@@ -31,7 +31,7 @@ Gate 7E adds a separate scheduling hypothesis. For each template with positive c
 
 The upper quartile is a conservative scheduling estimate, not a confidence interval and not a clinical prediction.
 
-Zero-minute observations remain valid historical facts where the Gate 7A schema permits them, but are excluded from predictive duration evidence because scheduler task variants must have positive duration.
+Zero-minute observations remain valid historical facts where the Gate 7A schema permits them, but are excluded from predictive duration evidence because scheduler task variants must have positive duration. Older completion facts lacking `completedVariantKind` remain readable for Gate 7B description; they do not establish Normal completion and cannot supply a Gate 7E sample.
 
 ## Automatic adaptation threshold
 
@@ -115,7 +115,7 @@ It shows, where available:
 
 - template name;
 - saved Normal duration;
-- trusted positive completion sample count;
+- trusted positive Normal completion sample count;
 - median;
 - conservative upper-quartile estimate;
 - current learnt reservation and confidence.
@@ -133,7 +133,7 @@ Automatic placement provenance records when a learnt or user-corrected duration 
 Gate 7E does not add:
 
 - category/Area/Task type duration learning;
-- variant-specific learned duration, because the current completion evidence does not establish which execution variant produced the observed duration;
+- Full or Minimum scheduler-duration adaptation; only explicit Normal completion evidence is used for the Normal estimate;
 - time-of-day preference inference;
 - repeated-move/rejection learning;
 - transition-duration learning;

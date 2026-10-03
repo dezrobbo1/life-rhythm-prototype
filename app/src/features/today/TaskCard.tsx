@@ -6,6 +6,7 @@ import type { MockTask } from './mockTodayData';
 export type TaskProgress = 'idle' | 'inProgress' | 'paused' | 'minimumDone';
 
 type TaskCardProps = {
+  actionBusy?: boolean;
   onEditTask?: () => void;
   onKeepGoing: () => void;
   onMarkFullDone: () => void;
@@ -106,6 +107,7 @@ function timeEdgeLines(task: MockTask): string[] {
 }
 
 export function TaskCard({
+  actionBusy = false,
   onEditTask,
   onKeepGoing,
   onMarkFullDone,
@@ -195,35 +197,35 @@ export function TaskCard({
       </div>
       <div className="task-card__actions">
         {progress === 'idle' ? (
-          <Button onClick={onStartTask} variant="primary">Start task</Button>
+          <Button disabled={actionBusy} onClick={onStartTask} variant="primary">Start task</Button>
         ) : null}
         {progress === 'inProgress' ? (
           <>
-            {!minimumCounts ? <Button onClick={onMarkMinimumDone} variant="primary">Mark minimum done</Button> : null}
-            <Button onClick={onPauseTask}>Pause</Button>
-            <Button onClick={toggleKeepGoing}>Keep going</Button>
-            {minimumCounts ? <Button onClick={onStopHere}>Stop here</Button> : null}
-            {minimumCounts ? <Button onClick={onParkTask}>Park</Button> : null}
-            {minimumCounts ? <Button onClick={onNotToday}>Not today</Button> : null}
+            {!minimumCounts ? <Button disabled={actionBusy} onClick={onMarkMinimumDone} variant="primary">Mark minimum done</Button> : null}
+            <Button disabled={actionBusy} onClick={onPauseTask}>Pause</Button>
+            <Button disabled={actionBusy} onClick={toggleKeepGoing}>Keep going</Button>
+            {minimumCounts ? <Button disabled={actionBusy} onClick={onStopHere}>Stop here</Button> : null}
+            {minimumCounts ? <Button disabled={actionBusy} onClick={onParkTask}>Park</Button> : null}
+            {minimumCounts ? <Button disabled={actionBusy} onClick={onNotToday}>Not today</Button> : null}
           </>
         ) : null}
         {progress === 'paused' ? (
           <>
-            <Button onClick={onResumeTask} variant="primary">Resume</Button>
-            {!minimumCounts ? <Button onClick={onMarkMinimumDone}>Mark minimum done</Button> : null}
-            {minimumCounts ? <Button onClick={onStopHere}>Stop here</Button> : null}
+            <Button disabled={actionBusy} onClick={onResumeTask} variant="primary">Resume</Button>
+            {!minimumCounts ? <Button disabled={actionBusy} onClick={onMarkMinimumDone}>Mark minimum done</Button> : null}
+            {minimumCounts ? <Button disabled={actionBusy} onClick={onStopHere}>Stop here</Button> : null}
           </>
         ) : null}
         {progress === 'minimumDone' ? (
           <>
             <Button disabled variant="primary">Minimum done</Button>
-            <Button onClick={toggleKeepGoing}>Keep going</Button>
-            <Button onClick={onStopHere}>Stop here</Button>
-            <Button onClick={onParkTask}>Park</Button>
-            <Button onClick={onNotToday}>Not today</Button>
+            <Button disabled={actionBusy} onClick={toggleKeepGoing}>Keep going</Button>
+            <Button disabled={actionBusy} onClick={onStopHere}>Stop here</Button>
+            <Button disabled={actionBusy} onClick={onParkTask}>Park</Button>
+            <Button disabled={actionBusy} onClick={onNotToday}>Not today</Button>
           </>
         ) : null}
-        {progress !== 'minimumDone' ? <Button onClick={onStartBoost}>Start Boost</Button> : null}
+        {progress !== 'minimumDone' ? <Button disabled={actionBusy} onClick={onStartBoost}>Start Boost</Button> : null}
         <Button
           aria-expanded={detailsOpen}
           aria-controls={`${task.id}-details`}
@@ -246,15 +248,15 @@ export function TaskCard({
             <article>
               <h5>Normal version</h5>
               <p>{task.normalVersion}</p>
-              <Button onClick={onMarkNormalDone}>Mark normal done</Button>
+              <Button disabled={actionBusy} onClick={onMarkNormalDone}>Mark normal done</Button>
             </article>
             <article>
               <h5>Full version</h5>
               <p>{task.fullVersion}</p>
-              <Button onClick={onMarkFullDone}>Mark full done</Button>
+              <Button disabled={actionBusy} onClick={onMarkFullDone}>Mark full done</Button>
             </article>
           </div>
-          {!minimumCounts ? <Button onClick={onStopHere}>Stop here</Button> : null}
+          {!minimumCounts ? <Button disabled={actionBusy} onClick={onStopHere}>Stop here</Button> : null}
         </section>
       ) : null}
       {detailsOpen ? (
@@ -292,7 +294,7 @@ export function TaskCard({
               ))}
             </ul>
           </section> : null}
-          {onEditTask ? <Button onClick={onEditTask}>Edit task</Button> : null}
+          {onEditTask ? <Button disabled={actionBusy} onClick={onEditTask}>Edit task</Button> : null}
           <div className="task-card__quiet-actions" aria-label="Placeholder task actions">
             <button type="button">Move later</button>
             <button type="button">Hide later</button>

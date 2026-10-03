@@ -14,6 +14,7 @@ import {
 } from '../data/activeTaskBackup';
 import {
   buildCurrentLiveSchedulingContext,
+  changedDurationLearningTemplateIds,
   ensureCurrentPrivatePlan,
   repairCurrentPrivatePlan,
 } from '../data/schedulerPlanCoordinator';
@@ -481,6 +482,8 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   const [todayDisplayClock, setTodayDisplayClock] = useState(() => new Date());
   const todayDisplayClockRef = useRef(todayDisplayClock);
   const taskWriteGenerationRef = useRef(0);
+  const taskActionInFlightRef = useRef<string | null>(null);
+  const [taskActionBusy, setTaskActionBusy] = useState(false);
   const planReadGenerationRef = useRef(0);
   const reentryReviewPreview = useMemo(
     () =>
@@ -685,45 +688,55 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       setCompletionFeedback('Reload Today before changing this task.');
       return;
     }
+    if (taskActionInFlightRef.current) return;
+    const taskId = nextActiveTask.id;
+    taskActionInFlightRef.current = taskId;
+    setTaskActionBusy(true);
 
-    taskWriteGenerationRef.current += 1;
-    let result;
     try {
-      result = await updateActiveTaskStatus(nextActiveTask.id, status,
-        getCurrentLifeRhythmDatabase(), renderedTaskGeneration ?? undefined);
-    } catch (error) {
-      if (handleStaleTaskAction(error)) return;
-      throw error;
-    }
+      taskWriteGenerationRef.current += 1;
+      let result;
+      try {
+        result = await updateActiveTaskStatus(nextActiveTask.id, status,
+          getCurrentLifeRhythmDatabase(), renderedTaskGeneration ?? undefined);
+      } catch (error) {
+        if (handleStaleTaskAction(error)) return;
+        throw error;
+      }
 
-    if (!result.ok) {
-      setCompletionFeedback('Task state was not saved. Try again.');
-      return;
-    }
+      if (!result.ok) {
+        setCompletionFeedback('Task state was not saved. Try again.');
+        return;
+      }
 
-    const updatedTasks = activeTasks.map((task) =>
-      task.id === result.task.id ? result.task : task,
-    );
-
-    setActiveTasks(updatedTasks);
-    setNextActiveTask(result.task);
-    setTaskProgress(progress);
-    setCompletionFeedback(feedback);
-    if (status === 'minimumDone') {
-      setBoostOpen(false);
-      setMinimumChoiceTaskId(null);
-    }
-    if (result.task.sourceRhythmInstanceId) {
-      await repairAndRefreshPrivatePlanAfterTodayChange(
-        'userCorrection',
-        'A rhythm occurrence changed its current execution state.',
+      const updatedTasks = activeTasks.map((task) =>
+        task.id === result.task.id ? result.task : task,
       );
+
+      setActiveTasks(updatedTasks);
+      setNextActiveTask(result.task);
+      setTaskProgress(progress);
+      setCompletionFeedback(feedback);
+      if (status === 'minimumDone') {
+        setBoostOpen(false);
+        setMinimumChoiceTaskId(null);
+      }
+      if (result.task.sourceRhythmInstanceId) {
+        await repairAndRefreshPrivatePlanAfterTodayChange(
+          'userCorrection',
+          'A rhythm occurrence changed its current execution state.',
+        );
+      }
+    } finally {
+      if (taskActionInFlightRef.current === taskId) taskActionInFlightRef.current = null;
+      setTaskActionBusy(false);
     }
   }
 
   async function moveCurrentTaskOutOfToday(
     status: Extract<ActiveTaskStatus, 'done' | 'parked' | 'skipped' | 'notToday'>,
     feedback: string,
+    completedVariantKind: 'normal' | 'full' | 'unspecified' = 'unspecified',
   ) {
     if (!nextActiveTask) {
       setNextTask(null);
@@ -736,29 +749,38 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       setCompletionFeedback('Reload Today before changing this task.');
       return;
     }
+    if (taskActionInFlightRef.current) return;
+    const taskId = nextActiveTask.id;
+    taskActionInFlightRef.current = taskId;
+    setTaskActionBusy(true);
 
-    taskWriteGenerationRef.current += 1;
-    let result;
     try {
-      result = await updateActiveTaskStatus(nextActiveTask.id, status,
-        getCurrentLifeRhythmDatabase(), renderedTaskGeneration ?? undefined);
-    } catch (error) {
-      if (handleStaleTaskAction(error)) return;
-      throw error;
-    }
+      taskWriteGenerationRef.current += 1;
+      let result;
+      try {
+        result = await updateActiveTaskStatus(nextActiveTask.id, status,
+          getCurrentLifeRhythmDatabase(), renderedTaskGeneration ?? undefined, completedVariantKind);
+      } catch (error) {
+        if (handleStaleTaskAction(error)) return;
+        throw error;
+      }
 
-    if (!result.ok) {
-      setCompletionFeedback('Task state was not saved. Try again.');
-      return;
-    }
+      if (!result.ok) {
+        setCompletionFeedback('Task state was not saved. Try again.');
+        return;
+      }
 
-    refreshPersistedTasks(result.task, feedback);
-    await repairAndRefreshPrivatePlanAfterTodayChange(
-      status === 'done' ? 'completionChanged' : 'userCorrection',
-      status === 'done'
-        ? 'A Today task was completed.'
-        : 'A Today choice changed which private work remains active.',
-    );
+      refreshPersistedTasks(result.task, feedback);
+      await repairAndRefreshPrivatePlanAfterTodayChange(
+        status === 'done' ? 'completionChanged' : 'userCorrection',
+        status === 'done'
+          ? 'A Today task was completed.'
+          : 'A Today choice changed which private work remains active.',
+      );
+    } finally {
+      if (taskActionInFlightRef.current === taskId) taskActionInFlightRef.current = null;
+      setTaskActionBusy(false);
+    }
   }
 
   async function applyReentryStatus(
@@ -892,17 +914,38 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
       if (!active || planReadGenerationRef.current !== generation) return;
 
       let currentSaved = saved;
+      let currentLive = live;
+      if (!currentLive.ok) {
+        setTodayPlanReadState({ status: 'contextError', errors: currentLive.errors });
+        return;
+      }
+      if (currentSaved.status === 'ok' && changedDurationLearningTemplateIds(
+        currentSaved.durationLearningApplied ?? [], currentLive.context.durationLearningApplied ?? [],
+      ).length > 0) {
+        const reconciled = await ensureCurrentPrivatePlan();
+        if (!active || planReadGenerationRef.current !== generation) return;
+        if (!reconciled.ok) throw new Error(reconciled.errors.join(' '));
+        currentSaved = await loadSchedulerPlanState();
+        currentLive = await buildCurrentLiveSchedulingContext({
+          horizonDays: 1, planningPolicy: { dayMode: 'normal' }, readOnly: true,
+        });
+        if (!active || planReadGenerationRef.current !== generation) return;
+        if (!currentLive.ok || currentSaved.status !== 'ok' || changedDurationLearningTemplateIds(
+          currentSaved.durationLearningApplied ?? [], currentLive.context.durationLearningApplied ?? [],
+        ).length > 0) throw new Error('Duration learning authority did not reconcile.');
+      }
       if (saved.status === 'ok' &&
-          !saved.settingsRepairPendingAt &&
-          !saved.calendarRepairPendingAt &&
-          !saved.preferenceRepairPendingAt &&
-          !saved.durationLearningRepairPendingAt &&
-          !saved.taskInputRepairPendingAt &&
-          !saved.rhythmInputRepairPendingAt &&
-          saved.plan.placements.some((placement) =>
+          currentSaved.status === 'ok' &&
+          !currentSaved.settingsRepairPendingAt &&
+          !currentSaved.calendarRepairPendingAt &&
+          !currentSaved.preferenceRepairPendingAt &&
+          !currentSaved.durationLearningRepairPendingAt &&
+          !currentSaved.taskInputRepairPendingAt &&
+          !currentSaved.rhythmInputRepairPendingAt &&
+          currentSaved.plan.placements.some((placement) =>
             placement.targetKind === 'rhythm' && placement.rhythmInstanceId && placement.date === readDate,
           )) {
-        const synced = await syncScheduledRhythmOccurrencesToToday(saved.plan, readDate);
+        const synced = await syncScheduledRhythmOccurrencesToToday(currentSaved.plan, readDate);
         if (!synced.ok) throw new Error(synced.errors.join(' '));
         if (synced.mutated) {
           setTodayTasksReadAttempt((attempt) => attempt + 1);
@@ -920,11 +963,6 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         return;
       }
 
-      if (!live.ok) {
-        setTodayPlanReadState({ status: 'contextError', errors: live.errors });
-        return;
-      }
-
       const settingsRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.settingsRepairPendingAt);
       const calendarRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.calendarRepairPendingAt);
       const preferenceRepairPending = currentSaved.status === 'ok' && Boolean(currentSaved.preferenceRepairPendingAt);
@@ -939,14 +977,14 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
           : 'available' as const
         : currentSaved.status;
       const surface = buildTodayCalmSurface({
-        date: live.now.date,
-        nowTime: live.now.time,
-        input: live.context.input,
+        date: currentLive.now.date,
+        nowTime: currentLive.now.time,
+        input: currentLive.context.input,
         planStatus,
         plan: currentSaved.status === 'ok' && !anyRepairPending
           ? currentSaved.plan
           : null,
-        titleByTargetId: live.context.titleByTargetId,
+        titleByTargetId: currentLive.context.titleByTargetId,
         currentTaskTargetId: nextActiveTask?.id ?? nextTask?.id,
       });
 
@@ -967,7 +1005,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         readDate,
         refreshAt,
         surface,
-        warnings: live.context.warnings,
+        warnings: currentLive.context.warnings,
       });
     }).catch(() => {
       if (active && planReadGenerationRef.current === generation) {
@@ -1123,11 +1161,11 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   }
 
   async function markNormalDone() {
-    await moveCurrentTaskOutOfToday('done', 'Normal done. That task is out of Today. No catch-up pile.');
+    await moveCurrentTaskOutOfToday('done', 'Normal done. That task is out of Today. No catch-up pile.', 'normal');
   }
 
   async function markFullDone() {
-    await moveCurrentTaskOutOfToday('done', 'Full done. That task is out of Today. No catch-up pile.');
+    await moveCurrentTaskOutOfToday('done', 'Full done. That task is out of Today. No catch-up pile.', 'full');
   }
 
   async function parkTask() {
@@ -1400,6 +1438,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
         ) : nextTask ? (
           <>
             <TaskCard
+              actionBusy={taskActionBusy}
               onEditTask={nextActiveTask?.source === 'adhoc' ? () => setEditTask(nextActiveTask) : undefined}
               minimumChoiceActive={minimumChoiceTaskId === nextTask.id}
               minimumAchieved={nextActiveTask

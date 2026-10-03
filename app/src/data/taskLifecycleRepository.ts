@@ -362,6 +362,7 @@ export async function updateTaskLifecycleStatus(
   status: ActiveTaskStatus,
   database: LifeRhythmDatabase = getCurrentLifeRhythmDatabase(),
   expectedRecoveryGeneration?: number,
+  completedVariantKind: 'normal' | 'full' | 'unspecified' = 'unspecified',
 ): Promise<UpdateTaskLifecycleStatusResult> {
   const parsedStatus = activeTaskStatusSchema.safeParse(status);
 
@@ -489,6 +490,7 @@ export async function updateTaskLifecycleStatus(
         updatedTask,
         timestamp,
         database,
+        completedVariantKind,
       );
 
       await database.activeTasks.put(updatedTask);

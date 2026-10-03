@@ -10,7 +10,7 @@ These values describe what the application observed. They do not explain why an 
 
 ### Completion duration
 
-Only schema-valid `taskCompleted` events with an `actualMinutes` fact contribute a duration sample. Gate 7B reports:
+Only schema-valid `taskCompleted` events with an `actualMinutes` fact contribute a duration sample, including legacy events whose completed variant is unknown. This is a description of completion durations across forms; Gate 7E's Normal-duration scheduling hypothesis has stricter evidence requirements. Gate 7B reports:
 
 - completion-event count;
 - count of completion events without `actualMinutes`;

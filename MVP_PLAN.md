@@ -230,7 +230,7 @@ Exit condition: at least a small set of scheduling choices can improve from the 
 
 ### Gate 8A — Personal-Trial Platform Readiness
 
-Status (2026-09-29): **Gate 8A1–8A4 are complete. Gate 8A5 scheduling mutation integrity and user corrections is implemented and reviewed in PR #164, pending merge.** Gate 8A4 merged as PR #163 at `87e5923cf5fb15d9d6be7619bf9fc01f31355fc0`. Issue #160 remains open for narrow/mobile acceptance at Gate 8A8. Gate 8A6–8A8 and Gate 8B remain not started. See `app/docs/gate8a-personal-trial-platform-readiness.md` for the trial start gate.
+Status (2026-10-03): **Gate 8A1–8A5 are complete; Gate 8A6 learning evidence integrity is implemented in PR #165, pending merge.** Gate 8A5 merged as PR #164 at `e6bd22fde856ea191fd59bdfc0103d2871513ee3`. Issue #160 remains open for narrow/mobile acceptance at Gate 8A8. Gate 8A7, 8A8 and Gate 8B have not started. See `app/docs/gate8a-personal-trial-platform-readiness.md` for the trial start gate.
 
 Deliver the following bounded slices in order, reviewing each before starting the next:
 
@@ -238,8 +238,8 @@ Deliver the following bounded slices in order, reviewing each before starting th
 2. **8A2 — Rhythm End-to-End — Complete, merged PR #158:** configured personal rhythm, durable plan/revision authority, bounded flexible-quota recurrence, deterministic concrete occurrences, scheduler placement, Today/Now execution and exact instance-linked factual history. Fixed anchored cadence remains deferred.
 3. **8A3 — Availability + Calendar — Complete:** reviewed usable-day setup and workday assignments, work-bound travel, safe static recurring calendar input, settings repair and merged resource-safety corrections. Blank calendar gaps never create capacity. See `app/docs/gate8a3-availability-calendar-report.md`.
 4. **8A4 — Durable Personal Data — Complete, merged PR #163:** versioned whole-profile portability and replace-only recovery preserve canonical local authority, including duration controls, with strict validation, conflict checks and recovery-generation fencing.
-5. **8A5 — Scheduling Mutation Integrity + Corrections — Implemented/reviewed, PR #164 pending merge:** reconcile every scheduling input write, plus individual move/protect, explanations and safe undo.
-6. **8A6 — Learning Evidence Integrity:** distinguish completed variants and other trusted lifecycle facts before treating them as learning evidence.
+5. **8A5 — Scheduling Mutation Integrity + Corrections — Complete, merged PR #164:** reconcile every scheduling input write, plus individual move/protect, explanations and safe undo.
+6. **8A6 — Learning Evidence Integrity — Implemented in PR #165, pending merge:** preserve explicit Normal/Full/unspecified completion facts; only trusted positive Normal completions adapt Normal duration, including exact generated rhythm occurrences. Legacy completion variants remain unknown.
 7. **8A7 — UI/UX Product Convergence:** honest surface copy and coherent mobile, desktop and keyboard daily flow.
 8. **8A8 — Trial Evidence + Final Acceptance:** current protocol, low-burden evidence, end-to-end device review and explicit readiness decision.
 

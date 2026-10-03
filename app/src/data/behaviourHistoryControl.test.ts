@@ -8,6 +8,8 @@ import {
   exportBehaviourHistory,
 } from './behaviourHistoryControl';
 import { createLifeRhythmDatabase } from './db';
+import { deriveDurationLearningEvidence } from './durationLearning';
+import { loadBehaviourEventsResult } from './behaviourEventRepository';
 import { saveSchedulerPlanState } from './schedulerPlanStateRepository';
 import { taskPoolItemSchema } from './schemas';
 
@@ -19,6 +21,27 @@ function createTestDatabase() {
 }
 
 describe('behaviour history controls', () => {
+  it('removes explicit Normal completion evidence while retaining the separate template record', async () => {
+    const database = createTestDatabase();
+    try {
+      await database.taskHistory.put(createBehaviourEvent({
+        id: 'normal-completion', action: 'complete', eventType: 'taskCompleted',
+        taskId: 'task-one', templateId: 'paperwork', completedVariantKind: 'normal', actualMinutes: 20,
+        occurredAt: '2026-09-22T09:00:00.000Z', timezone: 'UTC', source: 'user',
+        provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },
+        before: { taskStatus: 'inProgress', minimumAchieved: false },
+        after: { taskStatus: 'done', minimumAchieved: false },
+      }));
+      const before = await loadBehaviourEventsResult(database);
+      if (before.status === 'readFailed') throw new Error('Could not read completion');
+      expect(deriveDurationLearningEvidence(before.items)).toMatchObject([{ sampleCount: 1 }]);
+      expect(await deleteBehaviourHistory(BEHAVIOUR_HISTORY_DELETE_CONFIRMATION, database))
+        .toEqual({ ok: true, deletedCount: 1 });
+      const after = await loadBehaviourEventsResult(database);
+      if (after.status === 'readFailed') throw new Error('Could not read deleted ledger');
+      expect(deriveDurationLearningEvidence(after.items)).toEqual([]);
+    } finally { await database.delete(); }
+  });
   it('exports only Gate 7A ledger records as local JSON', async () => {
     const database = createTestDatabase();
 

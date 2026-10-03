@@ -70,6 +70,7 @@ function completion(id: string, minutes: number) {
     taskId: `task-${id}`,
     templateId: 'paperwork',
     actualMinutes: minutes,
+    completedVariantKind: 'normal',
   });
 }
 
@@ -98,6 +99,20 @@ function setupHealthy(samples = [20, 30, 40]) {
 }
 
 describe('Gate 7E DurationLearningPanel', () => {
+  it('explains that only eligible Normal samples appear even when Full completions exist', async () => {
+    setupHealthy();
+    learningMocks.read.mockResolvedValue({
+      status: 'ok',
+      events: [{ ...completion('sample-1', 40), completedVariantKind: 'full' }],
+      invalidRecordCount: 0,
+      eventSnapshot: 'full-only',
+    });
+
+    render(<DurationLearningPanel />);
+
+    expect(await screen.findByText('No eligible positive Normal completion samples are available yet.')).toBeTruthy();
+  });
+
   it('shows explainable evidence without exposing internal template IDs', async () => {
     setupHealthy();
 
@@ -105,7 +120,7 @@ describe('Gate 7E DurationLearningPanel', () => {
 
     expect(await screen.findByText('Weekly paperwork')).toBeTruthy();
     expect(screen.getByText(/Saved Normal duration: 20 minutes/)).toBeTruthy();
-    expect(screen.getByText(/3 trusted completed instances/)).toBeTruthy();
+    expect(screen.getByText(/3 trusted Normal completions/)).toBeTruthy();
     expect(screen.getByText(/Median 30 minutes/)).toBeTruthy();
     expect(screen.getByText(/conservative observed estimate 40 minutes/)).toBeTruthy();
     expect(screen.getByText(/reserves 40 minutes with low confidence/)).toBeTruthy();
@@ -227,7 +242,7 @@ describe('Gate 7E DurationLearningPanel', () => {
 
     render(<DurationLearningPanel />);
 
-    expect(await screen.findByText(/3 trusted completed instances/)).toBeTruthy();
+    expect(await screen.findByText(/3 trusted Normal completions/)).toBeTruthy();
     expect(screen.getByText(/Duration learning is paused/)).toBeTruthy();
     expect(screen.queryByText(/currently reserves 40 minutes/)).toBeNull();
   });
