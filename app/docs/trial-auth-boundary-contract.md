@@ -2,13 +2,11 @@
 
 Status: Current boundary contract with a narrow implementation subset
 
-Current implementation note: `/app` has an opt-in Clerk identity shell and separate user-scoped local namespaces. Identity does not imply upload or sync. Invite-only operational rollout, broader account workflows, and any cloud movement remain future work. See `app/docs/life-rhythm-current-design-spec.md` and `app/docs/DOCUMENTATION_AUTHORITY.md` for current status.
+Current implementation is the opt-in Clerk identity/local-namespace subset; no account data upload is implemented yet. MVP_PLAN.md now requires explicit account-backed durability before the owner longitudinal trial. This contract records the existing no-silent-upload safety boundary; the 8A7C contract must define authorized data movement, verified account ownership, local replica/sync, migration and access policy before implementation. Authentication alone is not durability. Legacy data remain local until a previewed/confirmed migration; no unrelated profile is silently merged or uploaded.
 
-This contract defines the boundary for invite-only trial accounts and login in Life Rhythm.
+This contract defines the boundary for trial accounts and login in Life Rhythm. It does not itself authorize backend data movement; that authority belongs to the reviewed 8A7C data-flow contract and implementation.
 
-It does not approve or implement backend services, cloud sync, data upload, analytics, notifications, scheduler behavior, calendar integration, AI integration, task placement, import/restore execution, migration execution, or any schema change beyond the narrow current identity/local-namespace shell.
-
-The current login shell is an identity and access layer first. It must not quietly change the local-first data model.
+## 1. Trial Account Purpose
 
 ## 1. Trial Account Purpose
 
@@ -27,16 +25,18 @@ The purpose is controlled access and clearer user identity, not pressure.
 
 Authentication and data storage are separate decisions.
 
-Login identifies the user. It does not automatically mean Life Rhythm data should be uploaded, synced, shared, inspected, or moved out of the local app.
+Login identifies the user. It does not automatically authorize Life Rhythm data to be uploaded, synced, shared or inspected. The current implementation remains local-only. The revised owner-trial roadmap requires a separately reviewed account-backed durability boundary before longitudinal use.
 
 Rules:
 
-- Local-first data remains local unless a later sync contract explicitly approves upload.
-- Cloud sync is a separate future decision.
-- The current login shell protects access to the app without enabling sync.
-- The current account ID namespaces local data, but does not upload it by default.
-- Backup and export remain user-controlled actions.
-- Personal task, rhythm, setup, re-entry, and protected-time data must not become cloud data by accident.
+- Existing local data remain local until an explicit previewed/confirmed migration.
+- Gate 8A7C must define the authorized canonical data classes, verified account ownership, local replica/outbox, synchronization acknowledgement, conflict handling, deletion/reset fencing and recovery.
+- The current login shell protects access and selects a local namespace; it does not itself provide durability or sync.
+- Backup/export remains user-controlled and independent of normal account continuity.
+- Personal task, rhythm, setup, re-entry, protected-time and behavioural data must not become remote data by accident or merely because a user signs in.
+- Server-side account identity must be verified and must not rely on a client-supplied owner ID.
+
+## 3. Core Rule
 
 ## 3. Core Rule
 
@@ -129,14 +129,16 @@ Auth provider setup must not be bundled with sync, backend data storage, or AI d
 
 ## 8. Remaining Implementation Sequence
 
-The current narrow shell covers identity and local namespace separation. Remaining work is:
+The current narrow shell covers identity and local namespace separation. Remaining work is governed by MVP_PLAN.md:
 
-1. Auth boundary contract and current-shell verification. **Current.**
-2. Operational invite-only access verification. **Remaining before external testers.**
-3. Account-aware backup and export wording. **Remaining.**
-4. Cloud sync contract, only if needed later.
+1. Current-shell/auth-boundary verification. **Implemented narrow subset.**
+2. Gate 8A7C — reviewed account/storage/sync boundary and auth-required deployed configuration. **Required before owner longitudinal trial.**
+3. Gate 8A7C — account-backed persistence/hydration, explicit local-profile migration, offline/reconnect/conflict/delete/recovery behaviour. **Required before owner longitudinal trial.**
+4. Operational invite/account lifecycle for external testers. **Deferred to small-beta readiness.**
 
-The login shell should come before any external multi-person trial, but it should remain narrow: identify the tester, protect access, and preserve local-first behavior.
+The owner-trial account boundary should remain narrow: identify the owner, protect access, provide durable account continuity and preserve local/offline control without turning Life Rhythm into a social or monitoring product.
+
+## 9. What The Current Or Future Login Shell May Include
 
 ## 9. What The Current Or Future Login Shell May Include
 
