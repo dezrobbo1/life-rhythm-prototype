@@ -1,6 +1,6 @@
 # Gate 8A6 — Learning Evidence Integrity Report
 
-Status: implemented and corrected after Codex review in PR #165 on `feat/gate8a6-learning-evidence-integrity`; pending final hosted checks and merge decision. PR remains unmerged.
+Status: **MERGE WITH FOLLOW-UPS** after the consolidated Codex correction in PR #165 on `feat/gate8a6-learning-evidence-integrity`. All three confirmed blockers are corrected and their threads resolved; the hosted manual Today walkthrough remains unverified because the preview requires Vercel sign-in. PR remains unmerged.
 
 Verified starting `main`: `e6bd22fde856ea191fd59bdfc0103d2871513ee3` (merged PR #164).
 
@@ -34,6 +34,6 @@ Final local source-tree validation:
 | Australia/Perth | 17 files / 353 tests passed | 110 files / 1,370 tests passed |
 | Australia/Sydney | 17 files / 353 tests passed | Not required |
 
-The earlier bounded implementation and CodeRabbit review corrections remain covered. The final matrix above passed after the Codex correction; `npm run build`, `git diff --check` and final hosted checks are recorded in the PR and handover. The previous preview redirected to Vercel sign-in; the final-head manual result must be reported separately and must not be presumed passed.
+The earlier bounded implementation and CodeRabbit review corrections remain covered. The final matrix above passed on correction commit `994ded07953a3bb3bea7a473ea96318f4f20ab1a`. `npm run build` and `git diff --check` passed. App CI and App Preview (/app) passed for that commit; Vercel reported success and its exact-commit deployment was READY. CodeRabbit reported success; no second broad Codex review was requested. Replies on all three confirmed Codex findings cite the correction and regressions; all three threads were resolved. The final-head `/app` preview redirected to Vercel sign-in, so no manual Today walkthrough is claimed. This access limitation is the follow-up, not an assertion that the UI was manually verified.
 
 Gate 8A7, Gate 8A8 and Gate 8B have not started. Issue #160 remains the Gate 8A8 narrow/mobile acceptance follow-up.
