@@ -230,7 +230,7 @@ Exit condition: at least a small set of scheduling choices can improve from the 
 
 ### Gate 8A — Personal-Trial Platform Readiness
 
-Status (2026-10-03): **Gate 8A1–8A6 are complete; Gate 8A7 UI/UX product convergence is current.** Gate 8A5 merged as PR #164 at `e6bd22fde856ea191fd59bdfc0103d2871513ee3`. Gate 8A6 merged as PR #165 at `f30eb4ea271e4e92a73c015778a0d9de76fb51e1`. Issue #160 remains open for narrow/mobile acceptance at Gate 8A8. Gate 8A8 and Gate 8B have not started. See `app/docs/gate8a-personal-trial-platform-readiness.md` for the trial start gate.
+Status (2026-10-03): **Gate 8A1–8A7 are complete; Gate 8A8 trial evidence and final acceptance is current and BLOCK pending genuine device and deployed recovery acceptance.** Gate 8A7 merged as PR #166 at `0f6ba19ad48b39d514d13e82e9fb80aee4434196`. Issue #160 remains open for narrow/mobile acceptance at Gate 8A8. Gate 8B has not started. See `app/docs/gate8a8-trial-evidence-final-acceptance.md` for the explicit decision and `app/docs/gate8b-personal-trial-protocol.md` for preparation only.
 
 Deliver the following bounded slices in order, reviewing each before starting the next:
 
@@ -240,8 +240,8 @@ Deliver the following bounded slices in order, reviewing each before starting th
 4. **8A4 — Durable Personal Data — Complete, merged PR #163:** versioned whole-profile portability and replace-only recovery preserve canonical local authority, including duration controls, with strict validation, conflict checks and recovery-generation fencing.
 5. **8A5 — Scheduling Mutation Integrity + Corrections — Complete, merged PR #164:** reconcile every scheduling input write, plus individual move/protect, explanations and safe undo.
 6. **8A6 — Learning Evidence Integrity — Complete, merged PR #165:** preserve explicit Normal/Full/unspecified completion facts; only trusted positive Normal completions adapt Normal duration, including exact generated rhythm occurrences. Legacy completion variants remain unknown.
-7. **8A7 — UI/UX Product Convergence — Current:** honest surface copy and coherent mobile, desktop and keyboard daily flow.
-8. **8A8 — Trial Evidence + Final Acceptance:** current protocol, low-burden evidence, end-to-end device review and explicit readiness decision.
+7. **8A7 — UI/UX Product Convergence — Complete, merged PR #166:** current-authority copy, calmer navigation and progressive disclosure; actual-device acceptance remained a Gate 8A8 follow-up.
+8. **8A8 — Trial Evidence + Final Acceptance — Current, BLOCK:** current protocol and evidence map exist, but deployed desktop, keyboard, genuine narrow/mobile and human-operated recovery acceptance remain unproven. Do not begin Gate 8B until the required acceptance passes.
 
 Exit condition: the 8A8 acceptance decision confirms that tasks and rhythms can be authored, scheduled, executed and corrected; capacity and calendar constraints are trustworthy; canonical data can be recovered; learning evidence has the claimed meaning; and the daily UI is usable on the owner's actual devices. Limited Perth-only owner testing may proceed earlier as prototype feedback, without counting it as longitudinal trial evidence.
 
