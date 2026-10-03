@@ -24,7 +24,7 @@ Defines what Life Rhythm is, the product thesis and the true scientific/safety/p
 
 [`../MVP_PLAN.md`](../MVP_PLAN.md)
 
-Defines the current MVP, delivery gates, exit criteria and explicit non-goals.
+Defines the current MVP, delivery gates, exit criteria and explicit non-goals. Its Current programme state defines the active/next milestones, owner-trial/beta boundaries and readiness blockers; lower-level contracts cannot narrow those definitions without an explicit roadmap update.
 
 ### 3. Target technical architecture
 
