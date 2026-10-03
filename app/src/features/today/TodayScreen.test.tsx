@@ -14,6 +14,7 @@ import * as libraryRhythmRepository from '../../data/libraryRhythmRepository';
 import { activeTaskSchema, type ActiveTask } from '../../data/schemas';
 import * as settingsRepository from '../../data/settingsRepository';
 import * as softPlacementRepository from '../../data/softPlacementRepository';
+import { currentLocalDate } from '../plan/softPlacementDate';
 import type { SchedulerPlan } from '../../domain/schedulingModel';
 
 const activeTaskRepositoryMocks = vi.hoisted(() => ({
@@ -45,6 +46,10 @@ const taskLifecycleRepositoryMocks = vi.hoisted(() => ({
 
 const schedulerPlanCoordinatorMocks = vi.hoisted(() => ({
   buildCurrentLiveSchedulingContext: vi.fn(),
+  changedDurationLearningTemplateIds: vi.fn((before: Array<{templateId: string}>, after: Array<{templateId: string}>) =>
+    [...new Set([...before, ...after].map((item) => item.templateId))].filter((id) =>
+      JSON.stringify(before.find((item) => item.templateId === id)) !==
+      JSON.stringify(after.find((item) => item.templateId === id)))),
   ensureCurrentPrivatePlan: vi.fn(),
   repairCurrentPrivatePlan: vi.fn(),
 }));
@@ -259,6 +264,66 @@ afterEach(() => {
 });
 
 describe('Today screen', () => {
+  it('reconciles legacy learned authority on ordinary Today load before showing automatic placements', async () => {
+    const date = currentLocalDate(new Date());
+    const legacyLearning = [{ templateId: 'paperwork', source: 'learned', schedulerMinutes: 45,
+      sampleCount: 3, confidence: 'low', medianActualMinutes: 40, upperQuartileActualMinutes: 45 }];
+    const plan = (title: string, end: string) => ({
+      placements: [{ id: title, intentionId: title, targetKind: 'intention', date,
+        start: '12:00', end, origin: 'scheduler', variantKind: 'normal', provenance: [title] }],
+      rejectedExistingPlacements: [], unscheduledIntentionIds: [], unscheduledRhythmIds: [],
+    });
+    schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext.mockResolvedValue({
+      ok: true, context: { input: { intentions: [], rhythms: [], externalCommitments: [],
+        capacityWindows: [], placements: [], dayProfiles: [] }, durationLearningApplied: [],
+      titleByTargetId: { 'Legacy learned': 'Legacy learned', 'Saved Normal': 'Saved Normal' }, warnings: [] },
+      now: { date, time: '09:00', timezone: 'Australia/Perth' },
+    });
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState
+      .mockResolvedValueOnce({ status: 'ok', plan: plan('Legacy learned', '12:45'),
+        durationLearningApplied: legacyLearning, updatedAt: new Date().toISOString() })
+      .mockResolvedValue({ status: 'ok', plan: plan('Saved Normal', '12:30'),
+        durationLearningApplied: [], updatedAt: new Date().toISOString() });
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    schedulerPlanCoordinatorMocks.ensureCurrentPrivatePlan.mockImplementation(async () => {
+      await pending;
+      return { ok: true, mode: 'repaired', plan: plan('Saved Normal', '12:30') };
+    });
+
+    render(<TodayScreen />);
+    await waitFor(() => expect(schedulerPlanCoordinatorMocks.ensureCurrentPrivatePlan).toHaveBeenCalled());
+    const later = screen.getByRole('region', { name: 'Later' });
+    expect(within(later).queryByText('Legacy learned')).toBeNull();
+    release();
+    expect(await within(later).findByText('Saved Normal')).toBeTruthy();
+    expect(within(later).queryByText('Legacy learned')).toBeNull();
+    expect(schedulerPlanStateRepositoryMocks.loadSchedulerPlanState).toHaveBeenCalledTimes(2);
+  });
+
+  it('hides an accepted plan with obsolete learning authority when automatic repair fails', async () => {
+    const date = currentLocalDate(new Date());
+    schedulerPlanCoordinatorMocks.buildCurrentLiveSchedulingContext.mockResolvedValue({
+      ok: true, context: { input: { intentions: [], rhythms: [], externalCommitments: [],
+        capacityWindows: [], placements: [], dayProfiles: [] }, durationLearningApplied: [],
+      titleByTargetId: { 'legacy-task': 'Legacy learned task' }, warnings: [] },
+      now: { date, time: '09:00', timezone: 'Australia/Perth' },
+    });
+    schedulerPlanStateRepositoryMocks.loadSchedulerPlanState.mockResolvedValue({ status: 'ok',
+      updatedAt: new Date().toISOString(), durationLearningApplied: [{ templateId: 'paperwork',
+        source: 'learned', schedulerMinutes: 45, sampleCount: 3, confidence: 'low' }],
+      plan: { placements: [{ id: 'legacy-placement', intentionId: 'legacy-task', targetKind: 'intention',
+        date, start: '12:00', end: '12:45', origin: 'scheduler', variantKind: 'normal', provenance: [] }],
+      rejectedExistingPlacements: [], unscheduledIntentionIds: [], unscheduledRhythmIds: [] },
+    });
+    schedulerPlanCoordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({ ok: false, errors: ['repair rejected'] });
+
+    render(<TodayScreen />);
+    const later = screen.getByRole('region', { name: 'Later' });
+    expect((await within(later).findByRole('alert')).textContent).toContain('Later and Changed could not be read');
+    expect(within(later).queryByText('Legacy learned task')).toBeNull();
+  });
+
   it.each([
     [
       'preferenceRepairPendingAt',
@@ -1953,6 +2018,52 @@ describe('Today screen', () => {
     expect(updateSoftPlacementSpy).not.toHaveBeenCalled();
     expect(setItemSpy).not.toHaveBeenCalled();
     expect(clearSpy).not.toHaveBeenCalled();
+  });
+
+  it('accepts only the first terminal choice while its write is pending', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask()]);
+    render(<TodayScreen />);
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    await user.click(screen.getByRole('button', { name: 'Start task' }));
+    await user.click(await screen.findByRole('button', { name: 'Mark minimum done' }));
+    await user.click(await screen.findByRole('button', { name: 'Keep going' }));
+
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    const facts: string[] = [];
+    let saved = false;
+    activeTaskRepositoryMocks.updateActiveTaskStatus.mockImplementation(async (id: string, status: ActiveTask['status'],
+      _db: unknown, _generation: unknown, variant: string) => {
+      if (status === 'done' && variant === 'normal') await pending;
+      if (status === 'done' && !saved) { facts.push(variant); saved = true; }
+      return { ok: true, task: persistedOneOffTask({ id, status, showToday: status !== 'done' }) };
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Mark normal done' }));
+    expect((screen.getByRole('button', { name: 'Mark full done' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Park' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Mark full done' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Stop here' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Park' }));
+    release();
+    await waitFor(() => expect(screen.getByText('Normal done. That task is out of Today. No catch-up pile.')).toBeTruthy());
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus.mock.calls.filter((call) =>
+      call[1] === 'done' || call[1] === 'parked')).toHaveLength(1);
+    expect(facts).toEqual(['normal']);
+  });
+
+  it('releases the terminal-action guard after a rejected write', async () => {
+    const user = userEvent.setup();
+    activeTaskRepositoryMocks.loadActiveTodayTasks.mockResolvedValue([persistedOneOffTask({ status: 'minimumDone' })]);
+    render(<TodayScreen />);
+    await screen.findByRole('article', { name: 'Pay water bill' });
+    activeTaskRepositoryMocks.updateActiveTaskStatus.mockResolvedValueOnce({ ok: false, errors: ['write failed'] });
+    await user.click(screen.getByRole('button', { name: 'Stop here' }));
+    expect(await screen.findByText('Task state was not saved. Try again.')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Stop here' }) as HTMLButtonElement).disabled).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Stop here' }));
+    await waitFor(() => expect(screen.getByText('Stopped here. That task is out of Today. No catch-up pile.')).toBeTruthy());
   });
 
   it('persists Mark full done as done and removes the task from Today', async () => {

@@ -731,7 +731,7 @@ export async function buildCurrentLiveSchedulingContext(
   };
 }
 
-function changedDurationLearningTemplateIds(
+export function changedDurationLearningTemplateIds(
   before: readonly AppliedDurationLearning[],
   after: readonly AppliedDurationLearning[],
 ) {

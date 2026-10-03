@@ -75,6 +75,19 @@ describe('task lifecycle repository', () => {
     } finally { await database.delete(); }
   });
 
+  it('keeps the first completed fact when an already-done task receives another terminal command', async () => {
+    const database = createTestDatabase();
+    try {
+      await saveTaskPoolItem(validTaskPoolItem(), database);
+      await bringTaskPoolItemToToday('task-pool-form', database);
+      await updateTaskLifecycleStatus('task-pool-form', 'done', database, undefined, 'normal');
+      await updateTaskLifecycleStatus('task-pool-form', 'done', database, undefined, 'full');
+      const completions = (await database.taskHistory.toArray()).filter((event) => event.eventType === 'taskCompleted');
+      expect(completions).toHaveLength(1);
+      expect(completions[0]).toMatchObject({ completedVariantKind: 'normal' });
+    } finally { await database.delete(); }
+  });
+
   it('does not infer Normal evidence from a generic completion planned as Normal', async () => {
     const database = createTestDatabase();
     try {

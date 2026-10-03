@@ -225,11 +225,7 @@ function projectRhythms(
       eligibilityStartDate: instance.eligibilityStartDate,
       eligibilityEndDate: instance.eligibilityEndDate,
       lifecycleState: instance.lifecycleState as 'eligible' | 'today' | 'inProgress' | 'paused',
-      variants: [
-        { kind: 'minimum', ...instance.minimum },
-        { kind: 'normal', ...instance.normal },
-        { kind: 'full', ...instance.full },
-      ],
+      variants: variantsFromRecord(instance, template.id, durationLearningByTemplateId),
       sourceRecords: [
         { kind: 'rhythmTemplate' as const, id: template.id },
         { kind: 'rhythmPlan' as const, id: plan.id },

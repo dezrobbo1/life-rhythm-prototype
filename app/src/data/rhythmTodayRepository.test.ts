@@ -10,6 +10,12 @@ import {
 } from './rhythmTodayRepository';
 import { updateTaskLifecycleStatus } from './taskLifecycleRepository';
 import { deriveDurationLearningEvidence } from './durationLearning';
+import { applyDurationLearningControls, durationLearningByTemplateId } from './durationLearning';
+import { createBehaviourEvent } from './behaviourEventRepository';
+import { createDefaultSettings } from './settingsRepository';
+import { projectCurrentStateToSchedulingDomain } from '../domain/currentStateProjection';
+import { scheduler } from '../domain/primaryScheduler';
+import { placementReasonLines } from '../features/plan/placementExplanation';
 
 let index = 0;
 const databases: LifeRhythmDatabase[] = [];
@@ -64,6 +70,50 @@ afterEach(async () => {
 });
 
 describe('rhythm Today occurrence projection and lifecycle', () => {
+  it('schedules a future concrete occurrence with template-scoped Normal learning or override while keeping its snapshot', async () => {
+    const db = database();
+    const instance = await generated(db);
+    const samples = [32, 36, 40].map((minutes, index) => createBehaviourEvent({
+      id: `completed-rhythm-${index}`, action: 'complete', eventType: 'taskCompleted',
+      taskId: `historical-rhythm-task-${index}`, templateId: instance.rhythmTemplateId,
+      rhythmInstanceId: `historical-instance-${index}`, completedVariantKind: 'normal', actualMinutes: minutes,
+      occurredAt: `2026-09-2${index + 1}T01:00:00.000Z`, source: 'user',
+      provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },
+      before: { taskStatus: 'inProgress', minimumAchieved: false },
+      after: { taskStatus: 'done', minimumAchieved: false },
+    }));
+    const evidence = deriveDurationLearningEvidence(samples);
+    expect(evidence).toMatchObject([{ templateId: instance.rhythmTemplateId, sampleCount: 3 }]);
+    const records = { settings: createDefaultSettings(now), activeTasks: [], taskPoolItems: [],
+      rhythmTemplates: await db.rhythmTemplates.toArray(), rhythmPlans: await db.rhythmPlans.toArray(),
+      rhythmRecurrenceRevisions: await db.rhythmRecurrenceRevisions.toArray(),
+      rhythmInstances: await db.rhythmInstances.toArray(), softPlacements: [] };
+    const project = (controls: Parameters<typeof applyDurationLearningControls>[1] = []) =>
+      projectCurrentStateToSchedulingDomain({ ...records,
+        durationLearningByTemplateId: durationLearningByTemplateId(applyDurationLearningControls(evidence, controls)) });
+    const learned = project();
+    expect(learned.rhythms[0].variants).toMatchObject([
+      { kind: 'minimum', minutes: 6 },
+      { kind: 'normal', minutes: 40, durationLearning: { source: 'learned', savedNormalMinutes: 17 } },
+      { kind: 'full', minutes: 31 },
+    ]);
+    expect((await db.rhythmInstances.get(instance.id))?.normal.minutes).toBe(17);
+    const plan = scheduler.buildPlan({ ...learned, candidateIntervals: [{
+      id: 'rhythm-window', date: instance.eligibilityStartDate, start: '09:00', end: '10:00',
+      timezone: 'Australia/Perth', capacityMeaning: 'candidate-not-capacity', provenance: ['Test candidate.'],
+    }], rhythmPlanningDates: [instance.eligibilityStartDate] });
+    expect(plan.placements[0]).toMatchObject({ rhythmInstanceId: instance.id, variantKind: 'normal',
+      start: '09:00', end: '09:40', rhythmTemplateId: instance.rhythmTemplateId });
+    expect(placementReasonLines(plan.placements[0].provenance).join(' ')).toContain('3 Normal completions');
+
+    const override = { templateId: instance.rhythmTemplateId, mode: 'override' as const,
+      overrideMinutes: 27, createdAt: now, updatedAt: now };
+    expect(project([override]).rhythms[0].variants[1]).toMatchObject({ kind: 'normal', minutes: 27,
+      durationLearning: { source: 'userOverride', savedNormalMinutes: 17 } });
+    expect(project([{ ...override, mode: 'disabled' as const, overrideMinutes: undefined }]).rhythms[0].variants)
+      .toMatchObject([{ minutes: 6 }, { minutes: 17 }, { minutes: 31 }]);
+  });
+
   it('requires user-confirmed configuration instead of using an unconfigured legacy template', async () => {
     const db = database();
     await db.rhythmTemplates.put(rhythmTemplateSchema.parse({
