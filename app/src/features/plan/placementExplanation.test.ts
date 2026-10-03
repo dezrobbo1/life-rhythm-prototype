@@ -65,4 +65,12 @@ describe('Gate 7D2 placement explanation presentation', () => {
     ]);
   });
 
+  it('keeps the older learned-duration explanation without claiming Normal-only evidence', () => {
+    expect(placementReasonLines([
+      'Used learned normal duration from 5 trusted completions: median 30 minutes; conservative duration 35 minutes; saved normal duration is 20 minutes.',
+    ])).toEqual([
+      'Life Rhythm reserved 35 minutes from 5 historical completions (median 30 minutes; saved duration 20 minutes).',
+    ]);
+  });
+
 });

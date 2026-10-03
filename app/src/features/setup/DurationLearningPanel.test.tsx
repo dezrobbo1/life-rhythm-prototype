@@ -99,6 +99,20 @@ function setupHealthy(samples = [20, 30, 40]) {
 }
 
 describe('Gate 7E DurationLearningPanel', () => {
+  it('explains that only eligible Normal samples appear even when Full completions exist', async () => {
+    setupHealthy();
+    learningMocks.read.mockResolvedValue({
+      status: 'ok',
+      events: [{ ...completion('sample-1', 40), completedVariantKind: 'full' }],
+      invalidRecordCount: 0,
+      eventSnapshot: 'full-only',
+    });
+
+    render(<DurationLearningPanel />);
+
+    expect(await screen.findByText('No eligible positive Normal completion samples are available yet.')).toBeTruthy();
+  });
+
   it('shows explainable evidence without exposing internal template IDs', async () => {
     setupHealthy();
 

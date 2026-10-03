@@ -1,6 +1,6 @@
 # Gate 8A6 — Learning Evidence Integrity Report
 
-Status: implemented and locally validated on `feat/gate8a6-learning-evidence-integrity`; draft PR review pending.
+Status: implemented and reviewed in PR #165 on `feat/gate8a6-learning-evidence-integrity`; pending merge.
 
 Verified starting `main`: `e6bd22fde856ea191fd59bdfc0103d2871513ee3` (merged PR #164).
 
@@ -24,10 +24,10 @@ Final local source-tree validation:
 
 | Timezone | Focused matrix | Complete suite |
 | --- | --- | --- |
-| UTC | 14 files / 287 tests passed | 110 files / 1,360 tests passed |
-| Australia/Perth | 14 files / 287 tests passed | 110 files / 1,360 tests passed |
-| Australia/Sydney | 14 files / 287 tests passed | Not required |
+| UTC | 14 files / 289 tests passed | 110 files / 1,362 tests passed |
+| Australia/Perth | 14 files / 289 tests passed | 110 files / 1,362 tests passed |
+| Australia/Sydney | 14 files / 289 tests passed | Not required |
 
-`npm run build` and `git diff --check` passed. The build emitted its existing large-chunk advisory. The bounded implementation review found ambiguous remaining Duration Learning copy and missing direct deletion evidence; both were corrected in one pass and the final matrix above rerun. Hosted checks, external review and any manual preview result are recorded in the PR and final handover rather than asserted here before they complete.
+`npm run build` and `git diff --check` passed. The build emitted its existing large-chunk advisory. The bounded implementation review found ambiguous remaining Duration Learning copy and missing direct deletion evidence; both were corrected in one pass. CodeRabbit's single review identified two confirmed narrow compatibility/copy defects: older persisted learned-duration provenance lost its explanation and a Full-only history produced a misleading empty state. Red regressions reproduced both; the consolidated correction preserves the old explanation without claiming Normal-only evidence and describes the absence of eligible Normal samples. The final matrix above and build passed after the correction. Hosted check status is recorded in the PR and final handover. The hosted preview redirects to Vercel sign-in; no unauthenticated manual Today walkthrough was possible.
 
 Gate 8A7, Gate 8A8 and Gate 8B have not started. Issue #160 remains the Gate 8A8 narrow/mobile acceptance follow-up.

@@ -262,7 +262,7 @@ export function DurationLearningPanel({
         <p className="setup-note">Reading duration evidence…</p>
       ) : items.length === 0 ? (
         <p className="setup-note">
-          No repeated template-linked completion durations are available yet.
+          No eligible positive Normal completion samples are available yet.
         </p>
       ) : (
         <ul className="soft-placements__list" aria-label="Duration learning">
