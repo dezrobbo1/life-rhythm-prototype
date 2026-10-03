@@ -728,7 +728,7 @@ function placementProvenance(
       ? [
           variant.durationLearning.source === 'userOverride'
             ? `Used user-corrected normal duration: ${variant.durationLearning.schedulerMinutes} minutes; saved normal duration is ${variant.durationLearning.savedNormalMinutes} minutes.`
-            : `Used learned normal duration from ${variant.durationLearning.sampleCount} trusted completions: median ${variant.durationLearning.medianActualMinutes} minutes; conservative duration ${variant.durationLearning.schedulerMinutes} minutes; saved normal duration is ${variant.durationLearning.savedNormalMinutes} minutes.`,
+            : `Used learned normal duration from ${variant.durationLearning.sampleCount} trusted Normal completions: median ${variant.durationLearning.medianActualMinutes} minutes; conservative duration ${variant.durationLearning.schedulerMinutes} minutes; saved normal duration is ${variant.durationLearning.savedNormalMinutes} minutes.`,
         ]
       : []),
     `Placed inside candidate interval ${candidate.id}; hard and protected constraints remained authoritative.`,

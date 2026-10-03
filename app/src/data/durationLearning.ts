@@ -94,10 +94,11 @@ export function deriveDurationLearningEvidence(
   const groups = new Map<string, number[]>();
 
   for (const event of events) {
+    if (!behaviourEventSchema.safeParse(event).success) continue;
     if (
       event.eventType !== 'taskCompleted' ||
       !event.templateId ||
-      event.rhythmInstanceId ||
+      event.completedVariantKind !== 'normal' ||
       event.actualMinutes === undefined ||
       event.actualMinutes <= 0
     ) {

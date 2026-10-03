@@ -15,6 +15,8 @@ import { loadRhythmAuthorityResult } from './rhythmAuthorityRepository';
 import { loadActiveTodayTasksResult } from './activeTaskRepository';
 import { loadTaskPoolItemsResult } from './taskPoolRepository';
 import { loadBehaviourEventsResult } from './behaviourEventRepository';
+import { createBehaviourEvent } from './behaviourEventRepository';
+import { deriveDurationLearningEvidence } from './durationLearning';
 import { loadCalendarSource, readPersistedCalendarEvents } from './calendarSourceRepository';
 import { confirmTaskPoolSoftPlacement } from './taskSoftPlacementRepository';
 import { buildCurrentLiveSchedulingContext, ensureCurrentPrivatePlan } from './schedulerPlanCoordinator';
@@ -98,6 +100,38 @@ beforeEach(async () => {
 afterEach(() => { vi.restoreAllMocks(); resetCurrentLocalDataNamespace(); });
 
 describe('Gate 8A4 portable canonical profile', () => {
+  it('round-trips explicit and legacy completion evidence without manufacturing Normal samples', async () => {
+    const db = getCurrentLifeRhythmDatabase();
+    for (const [id, kind, minutes] of [
+      ['normal', 'normal', 15], ['full', 'full', 30], ['stop', 'unspecified', 20], ['legacy', null, 25],
+    ] as const) {
+      await db.taskHistory.put(createBehaviourEvent({
+        id: `completion-${id}`, action: 'complete', eventType: 'taskCompleted',
+        taskId: 'today', templateId: 'rhythm', actualMinutes: minutes,
+        ...(kind ? { completedVariantKind: kind } : {}),
+        occurredAt: '2026-09-25T01:00:00.000Z', source: 'user',
+        provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },
+        before: { taskStatus: 'inProgress', minimumAchieved: false },
+        after: { taskStatus: 'done', minimumAchieved: false },
+      }));
+    }
+    const original = await loadBehaviourEventsResult(db);
+    if (original.status === 'readFailed') throw new Error('Could not read original events');
+    const originalEvidence = deriveDurationLearningEvidence(original.items);
+    expect(originalEvidence).toMatchObject([{ templateId: 'rhythm', sampleCount: 1,
+      medianActualMinutes: 15 }]);
+    const backup = await exportPortableProfile(undefined, timestamp);
+    expect(checkPortableProfileJson(backup.json).ok).toBe(true);
+    setCurrentLocalDataNamespace(namespaceB);
+    const checked = await checkPortableProfileForRestore(backup.json);
+    if (!checked.ok || !('expectation' in checked)) throw new Error('Backup check failed');
+    expect(await restorePortableProfile(backup.json, checked.expectation, '')).toEqual({ ok: true });
+    const restored = await loadBehaviourEventsResult();
+    if (restored.status === 'readFailed') throw new Error('Could not read restored events');
+    expect(restored.items).toEqual(original.items);
+    expect(deriveDurationLearningEvidence(restored.items)).toEqual(originalEvidence);
+    expect(backup.payload.formatVersion).toBe(1);
+  });
   it.each(['captured', 'deferred', 'softPlaced', 'today', 'noLongerNeeded'])('rejects a %s Pool row colliding with a generated rhythm task', async (status) => {
     const db = getCurrentLifeRhythmDatabase();
     const instance = await db.rhythmInstances.toCollection().first();

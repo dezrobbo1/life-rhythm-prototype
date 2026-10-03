@@ -139,12 +139,26 @@ describe('rhythm Today occurrence projection and lifecycle', () => {
     await syncScheduledRhythmOccurrencesToToday(planFor(instance.id), '2026-09-25', db, now);
     const taskId = activeTaskIdForRhythmInstance(instance.id);
     await updateTaskLifecycleStatus(taskId, 'inProgress', db);
-    await updateTaskLifecycleStatus(taskId, 'done', db);
+    await updateTaskLifecycleStatus(taskId, 'done', db, undefined, 'normal');
     expect(await db.rhythmInstances.get(instance.id)).toMatchObject({ lifecycleState: 'closed', completionState: 'done' });
     expect((await db.rhythmPlans.toArray())[0].state).toBe('enabled');
     const events = await db.taskHistory.toArray();
     expect(events.filter((event) => event.eventType === 'taskCompleted')[0]).toMatchObject({
-      taskId, templateId: 'rhythm-today', rhythmInstanceId: instance.id,
+      taskId, templateId: 'rhythm-today', rhythmInstanceId: instance.id, completedVariantKind: 'normal',
+    });
+    // No timer started in this fixture; exact identity alone cannot create a duration sample.
+    expect(deriveDurationLearningEvidence(events as never)).toEqual([]);
+  });
+
+  it.each(['full', 'unspecified'] as const)('preserves generated rhythm %s completion without Normal learning', async (kind) => {
+    const db = database();
+    const instance = await generated(db);
+    await syncScheduledRhythmOccurrencesToToday(planFor(instance.id), '2026-09-25', db, now);
+    const taskId = activeTaskIdForRhythmInstance(instance.id);
+    await updateTaskLifecycleStatus(taskId, 'done', db, undefined, kind);
+    const events = await db.taskHistory.toArray();
+    expect(events.find((event) => event.eventType === 'taskCompleted')).toMatchObject({
+      taskId, templateId: 'rhythm-today', rhythmInstanceId: instance.id, completedVariantKind: kind,
     });
     expect(deriveDurationLearningEvidence(events as never)).toEqual([]);
   });

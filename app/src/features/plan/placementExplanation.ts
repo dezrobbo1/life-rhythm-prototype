@@ -37,10 +37,10 @@ export function placementReasonLines(provenance: readonly string[]): string[] {
         continue;
       }
     }
-    const learnedDuration = /^Used learned normal duration from (\d+) trusted completions: median ([\d.]+) minutes; conservative duration (\d+) minutes; saved normal duration is (\d+) minutes\.$/.exec(item);
+    const learnedDuration = /^Used learned normal duration from (\d+) trusted Normal completions: median ([\d.]+) minutes; conservative duration (\d+) minutes; saved normal duration is (\d+) minutes\.$/.exec(item);
     if (learnedDuration) {
       push(
-        `Life Rhythm reserved ${learnedDuration[3]} minutes from ${learnedDuration[1]} completed instances (median ${learnedDuration[2]} minutes; saved duration ${learnedDuration[4]} minutes).`,
+        `Life Rhythm reserved ${learnedDuration[3]} minutes from ${learnedDuration[1]} Normal completions (median ${learnedDuration[2]} minutes; saved duration ${learnedDuration[4]} minutes).`,
       );
       continue;
     }

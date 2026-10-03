@@ -724,6 +724,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   async function moveCurrentTaskOutOfToday(
     status: Extract<ActiveTaskStatus, 'done' | 'parked' | 'skipped' | 'notToday'>,
     feedback: string,
+    completedVariantKind: 'normal' | 'full' | 'unspecified' = 'unspecified',
   ) {
     if (!nextActiveTask) {
       setNextTask(null);
@@ -741,7 +742,7 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
     let result;
     try {
       result = await updateActiveTaskStatus(nextActiveTask.id, status,
-        getCurrentLifeRhythmDatabase(), renderedTaskGeneration ?? undefined);
+        getCurrentLifeRhythmDatabase(), renderedTaskGeneration ?? undefined, completedVariantKind);
     } catch (error) {
       if (handleStaleTaskAction(error)) return;
       throw error;
@@ -1123,11 +1124,11 @@ export function TodayScreen({ planRevision = 0 }: TodayScreenProps = {}) {
   }
 
   async function markNormalDone() {
-    await moveCurrentTaskOutOfToday('done', 'Normal done. That task is out of Today. No catch-up pile.');
+    await moveCurrentTaskOutOfToday('done', 'Normal done. That task is out of Today. No catch-up pile.', 'normal');
   }
 
   async function markFullDone() {
-    await moveCurrentTaskOutOfToday('done', 'Full done. That task is out of Today. No catch-up pile.');
+    await moveCurrentTaskOutOfToday('done', 'Full done. That task is out of Today. No catch-up pile.', 'full');
   }
 
   async function parkTask() {

@@ -8,7 +8,7 @@ The canonical v0 ledger reuses the existing IndexedDB `taskHistory` table. New r
 
 ## Canonical fields
 
-Every trusted event has a stable ID, schema version, event type, ISO `occurredAt`, local date, IANA timezone, observed source, action, and provenance. Task, template, rhythm, or placement IDs are present when applicable. Strict before/after snapshots contain only factual lifecycle or placement values. A completion includes observed active minutes only when start/resume facts make that duration available.
+Every trusted event has a stable ID, schema version, event type, ISO `occurredAt`, local date, IANA timezone, observed source, action, and provenance. Task, template, rhythm, or placement IDs are present when applicable. Strict before/after snapshots contain only factual lifecycle or placement values. A completion includes observed active minutes only when start/resume facts make that duration available. A new `taskCompleted` fact carries `completedVariantKind: normal | full | unspecified`; older facts without this optional field remain valid with an unknown completed variant. The field is invalid on all other event types.
 
 `source` distinguishes user and scheduler activity. `provenance.origin` distinguishes a user action, initial scheduler build, automatic repair, or Undo, and `provenance.mechanism` names the write path. Initial-plan placement facts use `initialPlanBuild` / `schedulerInitialBuild`, not repair provenance. A scheduler movement remains scheduler-originated even when a user action caused the repair; the event does not claim that the user chose that movement.
 
@@ -23,7 +23,7 @@ Every trusted event has a stable ID, schema version, event type, ISO `occurredAt
 | Automatic placement | `schedulerPlacementAdded`, `schedulerPlacementMoved`, `schedulerPlacementRemoved`, `schedulerPlacementVariantChanged` | Scheduler-owned placements accepted by the initial plan build or a later repair, with distinct build/repair provenance |
 | Override | `schedulerRepairUndone` | A successful one-step scheduler repair Undo |
 
-“Stop”, “Normal Done”, and “Full Done” currently share the persisted `done` transition, so Gate 7A records the supported fact `taskCompleted` and does not invent an unavailable completion-mode explanation. Opening Start Boost does not currently persist a choice, so it does not create a behavioural event.
+“Stop”, “Normal Done”, and “Full Done” still share the persisted `done` transition. Gate 8A6 records the explicit user action as `unspecified`, `normal`, or `full` completion evidence, respectively, without inferring it from the planned variant or duration. A generic repository completion writes `unspecified`. `taskMinimumAchieved` remains a separate factual event; Minimum followed by Stop is not an exact Minimum-duration completion. Opening Start Boost does not currently persist a choice, so it does not create a behavioural event.
 
 ## Atomicity and idempotency
 

@@ -602,7 +602,7 @@ Gate 8A2 does not implement:
 - mixed template/instance/ad hoc Pool backlogs;
 - full pack activation ownership;
 - general individual Move/Protect convergence;
-- completion-variant learning semantics; or
+- completion-variant learning semantics (subsequently delivered in Gate 8A6); or
 - copying the protected root runtime into `/app`.
 
 ## 21. Gate 8A2 Decisions and Deferred Questions
@@ -631,4 +631,4 @@ The following remain deferred and must be decided before their affected extensio
 - a separate deferred/held occurrence surface;
 - pack removal and changing-membership ownership;
 - coordinated restore ordering and transaction policy; and
-- broader scheduling correction and completion-variant learning semantics owned by Gates 8A5 and 8A6.
+- broader scheduling correction and completion-variant learning semantics subsequently delivered by Gates 8A5 and 8A6, respectively.

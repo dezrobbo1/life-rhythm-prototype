@@ -114,6 +114,16 @@ function lifecycleEvent(
 }
 
 describe('behaviour event ledger', () => {
+  it('accepts legacy completions but limits factual completed variants to completion events', () => {
+    const legacy = lifecycleEvent('taskCompleted', 'complete', '2026-09-22T09:00:00.000Z', 'inProgress', 'done');
+    expect(behaviourEventSchema.safeParse(legacy).success).toBe(true);
+    expect(behaviourEventSchema.safeParse({ ...legacy, completedVariantKind: 'normal' }).success).toBe(true);
+    expect(behaviourEventSchema.safeParse({ ...legacy, completedVariantKind: 'full' }).success).toBe(true);
+    expect(behaviourEventSchema.safeParse({ ...legacy, completedVariantKind: 'unspecified' }).success).toBe(true);
+    expect(behaviourEventSchema.safeParse({ ...legacy, completedVariantKind: 'minimum' }).success).toBe(false);
+    const started = lifecycleEvent('taskStarted', 'start', '2026-09-22T09:00:00.000Z', 'active', 'inProgress');
+    expect(behaviourEventSchema.safeParse({ ...started, completedVariantKind: 'normal' }).success).toBe(false);
+  });
   it('accepts the canonical event-variant matrix', () => {
     const taskBefore = { minimumAchieved: false, taskStatus: 'active' as const };
     const taskAfter = { minimumAchieved: false, taskStatus: 'inProgress' as const };
@@ -488,16 +498,45 @@ describe('behaviour event ledger', () => {
         updatedAt: new Date(completedAt - 5 * 60_000).toISOString(),
       }));
 
-      await updateTaskLifecycleStatus('task-filing', 'done', database);
+      await updateTaskLifecycleStatus('task-filing', 'done', database, undefined, 'normal');
 
       const loaded = await loadBehaviourEventsResult(database);
       if (loaded.status === 'readFailed') throw new Error('Expected readable events.');
       expect(loaded.items.find((event) => event.eventType === 'taskCompleted')).toMatchObject({
         actualMinutes: 15,
+        completedVariantKind: 'normal',
       });
     } finally {
       await database.delete();
     }
+  });
+
+  it('excludes paused and Minimum gaps when a resumed task reaches Normal Done', async () => {
+    const database = createTestDatabase();
+    const completedAt = Date.now();
+    try {
+      await seedTodayTask(database);
+      const facts = [
+        ['taskStarted', 'start', 'active', 'inProgress', 40],
+        ['taskPaused', 'pause', 'inProgress', 'paused', 35],
+        ['taskResumed', 'resume', 'paused', 'inProgress', 25],
+        ['taskMinimumAchieved', 'minimumDone', 'inProgress', 'minimumDone', 20],
+        ['taskContinued', 'continue', 'minimumDone', 'inProgress', 5],
+      ] as const;
+      for (const [type, action, before, after, minutesAgo] of facts) {
+        await appendBehaviourEvent(lifecycleEvent(type, action,
+          new Date(completedAt - minutesAgo * 60_000).toISOString(), before, after), database);
+      }
+      const task = await database.activeTasks.get('task-filing');
+      await database.activeTasks.put(activeTaskSchema.parse({ ...task,
+        status: 'inProgress', minimumAchievedAt: new Date(completedAt - 20 * 60_000).toISOString() }));
+      await updateTaskLifecycleStatus('task-filing', 'done', database, undefined, 'normal');
+      const loaded = await loadBehaviourEventsResult(database);
+      if (loaded.status === 'readFailed') throw new Error('Expected readable events');
+      expect(loaded.items.find((event) => event.eventType === 'taskCompleted')).toMatchObject({
+        actualMinutes: 15, completedVariantKind: 'normal', after: { minimumAchieved: true },
+      });
+    } finally { await database.delete(); }
   });
 
   it('excludes parked time when a later completion sums observed active sessions', async () => {

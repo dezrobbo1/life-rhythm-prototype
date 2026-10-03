@@ -343,9 +343,10 @@ export async function updateActiveTaskStatus(
   status: ActiveTaskStatus,
   store: ActiveTaskStore = getCurrentLifeRhythmDatabase(),
   expectedRecoveryGeneration?: number,
+  completedVariantKind: 'normal' | 'full' | 'unspecified' = 'unspecified',
 ): Promise<ActiveTaskStatusUpdateResult> {
   if (isLifeRhythmDatabase(store)) {
-    const result = await updateTaskLifecycleStatus(taskId, status, store, expectedRecoveryGeneration);
+    const result = await updateTaskLifecycleStatus(taskId, status, store, expectedRecoveryGeneration, completedVariantKind);
 
     if (!result.ok) return result;
 

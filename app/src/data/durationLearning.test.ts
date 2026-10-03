@@ -10,6 +10,8 @@ function completion(
   id: string,
   templateId: string,
   actualMinutes: number,
+  completedVariantKind: 'normal' | 'full' | 'unspecified' | null = 'normal',
+  rhythmInstanceId?: string,
 ) {
   return createBehaviourEvent({
     action: 'complete',
@@ -23,10 +25,26 @@ function completion(
     taskId: `task-${id}`,
     templateId,
     actualMinutes,
+    ...(completedVariantKind ? { completedVariantKind } : {}),
+    ...(rhythmInstanceId ? { rhythmInstanceId } : {}),
   });
 }
 
 describe('Gate 7E duration learning', () => {
+  it('uses only explicit Normal completions including generated rhythm occurrences', () => {
+    const evidence = deriveDurationLearningEvidence([
+      completion('normal-1', 'paperwork', 20),
+      completion('rhythm-2', 'paperwork', 30, 'normal', 'rhythm-instance-2'),
+      completion('full-3', 'paperwork', 60, 'full'),
+      completion('stop-4', 'paperwork', 40, 'unspecified'),
+      completion('legacy-5', 'paperwork', 50, null),
+      completion('rhythm-full-6', 'paperwork', 70, 'full', 'rhythm-instance-6'),
+      completion('rhythm-stop-7', 'paperwork', 80, 'unspecified', 'rhythm-instance-7'),
+      completion('rhythm-legacy-8', 'paperwork', 90, null, 'rhythm-instance-8'),
+    ]);
+    expect(evidence).toMatchObject([{ templateId: 'paperwork', sampleCount: 2,
+      medianActualMinutes: 25, maximumObservedMinutes: 30 }]);
+  });
   it('uses only positive template-linked completion samples', () => {
     const evidence = deriveDurationLearningEvidence([
       completion('sample-1', 'paperwork', 20),

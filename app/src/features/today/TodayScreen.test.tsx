@@ -1904,7 +1904,7 @@ describe('Today screen', () => {
       expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenLastCalledWith(
         'adhoc-pay-water-bill',
         'done',
-        expect.anything(), expect.any(Number),
+        expect.anything(), expect.any(Number), 'unspecified',
       );
     });
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
@@ -1941,6 +1941,7 @@ describe('Today screen', () => {
     const statuses = activeTaskRepositoryMocks.updateActiveTaskStatus.mock.calls.map((call) => call[1]);
 
     expect(statuses).not.toContain('normalDone');
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus.mock.lastCall?.[4]).toBe('normal');
     expect(statuses).not.toContain('fullDone');
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
     expect(screen.getByText('Normal done. That task is out of Today. No catch-up pile.')).toBeTruthy();
@@ -1983,6 +1984,7 @@ describe('Today screen', () => {
     const statuses = activeTaskRepositoryMocks.updateActiveTaskStatus.mock.calls.map((call) => call[1]);
 
     expect(statuses).not.toContain('normalDone');
+    expect(activeTaskRepositoryMocks.updateActiveTaskStatus.mock.lastCall?.[4]).toBe('full');
     expect(statuses).not.toContain('fullDone');
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
     expect(screen.getByText('Full done. That task is out of Today. No catch-up pile.')).toBeTruthy();
@@ -2031,7 +2033,7 @@ describe('Today screen', () => {
       expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenLastCalledWith(
         'adhoc-pay-water-bill',
         'parked',
-        expect.anything(), expect.any(Number),
+        expect.anything(), expect.any(Number), 'unspecified',
       );
     });
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();
@@ -2052,7 +2054,7 @@ describe('Today screen', () => {
       expect(activeTaskRepositoryMocks.updateActiveTaskStatus).toHaveBeenLastCalledWith(
         'adhoc-pay-water-bill',
         'notToday',
-        expect.anything(), expect.any(Number),
+        expect.anything(), expect.any(Number), 'unspecified',
       );
     });
     expect(screen.queryByRole('article', { name: 'Pay water bill' })).toBeNull();

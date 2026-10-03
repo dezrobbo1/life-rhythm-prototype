@@ -14,6 +14,7 @@ import {
 } from './schedulerPlanCoordinator';
 import { loadSchedulerPlanState, repairAndPersistSchedulerPlan, saveSchedulerPlanState } from './schedulerPlanStateRepository';
 import { taskPoolItemSchema } from './schemas';
+import { createBehaviourEvent } from './behaviourEventRepository';
 import { createDefaultSettings, saveSettings } from './settingsRepository';
 import { scheduler } from '../domain/primaryScheduler';
 import {
@@ -90,6 +91,39 @@ afterEach(() => {
 });
 
 describe('live scheduler plan coordinator', () => {
+  it('reconciles an accepted learned Normal duration based only on old variant-unknown events', async () => {
+    await saveLifeShape({ timeBlocks: [{ id: 'monday-available', label: 'Monday available',
+      type: 'openCapacity', schedulerUse: 'available', days: ['Monday'], start: '09:00', end: '10:00' }] });
+    const database = getCurrentLifeRhythmDatabase();
+    await database.taskPoolItems.put(taskPoolItemSchema.parse({ ...task('task-a'), templateId: 'paperwork' }));
+    for (const [index, minutes] of [35, 40, 45].entries()) {
+      await database.taskHistory.put(createBehaviourEvent({
+        id: `legacy-completion-${index}`, action: 'complete', eventType: 'taskCompleted',
+        taskId: `old-task-${index}`, templateId: 'paperwork', actualMinutes: minutes,
+        occurredAt: `2026-09-0${index + 1}T09:00:00.000Z`, source: 'user',
+        provenance: { origin: 'userAction', mechanism: 'taskLifecycle' },
+        before: { taskStatus: 'inProgress', minimumAchieved: false },
+        after: { taskStatus: 'done', minimumAchieved: false },
+      }));
+    }
+    const live = await buildCurrentLiveSchedulingContext(coordinatorOptions());
+    if (!live.ok) throw new Error(live.errors.join(' '));
+    expect(live.context.durationLearningApplied).toEqual([]);
+    const accepted = await saveSchedulerPlanState(scheduler.buildPlan(live.context.input), database,
+      timestamp, { durationLearningApplied: [{ templateId: 'paperwork', source: 'learned',
+        schedulerMinutes: 45, sampleCount: 3, confidence: 'low',
+        medianActualMinutes: 40, upperQuartileActualMinutes: 45 }] });
+    expect(accepted.ok).toBe(true);
+    const result = await ensureCurrentPrivatePlan(coordinatorOptions());
+    expect(result).toMatchObject({ ok: true, mode: 'repaired' });
+    const reloaded = await loadSchedulerPlanState();
+    if (reloaded.status !== 'ok') throw new Error('Expected reconciled plan');
+    expect(reloaded.durationLearningApplied).toEqual([]);
+    expect(reloaded.plan.placements).toEqual([expect.objectContaining({
+      intentionId: 'task-a', variantKind: 'normal', start: '09:00', end: '09:30',
+    })]);
+    expect((await database.taskPoolItems.get('task-a'))?.normal?.minutes).toBe(30);
+  });
   it('rejects an initial plan built from older settings and rebuilds from the saved reviewed day', async () => {
     const database = getCurrentLifeRhythmDatabase();
     const defaults = createDefaultSettings(timestamp);
