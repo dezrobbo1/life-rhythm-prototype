@@ -1,6 +1,6 @@
 # Gate 8A — Personal-Trial Platform Readiness
 
-Reviewed `main`: `0f6ba19ad48b39d514d13e82e9fb80aee4434196` (PR #166 merged). Review date: 2026-10-03. This is current programme guidance; PR #104-era trial guides are historical. Gates 7 and 8A1–8A7 are complete; Gate 8A8 is current and **BLOCK** pending genuine device acceptance. Issue #160 remains open under Gate 8A8. The longitudinal Gate 8B trial has **not** begun.
+Reviewed `main`: `0f6ba19ad48b39d514d13e82e9fb80aee4434196` (PR #166 merged). Review date: 2026-10-03. This is current programme guidance; PR #104-era trial guides are historical. Gates 7 and 8A1–8A7 are complete; Gate 8A8 is current and **BLOCK** pending genuine device and deployed recovery acceptance. Issue #160 remains open under Gate 8A8. The longitudinal Gate 8B trial has **not** begun.
 
 ## Verified baseline, delivery status and slice ownership
 
@@ -13,7 +13,7 @@ Reviewed `main`: `0f6ba19ad48b39d514d13e82e9fb80aee4434196` (PR #166 merged). Re
 | 8A5 — complete, merged PR #164 | Scheduling-affecting mutation paths converge on the durable repair-attention invariant. Task lifecycle/Pool/manual-placement writes and duration-control/history changes mark accepted plans transactionally. Individual automatic placements can be moved or protected through durable canonical correction authority, including exact rhythm-occurrence identity; harder conflicts are surfaced instead of silently moving protected work. Existing deterministic Why-this-time provenance is reused. One-step plan Undo remains limited to cases that do not contradict newer canonical authority. | `app/src/data/placementCorrectionCoordinator.ts`, `app/src/data/schedulerPlanStateRepository.ts`, `app/src/data/taskLifecycleRepository.ts`, `app/src/data/taskSoftPlacementRepository.ts`, `app/src/data/durationLearningControlMutationCoordinator.ts`, `app/src/screens/PersonalPlanScreen.tsx` |
 | 8A6 — complete, merged PR #165 | Explicit Normal Done and Full Done preserve factual variants; Stop and generic completion remain unspecified, and legacy variants remain unknown. Positive Normal completion from a generated occurrence can inform template-scoped Normal duration. Today serializes competing terminal actions; old accepted plans reconcile their learning authority; concrete rhythm instances project learned Normal minutes without rewriting snapshots. | `app/src/screens/TodayScreen.tsx`, `app/src/data/taskLifecycleRepository.ts`, `app/src/domain/currentStateProjection.ts` |
 | 8A7 — complete, merged PR #166 | Capture, Plan, Library, Settings, Example Day and compact navigation converge on current authority while preserving Today/Held behaviour and reviewable corrections. The merged feature head was `8fe90901014efa586c935a90622bb159ceff98ab`; merge commit `0f6ba19ad48b39d514d13e82e9fb80aee4434196`. | `app/docs/gate8a7-ui-ux-product-convergence-contract.md`, `app/docs/gate8a7-ui-ux-product-convergence-report.md` |
-| 8A8 — current, BLOCK | The Gate 8B protocol and evidence map are prepared, while deployed desktop, keyboard and genuine narrow/mobile acceptance have not been demonstrated. Issue #160 remains open. Gate 8B must not begin. | `app/docs/gate8a8-trial-evidence-final-acceptance.md`, `app/docs/gate8b-personal-trial-protocol.md` |
+| 8A8 — current, BLOCK | The Gate 8B protocol and evidence map are prepared, while deployed desktop, keyboard, genuine narrow/mobile and human-operated recovery acceptance have not been demonstrated. Issue #160 remains open. Gate 8B must not begin. | `app/docs/gate8a8-trial-evidence-final-acceptance.md`, `app/docs/gate8b-personal-trial-protocol.md` |
 
 ## 8A1 contract and legacy records
 
@@ -35,7 +35,7 @@ Deferred recurrence extensions include every-N-day/week/month, anchored fortnigh
 
 ## Trial start gate and classification
 
-**Product blocker:** Gate 8A8's genuine deployed desktop, keyboard and approximately 390 px narrow/mobile acceptance remains unpassed. Gate 8B Day 1 requires a documented 8A8 pass, current backup/recovery and evidence protocol, verified device/browser daily loop, and trustworthy scheduling and lifecycle facts. Trial outcomes must be measured without treating historic placeholders or ambiguous completions as user-authored evidence.
+**Product blocker:** Gate 8A8's genuine deployed desktop, keyboard, approximately 390 px narrow/mobile and human-operated recovery acceptance remains unpassed. Gate 8B Day 1 requires a documented 8A8 pass, current backup/recovery and evidence protocol, verified device/browser daily loop, and trustworthy scheduling and lifecycle facts. Trial outcomes must be measured without treating historic placeholders or ambiguous completions as user-authored evidence.
 
 **Owner's Perth-only early testing:** single stable URL, one browser/device, reviewed usable-day capacity or explicit Life Shape capacity, supported recurring `.ics` files, local backups and manual feedback can support bounded prototype exploration before 8A8. Label that use as early testing and retain known limitations; it is not the longitudinal evidence trial.
 

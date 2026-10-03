@@ -6,6 +6,10 @@
 
 This is an initial single-owner, longitudinal, non-clinical product trial. Its primary question is whether ordinary Life Rhythm use reduces executive and planning burden while preserving trust and control. Task completion is secondary. It is not an ADHD treatment study, a productivity competition, or an adherence programme. No clinical, dopamine, neurological-state or optimal-schedule claim follows from it.
 
+After Gate 8A8 PASS, record **one prospective baseline week** of the owner's ordinary planning method before Life Rhythm Day 1, then **four calendar weeks** of ordinary Life Rhythm use. Do not reconstruct a “usual week” from memory after use starts. For the baseline week, make one approximate weekly planning/replanning-minute total, one 1–5 trust and autonomy/control rating each, and a short note about any unusual disruption; no daily research form is required. Record the seven-day dates and whether the week was representative. If that baseline cannot be obtained, the planning-minute comparison is inconclusive. Baseline preparation and Day 1 are Gate 8B activities and must not start while Gate 8A8 is BLOCK.
+
+Before use, predeclare the descriptive decision: obtain at least three of the four weekly use reports and compare their median approximate planning minutes with the prospective baseline. A practical positive signal requires both **at least 15 fewer minutes per week and at least 20% fewer minutes**, no trial stop condition, no material recurring conflict/churn burden, and neither trust nor autonomy/control falling by more than one point from baseline in the median weekly report. Otherwise report “no positive signal” or “inconclusive” when data are missing, the baseline is under 15 minutes, or the week is not comparable. Do not move the threshold after seeing results. This single-owner before/after observation does not establish causality or treatment efficacy; inspect incidents and voluntary use alongside the minutes, and preserve disagreement between indicators.
+
 ## Stable environment record before Day 1
 
 Fill this only **after** Gate 8A8 records PASS on the exact build and the owner selects a stable deployment. A Vercel preview URL is not a substitute for a stable trial origin: local-first browser state is origin-specific. Sign-in selects a local namespace; it is not cloud sync.
@@ -18,6 +22,8 @@ Fill this only **after** Gate 8A8 records PASS on the exact build and the owner 
 | Authentication enabled? Signed-in account/namespace without recording secrets | Pending |
 | Portable profile export/check date and separate safe copy location | Pending |
 | Supported calendar source/reimport date, if used | Pending |
+| Prospective baseline seven-day dates, approximate weekly planning minutes, trust/control ratings and unusual context | Pending |
+| Day 1 exact UTC instant, local date/timezone, checked backup and its behaviour-event ID set | Pending |
 
 Keep one stable URL and one primary browser/device during the evidence period. Record any build, URL, browser, device or timezone change as a protocol deviation; do not merge measurements across origins as though they shared local data. Back up before any deliberate local-data replacement. Never use the owner's only live profile as a destructive restore fixture.
 
@@ -30,6 +36,8 @@ Keep one stable URL and one primary browser/device during the evidence period. R
 5. Inspect explicit scheduling preferences and duration-learning controls only where relevant. An override outranks learned evidence; legacy/Full/Stop completions do not supply Normal-duration samples.
 6. Export and **check** a whole-profile portable backup. Understand that restore is replace-only, requires confirmation, and is not cloud sync.
 
+Immediately before first trial use, preserve that checked backup as the **Day 1 ledger snapshot** and record the exact UTC start instant and local date/timezone. For event-derived trial counts, compare `data.behaviourEvents[].id` in the end-of-trial checked backup with this snapshot and count only new schema-valid event IDs recorded during the four-week trial window. Existing historical IDs are excluded without deleting or rewriting them; use event occurrence time/local date to inspect the window, while ID difference prevents old events from being counted merely because the general statistics reader includes them. Record the end instant and backup. If behaviour history is deleted, a backup is missing, or the device clock makes attribution ambiguous, label the affected count incomplete rather than inventing it. Placement/Undo counts remain the recorded subset described in the Gate 8A8 evidence map.
+
 ## Ordinary use
 
 Use Life Rhythm as the planner, not as a daily research form. Capture when something needs remembering; use Today/Now/Later, Start/Pause/Resume, Minimum Done, Normal/Full Done or Stop here as they naturally arise. Use Park, Not today, Move, Protect, Reduced Day, re-entry, Library rhythms and Why this time when genuinely useful. Do not manufacture events, complete an artificial quota or choose a completion button to influence learning. Normal and Full are explicit execution facts; Minimum is a separate milestone; Stop leaves the exact completed form unspecified.
@@ -38,9 +46,9 @@ No mandatory daily questionnaire. Record a short incident only when something ma
 
 ## Sparse burden report
 
-Once per week, spend at most about two minutes on:
+Once per week during the four use weeks, spend at most about two minutes on:
 
-- approximate **total planning/replanning time** compared with the owner's usual week (minutes or a broad range);
+- approximate **total planning/replanning time** for that week (minutes or a broad range), compared only with the recorded prospective baseline;
 - any important forgotten intention, disruption recovery or Reduced Day/re-entry burden that ordinary app facts cannot establish (one short example if applicable, without sensitive task text in a shared issue);
 - whether visible plan movement or clarification steps made the day harder to understand;
 - trust and autonomy/control, each 1–5 with an optional one-sentence reason;

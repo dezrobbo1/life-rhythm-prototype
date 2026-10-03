@@ -230,7 +230,7 @@ Exit condition: at least a small set of scheduling choices can improve from the 
 
 ### Gate 8A — Personal-Trial Platform Readiness
 
-Status (2026-10-03): **Gate 8A1–8A7 are complete; Gate 8A8 trial evidence and final acceptance is current and BLOCK pending genuine device acceptance.** Gate 8A7 merged as PR #166 at `0f6ba19ad48b39d514d13e82e9fb80aee4434196`. Issue #160 remains open for narrow/mobile acceptance at Gate 8A8. Gate 8B has not started. See `app/docs/gate8a8-trial-evidence-final-acceptance.md` for the explicit decision and `app/docs/gate8b-personal-trial-protocol.md` for preparation only.
+Status (2026-10-03): **Gate 8A1–8A7 are complete; Gate 8A8 trial evidence and final acceptance is current and BLOCK pending genuine device and deployed recovery acceptance.** Gate 8A7 merged as PR #166 at `0f6ba19ad48b39d514d13e82e9fb80aee4434196`. Issue #160 remains open for narrow/mobile acceptance at Gate 8A8. Gate 8B has not started. See `app/docs/gate8a8-trial-evidence-final-acceptance.md` for the explicit decision and `app/docs/gate8b-personal-trial-protocol.md` for preparation only.
 
 Deliver the following bounded slices in order, reviewing each before starting the next:
 
@@ -241,7 +241,7 @@ Deliver the following bounded slices in order, reviewing each before starting th
 5. **8A5 — Scheduling Mutation Integrity + Corrections — Complete, merged PR #164:** reconcile every scheduling input write, plus individual move/protect, explanations and safe undo.
 6. **8A6 — Learning Evidence Integrity — Complete, merged PR #165:** preserve explicit Normal/Full/unspecified completion facts; only trusted positive Normal completions adapt Normal duration, including exact generated rhythm occurrences. Legacy completion variants remain unknown.
 7. **8A7 — UI/UX Product Convergence — Complete, merged PR #166:** current-authority copy, calmer navigation and progressive disclosure; actual-device acceptance remained a Gate 8A8 follow-up.
-8. **8A8 — Trial Evidence + Final Acceptance — Current, BLOCK:** current protocol and evidence map exist, but desktop, keyboard and genuine narrow/mobile deployed acceptance remain unproven. Do not begin Gate 8B until the required acceptance passes.
+8. **8A8 — Trial Evidence + Final Acceptance — Current, BLOCK:** current protocol and evidence map exist, but deployed desktop, keyboard, genuine narrow/mobile and human-operated recovery acceptance remain unproven. Do not begin Gate 8B until the required acceptance passes.
 
 Exit condition: the 8A8 acceptance decision confirms that tasks and rhythms can be authored, scheduled, executed and corrected; capacity and calendar constraints are trustworthy; canonical data can be recovered; learning evidence has the claimed meaning; and the daily UI is usable on the owner's actual devices. Limited Perth-only owner testing may proceed earlier as prototype feedback, without counting it as longitudinal trial evidence.
 

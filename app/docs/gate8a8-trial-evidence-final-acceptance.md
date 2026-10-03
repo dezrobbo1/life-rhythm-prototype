@@ -10,7 +10,7 @@ Categories: **A** existing factual application data; **B** safely derived from t
 
 | Intended outcome | Category | Defensible source and limit |
 | --- | --- | --- |
-| Minutes spent planning | C | Weekly approximate total/range. No start/end record for planning sessions. |
+| Minutes spent planning | C | Prospective one-week ordinary-method baseline and approximate totals for four Life Rhythm weeks, with at least three weekly reports for a comparison. No app start/end record for planning sessions. |
 | Number of manual scheduling actions | B | Count schema-valid `userPlacementCreated/Moved/Removed` and `schedulerRepairUndone` facts for the **recorded subset**. Protect and many other corrections lack a complete historical event; never label this count “all manual actions”. |
 | Forgotten important intentions | C | Optional weekly incident report; an intention never captured cannot be detected from app state. |
 | Invalid or conflicting placements | B | Validate accepted plan against current hard/protected authority and inspect rejected corrections/repair attention. This is a current-state/observed-incident measure, not a complete historical conflict rate. |
@@ -27,6 +27,8 @@ Categories: **A** existing factual application data; **B** safely derived from t
 | Task completion (secondary) | A | Trusted `taskCompleted` event and explicit variant evidence; unknown legacy/Stop forms stay unknown. Completion count is not the primary product outcome. |
 
 The Gate 7A ledger records lifecycle and placement facts with local date/timezone and provenance. Gate 7B describes events; Gate 7E adapts only eligible explicit Normal template completions. `schedulerPlanState` is derived accepted state, not a portable longitudinal audit log. The protocol at [`gate8b-personal-trial-protocol.md`](gate8b-personal-trial-protocol.md) uses short weekly reports only for gaps and never asks the owner to recopy already recorded counts. Category D remains unmeasured. No trial-critical evidence gap justifies a new subsystem in this gate.
+
+For category B counts, the protocol requires a checked Day 1 backup and exact start instant before first use, then an end backup: compare unique behaviour-event IDs and the four-week time window to exclude pre-trial history. A missing snapshot or deleted history makes the affected count incomplete. The prospective one-week baseline, four-week use window, minimum three weekly reports and fixed descriptive decision rule prevent an after-the-fact “usual week” from becoming invented evidence. These preparations belong to Gate 8B after Gate 8A8 PASS; they have not been carried out.
 
 ## Assembled-product acceptance matrix
 
@@ -79,4 +81,4 @@ Run on the **same exact deployed build** selected for final Gate 8A8 review, at 
 - **#146 open, not a Perth-only trial blocker.** The documented nonexistent/ambiguous internal wall-clock placement boundary rule is not independently fixed. Australia/Perth has no daylight-saving transition; any eventual Gate 8A8 PASS would be restricted to the owner's Perth-only environment, not DST-transition days or a DST-observing population. Do not close #146.
 - **#141 open, governance-only.** Findings-only review handoff wording does not affect application data or scheduling. Do not fold it into this acceptance PR.
 
-**GATE 8A8 — BLOCK.** Conditions 8, 10, 11 and 12 (deployed recovery, desktop, genuine mobile/#160, keyboard) are not demonstrated in the available environment. The source tests and protocol cannot replace them. Gate 8B must not begin. No clinical or general-population readiness is claimed. The old PR #104 trial files remain historical.
+**GATE 8A8 — BLOCK.** Every pending row in the owner-run acceptance sheet, including deployed capture/task truth, rhythm execution, capacity/calendar, Plan/corrections, Today, Reduced Day/re-entry, whole-profile recovery, reload, desktop, genuine mobile/#160 and keyboard, must pass on an identified current build before this decision can change to PASS. None of those deployed flows was demonstrated in the available environment. The source tests and protocol cannot replace them. Gate 8B must not begin. No clinical or general-population readiness is claimed. The old PR #104 trial files remain historical.
