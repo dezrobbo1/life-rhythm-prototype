@@ -287,7 +287,7 @@ describe('Setup screen', () => {
   it('renders all setup sections', () => {
     render(<SetupScreen />);
 
-    expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Appearance' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Life shape' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Start Boost safety' })).toBeTruthy();
@@ -553,7 +553,7 @@ describe('Setup screen', () => {
     expect(screen.getByText('Login is not cloud sync. A checked portable profile can replace this local profile with your confirmation. Individual backup types remain check-only.')).toBeTruthy();
     expect(
       screen.getByText(
-        'Plan accepts a static read-only calendar file with supported recurring events. Re-import it after changes; live provider connections, cloud sync, notifications, and individual Move/Protect for automatic times remain future work.',
+        'Life Rhythm reads a static calendar file and can plan around supported recurring events. Re-import it after changes. Calendar events stay read-only; you can correct individual private times in Plan.',
       ),
     ).toBeTruthy();
     expect(screen.queryByRole('button', { name: /restore/i })).toBeNull();
@@ -836,6 +836,8 @@ describe('Setup screen', () => {
 
   it('renders settings-only save and reset controls', () => {
     render(<SetupScreen />);
+    expect(screen.getByText('These hours describe when Life Rhythm may consider private work. Calendar gaps alone do not create available time.')).toBeTruthy();
+    expect(screen.queryByText(/Move\/Protect for automatic times remain future work/)).toBeNull();
 
     expect(screen.getByRole('heading', { name: 'Save settings' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Save settings' })).toBeTruthy();
@@ -895,7 +897,7 @@ describe('Setup screen', () => {
     const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
     expect(within(secondaryNav).getByRole('button', { name: 'Reset' })).toBeTruthy();
     expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy();
   });
 
   it('validates reviewed work-boundary minutes before saving without clamping or rounding', async () => {

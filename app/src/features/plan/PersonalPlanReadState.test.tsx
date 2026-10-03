@@ -182,11 +182,11 @@ describe('Personal Plan read states', () => {
 
     const disclosure = screen.getByText('Plan details').closest('details');
     expect(disclosure?.open).toBe(false);
-    expect(screen.queryByRole('heading', { name: 'Private plan' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Flexible plan' })).toBeNull();
 
     await user.click(screen.getByText('Plan details'));
     expect(disclosure?.open).toBe(true);
-    expect(screen.getByRole('heading', { name: 'Private plan' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Flexible plan' })).toBeTruthy();
 
     await user.click(screen.getByText('Plan details'));
     expect(disclosure?.open).toBe(false);
@@ -326,7 +326,7 @@ describe('Personal Plan read states', () => {
 
       renderEmbeddedPlan();
       await screen.findByRole('heading', { name: 'Changed' });
-      await userEvent.setup().click(screen.getByRole('button', { name: 'Undo last repair' }));
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Undo last change' }));
       await waitFor(() => expect(coordinatorMocks.undoCurrentPrivatePlan).toHaveBeenCalledTimes(1));
       expect(coordinatorMocks.undoCurrentPrivatePlan).toHaveBeenCalledWith({}, 0);
 
@@ -380,7 +380,7 @@ describe('Personal Plan read states', () => {
     expect(changed.textContent).toContain('Move the form moved from 2026-09-07 09:00-09:20 to 2026-09-07 10:00-10:20.');
     expect(screen.getByText('Plan details').closest('details')?.open).toBe(false);
 
-    await user.click(screen.getByRole('button', { name: 'Undo last repair' }));
+    await user.click(screen.getByRole('button', { name: 'Undo last change' }));
     expect(coordinatorMocks.undoCurrentPrivatePlan).toHaveBeenCalledTimes(1);
   });
 
@@ -392,7 +392,7 @@ describe('Personal Plan read states', () => {
     });
     renderEmbeddedPlan();
     expect(await screen.findByRole('heading', { name: 'Changed' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Undo last repair' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Undo last change' })).toBeNull();
     expect(coordinatorMocks.undoCurrentPrivatePlan).not.toHaveBeenCalled();
     expect(screen.queryByText('The previous private plan was restored.')).toBeNull();
   });
@@ -405,7 +405,7 @@ describe('Personal Plan read states', () => {
     });
     renderEmbeddedPlan();
     expect(await screen.findByRole('heading', { name: 'Changed' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Undo last repair' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Undo last change' })).toBeNull();
     expect(screen.queryByText('The previous private plan was restored.')).toBeNull();
   });
 
@@ -415,7 +415,7 @@ describe('Personal Plan read states', () => {
     coordinatorMocks.undoCurrentPrivatePlan.mockResolvedValue({ ok: false, errors: ['Planning settings changed.'], warnings: [] });
     renderEmbeddedPlan();
     await screen.findByRole('heading', { name: 'Changed' });
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Undo last repair' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Undo last change' }));
     expect(await screen.findByText('The previous private plan could not be restored.')).toBeTruthy();
     expect(screen.queryByText('The previous private plan was restored.')).toBeNull();
   });
@@ -429,7 +429,7 @@ describe('Personal Plan read states', () => {
     renderEmbeddedPlan();
 
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('Private plan needs attention.');
+    expect(alert.textContent).toContain('Flexible plan needs updating.');
     expect(alert.textContent).toContain('Saved scheduler state is invalid.');
     expect(screen.getByText('Plan details').closest('details')?.open).toBe(false);
   });
@@ -442,7 +442,7 @@ describe('Personal Plan read states', () => {
 
     renderPlan();
 
-    expect(await screen.findByText('No automatic private placements for Monday.')).toBeTruthy();
+    expect(await screen.findByText('No flexible work planned for Monday.')).toBeTruthy();
     expect(screen.getByRole('alert', { name: 'Manual Plan data unavailable' }).textContent).toContain(
       'Saved manual placements could not be loaded.',
     );

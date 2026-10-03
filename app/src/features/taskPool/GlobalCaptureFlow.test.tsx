@@ -69,12 +69,13 @@ describe('persistent shell Capture', () => {
     await screen.findByRole('heading', { name: 'Today' });
     const captureButton = screen.getByRole('button', { name: 'Capture' });
     await user.click(captureButton);
+    expect(screen.getByText('Keep this out of Today for now. Life Rhythm can privately plan it when it fits.')).toBeTruthy();
     await user.type(screen.getByLabelText('Task title'), 'Pack spare charger');
     await user.type(screen.getByLabelText('Minimum version'), 'Put charger by the bag');
     await user.type(screen.getByLabelText('Minimum minutes'), '5');
     await user.dblClick(screen.getByRole('button', { name: 'Save captured task' }));
 
-    expect(await screen.findByText('Task captured. Held outside Today and available for private planning.')).toBeTruthy();
+    expect(await screen.findByText('Task captured. Held outside Today. Life Rhythm can privately plan it when it fits.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: 'Capture task' })).toBeNull();
     expect(document.activeElement).toBe(captureButton);

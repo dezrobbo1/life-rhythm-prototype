@@ -111,7 +111,7 @@ describe('Gate 6 connected daily loop', () => {
     await user.type(screen.getByLabelText('Full minutes'), '20');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
-    expect(await screen.findByText('Task captured. Held outside Today and available for private planning.')).toBeTruthy();
+    expect(await screen.findByText('Task captured. Held outside Today. Life Rhythm can privately plan it when it fits.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
     expect(await getCurrentLifeRhythmDatabase().activeTasks.count()).toBe(0);
     expect(await getCurrentLifeRhythmDatabase().softPlacements.count()).toBe(0);
@@ -137,7 +137,7 @@ describe('Gate 6 connected daily loop', () => {
     expect(details?.open).toBe(false);
     await user.click(screen.getByText('Plan details'));
     expect(details?.open).toBe(true);
-    expect(await screen.findByRole('heading', { name: 'Private plan' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Flexible plan' })).toBeTruthy();
     await user.click(screen.getByText('Plan details'));
     expect(details?.open).toBe(false);
 

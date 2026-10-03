@@ -74,8 +74,8 @@ describe('task-specific Pool to Plan routing', () => {
     await user.click(within(chosenRow).getByRole('button', { name: 'Find soft window' }));
     await user.click(await screen.findByText('Plan details'));
 
-    const suggestions = (await screen.findByRole('heading', { name: 'Soft suggestions' })).closest('section');
-    if (!suggestions) throw new Error('Soft suggestions section was not found.');
+    const suggestions = (await screen.findByRole('heading', { name: 'Place a Held task yourself' })).closest('section');
+    if (!suggestions) throw new Error('Place a Held task yourself section was not found.');
 
     expect(await within(suggestions).findByText('Chosen task')).toBeTruthy();
     expect(within(suggestions).queryByText('Older task')).toBeNull();
@@ -126,8 +126,8 @@ describe('task-specific Pool to Plan routing', () => {
     expect((screen.getByLabelText('Selected day') as HTMLSelectElement).value).toBe('Tuesday');
     await user.click(screen.getByText('Plan details'));
 
-    const placements = (await screen.findByRole('heading', { name: 'User-confirmed placements' })).closest('section');
-    if (!placements) throw new Error('User-confirmed placements section was not found.');
+    const placements = (await screen.findByRole('heading', { name: 'Your chosen times' })).closest('section');
+    if (!placements) throw new Error('Your chosen times section was not found.');
 
     expect(await within(placements).findByText('Placed task')).toBeTruthy();
     expect(within(placements).getByText('Open morning capacity · 10:00-10:30')).toBeTruthy();

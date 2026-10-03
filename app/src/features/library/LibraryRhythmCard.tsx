@@ -47,8 +47,11 @@ export function LibraryRhythmCard({ actionsDisabled, configuration, onAddToday, 
         <span className={`library-card__state ${configuration.state === 'enabled' ? 'is-enabled' : ''}`}>{stateLabel(configuration.state)}</span>
       </div>
       <div className="library-card__size">
-        {configured ? <><strong>{configuration.minimumMinutes} min Minimum</strong><span>{configuration.frequency} per {configuration.period}</span></> : configuration.state === 'unavailable' ? <><strong>Saved details unavailable</strong><span>Catalogue ideas remain available to read.</span></> : <><strong>Choose your minutes</strong><span>Catalogue actions are suggestions until you configure them.</span></>}
+        {configured ? <><strong>{configuration.minimumMinutes} min Minimum</strong><span>{configuration.frequency} per {configuration.period}</span></> : configuration.state === 'unavailable' ? <><strong>Saved details unavailable</strong><span>Catalogue ideas remain available to read.</span></> : <><strong>Choose your minutes</strong><span>Catalogue suggestion · not active</span></>}
       </div>
+      {configuration.state === 'paused' || configuration.state === 'disabled' ? (
+        <p className="library-card__state-note">No new occurrences while {configuration.state === 'paused' ? 'paused' : 'off'}. Your rhythm and history remain saved.</p>
+      ) : null}
       <div className="chip-row library-card__chips" aria-label={`${rhythm.title} cues`}>{rhythm.chips.slice(0, 2).map((chip) => <Chip key={chip}>{chip}</Chip>)}</div>
       <div className="library-card__actions">
         {configuration.state === 'unconfigured' ? <Button disabled={actionsDisabled} onClick={() => onConfigure(rhythm)} variant="primary">Configure and turn on</Button> : null}

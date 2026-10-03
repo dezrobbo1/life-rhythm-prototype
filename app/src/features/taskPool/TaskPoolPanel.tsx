@@ -331,7 +331,7 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
     setTaskPoolFeedback({
       kind: 'success',
       lines: [repaired.ok
-        ? 'Task captured. Held outside Today and available for private planning.'
+        ? 'Task captured. Held outside Today. Life Rhythm can privately plan it when it fits.'
         : `Task captured. The private plan needs updating. ${repaired.message ?? ''}`],
     });
     return result;
@@ -634,7 +634,7 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
       ) : taskPoolReadState.status === 'partial' ? null : (
         <div className="task-pool__empty">
           <h3>No captured tasks yet.</h3>
-          <p>Capture something here without adding it to Today.</p>
+          <p>Keep something outside Today. Life Rhythm can privately plan it when it fits.</p>
         </div>
       )}
 

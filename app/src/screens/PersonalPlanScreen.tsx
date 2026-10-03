@@ -846,9 +846,9 @@ export function PersonalPlanScreen({
 
       {embeddedInDayLine && privatePlanState.status === 'error' ? (
         <section className="surface-status surface-status--error plan-default-attention" role="alert">
-          <h2>Private plan needs attention.</h2>
+          <h2>Flexible plan needs updating.</h2>
           {privatePlanState.errors.map((error) => <p key={error}>{error}</p>)}
-          <p>Saved scheduler state was left unchanged. Open Plan details to recheck flexible work.</p>
+          <p>Your saved plan was left unchanged. Open Plan details to recheck flexible work.</p>
         </section>
       ) : null}
 
@@ -858,10 +858,10 @@ export function PersonalPlanScreen({
           aria-labelledby="personal-private-plan-changed-title"
         >
           <div className="soft-placements__header">
-            <p className="section-label">Recent automatic repair</p>
+            <p className="section-label">Recent plan change</p>
             <h2 id="personal-private-plan-changed-title">Changed</h2>
             <div className="plan-section__guidance">
-              <p>Only the latest private-plan repair is shown here.</p>
+              <p>Only the latest change to your flexible plan is shown here.</p>
             </div>
           </div>
 
@@ -887,7 +887,7 @@ export function PersonalPlanScreen({
               disabled={privatePlanBusy !== null}
               onClick={() => void undoPrivatePlan()}
             >
-              {privatePlanBusy === 'undo' ? 'Restoring plan' : 'Undo last repair'}
+              {privatePlanBusy === 'undo' ? 'Restoring plan' : 'Undo last change'}
             </Button>
           ) : null}
         </section>
@@ -927,7 +927,7 @@ export function PersonalPlanScreen({
       >
         <summary>
           <span>Plan details</span>
-          <span>Flexible placements, planning boundaries and manual controls</span>
+          <span>Flexible times, boundaries and your choices</span>
         </summary>
         <div className="plan-details-disclosure__content" hidden={!planDetailsOpen}>
 
@@ -936,8 +936,8 @@ export function PersonalPlanScreen({
         aria-labelledby="personal-private-plan-title"
       >
         <div className="soft-placements__header">
-          <p className="section-label">Automatic private plan</p>
-          <h2 id="personal-private-plan-title">Private plan</h2>
+          <p className="section-label">Life Rhythm can arrange these times</p>
+          <h2 id="personal-private-plan-title">Flexible plan</h2>
           <div className="plan-section__guidance">
             <p>
               Life Rhythm can place flexible private work inside usable or explicitly available time.
@@ -999,7 +999,7 @@ export function PersonalPlanScreen({
           </div>
         ) : privatePlanState.status === 'error' ? (
           <div className="soft-suggestions__feedback soft-suggestions__feedback--error" role="alert">
-            <h3>Private plan needs attention.</h3>
+            <h3>Flexible plan needs updating.</h3>
             {privatePlanState.errors.map((error) => <p key={error}>{error}</p>)}
             <p>Saved scheduler state was left unchanged.</p>
           </div>
@@ -1017,7 +1017,7 @@ export function PersonalPlanScreen({
                       <span>{placement.start}-{placement.end}</span>
                     </div>
                     <p>
-                      Automatic private placement
+                      Flexibly planned
                       {placement.variantKind ? ` · ${placement.variantKind}` : ''}
                     </p>
                     {placementReasonLines(placement.provenance).length > 0 ? (
@@ -1051,14 +1051,14 @@ export function PersonalPlanScreen({
           </ul>
         ) : (
           <div className="soft-placements__empty">
-            <h3>No automatic private placements for {dayShapePreview.selectedDay}.</h3>
+            <h3>No flexible work planned for {dayShapePreview.selectedDay}.</h3>
             <p>Blank time is not assumed to be usable capacity.</p>
           </div>
         )}
 
         {moveTarget ? (
           <section className="soft-suggestions__feedback" aria-labelledby="move-private-placement-title">
-            <h3 id="move-private-placement-title">Move this private placement</h3>
+            <h3 id="move-private-placement-title">Move this planned time</h3>
             <p>
               Choose the exact local time you want. Life Rhythm will reject hard conflicts rather than silently choosing another time.
             </p>
@@ -1208,11 +1208,11 @@ export function PersonalPlanScreen({
         aria-labelledby="personal-soft-suggestions-title"
       >
           <div className="soft-suggestions__header">
-            <p className="section-label">Optional manual choices</p>
-            <h2 id="personal-soft-suggestions-title">Soft suggestions</h2>
+            <p className="section-label">When you want to choose a time</p>
+            <h2 id="personal-soft-suggestions-title">Place a Held task yourself</h2>
             <div className="plan-section__guidance">
               <p>
-                The automatic private plan runs separately. These suggestions remain available when you want to choose a specific open-capacity block yourself.
+                Life Rhythm can privately plan Held tasks when they fit. You can also choose a specific available time yourself.
               </p>
               {preferredTask ? (
                 <p className="plan-section__context">
@@ -1244,7 +1244,7 @@ export function PersonalPlanScreen({
                     onClick={() => void addSoftPlacement(suggestion)}
                     variant="primary"
                   >
-                    {placingSuggestionId === suggestion.id ? 'Adding placement' : 'Add manual placement'}
+                    {placingSuggestionId === suggestion.id ? 'Choosing time' : 'Choose this time'}
                   </Button>
                 </li>
               ))}
@@ -1277,11 +1277,11 @@ export function PersonalPlanScreen({
         aria-labelledby="personal-soft-placements-title"
       >
           <div className="soft-placements__header">
-            <p className="section-label">Manual private placements</p>
-            <h2 id="personal-soft-placements-title">User-confirmed placements</h2>
+            <p className="section-label">Times you chose</p>
+            <h2 id="personal-soft-placements-title">Your chosen times</h2>
             <div className="plan-section__guidance">
               <p>
-                These are placements you chose yourself. They stay separate from automatic scheduler placements and do not create calendar events.
+                These are times you chose yourself. They remain your choice and do not create external calendar events.
               </p>
             </div>
           </div>

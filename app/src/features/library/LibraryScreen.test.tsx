@@ -145,6 +145,9 @@ describe('Gate 8A2 Library rhythm authority', () => {
     const card = await screen.findByRole('article', { name: 'Breakfast reset' });
     await waitFor(() => expect(within(card).getByText('Needs configuration')).toBeTruthy());
     expect(within(card).queryByText('Enabled')).toBeNull();
+    expect(within(card).getByText('Catalogue suggestion · not active')).toBeTruthy();
+    expect(screen.getByText(/Turning a rhythm on lets Life Rhythm privately plan its future occurrences when they fit/)).toBeTruthy();
+    await user.click(screen.getByText('Quick packs · preview only'));
     await user.click(within(screen.getByRole('article', { name: 'Morning basics' }))
       .getByRole('button', { name: 'Preview pack' }));
     expect(screen.getByText('Preview only. Configure any rhythm individually before it can schedule.')).toBeTruthy();
@@ -234,6 +237,7 @@ describe('Gate 8A2 Library rhythm authority', () => {
     let card = screen.getByRole('article', { name: 'Breakfast reset' });
     await user.click(within(card).getByRole('button', { name: 'Pause rhythm' }));
     await waitFor(() => expect(within(card).getByText('Paused')).toBeTruthy());
+    expect(within(card).getByText('No new occurrences while paused. Your rhythm and history remain saved.')).toBeTruthy();
     await user.click(within(card).getByRole('button', { name: 'Turn on rhythm' }));
     await waitFor(() => expect(within(card).getByText('On')).toBeTruthy());
     const database = getCurrentLifeRhythmDatabase();

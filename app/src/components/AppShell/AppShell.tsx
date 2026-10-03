@@ -46,7 +46,7 @@ export function AppShell({
             <p>Start small. Keep rhythm.</p>
           </div>
         </div>
-        <div className="app-header__actions">
+        <div className="app-header__actions app-header__actions--compact">
           {onCapture && captureScreenIds.has(activeScreen) ? (
             <button className="shell-capture-action" onClick={onCapture} type="button">
               <AppIcon name="add" size={16} />

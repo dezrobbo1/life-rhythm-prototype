@@ -141,7 +141,7 @@ export function PlanDayLineScreen({
     <div className="gate6-plan-surface">
       <ScreenHero
         className="plan-hero"
-        tagline="See what is fixed, protected and flexibly planned without opening the scheduling machinery."
+        tagline="See what is fixed, protected and flexibly planned."
         title="Plan"
         titleId="gate6-plan-title"
       />
@@ -152,7 +152,7 @@ export function PlanDayLineScreen({
             <p className="section-label">Day Line</p>
             <h2 id="plan-day-line-title">{selectedDay}</h2>
             <p>
-              Recorded commitments, work context, protected time and private placements for this day.
+              Fixed commitments, protected time, and a flexible plan for this day.
               Blank gaps stay unclassified.
             </p>
           </div>

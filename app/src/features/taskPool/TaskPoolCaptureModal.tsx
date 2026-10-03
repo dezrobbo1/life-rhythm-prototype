@@ -199,7 +199,7 @@ export function TaskPoolCaptureModal({ item, onClose, onSave, open }: TaskPoolCa
       <div className="add-task-form">
         <p className="lede">{item
           ? 'Correct this task without changing its place in Held or Today. Older saved times may have been filled in automatically; check them before saving.'
-          : 'Held outside Today. Life Rhythm may quietly find a private time for it.'}</p>
+          : 'Keep this out of Today for now. Life Rhythm can privately plan it when it fits.'}</p>
         <label>
           <span>Task title</span>
           <input onChange={(event) => setTitle(event.target.value)} value={title} />

@@ -158,11 +158,11 @@ function ExamplePreview({ onReturnToPersonalTrial, theme }: ExamplePreviewProps)
             <p className="section-label">Holding Tray</p>
             <h2 id="trial-example-pool-title">Held</h2>
             <p>Capture something without turning it into an immediate demand.</p>
-            <p className="trial-example__quiet">Held outside Today · Quiet private planning may follow</p>
+            <p className="trial-example__quiet">Held outside Today. Life Rhythm can privately plan it when it fits.</p>
           </section>
 
           <section aria-labelledby="trial-example-plan-title">
-            <p className="section-label">Soft day shape</p>
+            <p className="section-label">Day shape</p>
             <h2 id="trial-example-plan-title">{examplePlanBlock?.label ?? 'Plan'}</h2>
             <p>{examplePlanBlock?.summary ?? 'Broad bands protect the shape of the day without owning every minute.'}</p>
             <p className="trial-example__quiet">Protected time stays protected.</p>
@@ -452,7 +452,7 @@ export default function App() {
     // repair. Refresh Today/Plan immediately while keeping their UI state.
     setPlanRevision((revision) => revision + 1);
     setCaptureFeedback({ kind: 'success', message: repaired.ok
-      ? 'Task captured. Held outside Today and available for private planning.'
+      ? 'Task captured. Held outside Today. Life Rhythm can privately plan it when it fits.'
       : `Task captured. The private plan needs updating. ${repaired.message ?? ''}` });
     return result;
   }

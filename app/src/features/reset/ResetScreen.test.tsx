@@ -324,7 +324,7 @@ describe('Reset screen', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Settings' }));
 
-    expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Start Boost safety' })).toBeTruthy();
   });
 
