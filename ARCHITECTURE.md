@@ -48,6 +48,20 @@ The architecture must make the surface simpler as the machinery underneath becom
 
 Canonical state belongs to Life Rhythm, not to an LLM conversation and not to a solver-specific data structure.
 
+### Account-backed durability and local replica
+
+For the owner personal trial, acknowledged canonical personal state belongs to an authenticated account and has a durable server-side copy. Browser IndexedDB is the local replica/cache, not the only durable authority. Sign-in to a clean supported browser/device hydrates that account's acknowledged state. Pending offline edits remain explicit local authority until accepted; the interface distinguishes queued, synced and attention-needed state.
+
+Authentication authority and personal data authority are separate boundaries. Server reads/writes derive account identity from a verified session and enforce per-account isolation; client-supplied IDs and hashed local database names are not authorization. Retain existing identity infrastructure unless a reviewed architecture decision justifies migration.
+
+Canonical replication inventories tasks/Held, rhythms/plans/revisions/instances, settings, explicit preferences, duration controls, correction placements and factual history. Derived scheduler plans are validated/rebuilt after hydration or authority change rather than trusted as mergeable canonical state. Existing repair markers, provenance and recovery-generation safeguards remain mandatory.
+
+The bounded synchronization model uses versioned state/revisions, idempotent operations and a durable local outbox. Canonical mutation and outbox persistence are atomic locally. The server validates schema/links and expected revision before acknowledgement. Concurrent revision conflicts preserve both the unsent local work and server state for explicit reconciliation; silent last-writer replacement and automatic collaborative merging are not required or permitted by default.
+
+Account switching binds queued/in-flight commands to their original account and clears previous account memory. Profile replacement and deletion advance reset/tombstone generations so an old client cannot resurrect removed data. History-only deletion, profile reset and account deletion have distinct explicit scope and retention rules.
+
+Existing legacy/signed-in browser profiles enter account storage only through a previewed, confirmed migration with a safe copy, complete canonical-class validation, server acknowledgement and compatibility checks. Portable-v1 remains an export/import format, not the live sync protocol. Old incompatible clients fail safely; historic unknown evidence is never invented during migration.
+
 The canonical domain should represent at least:
 
 ### External commitments
@@ -124,20 +138,21 @@ A useful starting hierarchy is:
 
 The exact hierarchy and weights are product hypotheses and may change through testing.
 
-## Calendar adapter
+## Calendar adapter and provider boundary
 
-Calendar providers must sit behind an adapter interface.
+The owner trial requires one real live read-only provider behind a versioned asynchronous connection/refresh boundary and a normalized scheduling projection. Static ICS remains a supported snapshot/import fallback; it is not a live connection.
 
-The MVP needs at least one real read-only source. Additional providers can follow without changing the scheduling domain.
+Connection metadata records account, provider, selected calendars, external event/series/occurrence identity, timezone, cursor/source revision and last successful refresh. Normalize provider IDs and recurrence exceptions explicitly; never assume a shared iCalUID uniquely identifies every occurrence.
 
-Rules:
+Provider credentials are server-side private secrets, separate from canonical personal state, normal exports and scheduler inputs. OAuth callback state/redirect/account binding, minimum read-only scopes, token refresh/revocation and reconnect are part of the connection contract. No external write capability is required.
 
-- external event identity remains separate from internal placement identity;
-- calendar reads inform constraints/context;
-- blank time is not synonymous with capacity;
-- known reliable travel may be hard-blocked;
-- preparation, decompression and transition begin as explicit or soft/contextual overhead unless the user makes them hard;
-- external writes are outside default automatic authority.
+Initial sync and automatic bounded refresh handle pagination, updates, deletions/cancellations, recurrence, all-day events, horizon extension and cursor invalidation. Foreground/focus polling is acceptable for the first supported use case when its freshness bound is declared and accepted; webhooks are optional.
+
+Commit refreshed source reality with durable repair attention and source-revision fencing. Late responses cannot overwrite newer or disconnected authority. The scheduler repairs only private flexible work; external commitments and explicit protected authority remain distinct.
+
+Last-synchronised commitments remain available offline as conservative constraints. Stale, failed, revoked and out-of-horizon sources are explicit; unknown calendar reality cannot become claimed free capacity. Calendar gaps remain distinct from usable-day capacity; reliable logistics and personal protection retain their existing hierarchy.
+
+Provider-side timezone normalization does not resolve internal DST placement semantics. The accepted internal timezone population is explicit until issue #146's shared rule is implemented and accepted.
 
 ## Rolling planning and schedule inertia
 
@@ -286,6 +301,8 @@ Controls should include:
 - no secrets in prompts or normal exports;
 - graceful provider failure.
 
+Account persistence adds verified session/origin checks, per-account access policies, encrypted transport, controlled at-rest data/backups, sanitized operational logs, validated transactional mutations and explicit deletion/retention. No client service-role secret or provider refresh token may enter the application bundle, local personal profile, normal export or prompt. Test denied cross-account access, expiry, replay/idempotency, stale revisions and deleted-state resurrection. Describe real data flow to the owner before migration; login must never silently change where existing data goes.
+
 ## Local-first and degraded operation
 
 AI failure must degrade intelligence, not destroy the planner.
@@ -300,6 +317,8 @@ Without AI, Life Rhythm should still be able to:
 - maintain rhythms;
 - replan around available calendar data;
 - preserve learnt structured preferences and user data.
+
+Network failure preserves cached ordinary tasks, plan and last-synchronised calendar context where safe. Offline writes queue durably and reconnect under the authenticated account/revision boundary. Record whether offline use requires an already loaded or cached app shell; database persistence alone is not offline bootstrap. Provider failure must not silently erase commitments or claim unknown availability. Normal browser/device recovery comes from account hydration; validated portable recovery remains independent fallback.
 
 ## Transition from the current repository
 
@@ -327,8 +346,8 @@ The transition should be incremental:
 4. replace manual `openCapacity`-only placement with derived candidate availability;
 5. automate private placement and repair;
 6. integrate Reduced Day, rhythms, Minimum Done and re-entry into scheduler objectives;
-7. simplify the surface around the working system;
-8. add behavioural learning;
-9. add optional AI only after the core works.
+7. converge the ordinary surface and retain the implemented factual/bounded learning foundation;
+8. establish account-backed durability/local replica and one live read-only calendar with explicit migration and security boundaries;
+9. accept the integrated deployed product and run the owner trial before a separate beta or optional AI decision.
 
 Existing screen names and data-class boundaries may change when justified by this transition. Preserve user data and migration safety, not historical abstractions for their own sake.
