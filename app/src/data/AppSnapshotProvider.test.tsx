@@ -168,6 +168,6 @@ describe('AppSnapshotProvider', () => {
     expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
 
     await user.click(within(secondaryNav).getByRole('button', { name: 'Settings' }));
-    expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy();
   });
 });

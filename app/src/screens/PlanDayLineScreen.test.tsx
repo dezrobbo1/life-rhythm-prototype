@@ -181,6 +181,8 @@ describe('Gate 6C Plan Day Line screen', () => {
     expect(screen.getByText('Protected morning')).toBeTruthy();
     expect(screen.getByText('Clear admin note')).toBeTruthy();
     expect(screen.getByText(/Blank gaps stay unclassified/)).toBeTruthy();
+    expect(screen.getByText(/Fixed commitments, protected time, and a flexible plan for this day/)).toBeTruthy();
+    expect(screen.queryByText(/scheduling machinery/)).toBeNull();
     expect(screen.getByTestId('personal-plan-proxy').textContent).toContain(mondayDate);
     expect(coordinatorMocks.buildCurrentLiveSchedulingContext).toHaveBeenCalledWith({
       horizonDays: 1,

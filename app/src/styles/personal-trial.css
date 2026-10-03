@@ -19,13 +19,48 @@
   border-color: transparent;
 }
 
+.app-shell[data-trial-mode='personal'] .library-card,
+.app-shell[data-trial-mode='personal'] .quick-pack {
+  border-left: 0;
+  border-radius: 0;
+  border-right: 0;
+  border-top: 0;
+  box-shadow: none;
+  padding-inline: 0;
+}
+
+.app-shell[data-trial-mode='personal'] .library-card__chips {
+  display: none;
+}
+
+.app-shell[data-trial-mode='personal'] .setup-screen > .card {
+  border-color: var(--color-line);
+  box-shadow: none;
+}
+
+.app-shell[data-trial-mode='personal'] .quick-packs {
+  border-top: 1px solid var(--color-line);
+  padding-block: var(--space-3);
+}
+
+.app-shell[data-trial-mode='personal'] .quick-packs > summary {
+  cursor: pointer;
+  font-weight: 750;
+  min-height: 2.75rem;
+  padding-block: var(--space-2);
+}
+
+.app-shell[data-trial-mode='personal'] .quick-packs > p {
+  color: var(--color-muted);
+  margin-block: 0 var(--space-3);
+}
+
 /*
  * Personal Trial v1 deliberately removes prototype and developer surfaces from
  * the user-facing app while their underlying code remains available for
  * focused component tests and later consolidation into Settings.
  */
 .app-shell[data-trial-mode='personal'] .library-screen section[aria-labelledby='library-backup-check-title'],
-.app-shell[data-trial-mode='personal'] .quick-packs,
 .app-shell[data-trial-mode='personal'] .plan-blocks,
 .app-shell[data-trial-mode='personal'] .plan-item__actions,
 .app-shell[data-trial-mode='personal'] .task-card__quiet-actions,
@@ -570,6 +605,32 @@
 @media (max-width: 720px) {
   .app-shell[data-trial-mode='personal'] .app-header {
     align-items: center;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0.2rem;
+  }
+
+  .app-shell[data-trial-mode='personal'] .app-header__actions--compact {
+    display: contents;
+  }
+
+  .app-shell[data-trial-mode='personal'] .shell-capture-action {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .app-shell[data-trial-mode='personal'] .secondary-nav {
+    border-top: 1px solid var(--color-line);
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-end;
+    min-width: 0;
+    padding-top: 0.2rem;
+  }
+
+  .app-shell[data-trial-mode='personal'] .theme-control--settings {
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .app-shell[data-trial-mode='personal'] .brand-mark {
@@ -588,7 +649,7 @@
 
   .app-shell[data-trial-mode='personal'] .secondary-nav button {
     min-height: 2.75rem;
-    padding-inline: 0.3rem;
+    padding-inline: 0.6rem;
   }
 
   .trial-example__header,

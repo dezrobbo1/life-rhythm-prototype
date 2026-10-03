@@ -484,7 +484,7 @@ export function SetupScreen({
         className="setup-hero"
         eyebrow="Local settings"
         tagline="Adjust the app without changing your whole day."
-        title="Setup"
+        title="Settings"
         titleId="setup-title"
       />
 
@@ -523,7 +523,7 @@ export function SetupScreen({
       <Card>
         <div className="setup-section-heading">
           <h2>When Life Rhythm may plan</h2>
-          <p>Set the broad hours when private planning may be considered. Empty calendar time alone never becomes available.</p>
+          <p>These hours describe when Life Rhythm may consider private work. Calendar gaps alone do not create available time.</p>
         </div>
         <fieldset className="life-shape-fieldset life-shape-fieldset--wide">
           <legend>Usual workdays</legend>
@@ -1145,7 +1145,7 @@ export function SetupScreen({
         <div className="setup-trial-limits">
           <p>Life Rhythm is local-first. This browser and device store the live data.</p>
           <p>Login is not cloud sync. A checked portable profile can replace this local profile with your confirmation. Individual backup types remain check-only.</p>
-          <p>Plan accepts a static read-only calendar file with supported recurring events. Re-import it after changes; live provider connections, cloud sync, notifications, and individual Move/Protect for automatic times remain future work.</p>
+          <p>Life Rhythm reads a static calendar file and can plan around supported recurring events. Re-import it after changes. Calendar events stay read-only; you can correct individual private times in Plan.</p>
         </div>
       </Card>
 

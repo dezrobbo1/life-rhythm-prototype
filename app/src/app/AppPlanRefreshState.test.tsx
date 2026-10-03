@@ -116,7 +116,7 @@ describe('Plan refresh presentation state', () => {
     await user.type(screen.getByLabelText('Minimum minutes'), '4');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
-    expect(await screen.findByText('Task captured. Held outside Today and available for private planning.')).toBeTruthy();
+    expect(await screen.findByText('Task captured. Held outside Today. Life Rhythm can privately plan it when it fits.')).toBeTruthy();
     expect(screen.getByTestId('plan-revision').textContent).toContain('Revision 1');
   });
 

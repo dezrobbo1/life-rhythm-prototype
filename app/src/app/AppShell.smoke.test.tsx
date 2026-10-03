@@ -104,7 +104,7 @@ describe('primary app shell navigation', () => {
 
     await user.click(within(secondaryNav).getByRole('button', { name: 'Settings' }));
     expect(within(secondaryNav).getByRole('button', { name: 'Settings' }).getAttribute('aria-current')).toBe('page');
-    expect(screen.getByRole('heading', { name: 'Setup' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Start Boost safety' })).toBeTruthy();
     await waitFor(() => expect((screen.getByRole('button', { name: 'Add scheduling preference' }) as HTMLButtonElement).disabled).toBe(false));
     expect(document.querySelector('.app-shell')).toBeTruthy();
@@ -125,6 +125,7 @@ describe('primary app shell navigation', () => {
     expect(screen.getByRole('heading', { name: 'A calm day in Life Rhythm' })).toBeTruthy();
     expect(screen.getByText("Set tomorrow's first step")).toBeTruthy();
     expect(screen.getByText(/separate from your personal trial/i)).toBeTruthy();
+    expect(screen.getByText('Held outside Today. Life Rhythm can privately plan it when it fits.')).toBeTruthy();
     expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Return to personal trial' }));
@@ -151,6 +152,7 @@ describe('primary app shell navigation', () => {
     expect(within(nav).getByRole('button', { name: 'Held' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
     expect(within(nav).getByRole('button', { name: 'Library' })).toBeTruthy();
+    expect(document.querySelector('.app-header__actions')?.classList.contains('app-header__actions--compact')).toBe(true);
     expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
     expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();
     expect(within(secondaryNav).getByRole('button', { name: 'Example day' })).toBeTruthy();

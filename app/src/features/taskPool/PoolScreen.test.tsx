@@ -224,7 +224,7 @@ describe('Pool screen', () => {
     expect(screen.getByRole('heading', { name: 'Captured tasks' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Capture task' })).toBeTruthy();
     expect(await screen.findByText('No captured tasks yet.')).toBeTruthy();
-    expect(screen.getByText('Capture something here without adding it to Today.')).toBeTruthy();
+    expect(screen.getByText('Keep something outside Today. Life Rhythm can privately plan it when it fits.')).toBeTruthy();
 
     const text = document.body.textContent?.toLowerCase() ?? '';
     expect(text).not.toContain('inbox');
@@ -242,7 +242,7 @@ describe('Pool screen', () => {
     const dialog = screen.getByRole('dialog', { name: 'Capture task' });
     const saveButton = within(dialog).getByRole('button', { name: 'Save captured task' });
 
-    expect(within(dialog).getByText('Held outside Today. Life Rhythm may quietly find a private time for it.')).toBeTruthy();
+    expect(within(dialog).getByText('Keep this out of Today for now. Life Rhythm can privately plan it when it fits.')).toBeTruthy();
     expect((saveButton as HTMLButtonElement).disabled).toBe(true);
     expect(dialog.textContent?.toLowerCase() ?? '').not.toContain('calendar');
   });
@@ -301,7 +301,7 @@ describe('Pool screen', () => {
       await user.click(screen.getByLabelText('Minimum still helps'));
       await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
-      expect(await screen.findByText('Task captured. Held outside Today and available for private planning.')).toBeTruthy();
+      expect(await screen.findByText('Task captured. Held outside Today. Life Rhythm can privately plan it when it fits.')).toBeTruthy();
       expect(screen.queryByRole('dialog', { name: 'Capture task' })).toBeNull();
 
       const taskPoolSection = sectionForHeading('Captured tasks');
@@ -372,7 +372,7 @@ describe('Pool screen', () => {
     await user.type(screen.getByLabelText('Minimum minutes'), '5');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
-    expect(await screen.findByText('Task captured. Held outside Today and available for private planning.')).toBeTruthy();
+    expect(await screen.findByText('Task captured. Held outside Today. Life Rhythm can privately plan it when it fits.')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Today' }));
 

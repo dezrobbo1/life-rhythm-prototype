@@ -68,8 +68,8 @@ describe('Pool soft placement flow', () => {
     render(<App />);
     await user.click(await screen.findByRole('button', { name: 'Plan' }));
     await user.click(screen.getByText('Plan details'));
-    const suggestions = screen.getByRole('heading', { name: 'Soft suggestions' }).closest('section');
-    if (!suggestions) throw new Error('Soft suggestions section was not found.');
+    const suggestions = screen.getByRole('heading', { name: 'Place a Held task yourself' }).closest('section');
+    if (!suggestions) throw new Error('Place a Held task yourself section was not found.');
     if (withSuggestion) await within(suggestions).findByText('Send school form');
     await waitFor(() => expect(screen.queryByText('Preparing the private plan.')).toBeNull());
     return suggestions;
@@ -99,7 +99,7 @@ describe('Pool soft placement flow', () => {
       .filter((event) => event.eventType === 'userPlacementCreated');
     const repair = vi.spyOn(schedulerPlanCoordinator, 'repairCurrentPrivatePlan');
 
-    await user.click(within(suggestions).getByRole('button', { name: 'Add manual placement' }));
+    await user.click(within(suggestions).getByRole('button', { name: 'Choose this time' }));
     expect(await screen.findByText('The local profile changed. Refresh Plan and try again.')).toBeTruthy();
     expect(await db.softPlacements.count()).toBe(0);
     expect(await db.taskPoolItems.get('manual-plan-pool')).toMatchObject({ status: 'captured', title: 'Restored school form' });
@@ -108,7 +108,7 @@ describe('Pool soft placement flow', () => {
     expect(repair).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByText('Send school form')).toBeNull());
     expect(await within(suggestions).findByText('Restored school form')).toBeTruthy();
-    await user.click(within(suggestions).getByRole('button', { name: 'Add manual placement' }));
+    await user.click(within(suggestions).getByRole('button', { name: 'Choose this time' }));
     expect(await screen.findByText('User-confirmed placement added.')).toBeTruthy();
     expect(await db.softPlacements.toArray()).toEqual([expect.objectContaining({
       status: 'planned', taskTitleSnapshot: 'Restored school form',
@@ -127,7 +127,7 @@ describe('Pool soft placement flow', () => {
     const repair = vi.spyOn(schedulerPlanCoordinator, 'repairCurrentPrivatePlan')
       .mockImplementationOnce(() => new Promise<RepairResult>((resolve) => { resolveRepair = resolve; }));
 
-    await user.click(within(suggestions).getByRole('button', { name: 'Add manual placement' }));
+    await user.click(within(suggestions).getByRole('button', { name: 'Choose this time' }));
     await waitFor(() => expect(repair).toHaveBeenCalledTimes(1));
     expect(repair).toHaveBeenCalledWith(expect.objectContaining({
       expectedRecoveryGeneration: 0,
@@ -166,8 +166,8 @@ describe('Pool soft placement flow', () => {
     expect((await confirmTaskPoolSoftPlacement(input, db)).ok).toBe(true);
     await openManualPlan(user, false);
     await user.selectOptions(screen.getByLabelText('Selected day'), 'Monday');
-    const placements = screen.getByRole('heading', { name: 'User-confirmed placements' }).closest('section');
-    if (!placements) throw new Error('User-confirmed placements section was not found.');
+    const placements = screen.getByRole('heading', { name: 'Your chosen times' }).closest('section');
+    if (!placements) throw new Error('Your chosen times section was not found.');
     await within(placements).findByText('Send school form');
     const payload = structuredClone((await exportPortableProfile(db)).payload);
     payload.data.softPlacements[0].blockLabelSnapshot = 'Restored open window';
@@ -213,17 +213,17 @@ describe('Pool soft placement flow', () => {
 
     expect(await screen.findByRole('heading', { name: 'Plan' })).toBeTruthy();
     await user.click(screen.getByText('Plan details'));
-    const suggestions = screen.getByRole('heading', { name: 'Soft suggestions' }).closest('section');
-    if (!suggestions) throw new Error('Soft suggestions section was not found.');
+    const suggestions = screen.getByRole('heading', { name: 'Place a Held task yourself' }).closest('section');
+    if (!suggestions) throw new Error('Place a Held task yourself section was not found.');
 
     expect(await within(suggestions).findByText('Send school form')).toBeTruthy();
     expect(within(suggestions).getByText('Open morning capacity · 10:00-10:30')).toBeTruthy();
     expect(within(suggestions).getByText('Minimum: Open the form · 5 min')).toBeTruthy();
-    await user.click(within(suggestions).getByRole('button', { name: 'Add manual placement' }));
+    await user.click(within(suggestions).getByRole('button', { name: 'Choose this time' }));
 
     expect(await screen.findByText('User-confirmed placement added.')).toBeTruthy();
-    const placements = screen.getByRole('heading', { name: 'User-confirmed placements' }).closest('section');
-    if (!placements) throw new Error('User-confirmed placements section was not found.');
+    const placements = screen.getByRole('heading', { name: 'Your chosen times' }).closest('section');
+    if (!placements) throw new Error('Your chosen times section was not found.');
 
     expect(await within(placements).findByText('Send school form')).toBeTruthy();
     expect(within(placements).getByText('Open morning capacity · 10:00-10:30')).toBeTruthy();
