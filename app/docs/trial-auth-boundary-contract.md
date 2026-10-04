@@ -8,8 +8,6 @@ This contract defines the boundary for trial accounts and login in Life Rhythm. 
 
 ## 1. Trial Account Purpose
 
-## 1. Trial Account Purpose
-
 Future trial accounts may help Life Rhythm:
 
 - allow invited testers to access the app independently,
@@ -38,8 +36,6 @@ Rules:
 
 ## 3. Core Rule
 
-## 3. Core Rule
-
 Login may identify the user.
 Login must not silently upload Life Rhythm data.
 
@@ -64,7 +60,7 @@ If public signup is considered later, it needs a separate review and contract up
 
 Local data is scoped by authenticated user ID when the opt-in login shell is enabled.
 
-This is a local data safety boundary, not cloud sync.
+For the current opt-in shell, this is a local data safety boundary, not cloud sync. Gate 8A7C adds separately reviewed account-backed synchronization.
 
 Requirements for the current shell and any future expansion:
 
@@ -104,15 +100,15 @@ Boundaries:
 - Trial access must not imply data review.
 - Analytics must not be introduced as part of login.
 - AI data upload must not be introduced as part of login.
-- Any future data upload needs a separate sync/privacy contract and explicit user-facing language.
+- Gate 8A7C account-backed data movement needs its own reviewed sync/privacy contract and explicit user-facing language.
 
 ## 7. Auth Provider Direction
 
-The current narrow identity shell uses Clerk. This documentation consolidation does not add another provider or expand the current shell into public signup, cloud data, or external-trial operations.
+The current narrow identity shell uses Clerk. This documentation consolidation does not add another provider or expand the current shell into public signup, cloud data, or external-trial operations. Gate 8A7C must separately select and authorize the account-data backend.
 
 Future provider decisions:
 
-- Supabase should be considered only if and when cloud data and Postgres-backed sync are approved.
+- Supabase may be evaluated for the required account-data backend, including the fit with current Clerk identity; this contract does not select it.
 - Firebase, Auth0, and other providers remain alternatives, but need separate review before use.
 
 Provider choice should be evaluated against:
@@ -122,10 +118,10 @@ Provider choice should be evaluated against:
 - user-scoped local data,
 - low implementation surface,
 - clear sign-in and sign-out behavior,
-- no automatic data upload,
+- no silent upload of unrelated or unconfirmed legacy local data,
 - no analytics requirement.
 
-Auth provider setup must not be bundled with sync, backend data storage, or AI data upload.
+This documentation correction does not bundle auth-provider changes, account sync, backend data storage or AI data upload. Gate 8A7C implements its approved identity/data boundary in bounded PRs.
 
 ## 8. Remaining Implementation Sequence
 
@@ -140,8 +136,6 @@ The owner-trial account boundary should remain narrow: identify the owner, prote
 
 ## 9. What The Current Or Future Login Shell May Include
 
-## 9. What The Current Or Future Login Shell May Include
-
 The current shell and future narrow extensions may include:
 
 - sign in,
@@ -153,13 +147,13 @@ The current shell and future narrow extensions may include:
 - local user namespace selection or creation,
 - clear account-aware backup/export copy.
 
-It may not imply that data is being uploaded or synced.
+The current shell must not imply that data is being uploaded or synced. After Gate 8A7C, a verified signed-in account may hydrate its acknowledged state and synchronize authorized account mutations under the reviewed data-flow contract. Signing in must not silently migrate an unrelated local profile.
 
 ## 10. What A Future Login Shell Must Not Include
 
 A future login shell must not include:
 
-- cloud data sync,
+- silent or unreviewed cloud data sync outside the Gate 8A7C account-data boundary,
 - admin access to personal data,
 - public signup by default,
 - public profiles,
@@ -175,11 +169,11 @@ A future login shell must not include:
 - migration execution,
 - task placement logic.
 
-Any of those areas require a separate contract and review before implementation.
+Those areas require their applicable separate contract and review before implementation. The authorized post-enrollment hydration and account sync required by Gate 8A7C are not prohibited by this login-shell boundary.
 
 ## 11. Future Testing Gates
 
-Future auth PRs must prove:
+The current local-only auth shell must prove:
 
 - Signed-out users see only the auth or landing shell.
 - Signed-in users can enter the app.
@@ -194,7 +188,9 @@ Future auth PRs must prove:
 - No public signup is exposed unless a later contract approves it.
 - No admin path reads personal task data by default.
 
-Tests should cover shared-browser transitions, signed-out state, signed-in state, and data namespace separation before external tester use.
+Gate 8A7C PRs must additionally prove that a verified signed-in account hydrates acknowledged state on a clean client, that authorized account writes sync and survive browser clearing, and that queued offline writes reconnect without silently losing either side of a conflict. Legacy local data require previewed/confirmed migration; sign-in alone must not upload or merge them. Tests must deny cross-account access and prevent stale clients from resurrecting deleted data. These post-enrollment expectations supersede the current-shell no-sync assertions above for the reviewed account-data path.
+
+Tests should cover shared-browser transitions, signed-out state, signed-in state, data namespace separation and the supported account-continuity path before external tester use.
 
 ## 12. Non-Goals For This Boundary Update
 
