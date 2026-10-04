@@ -19,7 +19,6 @@ Current owner-trial blockers:
 - durable account-backed personal state, safe migration, reconnect/conflict handling and browser-clear/device-change continuity;
 - one automatically refreshed live read-only calendar connection;
 - integrated deployed desktop/mobile/keyboard/account/calendar/recovery acceptance on a known build;
-- corrected prospective trial rules for voluntary use, equal windows and build-change attribution.
 
 Owner personal trial means authenticated ordinary longitudinal use with durable account data, a local/offline replica where practical, one live read-only calendar, a calm/mobile daily surface, stable deployed build and trustworthy low-burden evidence. IndexedDB alone, manual export as normal continuity and static ICS as the whole calendar experience do not satisfy it.
 
