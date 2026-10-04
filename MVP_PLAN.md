@@ -9,9 +9,9 @@ Programme authority: this file defines delivery sequence, owner-trial prerequisi
 
 Verified delivery baseline: main at 0f6ba19ad48b39d514d13e82e9fb80aee4434196, merged PR #166. Gates 0–7 and Gate 8A1–8A6 have delivered their recorded boundaries. Gate 8A7 delivered current-authority copy, selected disclosure and compact-shell alignment; whole-product calm/mobile acceptance is not complete.
 
-Current active work: roadmap/readiness authority correction following independent audit. Gate 8A8 preparation exists in open PR #167 at c70e720ec39d701a0dee5b44a1c416912caeedd6; its readiness decision remains BLOCK. Gate 8B has not started.
+Current active milestone: Gate 8A7B — whole-product calm-surface convergence. Gate 8A8 preparation exists in open PR #167 at c70e720ec39d701a0dee5b44a1c416912caeedd6; its readiness decision remains BLOCK. Gate 8B has not started.
 
-Next implementation milestone after authority approval: Gate 8A7B — whole-product calm-surface convergence. It is followed by 8A7C — account-backed continuity, 8A7D — live read-only calendar, and revised 8A8 — integrated final readiness.
+The remaining sequence is 8A7B — whole-product calm-surface convergence, then 8A7C — account-backed continuity, 8A7D — live read-only calendar, and revised 8A8 — integrated final readiness.
 
 Current owner-trial blockers:
 
