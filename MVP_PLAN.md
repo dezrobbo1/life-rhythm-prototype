@@ -9,7 +9,7 @@ Programme authority: this file defines delivery sequence, owner-trial prerequisi
 
 Last verified main before PR #167 reconciliation: e57f900ae2d344e60247b468b74ad5e25e842197, merged PR #169 (authority correction). PR #166 remains the last executable change. Gates 0–7 and Gate 8A1–8A6 have delivered their recorded boundaries. Gate 8A7 delivered current-authority copy, selected disclosure and compact-shell alignment; whole-product calm/mobile acceptance is not complete.
 
-Current active milestone: Gate 8A7B — whole-product calm-surface convergence. Open PR #167 prepares the Gate 8A8/Gate 8B evidence protocol and records readiness BLOCK; its current head is identified by the PR, not frozen here. Gate 8B has not started.
+Current active milestone: Gate 8A7B — whole-product calm-surface convergence. PR #167 records the prepared Gate 8A8/Gate 8B evidence protocol and the current Gate 8A8 BLOCK decision. Documentation preparation does not constitute Gate 8A8 PASS. Gate 8B has not started.
 
 The remaining sequence is 8A7B — whole-product calm-surface convergence, then 8A7C — account-backed continuity, 8A7D — live read-only calendar, and revised 8A8 — integrated final readiness.
 
