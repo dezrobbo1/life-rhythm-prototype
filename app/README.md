@@ -40,8 +40,6 @@ The current scheduler, lifecycle, recurrence, learning and recovery foundations 
 
 ## Product direction relevant to `/app`
 
-## Product direction relevant to `/app`
-
 The primary product question is:
 
 > Does the app make fewer executive decisions necessary?
