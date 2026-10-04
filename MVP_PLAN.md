@@ -1,7 +1,33 @@
 # Life Rhythm MVP Plan
 
 Status: Current delivery plan
-Baseline: `main` at `e0c1d175e9082f7e5bdc5f1aeae6980146e4994b` (merged PR #112)
+Historical reset baseline: main at e0c1d175e9082f7e5bdc5f1aeae6980146e4994b (PR #112); current programme state is recorded below.
+
+## Current programme state
+
+Programme authority: this file defines delivery sequence, owner-trial prerequisites and beta boundaries. PRODUCT.md defines product purpose; ARCHITECTURE.md defines target technical boundaries. Lower-level contracts refine a milestone and must not narrow these prerequisites.
+
+Verified delivery baseline: main at 0f6ba19ad48b39d514d13e82e9fb80aee4434196, merged PR #166. Gates 0–7 and Gate 8A1–8A6 have delivered their recorded boundaries. Gate 8A7 delivered current-authority copy, selected disclosure and compact-shell alignment; whole-product calm/mobile acceptance is not complete.
+
+Current active milestone: Gate 8A7B — whole-product calm-surface convergence. Gate 8A8 preparation exists in open PR #167 at c70e720ec39d701a0dee5b44a1c416912caeedd6; its readiness decision remains BLOCK. Gate 8B has not started.
+
+The remaining sequence is 8A7B — whole-product calm-surface convergence, then 8A7C — account-backed continuity, 8A7D — live read-only calendar, and revised 8A8 — integrated final readiness.
+
+Current owner-trial blockers:
+
+- calm/mobile product convergence, including observed clipped keyboard/form content and competing configuration/recovery surfaces;
+- durable account-backed personal state, safe migration, reconnect/conflict handling and browser-clear/device-change continuity;
+- one automatically refreshed live read-only calendar connection;
+- integrated deployed desktop/mobile/keyboard/account/calendar/recovery acceptance on a known build;
+- corrected prospective trial rules for voluntary use, equal windows and build-change attribution.
+
+Owner personal trial means authenticated ordinary longitudinal use with durable account data, a local/offline replica where practical, one live read-only calendar, a calm/mobile daily surface, stable deployed build and trustworthy low-burden evidence. IndexedDB alone, manual export as normal continuity and static ICS as the whole calendar experience do not satisfy it.
+
+Prototype exploration may use browser-local data, manual backups and static ICS with explicit limitations. It does not count as the longitudinal owner trial. Small beta means a separately approved invited external population after owner evidence, with supported device/provider/timezone boundaries and operational security/privacy, recovery, release and support readiness.
+
+Issue #160 has partial owner mobile evidence with observed FAIL; remaining rows and exact build attribution must be completed. Issue #146 blocks supported internal DST-transition populations, but need not block an explicitly Perth-only fixed-timezone owner trial. Issue #141 belongs in this governance correction and can close once its wording is fixed.
+
+Explicitly deferred: public signup, calendar writes, broad provider coverage, simultaneous automatic multi-device merging, collaboration/social features, AI, notifications, content analytics, broader inferred preferences and clinical claims. Account-backed continuity and one live calendar are not deferred owner-trial requirements.
 
 ## MVP definition
 
@@ -30,10 +56,12 @@ The MVP is reached when the following end-to-end trial works with real personal 
 
 ### Calendar reality
 
-- At least one real read-only calendar source can be connected or imported through a calendar-adapter interface.
-- Known commitments are preserved as hard external reality.
-- Known travel/logistics can be represented where available.
-- Empty calendar gaps are not automatically treated as productive capacity.
+- The owner can connect at least one supported real read-only calendar provider used in ordinary life.
+- Initial read and automatic refresh preserve stable external calendar/event/occurrence identity and process updates and deletions.
+- Calendar changes trigger bounded private-plan repair without changing external events.
+- Source freshness, permission failure and offline last-synchronised reality are visible and safe; unknown reality is not treated as free capacity.
+- Known commitments and reliable hard logistics remain external constraints; blank gaps are not automatically productive capacity.
+- Static ICS remains a supported import/fallback snapshot and does not satisfy the complete owner-trial live-calendar requirement.
 
 ### Canonical tasks and rhythms
 
@@ -76,6 +104,10 @@ The daily interaction should be able to reduce to approximately:
 
 The MVP does not require the current Today / Plan / Pool / Library structure to remain unchanged if a simpler surface better serves this loop.
 
+Ordinary use prioritises one useful current action, quiet Later/Changed information and simple correction. Capture, Library, initial life shaping, relief and recovery must follow the same calm product direction. Necessary task minutes and authority distinctions remain truthful; specialist scheduler, storage and configuration controls use progressive disclosure.
+
+Actual owner mobile forms and keyboard use must retain reachable primary inputs/actions without horizontal panning or clipping. Desktop and keyboard-only daily flows must also pass. This is trial-ready usability, not a requirement to reproduce every historical visual reference or polish every decorative detail.
+
 ### Behavioural foundation
 
 - Relevant scheduling events are recorded as facts: planned, started, moved, completed, deferred, overridden, duration and sparse feedback where provided.
@@ -85,11 +117,16 @@ The MVP does not require the current Today / Plan / Pool / Library structure to 
 
 ### Resilience and safety
 
-- Core state remains usable without an AI provider.
-- External calendar truth is not silently mutated by the private scheduler.
-- Destructive or externally consequential actions are outside automatic MVP authority.
-- Local date/time and timezone behaviour is deterministic and tested.
-- User data remain exportable and recoverable within the implemented data classes.
+- Core scheduling, tasks, rhythms and learning remain usable without an AI provider.
+- A stable authenticated account owns durable acknowledged personal state. Clearing browser storage or changing supported browser/device can recover that state through sign-in and hydration.
+- Local state is a replica/cache with safe offline queued writes where practical. Pending local changes are distinguished from server-acknowledged durability; reconnect never silently discards conflicting edits.
+- Per-account authorization, account switching, schema compatibility, deletion/reset generations and legacy-profile migration preserve data isolation and integrity.
+- Portable export/check/recovery remains available for independent portability and fallback. It is not the normal continuity mechanism.
+- External calendar truth is never silently mutated by the private scheduler; destructive or externally consequential actions remain outside automatic authority.
+- Local date/time behaviour is deterministic within the explicitly accepted population. Issue #146 must be resolved before supporting internal DST-transition placement semantics.
+- Deployment and evidence identify frontend/backend/schema/configuration versions; readiness cannot be inferred from source tests alone.
+
+## Delivery sequence
 
 ## Delivery sequence
 
@@ -228,69 +265,148 @@ No contextual bandits, reinforcement learning, neural network or psychological p
 
 Exit condition: at least a small set of scheduling choices can improve from the user's own history while remaining explainable and correctable.
 
-### Gate 8A — Personal-Trial Platform Readiness
+### Gate 8A — Owner Personal-Trial Platform Readiness
 
-Status (2026-10-03): **Gate 8A1–8A6 are complete; Gate 8A7 UI/UX product convergence is current.** Gate 8A5 merged as PR #164 at `e6bd22fde856ea191fd59bdfc0103d2871513ee3`. Gate 8A6 merged as PR #165 at `f30eb4ea271e4e92a73c015778a0d9de76fb51e1`. Issue #160 remains open for narrow/mobile acceptance at Gate 8A8. Gate 8A8 and Gate 8B have not started. See `app/docs/gate8a-personal-trial-platform-readiness.md` for the trial start gate.
+Status: **BLOCK.** The delivered prototype has not yet met the owner-trial definition in Current programme state. Gate 8B baseline and Day 1 must not begin before an explicit integrated 8A8 PASS.
 
-Deliver the following bounded slices in order, reviewing each before starting the next:
+Delivered slices, retained with their actual scope:
 
-1. **8A1 — Canonical Input Truth — Complete (PR #157):** user-entered task variant minutes, truthful fallback, correction of existing user-created tasks, and honest scheduling authority/classification. Historical duration uncertainty is preserved.
-2. **8A2 — Rhythm End-to-End — Complete, merged PR #158:** configured personal rhythm, durable plan/revision authority, bounded flexible-quota recurrence, deterministic concrete occurrences, scheduler placement, Today/Now execution and exact instance-linked factual history. Fixed anchored cadence remains deferred.
-3. **8A3 — Availability + Calendar — Complete:** reviewed usable-day setup and workday assignments, work-bound travel, safe static recurring calendar input, settings repair and merged resource-safety corrections. Blank calendar gaps never create capacity. See `app/docs/gate8a3-availability-calendar-report.md`.
-4. **8A4 — Durable Personal Data — Complete, merged PR #163:** versioned whole-profile portability and replace-only recovery preserve canonical local authority, including duration controls, with strict validation, conflict checks and recovery-generation fencing.
-5. **8A5 — Scheduling Mutation Integrity + Corrections — Complete, merged PR #164:** reconcile every scheduling input write, plus individual move/protect, explanations and safe undo.
-6. **8A6 — Learning Evidence Integrity — Complete, merged PR #165:** preserve explicit Normal/Full/unspecified completion facts; only trusted positive Normal completions adapt Normal duration, including exact generated rhythm occurrences. Legacy completion variants remain unknown.
-7. **8A7 — UI/UX Product Convergence — Current:** honest surface copy and coherent mobile, desktop and keyboard daily flow.
-8. **8A8 — Trial Evidence + Final Acceptance:** current protocol, low-burden evidence, end-to-end device review and explicit readiness decision.
+1. **8A1 — Canonical Input Truth:** authored variant minutes, exact fallback and safe correction; preserve historical authorship uncertainty.
+2. **8A2 — Rhythm End-to-End:** configured flexible quota, stable plan/revision/instance identity, private scheduling and exact Today/history lifecycle. Anchored cadence remains deferred.
+3. **8A3 — Usable-Day Setup and Static Calendar Safety:** reviewed day/weekday/work/travel authority and bounded recurring ICS. This does not establish a live provider connection.
+4. **8A4 — Local Profile Portability and Recovery:** versioned whole-profile export/check and replace-only atomic recovery with generation fences. This does not establish account-backed durability or sync.
+5. **8A5 — Scheduling Mutation Integrity and Corrections:** transactional repair attention, durable Move/Protect, truthful explanations and safe Undo boundaries.
+6. **8A6 — Learning Evidence Integrity:** explicit completion variants and trusted Normal-only template learning, including concrete rhythm occurrences; legacy unknown remains unknown.
+7. **8A7 — Surface Authority Alignment:** current copy, selected disclosure and compact shell, delivered by PR #166. Whole-product calm/mobile readiness remains below.
 
-Exit condition: the 8A8 acceptance decision confirms that tasks and rhythms can be authored, scheduled, executed and corrected; capacity and calendar constraints are trustworthy; canonical data can be recovered; learning evidence has the claimed meaning; and the daily UI is usable on the owner's actual devices. Limited Perth-only owner testing may proceed earlier as prototype feedback, without counting it as longitudinal trial evidence.
+#### Gate 8A7B — Whole-product calm-surface convergence
 
-### Gate 8B — Longitudinal Personal Trial
+Goal: make ordinary use feel like the intended V0 product on the owner's actual mobile device and on desktop/keyboard.
 
-Status: **Not started.** Begin only after Gate 8A8 records a pass. The small beta follows trial evidence and a separate release decision.
+Dependencies: corrected roadmap; current input, lifecycle, correction and learning contracts.
 
-Goal: decide whether the product thesis works before adding AI complexity.
+Bounded implementation PRs:
 
-Run an instrumented longitudinal personal trial followed by a small beta.
+- **B1:** quiet shell/utilities and Capture composition, including real mobile keyboard reflow. Preserve necessary authored action/minute truth; defer secondary classification and optional detail where safe.
+- **B2:** compact Library shelf/rows and contextual rhythm actions; initial life-shape setup separated from advanced settings; one ordinary portability/recovery entry with legacy inspectors disclosed.
+- **B3:** populated Today/Plan/Changed, simple correction and contextual relief consistency; integrated mobile/desktop/keyboard acceptance of the converged surface.
 
-Measure:
+Data/migration work: no migration merely for styling. If a form or state model change requires persisted semantics, isolate its schema/compatibility contract and preserve existing records.
 
-- minutes spent planning;
-- number of manual scheduling actions;
-- forgotten important intentions;
-- invalid/conflicting placements;
-- override/undo rate;
-- initiation latency where observable;
-- time/effort to recover after disruption;
-- Reduced Day burden and next-day re-entry;
-- unnecessary visible schedule moves;
-- clarification/interaction burden;
-- perceived trust and autonomy;
-- continued voluntary use.
+Human acceptance: actual mobile portrait with keyboard, readable primary actions without horizontal panning/clipping, populated Now and quiet exits, Capture save/reload, rhythm enable/occurrence/execution, seven-day setup, Plan repair/correction, Reduced Day/re-entry and safe recovery; desktop and keyboard-only focus/activation/Escape/return. Record exact build and each result.
 
-Raw task completion is secondary.
+Automated validation: focused component/integration tests for changed interactions and relevant truth/repair boundaries; required full test/build checks for the changed source. Test outcomes do not replace human acceptance.
 
-MVP passes when the adaptive version demonstrably reduces executive/planning burden without unacceptable schedule churn, conflict rate, pressure or loss of trust.
+Exit: observed mobile defects fixed; necessary ordinary choices have clear priority; specialist machinery is disclosed; all scoped human paths pass. Owns the convergence defects separated from #160 and completes or transfers #160's evidence rows without losing them.
+
+Non-goals: scheduler rewrite, invented task defaults, wholesale new navigation, literal duplication of every design board, AI, account sync or provider implementation inside these UI PRs.
+
+#### Gate 8A7C — Account-backed durable personal state
+
+Goal: ordinary continuity belongs to the authenticated account and survives browser clearing and sequential device change.
+
+Dependencies: reviewed auth/storage/sync data-flow contract; current canonical-class inventory; 8A7B ordinary-surface conventions.
+
+Bounded implementation PRs:
+
+- **C1:** select and document the smallest coherent backend against current Clerk integration and deployment needs; implement verified account authorization/isolation, schema/revision boundary and auth-required deployed configuration. No silent local fallback on misconfiguration.
+- **C2:** server persistence and clean-client hydration; explicit migration of an existing local profile with preview, consent, safe copy, server acknowledgement and compatibility checks. Include every required canonical class and discard/rebuild derived plan authority safely.
+- **C3:** durable local outbox/idempotency, offline writes/reconnect, revision conflict preservation, account switching, deletion/reset fencing, portability/recovery and offline-use acceptance.
+
+Data/migration work: explicit account ownership, server schema version, operation IDs/revisions, local replica/outbox migration and reset generations. Portable-v1 is an import/export format, not an automatic live sync protocol. Preserve unknown historical evidence and immutable occurrence provenance.
+
+Human acceptance: sign in to restricted account; save and confirm synced state; clear browser data and recover; hydrate a clean second browser/device; queue offline changes and reconnect; reject a competing revision without losing either side; switch accounts safely; demonstrate deletion and throwaway recovery without resurrected data. Record the supported offline bootstrap path.
+
+Automated validation: verified/expired/forged token handling, second-account denial, transactional canonical/outbox writes, idempotent retries, stale revisions, interrupted migration, incompatible clients, delete/reset resurrection prevention, scheduler repair fences and complete canonical round trip.
+
+Exit: acknowledged account state survives clear/device change; unsent state remains visible and recoverable; local/remote conflicts never silently overwrite; account data are isolated; no credentials in normal profile/export; migration/deletion/recovery pass. Creates and owns a dedicated account-continuity issue.
+
+Non-goals: public signup, collaboration, simultaneous automatic multi-device merge/CRDT, content telemetry, general admin task browsing, native application rewrite or AI. Sequential supported-device use and explicit safe conflict handling are required.
+
+#### Gate 8A7D — One live read-only calendar connection
+
+Goal: scheduling reacts to automatically refreshed real calendar reality.
+
+Dependencies: 8A7C authenticated account, server secret/deployment boundary and canonical revision/repair model; owner selection of a provider actually used in ordinary life.
+
+Bounded implementation PRs:
+
+- **D1:** one provider OAuth/read-only connection, private token lifecycle, selected calendar identity, bounded initial sync and normalized external event/series/occurrence identity.
+- **D2:** automatic foreground/focus refresh, update/delete/recurrence handling, freshness/error/offline state, bounded retry/full-resync and source-change repair integration.
+
+Data/migration work: versioned connection/source/event/cursor metadata distinct from raw ICS records; existing static source remains an explicit snapshot/fallback and is not silently converted into credentials or a live account connection. Provider tokens stay outside canonical personal exports.
+
+Human acceptance: create/move/delete a real provider event and change a recurrence exception; see Life Rhythm refresh and valid repair within the declared supported freshness bound. Revoke permission, reconnect and use last-synchronised state offline safely. Verify no external event writes. Resolve provider testing/consent/token-lifetime limits that would interrupt normal four-week use.
+
+Automated validation: pagination, identity stability, cancellations/deletions, recurrence exceptions, all-day/timezone conversion, horizon extension, token/cursor invalidation, stale responses, rate/error backoff and atomic source-plus-repair attention. Retain ICS resource-safety tests.
+
+Exit: one owner's real supported provider refreshes automatically; changed calendar reality triggers trustworthy repair; offline/stale/failed state is honest and conservative; token/identity lifecycle and no-write boundary pass. Creates and owns a dedicated live-calendar issue. #146 remains separately gated by supported internal timezone population.
+
+Non-goals: external writes, broad provider support, email access, webhooks/push/background infrastructure unless needed to meet accepted freshness, calendar replacement or arbitrary recurrence expansion.
+
+#### Gate 8A8 — Integrated final owner-trial readiness
+
+Goal: accept the assembled intended trial product and freeze an attributable evidence environment.
+
+Dependencies: 8A7B/C/D exits; corrected protocol; no unresolved owner-trial blocker. Rework PR #167's prepared record/protocol to this definition.
+
+Scope: current deployed task/rhythm authoring/execution, calendar freshness/repair, corrections, Reduced Day/re-entry, learning meaning, account continuity/offline/conflicts, safe export/delete/recovery and ordinary calm-surface use. Accept actual mobile, desktop and keyboard. Verify access policy and deployment version/configuration, not only a READY preview label.
+
+Data/migration work: no exploratory schema changes in acceptance; verify deployed compatible versions and migration results. Use throwaway state for destructive recovery, never the owner's only durable copy.
+
+Human acceptance: every applicable matrix row is Pass on an identified integrated build. Failed/blocked rows retain blocker disposition. Completing or closing an evidence issue does not change a failed product result to PASS.
+
+Automated validation: required full suites/build for changed source; relevant timezone controls; API/isolation/sync/provider integration tests; reuse valid unchanged evidence rather than rerunning for status alone.
+
+Exit: explicit PASS with exact frontend/backend/schema/configuration versions, stable authenticated origin, accepted devices/provider/timezone, safe recovery and all trial prerequisites. Otherwise BLOCK. No baseline or Day 1 is authorised by a prepared protocol alone.
+
+Gate 8A exit condition: integrated 8A8 PASS demonstrates the owner's defined account-backed, live-calendar, calm/mobile product; tasks/rhythms, scheduler/learning facts and recovery are trustworthy. Prototype feedback may continue with explicit limitations and does not count as longitudinal trial evidence.
+
+### Gate 8B — Longitudinal owner personal trial
+
+Status: **Not started.** Entry requires 8A8 PASS and the owner selecting the accepted stable environment. Baseline preparation is part of 8B and must not begin while 8A8 is BLOCK.
+
+Goal: evaluate whether ordinary use reduces executive/planning burden while preserving trust and control. Task completion is secondary; no clinical or causal efficacy claim follows.
+
+Protocol: one prospective seven-day baseline using the owner's ordinary planning method, followed by four consecutive equal seven-day Life Rhythm reporting windows (28 days total). Record exact start/end instants and local timezone before use. Use one numeric weekly planning/replanning-minute estimate and fixed 1–5 trust/control questions, plus sparse material incidents. No mandatory daily research form or activity quota.
+
+Positive signal requires ordinary voluntary use throughout the observation period, at least three of four numeric weekly reports, no stop condition or material recurring conflict/churn/pressure, and the predeclared planning-burden and trust/control rules. Explicit cessation because the product is burdensome or unwanted is no positive signal; unrelated interruption or insufficient evidence is inconclusive. Missing reporting is not evidence of continued voluntary use. Record voluntary-use status for each window and the end-of-period decision separately.
+
+The protocol must predeclare practical decision thresholds before baseline. The prepared 15-minute and 20% reduction thresholds may be retained only as owner-approved feasibility criteria, not research-validated clinical thresholds. Missing numbers remain missing; no retrospective midpoint or changed threshold.
+
+Evidence: preserve a checked starting ledger snapshot/ID cursor and end snapshot, excluding pre-trial history; avoid duplicate synchronized event counting. Facts, bounded derivations, sparse self-report and unavailable outcomes remain separate. No general override/Undo rate without a matched denominator, no robust initiation-latency estimate or causal learnt-duration improvement claim from current events.
+
+Build rule: any change affecting scheduling, canonical/sync/calendar behaviour, learning, burden-bearing UI or evidence semantics invalidates the pooled stable-build comparison. Pause and reaccept the relevant readiness paths, then restart baseline and the 28-day window for a new primary comparison, or report the old run as segmented/inconclusive. Do not aggregate across affected versions. A demonstrated non-behavioural change may be recorded without restart with explicit rationale. Ordinary provider event changes are normal use, not product-build changes. Supported device change under the same account/build is recorded and does not automatically restart evidence; unsupported timezone/provider/configuration change requires readiness reassessment.
+
+Pause conditions: suspected lost/cross-account data, invalid hard/protected placement, unsafe or persistently stale calendar reality, failed continuity/recovery, unreliable event attribution, or material pressure/loss of control. Preserve safe evidence, diagnose the bounded mechanism and reaccept affected paths. Routine offline use within the accepted degraded boundary is not itself a stop condition. Product-driven cessation precludes a positive result; unrelated interruption is reported as inconclusive rather than failure of the person.
+
+Exit: report positive signal, no positive signal or inconclusive using the predeclared rule; retain incidents, conflicts and disagreement between indicators. The owner makes a separate next-product/release decision. This does not launch beta automatically.
+
+### Post-8B — Small-beta readiness and separate release decision
+
+Goal: safely support a small invited external population after owner evidence.
+
+Dependencies: reviewed 8B result; explicit release decision and supported population.
+
+Scope: invited onboarding/account lifecycle; shared-device/cross-account isolation; supported device/provider/timezone matrix; operational privacy/security/data-access review; backup/recovery; support/escalation; content-minimized monitoring; release/rollback and incident practices.
+
+Data/migration work: tested versioned upgrades and deletion/retention across supported accounts; operational restore without account mixing. Resolve #146 before accepting internal DST-transition populations.
+
+Human acceptance: independent invited tester can sign in, connect the supported provider, start ordinary use and recover without developer tooling; supported devices and timezone boundaries pass.
+
+Automated validation: relevant isolation/migration/provider/timezone regressions and required source checks; operational recovery/release exercises.
+
+Exit: separate beta release approval with verified support/security/operations and supported population. A Perth-only owner PASS is not general-population readiness.
+
+Non-goals: public signup, broad provider coverage, calendar writes, AI, notifications, social features or collaboration unless separately justified and approved.
 
 ## Explicit MVP non-goals
 
-Do not block MVP on:
+Do not block the owner-trial product on an LLM, managed/BYO AI, local LLM, bandits/reinforcement learning, broad inferred behaviour, cloud behavioural models, public signup, collaboration/social features, notifications, email/message sending, external calendar writes, broad multi-provider coverage, content analytics, clinical/health-state inference, concurrent automatic multi-device merging, literal reproduction of every historical screen or decorative perfection.
 
-- an LLM or conversational AI;
-- managed premium AI;
-- BYO provider credentials;
-- contextual bandits;
-- reinforcement learning;
-- a local LLM;
-- cloud behavioural models;
-- automatic changes to external calendar commitments;
-- email/message sending;
-- perfect multi-provider calendar support;
-- cloud sync unless independently justified;
-- analytics containing user content;
-- clinical claims or health-state inference;
-- final visual polish across every historical screen;
-- preserving every existing navigation or data-model choice.
+Required owner-trial capabilities are not non-goals: authenticated account-backed continuity, one live read-only calendar, trial-ready calm/mobile usability, safe data migration/reconnect/recovery and stable deployed acceptance. Local-first does not mean browser-only durability. Portability remains a safety mechanism rather than normal continuity.
+
+## After MVP
 
 ## After MVP
 
