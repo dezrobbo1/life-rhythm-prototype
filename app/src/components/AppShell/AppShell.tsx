@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { themeLabels, themes, type ThemeName } from '../../app/theme';
 import { AppIcon, type AppIconName } from '../AppIcon/AppIcon';
 import { BrandMark } from '../BrandMark/BrandMark';
@@ -36,6 +36,13 @@ export function AppShell({
   theme,
 }: AppShellProps) {
   const [utilitiesOpen, setUtilitiesOpen] = useState(false);
+  const utilitiesButtonRef = useRef<HTMLButtonElement>(null);
+
+  function openSecondaryScreen(screen: ScreenId) {
+    setUtilitiesOpen(false);
+    onScreenChange(screen);
+    utilitiesButtonRef.current?.focus();
+  }
 
   return (
     <div className="app-shell" data-theme={theme} data-trial-mode="personal">
@@ -68,7 +75,7 @@ export function AppShell({
           <div className="shell-utilities" onKeyDown={(event) => {
             if (event.key === 'Escape' && utilitiesOpen) {
               setUtilitiesOpen(false);
-              event.currentTarget.querySelector<HTMLButtonElement>('.shell-utilities__toggle')?.focus();
+              utilitiesButtonRef.current?.focus();
             }
           }}>
             <button
@@ -76,6 +83,7 @@ export function AppShell({
               aria-expanded={utilitiesOpen}
               className="shell-utilities__toggle"
               onClick={() => setUtilitiesOpen((value) => !value)}
+              ref={utilitiesButtonRef}
               type="button"
             >More</button>
             {utilitiesOpen ? <nav aria-label="Secondary" className="secondary-nav" id="shell-utilities-panel">
@@ -85,11 +93,11 @@ export function AppShell({
                 </button>
               ) : null}
               <button aria-current={activeScreen === 'reset' ? 'page' : undefined}
-                onClick={() => { setUtilitiesOpen(false); onScreenChange('reset'); }} type="button">
+                onClick={() => openSecondaryScreen('reset')} type="button">
                 <AppIcon name="reset" size={15} /><span>Reset</span>
               </button>
               <button aria-current={activeScreen === 'setup' ? 'page' : undefined}
-                onClick={() => { setUtilitiesOpen(false); onScreenChange('setup'); }} type="button">
+                onClick={() => openSecondaryScreen('setup')} type="button">
                 <AppIcon name="setup" size={15} /><span>Settings</span>
               </button>
             </nav> : null}

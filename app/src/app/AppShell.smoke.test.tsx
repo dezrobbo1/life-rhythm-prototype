@@ -107,6 +107,7 @@ describe('primary app shell navigation', () => {
     expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
 
     await user.click(within(screen.getByRole('navigation', { name: 'Secondary' })).getByRole('button', { name: 'Settings' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'More' }));
     await user.click(await screen.findByRole('button', { name: 'More' }));
     expect(within(screen.getByRole('navigation', { name: 'Secondary' })).getByRole('button', { name: 'Settings' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy();
