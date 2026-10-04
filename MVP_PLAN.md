@@ -7,9 +7,9 @@ Historical reset baseline: main at e0c1d175e9082f7e5bdc5f1aeae6980146e4994b (PR 
 
 Programme authority: this file defines delivery sequence, owner-trial prerequisites and beta boundaries. PRODUCT.md defines product purpose; ARCHITECTURE.md defines target technical boundaries. Lower-level contracts refine a milestone and must not narrow these prerequisites.
 
-Verified delivery baseline: main at 0f6ba19ad48b39d514d13e82e9fb80aee4434196, merged PR #166. Gates 0–7 and Gate 8A1–8A6 have delivered their recorded boundaries. Gate 8A7 delivered current-authority copy, selected disclosure and compact-shell alignment; whole-product calm/mobile acceptance is not complete.
+Last verified main before PR #167 reconciliation: e57f900ae2d344e60247b468b74ad5e25e842197, merged PR #169 (authority correction). PR #166 remains the last executable change. Gates 0–7 and Gate 8A1–8A6 have delivered their recorded boundaries. Gate 8A7 delivered current-authority copy, selected disclosure and compact-shell alignment; whole-product calm/mobile acceptance is not complete.
 
-Current active milestone: Gate 8A7B — whole-product calm-surface convergence. Gate 8A8 preparation exists in open PR #167 at c70e720ec39d701a0dee5b44a1c416912caeedd6; its readiness decision remains BLOCK. Gate 8B has not started.
+Current active milestone: Gate 8A7B — whole-product calm-surface convergence. PR #167 records the prepared Gate 8A8/Gate 8B evidence protocol and the current Gate 8A8 BLOCK decision. Documentation preparation does not constitute Gate 8A8 PASS. Gate 8B has not started.
 
 The remaining sequence is 8A7B — whole-product calm-surface convergence, then 8A7C — account-backed continuity, 8A7D — live read-only calendar, and revised 8A8 — integrated final readiness.
 
@@ -19,13 +19,12 @@ Current owner-trial blockers:
 - durable account-backed personal state, safe migration, reconnect/conflict handling and browser-clear/device-change continuity;
 - one automatically refreshed live read-only calendar connection;
 - integrated deployed desktop/mobile/keyboard/account/calendar/recovery acceptance on a known build;
-- corrected prospective trial rules for voluntary use, equal windows and build-change attribution.
 
 Owner personal trial means authenticated ordinary longitudinal use with durable account data, a local/offline replica where practical, one live read-only calendar, a calm/mobile daily surface, stable deployed build and trustworthy low-burden evidence. IndexedDB alone, manual export as normal continuity and static ICS as the whole calendar experience do not satisfy it.
 
 Prototype exploration may use browser-local data, manual backups and static ICS with explicit limitations. It does not count as the longitudinal owner trial. Small beta means a separately approved invited external population after owner evidence, with supported device/provider/timezone boundaries and operational security/privacy, recovery, release and support readiness.
 
-Issue #160 has partial owner mobile evidence with observed FAIL; remaining rows and exact build attribution must be completed. Issue #146 blocks supported internal DST-transition populations, but need not block an explicitly Perth-only fixed-timezone owner trial. Issue #141 belongs in this governance correction and can close once its wording is fixed.
+Issue #168 owns the active Gate 8A7B calm/mobile convergence blocker. Issue #160 has partial owner mobile evidence with observed FAIL; remaining rows and exact build attribution must be completed. Issue #146 blocks supported internal DST-transition populations, but need not block an explicitly Perth-only fixed-timezone owner trial. Issue #141 was closed by merged PR #169.
 
 Explicitly deferred: public signup, calendar writes, broad provider coverage, simultaneous automatic multi-device merging, collaboration/social features, AI, notifications, content analytics, broader inferred preferences and clinical claims. Account-backed continuity and one live calendar are not deferred owner-trial requirements.
 
@@ -125,8 +124,6 @@ Actual owner mobile forms and keyboard use must retain reachable primary inputs/
 - External calendar truth is never silently mutated by the private scheduler; destructive or externally consequential actions remain outside automatic authority.
 - Local date/time behaviour is deterministic within the explicitly accepted population. Issue #146 must be resolved before supporting internal DST-transition placement semantics.
 - Deployment and evidence identify frontend/backend/schema/configuration versions; readiness cannot be inferred from source tests alone.
-
-## Delivery sequence
 
 ## Delivery sequence
 
