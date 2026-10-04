@@ -16,6 +16,8 @@ Use [`docs/DOCUMENTATION_AUTHORITY.md`](docs/DOCUMENTATION_AUTHORITY.md) when a 
 
 Do not assume access to prior chats, uploaded source packs or external files. Durable implementation decisions must exist in this repository.
 
+Before planning or selecting the next milestone, read MVP_PLAN.md's Current programme state. It is the single delivery/readiness authority. A lower-level contract may refine scope but must not remove an owner-trial prerequisite or silently redefine prototype exploration as the owner trial. If product, roadmap, architecture or owner direction conflict, state the conflict and propose the authority correction before dependent implementation. Material milestone/readiness changes require an explicit MVP_PLAN.md update; preserve historical reports as dated evidence.
+
 ## Product objective
 
 Life Rhythm is an adaptive external executive-function support system designed primarily for adults with ADHD.
@@ -176,7 +178,7 @@ Where the review interface permits a summary or verdict, end the final review wi
 
 When a structured review interface permits only findings and no free-form verdict, do not violate its response schema merely to emit one of these labels. In that interface, use the equivalent disposition: any blocking finding means **BLOCK**; only explicitly non-blocking follow-up findings means **MERGE WITH FOLLOW-UPS**; an empty findings result means **MERGE**.
 
-A clean review is a valid result; reviewers are not required to invent findings. When the current milestone is complete, identify the next planned product milestone instead of continuing hardening by default.
+A clean review is a valid result; reviewers are not required to invent findings. When the current milestone is complete and the interface permits summary/handoff prose, identify the next milestone from MVP_PLAN.md instead of continuing hardening by default. In a findings-only interface, return only the required findings schema; orchestration outside that review supplies any next-milestone handoff.
 
 ## Scheduling implementation rules
 

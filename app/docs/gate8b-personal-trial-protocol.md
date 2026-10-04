@@ -1,92 +1,78 @@
-# Gate 8B — Longitudinal Personal Trial Protocol (prepared, not started)
+# Gate 8B — Longitudinal Owner Personal Trial Protocol (prepared, not started)
 
-**Status:** preparation only. Gate 8A8 is BLOCK until its final acceptance record passes. This protocol does not authorise Day 1.
+**Status: preparation only. Gate 8A8 is BLOCK; no baseline or Day 1 has begun.** This document becomes usable only after an explicit integrated Gate 8A8 PASS on the supported account-backed, live-calendar, calm/mobile product. Merging this protocol does not authorize Gate 8B.
 
-## Classification and question
+## Question, population and exact observation windows
 
-This is an initial single-owner, longitudinal, non-clinical product trial. Its primary question is whether ordinary Life Rhythm use reduces executive and planning burden while preserving trust and control. Task completion is secondary. It is not an ADHD treatment study, a productivity competition, or an adherence programme. No clinical, dopamine, neurological-state or optimal-schedule claim follows from it.
+The single-owner, non-clinical product question is whether ordinary Life Rhythm use reduces executive/planning burden while preserving trust and control. Task completion is secondary. This observation does not establish causality or treatment efficacy and imposes no adherence quota.
 
-After Gate 8A8 PASS, record **one prospective baseline week** of the owner's ordinary planning method before Life Rhythm Day 1, then **four calendar weeks** of ordinary Life Rhythm use. Do not reconstruct a “usual week” from memory after use starts. For the baseline week, make one approximate **numeric total in minutes** for planning/replanning, one trust and one autonomy/control rating using the fixed questions below, and a short note about any unusual disruption; no daily research form is required. Record the seven-day dates and whether the week was representative. If that baseline cannot be obtained, the planning-minute comparison is inconclusive. Baseline preparation and Day 1 are Gate 8B activities and must not start while Gate 8A8 is BLOCK.
+After 8A8 PASS, record **one prospective seven-day baseline** using the owner's ordinary planning method before Life Rhythm Day 1. Record its exact start/end instants, local dates/timezone, one approximate **numeric total in planning/replanning minutes**, the fixed trust/control questions below and material unusual context. A non-representative or missing baseline makes the planning comparison inconclusive; do not reconstruct a “usual week” after Day 1.
 
-Use these **same questions and anchors** for the prospective baseline and every weekly Life Rhythm report; higher always means better:
+Then pre-record the exact Day 1 start instant and **four consecutive equal seven-day Life Rhythm windows (28 days total)**. Window 1 starts at Day 1; window 2 starts exactly when window 1 ends, and likewise through window 4. Each window is a half-open interval `[start, end)` of seven 24-hour days measured by instants, with local dates/timezone shown for reporting. Assign each weekly report and factual event to its exact interval. A partial calendar week cannot be compared with the seven-day baseline. Record the final end instant before use begins. A local DST transition requires a separately accepted population/semantics under #146; the initial explicitly Perth-only fixed-timezone scope does not resolve #146.
+
+Use the same question and anchors at baseline and at each window end; higher means better:
 
 | Rating | Question | 1 | 5 |
 | --- | --- | --- | --- |
 | Trust | How much did you trust your planning system to reflect reality this week? | Not at all | Completely |
 | Autonomy/control | How much did you feel in control of your plan this week? | Not at all | Completely |
 
-Before use, predeclare the descriptive decision: obtain at least three of the four weekly use reports and compare the median of their **numeric minute estimates** with the prospective numeric baseline. A practical positive signal requires both **at least 15 fewer minutes per week and at least 20% fewer minutes**, no trial stop condition, no material recurring conflict/churn burden, and neither trust nor autonomy/control falling by more than one point from baseline in the median weekly report. Otherwise report “no positive signal” or “inconclusive” when data are missing, the baseline is under 15 minutes, or the week is not comparable. Do not move the threshold after seeing results. This single-owner before/after observation does not establish causality or treatment efficacy; inspect incidents and voluntary use alongside the minutes, and preserve disagreement between indicators.
+## Predeclared descriptive decision rule
 
-## Stable environment record before Day 1
+Obtain at least three of four **numeric** weekly planning-minute totals and compare their median with the prospective numeric seven-day baseline. The prepared practical positive-signal thresholds are both **at least 15 fewer minutes per week** and **at least 20% fewer minutes**. Treat them as owner-reviewed product-feasibility thresholds before baseline, not clinical or research-validated cutoffs. Do not change them after observing results. Optional ranges or confidence notes never replace a numeric estimate; do not choose a range midpoint retrospectively.
 
-Fill this only **after** Gate 8A8 records PASS on the exact build and the owner selects a stable deployment. A Vercel preview URL is not a substitute for a stable trial origin: local-first browser state is origin-specific. Sign-in selects a local namespace; it is not cloud sync.
+A **positive signal also requires ordinary voluntary use throughout all four windows**, explicit voluntary-use status for each window and at the end, no pause/stop condition or material recurring conflict/churn/pressure, and neither median trust nor median control falling more than one point below its baseline rating. Three numeric reports are enough for the minute comparison only; a missing report is **not** evidence of continued voluntary use. Seek a sparse separate status for a missing window; if voluntary use cannot be established, do not report a positive signal.
+
+If the owner stops or continues only under pressure because Life Rhythm is burdensome, confusing, unwanted or otherwise product-driven, report **no positive signal**. This is product evidence, not user failure. An unrelated interruption preventing fair observation, missing baseline, baseline under 15 minutes, insufficient numeric reports, unestablished voluntary use, or non-comparable conditions yields **inconclusive**, not an invented positive result. Other completed but unmet product thresholds yield **no positive signal**, with incidents and conflicting indicators reported. This single-owner before/after result does not authorize beta automatically.
+
+## Stable environment and Day 1 record — fill only after 8A8 PASS
+
+The accepted environment is a stable authenticated deployed origin with account-backed acknowledged state and a local replica/cache. The owner may use accepted sequential devices under the same account/build; browser IndexedDB and manual export are not normal continuity. Record without secrets:
 
 | Field | Day 1 record |
 | --- | --- |
-| Gate 8A8 PASS record and accepted population | Pending |
-| Stable deployed URL and exact deployed Git SHA | Pending |
-| Primary device, browser/version, viewport and timezone | Pending |
-| Authentication enabled? Signed-in account/namespace without recording secrets | Pending |
-| Portable profile export/check date and separate safe copy location | Pending |
-| Supported calendar source/reimport date, if used | Pending |
-| Prospective baseline seven-day dates, one approximate numeric weekly planning-minute total, trust/control ratings using the fixed questions and unusual context | Pending |
-| Day 1 exact UTC instant, local date/timezone, checked backup and its behaviour-event ID set | Pending |
+| Integrated Gate 8A8 PASS link, exact acceptance date and supported population | Pending |
+| Stable deployed URL and exact frontend Git SHA/version | Pending |
+| Backend/API deployment identifier, server schema/protocol version and relevant configuration version | Pending |
+| Authenticated owner account identifier (private evidence, no tokens) | Pending |
+| Primary device/browser/version/viewport/timezone; accepted sequential-device scope | Pending |
+| Supported live read-only provider/account/calendar selection, last successful refresh and freshness state, with no credentials | Pending |
+| Confirmed external-calendar no-write boundary | Pending |
+| Portable fallback export/check date and independently safe copy location | Pending |
+| Baseline start/end instants, numeric minutes, trust/control and unusual context | Pending |
+| Four exact seven-day window start/end instants, Day 1 UTC instant and local date/timezone | Pending |
+| Checked starting canonical event-ledger snapshot/ID cursor and schema/provenance version | Pending |
 
-Keep one stable URL and one primary browser/device during the evidence period. Record any build, URL, browser, device or timezone change as a protocol deviation; do not merge measurements across origins as though they shared local data. Back up before any deliberate local-data replacement. Never use the owner's only live profile as a destructive restore fixture.
+Before first trial use, verify normal account save/hydration, supported offline/reconnect behaviour and fresh live calendar reality already accepted by 8A8. A checked portable export is independent fallback/recovery evidence and a possible safe copy, not the everyday way to switch browsers. Use throwaway data for destructive restore/delete demonstrations; do not replace the owner's only acknowledged copy. Static ICS remains an optional snapshot/import fallback and does not satisfy the live provider prerequisite. No external calendar writes are required.
 
-## Day 1 setup, once
+## Trusted event attribution across local replicas
 
-1. Review usable-day hours and all seven weekday assignments. Record the optional core/work period or that it is cleared, work boundaries, currently implemented travel/transition controls, and protected/recovery time. Blank calendar gaps never create capacity.
-2. If relevant, import a supported static read-only `.ics` source, inspect status and buffers, and plan to re-import when the source changes. Life Rhythm does not write external events.
-3. Capture one ordinary task with truthful Minimum/Normal/Full actions and minutes; verify that it is held outside Today while eligible for private planning when feasible. Correct historic uncertain minutes rather than assuming their authorship.
-4. Configure and enable one personal rhythm from a suggestion or custom entry; inspect a generated occurrence. A catalogue suggestion or Quick Pack preview is not active recurrence. Add to Today once does not turn recurrence on.
-5. Inspect explicit scheduling preferences and duration-learning controls only where relevant. An override outranks learned evidence; legacy/Full/Stop completions do not supply Normal-duration samples.
-6. Export and **check** a whole-profile portable backup. Understand that restore is replace-only, requires confirmation, and is not cloud sync.
+Record the exact Day 1 start instant and a checked starting ledger snapshot or stable event-ID cursor before first use, then an end snapshot. Count each unique **canonical acknowledged** schema-valid event once within the four exact intervals, regardless of how many local replicas receive it. Exclude all pre-trial IDs without deleting history. Preserve event occurrence time/local timezone separately from server receipt/synchronization time; late sync receipt alone does not turn a pre-trial event into a trial event. Distinguish queued/unsynced records from acknowledged ones and report unresolved attribution honestly. Missing/deleted history, incompatible provenance or ambiguous clocks makes the affected count incomplete, not reconstructed.
 
-Immediately before first trial use, preserve that checked backup as the **Day 1 ledger snapshot** and record the exact UTC start instant and local date/timezone. For event-derived trial counts, compare `data.behaviourEvents[].id` in the end-of-trial checked backup with this snapshot and count only new schema-valid event IDs recorded during the four-week trial window. Existing historical IDs are excluded without deleting or rewriting them; use event occurrence time/local date to inspect the window, while ID difference prevents old events from being counted merely because the general statistics reader includes them. Record the end instant and backup. If behaviour history is deleted, a backup is missing, or the device clock makes attribution ambiguous, label the affected count incomplete rather than inventing it. Placement/Undo counts remain the recorded subset described in the Gate 8A8 evidence map.
+The Gate 7 ledger supports only bounded descriptive placement/Undo counts for its recorded subset and factual completion variants. There is no matched opportunity denominator for a general override/correction/Undo **rate**. No robust initiation-latency or causal learned-duration benefit claim follows from current facts. Do not create a new analytics subsystem or publish private task content.
 
-## Ordinary use
+## Ordinary use and sparse reports
 
-Use Life Rhythm as the planner, not as a daily research form. Capture when something needs remembering; use Today/Now/Later, Start/Pause/Resume, Minimum Done, Normal/Full Done or Stop here as they naturally arise. Use Park, Not today, Move, Protect, Reduced Day, re-entry, Library rhythms and Why this time when genuinely useful. Do not manufacture events, complete an artificial quota or choose a completion button to influence learning. Normal and Full are explicit execution facts; Minimum is a separate milestone; Stop leaves the exact completed form unspecified.
+Use Life Rhythm ordinarily: Capture, Now/Later/Changed, task and rhythm execution, Move/Protect/Why/Undo, Reduced Day and re-entry when useful. Do not manufacture events, completion variants or a daily adherence target. No mandatory daily questionnaire.
 
-No mandatory daily questionnaire. Record a short incident only when something materially increased burden, surprised the owner, conflicted with reality, or violated a stop condition. The application already records many placement and lifecycle facts; do not manually recopy their counts.
+At the end of each exact seven-day window, take at most about two minutes to record:
 
-## Sparse burden report
+- one approximate **numeric total** of planning/replanning minutes for that interval; an optional range/context note can accompany but cannot substitute for the number;
+- trust and autonomy/control using the same anchored questions;
+- whether use remained ordinary and voluntary during **that entire interval**, with sparse context and whether use ceased;
+- material forgotten-intention, disruption, Reduced Day/re-entry, visible-churn, calendar-staleness or clarification burden only if encountered;
+- whether a learned Normal reservation felt useful or required repeated correction, only if encountered and without a causal claim.
 
-Once per week during the four use weeks, spend at most about two minutes on:
+At the end of window 4, separately record whether use remained voluntary through the observation period and the predeclared positive/no-positive/inconclusive decision. Missing weekly reporting never counts as a “yes.” The application records many facts; do not manually recopy event counts. Use a concise private incident log with local time/timezone, exact build/backend/configuration, device, expected/actual effect, severity, preserved safe copy and issue/disposition, without unnecessary task content.
 
-- one approximate **numeric total of planning/replanning minutes** for that week, compared only with the recorded prospective baseline; no stopwatch precision is needed, and an optional range or confidence/context note may accompany the number, but only the number enters the predeclared calculation;
-- any important forgotten intention, disruption recovery or Reduced Day/re-entry burden that ordinary app facts cannot establish (one short example if applicable, without sensitive task text in a shared issue);
-- whether visible plan movement or clarification steps made the day harder to understand;
-- trust and autonomy/control, each 1–5 using the exact baseline questions and anchors above, with an optional one-sentence reason;
-- whether use was voluntary and whether the learnt Normal reservation felt useful or required repeated correction, only if encountered.
+## Build and deployment invalidation rule
 
-These are sparse self-reports, not instrumented timings or causal estimates. Missing numeric minute estimates remain missing; do not choose a midpoint or bound from an optional range after seeing results. Review factual events and plan provenance alongside them, reporting bounded counts with their known scope. No matched opportunity denominator exists for a general override/correction/Undo rate, so calculate no such rate or percentage. Do not publish private task content or raw behavioural history as trial telemetry.
+Any deployment/source/configuration change affecting scheduler behaviour, canonical persistence/sync, live calendar/provider, learning, burden-bearing UI/workflow or evidence semantics invalidates a pooled stable-build comparison. **Pause** the primary run, reaccept the affected Gate 8A8 paths and either (1) start a fresh prospective seven-day baseline followed by four new equal seven-day windows on the new accepted build, or (2) preserve the earlier observations as segmented/inconclusive. Never pool affected versions to claim one positive signal. Record exact old/new frontend, backend, schema/protocol and configuration identities and the reason for classification.
 
-## Pause conditions
+A demonstrated non-behavioural documentation/metadata-only change may be recorded without restart with explicit rationale. Ordinary changes to external provider events through normal live use are calendar reality, **not product-build changes**. Supported sequential-device use under the same accepted account/build does not automatically restart evidence. A change of unsupported provider, timezone or deployment conditions requires renewed readiness assessment.
 
-Pause evidence collection, preserve a safe backup and log the incident if:
+## Pause and safety conditions
 
-- canonical personal data are lost/corrupted, a saved task/rhythm/instance disappears after reload, or portable recovery cannot be trusted;
-- a known hard external commitment or explicit protected boundary is silently violated;
-- a stale accepted plan is shown as trustworthy after known failed repair, a Move/Protect choice is silently discarded/overridden, or Undo contradicts newer canonical authority;
-- repeated schedule churn makes the day harder to understand, or a blocking narrow/mobile defect prevents an ordinary primary action;
-- inferred/unknown evidence is misrepresented as user-authored fact, or Normal learning consumes Full, Stop, legacy-unknown or other ineligible evidence;
-- unexpected upload, sync, external calendar write or other external mutation occurs;
-- the app or evidence protocol itself imposes substantial interaction burden.
+Pause evidence, preserve safe state and record an incident for suspected lost/cross-account data; failed hydration, migration, deletion or recovery; rejected/overwritten offline work; a hard/protected placement violation; persistently stale/unsafe provider reality or unintended external calendar write; a plan shown as trustworthy despite failed repair; incorrect learning provenance; material churn, pressure or ordinary-action obstruction; or unreliable event attribution. Routine offline use within the accepted degraded boundary is not itself a stop condition. Diagnose and reaccept affected paths before restarting or segmenting evidence under the rule above. Do not interpret a product-driven stop as user failure.
 
-Stopping is product evidence, not user failure. Gate 8B cannot begin at all while Gate 8A8 is BLOCK. For this initial Perth-only scope, an environment with a DST transition is outside the accepted population until issue #146 is resolved and separately accepted.
-
-## Concise issue log
-
-| Field | Record |
-| --- | --- |
-| Local date/time and timezone; tested URL and exact Git SHA | |
-| Device/browser/viewport; screen/context | |
-| Action and expected behaviour | |
-| Actual behaviour and whether canonical data changed | |
-| Effect on planning burden; severity/stop condition | |
-| Screenshot/reference if useful, without unnecessary private content | |
-| Backup preserved? Issue link and disposition | |
-
-Use the current Gate 8A8 acceptance record for Day 1 authority. The PR #104-era checklist, launch note and readiness report are historical structure only.
+The [Gate 8A8 prepared BLOCK record](gate8a8-trial-evidence-final-acceptance.md) is the future acceptance handoff. PR #104-era trial files are historical only. Gate 8B remains not started.

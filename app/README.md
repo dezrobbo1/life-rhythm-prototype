@@ -14,86 +14,29 @@ Read first:
 
 ## Current implementation baseline
 
-Current `main` baseline: merged PR #112 (`e0c1d175e9082f7e5bdc5f1aeae6980146e4994b`).
+Historical reset baseline: merged PR #112 (e0c1d175e9082f7e5bdc5f1aeae6980146e4994b). Current verified main: 0f6ba19ad48b39d514d13e82e9fb80aee4434196 (merged PR #166).
 
-Reusable implementation includes:
-
-- React/Vite/TypeScript application shell;
-- Dexie local persistence and Zod validation;
-- settings and Life Shape persistence;
-- custom Library rhythm persistence;
-- active Today task/status persistence;
-- Task Pool capture, safe holding and deferral;
-- linked Pool/Today/placement lifecycle transitions;
-- usefulness/deadline fields and one-off time edges;
-- Minimum Done and completion endpoints;
-- re-entry preview/actions;
-- protected/recovery/open-capacity concepts;
-- current user-confirmed private soft placements;
-- settings-owned Workday/Non-workday profile foundation with weekday assignment and safe rollback/migration handling;
-- data-class-specific backup/export and read-only validation paths;
-- user-scoped local namespaces under the optional identity shell;
-- timezone-sensitive test coverage;
-- responsive/accessibility and Soft Ledger visual foundations.
+Current /app implements automatic private scheduling and repair, configured flexible rhythms, Now/Later/Changed, user corrections, Reduced Day/re-entry, factual/bounded learning and portable whole-profile recovery. Personal application data are currently browser-local; optional Clerk identity selects a local profile and does not provide account-backed continuity. Calendar support is currently a static read-only ICS snapshot. Owner-trial readiness remains BLOCK pending the remaining milestones in MVP_PLAN.md. The legacy root and historical PR #112 snapshot are not current /app runtime authority.
 
 ## Current implementation limitations
 
 These are implementation facts, not product prohibitions.
 
-`/app` does not yet provide:
-
-- a real calendar adapter;
-- derived candidate availability from calendar + usable-day boundaries;
-- automatic private scheduling;
-- automatic private rescheduling;
-- rolling schedule repair or schedule inertia;
-- behavioural duration/preference learning;
-- an inspectable learnt-preference model;
-- optional AI interpretation;
-- external calendar writes;
-- cloud sync;
-- full import/restore execution;
-- external tester readiness for the new adaptive MVP.
-
-Current suggestions still use explicit `openCapacity` and current private placements remain user-confirmed because that is what the existing code implements. The MVP plan explicitly intends to replace that manual-only path with bounded automatic private scheduling once the scheduler seam and calendar model are ready.
+The owner-trial product still requires whole-product calm/mobile convergence, authenticated account-backed durability with safe local replica/reconnect behaviour, one automatically refreshed live read-only calendar connection, and integrated deployed acceptance. AI, calendar writes, public signup, broad provider coverage and simultaneous automatic multi-device merging remain deferred.
 
 ## Current next gate
 
-See [`../MVP_PLAN.md`](../MVP_PLAN.md).
+See ../MVP_PLAN.md.
 
-The next implementation gate after the governance reset is:
+The active implementation milestone is:
 
-> Gate 1 — Canonical life model and scheduler seam.
+> Gate 8A7B — Whole-product calm-surface convergence.
 
-The objective is to project current persisted records into one scheduling-domain model without a destructive rewrite.
-
-Reuse existing code where useful. Preserve data/migration safety, not historical abstractions for their own sake.
+Do not begin Gate 8B until revised Gate 8A8 records an integrated PASS.
 
 ## Architectural transition
 
-The intended progression is:
-
-```text
-existing persisted task/rhythm/settings state
-        ↓
-canonical scheduling-domain adapters
-        ↓
-stable scheduler interface
-        ↓
-real calendar context + usable-day model
-        ↓
-automatic private placement
-        ↓
-rolling repair + schedule inertia
-        ↓
-Reduced Day / Minimum Done / rhythm / re-entry integration
-        ↓
-simple behavioural learning
-        ↓
-optional AI interpretation later
-```
-
-Do not make the domain model inseparable from OR-Tools, CP-SAT or another solver. A deterministic heuristic can prove early vertical slices behind the same scheduler interface.
+The current scheduler, lifecycle, recurrence, learning and recovery foundations are reusable. Remaining pre-trial work should converge the ordinary surface, establish account-backed durability/local replication, add one live read-only calendar connection, then accept the integrated deployed product. ARCHITECTURE.md defines those target boundaries; implementation must preserve existing data-integrity and scheduling invariants.
 
 ## Product direction relevant to `/app`
 
