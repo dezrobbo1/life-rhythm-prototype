@@ -28,7 +28,7 @@ The owner-trial product still requires whole-product calm/mobile convergence, au
 
 See ../MVP_PLAN.md.
 
-Current active work is the roadmap/readiness authority correction. After that authority is approved, the next implementation milestone is:
+The active implementation milestone is:
 
 > Gate 8A7B — Whole-product calm-surface convergence.
 
