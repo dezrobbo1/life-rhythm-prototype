@@ -55,10 +55,11 @@ describe('persistent shell Capture', () => {
 
     expect(within(nav).queryByRole('button', { name: 'Capture' })).toBeNull();
 
-    const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
-    await user.click(within(secondaryNav).getByRole('button', { name: 'Reset' }));
+    await user.click(await screen.findByRole('button', { name: 'More' }));
+    await user.click(within(screen.getByRole('navigation', { name: 'Secondary' })).getByRole('button', { name: 'Reset' }));
     expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
-    await user.click(within(secondaryNav).getByRole('button', { name: 'Settings' }));
+    await user.click(await screen.findByRole('button', { name: 'More' }));
+    await user.click(within(screen.getByRole('navigation', { name: 'Secondary' })).getByRole('button', { name: 'Settings' }));
     expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
   });
 
@@ -71,8 +72,8 @@ describe('persistent shell Capture', () => {
     await user.click(captureButton);
     expect(screen.getByText('Keep this out of Today for now. Life Rhythm can privately plan it when it fits.')).toBeTruthy();
     await user.type(screen.getByLabelText('Task title'), 'Pack spare charger');
-    await user.type(screen.getByLabelText('Minimum version'), 'Put charger by the bag');
-    await user.type(screen.getByLabelText('Minimum minutes'), '5');
+    await user.type(screen.getByLabelText('Smallest useful action'), 'Put charger by the bag');
+    await user.type(screen.getByLabelText('Minutes for this action'), '5');
     await user.dblClick(screen.getByRole('button', { name: 'Save captured task' }));
 
     expect(await screen.findByText('Task captured. Held outside Today. Life Rhythm can privately plan it when it fits.')).toBeTruthy();
@@ -90,6 +91,39 @@ describe('persistent shell Capture', () => {
 
     await user.click(screen.getByRole('button', { name: 'Held' }));
     expect(await screen.findByText('Pack spare charger')).toBeTruthy();
+  });
+
+  it('starts with only authored capture essentials and reveals optional metadata on request', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Today' });
+    await user.click(screen.getByRole('button', { name: 'Capture' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Capture task' });
+    expect(within(dialog).getByLabelText('Task title')).toBeTruthy();
+    expect(within(dialog).getByLabelText('Smallest useful action')).toBeTruthy();
+    expect(within(dialog).getByLabelText('Minutes for this action')).toBeTruthy();
+    expect(within(dialog).queryByLabelText('Area')).toBeNull();
+    expect(within(dialog).queryByLabelText('Normal version')).toBeNull();
+    expect(within(dialog).queryByLabelText('Purpose')).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Save captured task' })).toBeTruthy();
+    expect(document.activeElement).toBe(within(dialog).getByLabelText('Task title'));
+
+    const details = within(dialog).getByRole('button', { name: /Optional details/ });
+    expect(details.getAttribute('aria-expanded')).toBe('false');
+    await user.click(details);
+    expect(details.getAttribute('aria-expanded')).toBe('true');
+    await user.selectOptions(within(dialog).getByLabelText('Area'), 'admin');
+    await user.type(within(dialog).getByLabelText('Task title'), 'Order shoes');
+    await user.type(within(dialog).getByLabelText('Smallest useful action'), 'Check size');
+    await user.type(within(dialog).getByLabelText('Minutes for this action'), '5');
+    await user.type(within(dialog).getByLabelText('Normal version'), 'Browse shoes');
+    await user.type(within(dialog).getByLabelText('Normal minutes'), '15');
+    await user.click(within(dialog).getByRole('button', { name: 'Save captured task' }));
+
+    await waitFor(async () => expect(await getCurrentLifeRhythmDatabase().taskPoolItems.count()).toBe(1));
+    const saved = await getCurrentLifeRhythmDatabase().taskPoolItems.toArray();
+    expect(saved[0]).toMatchObject({ area: 'admin', minimum: { label: 'Check size', minutes: 5 }, normal: { label: 'Browse shoes', minutes: 15 } });
   });
 
   it('opens and closes Capture from the keyboard and restores focus', async () => {
@@ -117,8 +151,8 @@ describe('persistent shell Capture', () => {
     await screen.findByRole('heading', { name: 'Today' });
     await user.click(screen.getByRole('button', { name: 'Capture' }));
     await user.type(screen.getByLabelText('Task title'), 'Should remain unsaved');
-    await user.type(screen.getByLabelText('Minimum version'), 'One safe step');
-    await user.type(screen.getByLabelText('Minimum minutes'), '5');
+    await user.type(screen.getByLabelText('Smallest useful action'), 'One safe step');
+    await user.type(screen.getByLabelText('Minutes for this action'), '5');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Capture task' });

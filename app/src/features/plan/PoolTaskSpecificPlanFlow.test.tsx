@@ -52,9 +52,10 @@ afterEach(() => {
 async function captureTask(user: ReturnType<typeof userEvent.setup>, title: string) {
   await user.click(screen.getByRole('button', { name: 'Capture task' }));
   await user.type(screen.getByLabelText('Task title'), title);
+  await user.click(screen.getByRole('button', { name: /Optional details/ }));
   await user.selectOptions(screen.getByLabelText('Area'), 'admin');
-  await user.type(screen.getByLabelText('Minimum version'), `Open ${title.toLowerCase()}`);
-  await user.type(screen.getByLabelText('Minimum minutes'), '5');
+  await user.type(screen.getByLabelText('Smallest useful action'), `Open ${title.toLowerCase()}`);
+  await user.type(screen.getByLabelText('Minutes for this action'), '5');
   await user.click(screen.getByRole('button', { name: 'Save captured task' }));
   expect(await screen.findByText(title)).toBeTruthy();
 }

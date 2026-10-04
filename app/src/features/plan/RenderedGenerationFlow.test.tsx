@@ -141,6 +141,7 @@ describe('rendered canonical data retains recovery generation', () => {
       const db = getCurrentLifeRhythmDatabase();
       const user = userEvent.setup();
       render(<App />);
+      await user.click(await screen.findByRole('button', { name: 'More' }));
       await user.click(await screen.findByRole('button', { name: 'Settings' }));
       await screen.findByRole('radio', { name: /Clear/ });
       await waitForPlan();

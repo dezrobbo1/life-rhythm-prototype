@@ -606,8 +606,7 @@
   .app-shell[data-trial-mode='personal'] .app-header {
     align-items: center;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    row-gap: 0.2rem;
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 
   .app-shell[data-trial-mode='personal'] .app-header__actions--compact {
@@ -619,13 +618,9 @@
     grid-row: 1;
   }
 
-  .app-shell[data-trial-mode='personal'] .secondary-nav {
-    border-top: 1px solid var(--color-line);
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-content: flex-end;
-    min-width: 0;
-    padding-top: 0.2rem;
+  .app-shell[data-trial-mode='personal'] .shell-utilities {
+    grid-column: 3;
+    grid-row: 1;
   }
 
   .app-shell[data-trial-mode='personal'] .theme-control--settings {
@@ -641,15 +636,6 @@
 
   .app-shell[data-trial-mode='personal'] .brand-copy p:last-child {
     display: none;
-  }
-
-  .app-shell[data-trial-mode='personal'] .secondary-nav {
-    gap: 0;
-  }
-
-  .app-shell[data-trial-mode='personal'] .secondary-nav button {
-    min-height: 2.75rem;
-    padding-inline: 0.6rem;
   }
 
   .trial-example__header,

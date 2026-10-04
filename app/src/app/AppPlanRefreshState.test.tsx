@@ -112,8 +112,8 @@ describe('Plan refresh presentation state', () => {
 
     await user.click(screen.getByRole('button', { name: 'Capture' }));
     await user.type(screen.getByLabelText('Task title'), 'Refresh the open plan');
-    await user.type(screen.getByLabelText('Minimum version'), 'Read current plan');
-    await user.type(screen.getByLabelText('Minimum minutes'), '4');
+    await user.type(screen.getByLabelText('Smallest useful action'), 'Read current plan');
+    await user.type(screen.getByLabelText('Minutes for this action'), '4');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
     expect(await screen.findByText('Task captured. Held outside Today. Life Rhythm can privately plan it when it fits.')).toBeTruthy();

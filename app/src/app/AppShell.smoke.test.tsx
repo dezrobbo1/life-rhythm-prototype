@@ -45,8 +45,8 @@ describe('primary app shell navigation', () => {
 
     const nav = await screen.findByRole('navigation', { name: 'Primary' });
 
-    expect(screen.getByText('Personal trial')).toBeTruthy();
-    expect(screen.getByText('Start small. Keep rhythm.')).toBeTruthy();
+    expect(screen.queryByText('Personal trial')).toBeNull();
+    expect(screen.queryByText('Start small. Keep rhythm.')).toBeNull();
     expect(document.querySelector('.brand-mark')).toBeTruthy();
     expect(document.querySelector('.brand-mark svg')).toBeTruthy();
     expect(document.querySelectorAll('.bottom-nav__icon')).toHaveLength(4);
@@ -89,6 +89,9 @@ describe('primary app shell navigation', () => {
     expect(screen.getByLabelText('Search rhythms')).toBeTruthy();
     expect(document.querySelector('.library-card__icon .app-icon')).toBeTruthy();
 
+    expect(screen.queryByRole('navigation', { name: 'Secondary' })).toBeNull();
+    const utilities = screen.getByText('More');
+    await user.click(utilities);
     const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
 
     expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
@@ -96,14 +99,16 @@ describe('primary app shell navigation', () => {
     expect(within(secondaryNav).getByRole('button', { name: 'Example day' })).toBeTruthy();
 
     await user.click(within(secondaryNav).getByRole('button', { name: 'Reset' }));
-    expect(within(secondaryNav).getByRole('button', { name: 'Reset' }).getAttribute('aria-current')).toBe('page');
+    await user.click(await screen.findByRole('button', { name: 'More' }));
+    expect(within(screen.getByRole('navigation', { name: 'Secondary' })).getByRole('button', { name: 'Reset' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Daily reset actions' })).toBeTruthy();
     expect(document.querySelector('.reset-card__icon .app-icon')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
 
-    await user.click(within(secondaryNav).getByRole('button', { name: 'Settings' }));
-    expect(within(secondaryNav).getByRole('button', { name: 'Settings' }).getAttribute('aria-current')).toBe('page');
+    await user.click(within(screen.getByRole('navigation', { name: 'Secondary' })).getByRole('button', { name: 'Settings' }));
+    await user.click(await screen.findByRole('button', { name: 'More' }));
+    expect(within(screen.getByRole('navigation', { name: 'Secondary' })).getByRole('button', { name: 'Settings' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Start Boost safety' })).toBeTruthy();
     await waitFor(() => expect((screen.getByRole('button', { name: 'Add scheduling preference' }) as HTMLButtonElement).disabled).toBe(false));
@@ -120,6 +125,7 @@ describe('primary app shell navigation', () => {
     expect(await screen.findByRole('heading', { name: 'Today' })).toBeTruthy();
     expect(screen.queryByText("Set tomorrow's first step")).toBeNull();
 
+    await user.click(await screen.findByRole('button', { name: 'More' }));
     await user.click(screen.getByRole('button', { name: 'Example day' }));
 
     expect(screen.getByRole('heading', { name: 'A calm day in Life Rhythm' })).toBeTruthy();
@@ -135,6 +141,31 @@ describe('primary app shell navigation', () => {
     expect(screen.queryByText("Set tomorrow's first step")).toBeNull();
   });
 
+  it('closes the utility disclosure when returning to an ordinary destination', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const nav = await screen.findByRole('navigation', { name: 'Primary' });
+    const more = screen.getByRole('button', { name: 'More' });
+    await user.click(more);
+    expect(more.getAttribute('aria-expanded')).toBe('true');
+    await user.click(within(nav).getByRole('button', { name: 'Plan' }));
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('navigation', { name: 'Secondary' })).toBeNull();
+  });
+
+  it('closes the utility disclosure with Escape and restores its trigger focus', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const more = await screen.findByRole('button', { name: 'More' });
+    await user.click(more);
+    const reset = screen.getByRole('navigation', { name: 'Secondary' }).querySelector('button');
+    if (!reset) throw new Error('Utility action missing.');
+    reset.focus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('navigation', { name: 'Secondary' })).toBeNull();
+    expect(document.activeElement).toBe(more);
+  });
+
   it('keeps core Setup trial surfaces available at phone width', async () => {
     const user = userEvent.setup();
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
@@ -143,6 +174,9 @@ describe('primary app shell navigation', () => {
     render(<App />);
 
     const nav = await screen.findByRole('navigation', { name: 'Primary' });
+    expect(screen.getByRole('button', { name: 'Capture' })).toBeTruthy();
+    expect(screen.queryByRole('navigation', { name: 'Secondary' })).toBeNull();
+    await user.click(screen.getByText('More'));
     const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
 
     await user.click(within(secondaryNav).getByRole('button', { name: 'Settings' }));

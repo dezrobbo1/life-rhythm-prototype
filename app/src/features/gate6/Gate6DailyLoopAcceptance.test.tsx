@@ -102,8 +102,8 @@ describe('Gate 6 connected daily loop', () => {
 
     await user.click(screen.getByRole('button', { name: 'Capture' }));
     await user.type(screen.getByLabelText('Task title'), 'Pack the school bag');
-    await user.type(screen.getByLabelText('Minimum version'), 'Put the bag by the door');
-    await user.type(screen.getByLabelText('Minimum minutes'), '5');
+    await user.type(screen.getByLabelText('Smallest useful action'), 'Put the bag by the door');
+    await user.type(screen.getByLabelText('Minutes for this action'), '5');
     await user.click(screen.getByRole('button', { name: /Optional details/ }));
     await user.type(screen.getByLabelText('Normal version'), 'Pack tomorrow’s essentials');
     await user.type(screen.getByLabelText('Normal minutes'), '10');

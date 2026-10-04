@@ -148,8 +148,6 @@ describe('AppSnapshotProvider', () => {
     render(<App />);
 
     const nav = await screen.findByRole('navigation', { name: 'Primary' });
-    const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
-
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy();
 
     await user.click(within(nav).getByRole('button', { name: 'Plan' }));
@@ -164,10 +162,13 @@ describe('AppSnapshotProvider', () => {
     expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
     expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();
 
+    await user.click(await screen.findByRole('button', { name: 'More' }));
+    const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
     await user.click(within(secondaryNav).getByRole('button', { name: 'Reset' }));
     expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
 
-    await user.click(within(secondaryNav).getByRole('button', { name: 'Settings' }));
+    await user.click(await screen.findByRole('button', { name: 'More' }));
+    await user.click(within(screen.getByRole('navigation', { name: 'Secondary' })).getByRole('button', { name: 'Settings' }));
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy();
   });
 });

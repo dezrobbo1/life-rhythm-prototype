@@ -38,7 +38,7 @@ export function Modal({ children, onClose, open, title }: ModalProps) {
     document.body.style.overflow = 'hidden';
 
     const focusable = Array.from(dialogElement.querySelectorAll<HTMLElement>(focusableSelector));
-    (focusable[0] ?? dialogElement).focus();
+    (dialogElement.querySelector<HTMLElement>('[data-modal-initial-focus]') ?? focusable[0] ?? dialogElement).focus();
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {

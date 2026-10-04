@@ -258,8 +258,8 @@ describe('Pool screen', () => {
     vi.spyOn(database.taskPoolItems, 'toArray').mockRejectedValueOnce(new Error('storage unavailable'));
     await user.click(screen.getByRole('button', { name: 'Capture task' }));
     await user.type(screen.getByLabelText('Task title'), 'Keep this unsaved');
-    await user.type(screen.getByLabelText('Minimum version'), 'One safe step');
-    await user.type(screen.getByLabelText('Minimum minutes'), '5');
+    await user.type(screen.getByLabelText('Smallest useful action'), 'One safe step');
+    await user.type(screen.getByLabelText('Minutes for this action'), '5');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Capture task' });
@@ -285,10 +285,10 @@ describe('Pool screen', () => {
       await screen.findByText('No captured tasks yet.');
       await user.click(screen.getByRole('button', { name: 'Capture task' }));
       await user.type(screen.getByLabelText('Task title'), 'Order school shirts');
-      await user.selectOptions(screen.getByLabelText('Area'), 'admin');
-      await user.type(screen.getByLabelText('Minimum version'), 'Write the size list');
-      await user.type(screen.getByLabelText('Minimum minutes'), '6');
       await user.click(screen.getByRole('button', { name: /Optional details/ }));
+      await user.selectOptions(screen.getByLabelText('Area'), 'admin');
+      await user.type(screen.getByLabelText('Smallest useful action'), 'Write the size list');
+      await user.type(screen.getByLabelText('Minutes for this action'), '6');
       await user.type(screen.getByLabelText('Normal version'), 'Check prices and sizes');
       await user.type(screen.getByLabelText('Normal minutes'), '17');
       await user.type(screen.getByLabelText('Full version'), 'Order shirts and save the confirmation');
@@ -368,8 +368,8 @@ describe('Pool screen', () => {
     await user.click(await screen.findByRole('button', { name: 'Held' }));
     await user.click(screen.getByRole('button', { name: 'Capture task' }));
     await user.type(screen.getByLabelText('Task title'), 'Task held outside Today');
-    await user.type(screen.getByLabelText('Minimum version'), 'Write the first note');
-    await user.type(screen.getByLabelText('Minimum minutes'), '5');
+    await user.type(screen.getByLabelText('Smallest useful action'), 'Write the first note');
+    await user.type(screen.getByLabelText('Minutes for this action'), '5');
     await user.click(screen.getByRole('button', { name: 'Save captured task' }));
 
     expect(await screen.findByText('Task captured. Held outside Today. Life Rhythm can privately plan it when it fits.')).toBeTruthy();
@@ -397,8 +397,8 @@ describe('Pool screen', () => {
     expect(within(dialog).getByText(/Older saved times may have been filled in automatically/)).toBeTruthy();
     await user.clear(within(dialog).getByLabelText('Task title'));
     await user.type(within(dialog).getByLabelText('Task title'), 'Corrected school form');
-    await user.clear(within(dialog).getByLabelText('Minimum minutes'));
-    await user.type(within(dialog).getByLabelText('Minimum minutes'), '14');
+    await user.clear(within(dialog).getByLabelText('Minutes for this action'));
+    await user.type(within(dialog).getByLabelText('Minutes for this action'), '14');
     await user.clear(within(dialog).getByLabelText('Normal version'));
     await user.clear(within(dialog).getByLabelText('Normal minutes'));
     await user.clear(within(dialog).getByLabelText('Full version'));
@@ -411,6 +411,42 @@ describe('Pool screen', () => {
       minimum: { label: original.minimum.label, minutes: 14 },
       normal: { label: original.minimum.label, minutes: 14 },
       full: { label: original.minimum.label, minutes: 14 },
+    });
+  });
+
+  it('keeps existing optional values when an edit saves with disclosures closed', async () => {
+    const user = userEvent.setup();
+    const original = validTaskPoolItem({
+      dueAt: '2026-06-20T10:30:00.000Z',
+      missedPolicy: 'minimumOnly',
+      notes: 'Use the saved size note.',
+      purpose: 'Keep school ready.',
+      timeConstraint: 'dueBy',
+    });
+    await saveTaskPoolItem(original);
+    render(<PoolScreen />);
+
+    const row = (await screen.findByText(original.title)).closest('li');
+    if (!row) throw new Error('Held task row missing.');
+    await user.click(within(row).getByText('Other choices'));
+    await user.click(within(row).getByRole('button', { name: 'Edit task' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit task' });
+    expect(within(dialog).getByLabelText('Normal version')).toBeTruthy();
+    expect(within(dialog).getByLabelText('Area')).toBeTruthy();
+    expect(within(dialog).getByLabelText('Useful before')).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: /Optional details/ }));
+    await user.click(within(dialog).getByRole('button', { name: /Optional useful window/ }));
+    await user.clear(within(dialog).getByLabelText('Task title'));
+    await user.type(within(dialog).getByLabelText('Task title'), 'Corrected school task');
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(async () => {
+      expect(await getCurrentLifeRhythmDatabase().taskPoolItems.get(original.id)).toMatchObject({
+        area: original.area, dueAt: original.dueAt, full: original.full,
+        id: original.id, minimum: original.minimum, missedPolicy: original.missedPolicy,
+        normal: original.normal, notes: original.notes, purpose: original.purpose,
+        status: original.status, title: 'Corrected school task',
+      });
     });
   });
 

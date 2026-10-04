@@ -196,28 +196,17 @@ export function TaskPoolCaptureModal({ item, onClose, onSave, open }: TaskPoolCa
 
   return (
     <Modal onClose={closeModal} open={open} title={item ? 'Edit task' : 'Capture task'}>
-      <div className="add-task-form">
+      <div className="add-task-form task-pool-capture-form">
         <p className="lede">{item
           ? 'Correct this task without changing its place in Held or Today. Older saved times may have been filled in automatically; check them before saving.'
           : 'Keep this out of Today for now. Life Rhythm can privately plan it when it fits.'}</p>
         <label>
           <span>Task title</span>
-          <input onChange={(event) => setTitle(event.target.value)} value={title} />
+          <input data-modal-initial-focus onChange={(event) => setTitle(event.target.value)} value={title} />
         </label>
-        <label>
-          <span>Area</span>
-          <select onChange={(event) => setArea(event.target.value as TaskPoolArea)} value={area}>
-            {areaOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p>Other is the starting area. Change it if a more specific area fits.</p>
         <div className="task-version-pair">
-          <label><span>Minimum version</span><input onChange={(event) => setMinimumVersion(event.target.value)} value={minimumVersion} /></label>
-          <label><span>Minimum minutes</span><input inputMode="numeric" onChange={(event) => setMinimumMinutes(event.target.value)} value={minimumMinutes} /></label>
+          <label><span>Smallest useful action</span><input onChange={(event) => setMinimumVersion(event.target.value)} value={minimumVersion} /></label>
+          <label><span>Minutes for this action</span><input inputMode="numeric" onChange={(event) => setMinimumMinutes(event.target.value)} value={minimumMinutes} /></label>
         </div>
         <button
           aria-expanded={detailsOpen}
@@ -228,9 +217,16 @@ export function TaskPoolCaptureModal({ item, onClose, onSave, open }: TaskPoolCa
           Optional details
           <span>{detailsOpen ? 'Hide' : 'Show'}</span>
         </button>
-        <p>Without a Normal or Full version, Life Rhythm uses the preceding action and its minutes exactly.</p>
         {detailsOpen ? (
           <div className="add-task-form__optional">
+            <label>
+              <span>Area</span>
+              <select onChange={(event) => setArea(event.target.value as TaskPoolArea)} value={area}>
+                {areaOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            <p>Other is the starting area. Change it if a more specific area fits.</p>
+            <p>Without a Normal or Full version, Life Rhythm uses the preceding action and its minutes exactly.</p>
             <div className="task-version-pair">
               <label><span>Normal version</span><input onChange={(event) => setNormalVersion(event.target.value)} value={normalVersion} /></label>
               <label><span>Normal minutes</span><input inputMode="numeric" onChange={(event) => setNormalMinutes(event.target.value)} value={normalMinutes} /></label>
