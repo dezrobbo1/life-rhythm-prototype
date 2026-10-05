@@ -7,11 +7,11 @@ Historical reset baseline: main at e0c1d175e9082f7e5bdc5f1aeae6980146e4994b (PR 
 
 Programme authority: this file defines delivery sequence, owner-trial prerequisites and beta boundaries. PRODUCT.md defines product purpose; ARCHITECTURE.md defines target technical boundaries. Lower-level contracts refine a milestone and must not narrow these prerequisites.
 
-Last verified main before PR #167 reconciliation: e57f900ae2d344e60247b468b74ad5e25e842197, merged PR #169 (authority correction). PR #166 remains the last executable change. Gates 0–7 and Gate 8A1–8A6 have delivered their recorded boundaries. Gate 8A7 delivered current-authority copy, selected disclosure and compact-shell alignment; whole-product calm/mobile acceptance is not complete.
+Verified main after PR #171: `9f04208803d5443eed40423224ce946aaff194c9` (GitHub plugin; merge commit, with PR #171 head `065a0cb9904d882e856e57891aa5257ad7370325` as its second parent). B2 Library/Settings/recovery convergence has delivered its bounded implementation scope. The owner reported the bounded B2 desktop/mobile/keyboard walkthrough passed on that exact correction head; device/OS/browser details were not supplied. This does not complete integrated whole-product acceptance. Gates 0–7 and Gate 8A1–8A6 have delivered their recorded boundaries; whole-product 8A7B remains incomplete.
 
 Current active milestone: Gate 8A7B — whole-product calm-surface convergence. PR #167 records the prepared Gate 8A8/Gate 8B evidence protocol and the current Gate 8A8 BLOCK decision. Documentation preparation does not constitute Gate 8A8 PASS. Gate 8B has not started.
 
-The remaining sequence is 8A7B — whole-product calm-surface convergence, then 8A7C — account-backed continuity, 8A7D — live read-only calendar, and revised 8A8 — integrated final readiness.
+The remaining work within 8A7B is B3: populated Today, Plan/Changed, contextual relief/corrections, and integrated mobile/desktop/keyboard acceptance. Then proceed in the existing order: 8A7C — account-backed continuity, 8A7D — live read-only calendar, and revised 8A8 — integrated final readiness.
 
 Current owner-trial blockers:
 
@@ -24,7 +24,7 @@ Owner personal trial means authenticated ordinary longitudinal use with durable 
 
 Prototype exploration may use browser-local data, manual backups and static ICS with explicit limitations. It does not count as the longitudinal owner trial. Small beta means a separately approved invited external population after owner evidence, with supported device/provider/timezone boundaries and operational security/privacy, recovery, release and support readiness.
 
-Issue #168 owns the active Gate 8A7B calm/mobile convergence blocker. Issue #160 has partial owner mobile evidence with observed FAIL; remaining rows and exact build attribution must be completed. Issue #146 blocks supported internal DST-transition populations, but need not block an explicitly Perth-only fixed-timezone owner trial. Issue #141 was closed by merged PR #169.
+Issue #168 remains open as the whole-product Gate 8A7B calm/mobile convergence blocker after B2. Issue #160 retains partial owner mobile evidence with observed FAIL; remaining rows and exact build attribution must be completed, and the bounded B2 pass does not close it. Issue #146 blocks supported internal DST-transition populations, but need not block an explicitly Perth-only fixed-timezone owner trial. Issue #141 was closed by merged PR #169.
 
 Explicitly deferred: public signup, calendar writes, broad provider coverage, simultaneous automatic multi-device merging, collaboration/social features, AI, notifications, content analytics, broader inferred preferences and clinical claims. Account-backed continuity and one live calendar are not deferred owner-trial requirements.
 
