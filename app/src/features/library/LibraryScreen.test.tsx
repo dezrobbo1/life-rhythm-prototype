@@ -83,8 +83,7 @@ describe('Gate 8A2 Library rhythm authority', () => {
     const card = screen.getByRole('article', { name: 'Breakfast reset' });
     expect(within(card).getByText('Saved state unavailable')).toBeTruthy();
     expect(within(card).queryByText('Needs configuration')).toBeNull();
-    const add = within(card).getByRole('button', { name: 'Configure to add once' });
-    expect(add).toHaveProperty('disabled', true);
+    expect(within(card).getByRole('button', { name: 'Configuration unavailable' })).toHaveProperty('disabled', true);
     expect(within(card).queryByRole('button', { name: 'Configure and turn on' })).toBeNull();
     await user.click(within(card).getByRole('button', { name: 'Details' }));
     expect(within(card).getByText('Why this rhythm exists')).toBeTruthy();
@@ -97,7 +96,7 @@ describe('Gate 8A2 Library rhythm authority', () => {
     finishRead(result);
     await waitFor(() => expect(within(card).getByText('Needs configuration')).toBeTruthy());
     expect(within(card).getByRole('button', { name: 'Configure and turn on' })).toHaveProperty('disabled', false);
-    expect(within(card).getByRole('button', { name: 'Configure to add once' })).toHaveProperty('disabled', false);
+    expect(within(card).queryByRole('button', { name: /add once/i })).toBeNull();
     expect(await database.rhythmTemplates.get(savedTemplate.id)).toEqual(savedTemplate);
   });
 
@@ -110,7 +109,7 @@ describe('Gate 8A2 Library rhythm authority', () => {
     await screen.findByText('Saved rhythm configuration could not be read.');
     const card = screen.getByRole('article', { name: 'Breakfast reset' });
     expect(within(card).getByText('Saved state unavailable')).toBeTruthy();
-    expect(within(card).getByRole('button', { name: 'Configure to add once' })).toHaveProperty('disabled', true);
+    expect(within(card).getByRole('button', { name: 'Configuration unavailable' })).toHaveProperty('disabled', true);
     expect(within(card).queryByRole('button', { name: 'Configure and turn on' })).toBeNull();
     await user.click(within(card).getByRole('button', { name: 'Details' }));
     expect(within(card).getByText('Catalogue action ideas')).toBeTruthy();
@@ -145,8 +144,10 @@ describe('Gate 8A2 Library rhythm authority', () => {
     const card = await screen.findByRole('article', { name: 'Breakfast reset' });
     await waitFor(() => expect(within(card).getByText('Needs configuration')).toBeTruthy());
     expect(within(card).queryByText('Enabled')).toBeNull();
-    expect(within(card).getByText('Catalogue suggestion · not active')).toBeTruthy();
-    expect(screen.getByText(/Turning a rhythm on lets Life Rhythm privately plan its future occurrences when they fit/)).toBeTruthy();
+    expect(within(card).getByText('Suggestion only · nothing is active')).toBeTruthy();
+    expect(screen.getByText(/Ideas stay inactive until you set them up/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Your rhythms' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'More rhythm ideas' })).toBeTruthy();
     await user.click(screen.getByText('Quick packs · preview only'));
     await user.click(within(screen.getByRole('article', { name: 'Morning basics' }))
       .getByRole('button', { name: 'Preview pack' }));
@@ -310,5 +311,25 @@ describe('Gate 8A2 Library rhythm authority', () => {
       URL.revokeObjectURL = originalRevoke;
       HTMLAnchorElement.prototype.click = click;
     }
+  });
+
+  it('keeps specialist rhythm backup tools and secondary actions progressively disclosed', async () => {
+    const user = userEvent.setup();
+    render(<LibraryScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create rhythm' })).toHaveProperty('disabled', false));
+    const technicalTools = screen.getByText('Technical rhythm backup').closest('details');
+    expect(technicalTools).not.toBeNull();
+    expect(technicalTools).toHaveProperty('open', false);
+
+    const card = screen.getByRole('article', { name: 'Breakfast reset' });
+    const more = within(card).getByText('More about Breakfast reset').closest('details');
+    expect(more).not.toBeNull();
+    expect(more).toHaveProperty('open', false);
+    expect(within(card).getByRole('button', { name: 'Configure and turn on' })).toBeTruthy();
+
+    await user.click(screen.getByText('Technical rhythm backup'));
+    expect(technicalTools).toHaveProperty('open', true);
+    expect(screen.getByRole('button', { name: 'Export rhythm backup' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Check rhythm backup' })).toBeTruthy();
   });
 });

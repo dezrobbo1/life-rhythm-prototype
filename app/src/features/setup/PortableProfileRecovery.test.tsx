@@ -16,6 +16,19 @@ vi.mock('../../data/portableProfileBackup', () => ({
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('portable profile recovery controls', () => {
+  it('keeps portable export obvious and restore controls behind one disclosure', async () => {
+    const user = userEvent.setup();
+    render(<PortableProfileRecovery onReload={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Export portable backup' })).toBeTruthy();
+    const disclosure = screen.getByText('Restore from a portable backup').closest('details');
+    expect(disclosure).not.toBeNull();
+    expect(disclosure).toHaveProperty('open', false);
+    await user.click(screen.getByText('Restore from a portable backup'));
+    expect(disclosure).toHaveProperty('open', true);
+    expect(screen.getByLabelText('Select portable backup file')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Check backup' })).toBeTruthy();
+  });
+
   it('requires successful check and explicit confirmation; edits invalidate the preview', async () => {
     const user = userEvent.setup();
     const reload = vi.fn();
