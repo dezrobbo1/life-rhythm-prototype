@@ -1,8 +1,24 @@
 # Gate 8A7B3 reproducible cloud-browser evidence
 
-This is bounded completion and confirmed-review correction evidence for open PR #175. `replay.cjs` runs the seven completion rows plus the focused Plan correction failure/focus matrix and exits nonzero on a failed assertion. It launches its own loopback Vite server and uses new isolated Chromium contexts containing only synthetic data. It never opens an owner profile, hosted account, provider, or external URL.
+The current replay/manifest includes the narrow post-merge correction for [the late #175 focus finding](https://github.com/dezrobbo1/life-rhythm-prototype/pull/175#discussion_r4186367782). See [correction report](../../docs/plan-correction-focus-report.md), [red-first evidence](post-merge-focus-red.json) and [first-publication scoped results](post-merge-focus-results.json). The current application tree/fingerprint is in `manifest.json`. That first-publication run covers **11 affected rows**, not the unrelated completion rows. It uses isolated Chromium contexts and synthetic data only.
 
-The original broad-reviewed application commit is `b1ae38bc56bf6f1205e9163fa3c3e81536cd753d`. The correction continues exact head `aaa0a31ae26fd2e174ef45b780df553698f6d3a4`, which already contains policy main/base `c2ee838163497938e84b0a2044f3dc4ad961c2b6`. The corrected application differs from the original; `manifest.json` records its exact `app/src` tree and runtime paths/bytes SHA-256, alongside the prior source attribution. The harness refuses a fingerprint mismatch before browser writes. `pre-correction-row-results.json` preserves the previous seven-row evidence; `row-results.json` is the fresh corrected-source replay. The correction report and PR metadata identify publication and remaining independent verification.
+The original `prior-results.json`, `pre-correction-row-results.json` and accepted pre-merge `row-results.json` remain dated evidence on their embedded source identifiers. Their outcomes have not been relabelled or rerun as a broad acceptance review. Manifest fields `acceptedPrePostMergeApplicationSourceTree` and `acceptedPrePostMergeRuntimeSourceSha256` retain the accepted pre-merge source identity. `prior-replay.cjs` remains the historical replay. Screenshots remain local and are not remotely delivered.
+
+The latest consolidated lifecycle pass continues PR #178 after its pending-Move input finding. [Lifecycle red evidence](focus-lifecycle-red.json) and [lifecycle results](focus-lifecycle-results.json) identify the current matrix; `post-merge-focus-results.json` is preserved first-publication evidence. The manifest's `focusLifecycleReviewedHead` and prior-post-merge source fields distinguish the generations. Run **only the 42 affected focus rows** with:
+
+```sh
+B3_FOCUS_ONLY=1 B3_OUTPUT=/tmp/life-rhythm-focus-lifecycle node app/evidence/gate8a7b3/replay.cjs
+```
+
+The 31 added lifecycle rows cover 24 Move combinations (Tab/click × immediate/delayed/missing successor × same/cross day × replaced/stable ID), two rejected Move cases, four pending within-correction Protect/Unprotect cases, and the pending Move keyboard case at desktop width. They hold UI result delivery after the real Move coordinator completes. For Protect/Unprotect, they hold command start until the pending disclosure input occurs, then run the real command. All use real React/IndexedDB and independently controlled Day Line delivery. This tests asynchronous ownership, connected return, cancellation and unchanged persisted authority without relying on arbitrary focus timing.
+
+For the nine new ordering rows, the replay intercepts only the compiled `PlanDayLineScreen` subscriber `next` callback at the loopback browser route. It holds real read results or supplies synthetic loading/error delivery, then explicitly releases the latest result. React mounts/commits, correction coordinators and IndexedDB remain real. This fixture does not change application source or scheduler/storage semantics. The immediate-successor, same/cross-day Move, rhythm and conflict/cancel regressions use the existing uninstrumented rows. Results state the instrumentation; no hosted-deployment or physical-device check is claimed.
+
+Run the exact affected scope from repository root:
+
+```sh
+B3_ROWS=contextual-rhythm-correction,plan-correction-failure-and-focus,plan-ordering-protect-delayed,plan-ordering-protect-error,plan-ordering-protect-loading,plan-ordering-protect-keyboard,plan-ordering-protect-pointer,plan-ordering-protect-date,plan-ordering-unprotect-error,plan-ordering-move-delayed,plan-ordering-protect-desktop B3_OUTPUT=/tmp/life-rhythm-focus-replay node app/evidence/gate8a7b3/replay.cjs
+```
 
 ## Run from a clean checkout
 
@@ -31,13 +47,15 @@ Or, with Playwright already available:
 node app/evidence/gate8a7b3/replay.cjs
 ```
 
-Set `B3_CHROMIUM` to a valid Chromium executable on another platform. `B3_PORT` changes the private loopback port (default 5187); `B3_OUTPUT` changes the local output directory (default `/tmp/life-rhythm-b3-replay`). `B3_ROWS` optionally selects comma-separated exact row names for failure diagnosis; omit it for the complete eight-row evidence run. Do not claim a filtered run covers omitted rows.
+Set `B3_CHROMIUM` to a valid Chromium executable on another platform. `B3_PORT` changes the private loopback port (default 5187); `B3_OUTPUT` changes the local output directory (default `/tmp/life-rhythm-b3-replay`). `B3_ROWS` optionally selects comma-separated exact row names for failure diagnosis; omit it for all 48 available rows. A filtered run covers only its named rows. Do not claim a filtered run covers omitted rows.
 
 The harness starts and stops its own server. It records the executing checkout commit, the fixed reviewed source commit, current runtime fingerprint and source tree, browser and Playwright versions, viewport per row, timezone, advancing-clock rule, assertions/results, runtime page errors, and screenshot hashes in `row-results.json` under the output directory. Screenshots and generated build output stay local. The server serves the fingerprinted Vite source; the recorded `builtFiles` are hashes of the separately validated local build, not a claim that the browser visited a production preview. If no `dist` exists, `builtFiles` is null.
 
-## Covered assertions
+## Available assertions (historical completion plus current ordering scope)
 
-- Focused Plan matrix at 390×844: first automatic Protect replacement focus; existing corrected Protect/Unprotect with an explicit stable destination; same-day Move replacement focus; cross-day Move to Plan details; subsequent date navigation without stale focus theft; synthetic invalid-calendar read failure while corrected manual placements remain readable; saved title/time fallback with byte-identical persistence snapshots during inspection; successful read restores deduplication. Fixture corruption and removal are explicit harness writes; inspection and no-write comparisons begin after the fixture change. The existing rhythm row retains Move conflict/cancel/no-write, keyboard trap, same-day success, Protect/Unprotect, Why and reload checks.
+- New ordering matrix: missing/delayed/loading/error successors use connected Plan details; released successors regain focus only before keyboard/pointer/date navigation cancels the request. Protect/Unprotect and same-day Move retain saved correction lifecycle, and focus/inspection/release do not write the compared persistence tables. Mobile 390×844 plus desktop 1280×844.
+
+- Existing focused Plan matrix at 390×844: first automatic Protect replacement focus; existing corrected Protect/Unprotect with an explicit stable destination; same-day Move replacement focus; cross-day Move to Plan details; subsequent date navigation without stale focus theft; synthetic invalid-calendar read failure while corrected manual placements remain readable; saved title/time fallback with byte-identical persistence snapshots during inspection; successful read restores deduplication. Fixture corruption and removal are explicit harness writes; inspection and no-write comparisons begin after the fixture change. The existing rhythm row retains Move conflict/cancel/no-write, keyboard trap, same-day success, Protect/Unprotect, Why and reload checks.
 
 - Mobile 390×844 and desktop 1280×844: long Task title (209 characters) and authored Minimum (195 characters), focused input, visible keyboard outline, reachable Save/Cancel after modal scrolling, Tab/Shift+Tab containment, Enter/Space activation, Cancel/no write, Save/status preservation, return to opener, reload persistence, and no document overflow.
 - Contextual rhythm correction at 390×844: conflict feedback inside the modal, rejected Move and Cancel/no write, local start correction, original duration and linked identity, successful-row focus, Protect/Unprotect, grounded Why, reload, and overflow.

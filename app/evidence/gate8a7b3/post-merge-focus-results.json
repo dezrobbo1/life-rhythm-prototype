@@ -1,0 +1,249 @@
+{
+  "runAtUtc": "2026-10-05T17:03:53.550Z",
+  "postMergeCorrectionBase": "f98cca4424cc482407fea1b2862d0d79a3c9a7b2",
+  "originalReviewedSourceCommit": "b1ae38bc56bf6f1205e9163fa3c3e81536cd753d",
+  "correctionParentHead": "aaa0a31ae26fd2e174ef45b780df553698f6d3a4",
+  "correctionBase": "c2ee838163497938e84b0a2044f3dc4ad961c2b6",
+  "runtimeSourceSha256": "27e03248a630a467fcbeceb88c4af8420c4c3b47681b005d869889b65f2ca2d5",
+  "applicationSourceTree": "0c0083ea70e8f42bba9b2f4b1a1bf35dee6114d1",
+  "sourceState": "fingerprinted working tree; source tree recorded in manifest",
+  "checkoutCommit": "f98cca4424cc482407fea1b2862d0d79a3c9a7b2",
+  "server": "fresh loopback Vite serving fingerprinted checkout (not hosted preview)",
+  "browser": "151.0.7922.173",
+  "playwright": "1.62.1",
+  "timezone": "Australia/Perth",
+  "clock": {
+    "anchorUtc": "2026-10-05T01:00:00Z",
+    "localAnchor": "2026-10-05 09:00 Australia/Perth",
+    "mode": "Playwright clock.install running clock; explicit runFor(1000) before successive repair writes; never setFixedTime"
+  },
+  "builtFiles": [
+    {
+      "file": "assets/index-BUlG5yZR.js",
+      "sha256": "31acfe4af30a6b921a3c5524ea650d407cb923fccb84e61e0421205bc37ba098"
+    },
+    {
+      "file": "assets/index-CczVCBLZ.css",
+      "sha256": "d72732e6cb259fcabb58e3c7c6746d417e10c173db8662733f807230e1a585c4"
+    },
+    {
+      "file": "index.html",
+      "sha256": "54a979969f8f6e86957eededf53a9160c3ea91611d9b23f9b33be715d2060df2"
+    }
+  ],
+  "rows": [
+    {
+      "row": "contextual-rhythm-correction",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "conflictNoWrite": true,
+        "cancelNoWrite": true,
+        "moveSaveReload": true,
+        "durationPreserved": true,
+        "linkedIdentityPreserved": true,
+        "protectUnprotect": true,
+        "groundedWhy": true,
+        "focusReturn": true
+      }
+    },
+    {
+      "row": "plan-correction-failure-and-focus",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "firstAutomaticProtectFocus": true,
+        "existingCorrectionProtectUnprotectFocus": true,
+        "sameDayMoveFocus": true,
+        "crossDayMoveStableFocus": true,
+        "navigationNoFocusTheft": true,
+        "savedCorrectionFailureTitleTime": true,
+        "fallbackInspectionNoWrite": true,
+        "successfulReadDeduplicated": true
+      }
+    },
+    {
+      "row": "plan-ordering-protect-delayed",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "hold",
+        "connectedFallback": true,
+        "delayedSuccessor": "focused",
+        "cancellation": "none",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-protect-error",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "error",
+        "connectedFallback": true,
+        "delayedSuccessor": "focused",
+        "cancellation": "none",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-protect-loading",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "loading",
+        "connectedFallback": true,
+        "delayedSuccessor": "focused",
+        "cancellation": "none",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-protect-keyboard",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "hold",
+        "connectedFallback": true,
+        "delayedSuccessor": "cancelled",
+        "cancellation": "keyboard",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-protect-pointer",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "hold",
+        "connectedFallback": true,
+        "delayedSuccessor": "cancelled",
+        "cancellation": "pointer",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-protect-date",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "hold",
+        "connectedFallback": true,
+        "delayedSuccessor": "cancelled",
+        "cancellation": "date",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-unprotect-error",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Unprotect",
+        "subscriberDelivery": "error",
+        "connectedFallback": true,
+        "delayedSuccessor": "focused",
+        "cancellation": "none",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-move-delayed",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "subscriberDelivery": "hold",
+        "connectedFallback": true,
+        "delayedSuccessor": "focused",
+        "cancellation": "none",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-protect-desktop",
+      "result": "PASS",
+      "viewport": {
+        "width": 1280,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "hold",
+        "connectedFallback": true,
+        "delayedSuccessor": "focused",
+        "cancellation": "none",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    }
+  ],
+  "errors": [],
+  "screenshots": [
+    {
+      "file": "rhythm-move-conflict-mobile.png",
+      "sha256": "801877d0f24380dd92056b6babd16db07e51ca928392369c8a19af916f238b8e"
+    },
+    {
+      "file": "rhythm-correction-why-mobile.png",
+      "sha256": "9cb4579855246f0094657c2edd32713cae185ea8f563eec8cf31f888c455d622"
+    },
+    {
+      "file": "plan-saved-correction-read-failure-mobile.png",
+      "sha256": "2e423dbc8f4f12bedcbf993b669bb377ca4849e277434cad5f00791909e22ca2"
+    }
+  ]
+}
