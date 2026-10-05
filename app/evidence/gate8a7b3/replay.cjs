@@ -30,7 +30,14 @@ async function fits(page) {
   const sizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
   assert.ok(sizes.scroll <= sizes.viewport, JSON.stringify(sizes));
 }
-async function focused(locator) { assert.equal(await locator.evaluate(e => document.activeElement === e), true); }
+async function focused(locator) {
+  for (let n=0;n<100;n++) {
+    if (await locator.evaluate(e => document.activeElement === e)) return;
+    await new Promise(resolve=>setTimeout(resolve,20));
+  }
+  const current=await locator.evaluate(e=>({expected:e.textContent,actual:document.activeElement?.textContent,tag:document.activeElement?.tagName}));
+  assert.fail('Focus destination not restored: '+JSON.stringify(current));
+}
 async function trap(page) {
   const dialog = page.getByRole('dialog');
   const controls = dialog.locator('button:enabled, input:enabled, select:enabled, textarea:enabled, a[href]').filter({ visible: true });
@@ -163,13 +170,72 @@ async function rhythmRow(page) {
     if (!await row().locator('details.plan-context-correction').evaluate(e=>e.open)) await row().getByText('Correct Reset walk',{exact:true}).click();
     await row().getByRole('button',{name,exact:true}).click();
   };
-  await page.clock.runFor(1000); await toggle('Protect this time'); await page.getByText('This private time is protected.',{exact:true}).waitFor();
-  await page.clock.runFor(1000); await toggle('Unprotect'); await page.getByText('Protection removed.',{exact:true}).waitFor();
+  await page.clock.runFor(1000); await toggle('Protect this time'); await page.getByText('This private time is protected.',{exact:true}).waitFor(); await focused(row().getByText('Correct Reset walk',{exact:true}));
+  await page.clock.runFor(1000); await toggle('Unprotect'); await page.getByText('Protection removed.',{exact:true}).waitFor(); await focused(row().getByText('Correct Reset walk',{exact:true}));
   if (!await row().locator('details.plan-context-correction').evaluate(e=>e.open)) await row().getByText('Correct Reset walk',{exact:true}).click();
   await row().getByText('Why this time?',{exact:true}).click(); await shot(page,'rhythm-correction-why-mobile.png');
   await page.reload(); await page.getByRole('button',{name:'Plan',exact:true}).click(); await row().waitFor();
   assert.equal((await dbRead(page,['schedulerPlanState'])).schedulerPlanState[0].plan.placements.find(p=>p.rhythmInstanceId===placement.rhythmInstanceId).start,'14:00');
   return {conflictNoWrite:true,cancelNoWrite:true,moveSaveReload:true,durationPreserved:true,linkedIdentityPreserved:true,protectUnprotect:true,groundedWhy:true,focusReturn:true};
+}
+async function planCorrectionRow(page) {
+  await page.getByRole('button',{name:'Plan',exact:true}).click();
+  const row = () => page.getByRole('list',{name:/Day Line/}).locator('li').filter({has:page.getByText('Send form',{exact:true})});
+  const summary = () => row().getByText('Correct Send form',{exact:true});
+  const toggle = async name => {
+    if (!await row().locator('details.plan-context-correction').evaluate(e=>e.open)) await summary().click();
+    await page.clock.runFor(1000);
+    await row().getByRole('button',{name,exact:true}).click();
+  };
+  await summary().waitFor();
+  await toggle('Protect this time');
+  await page.getByText('This private time is protected.',{exact:true}).waitFor(); await focused(summary());
+  await toggle('Unprotect');
+  await page.getByText('Protection removed.',{exact:true}).waitFor();
+  await page.waitForFunction(() => document.activeElement?.textContent === 'Correct Send form' || document.activeElement?.matches('.plan-details-disclosure > summary'));
+  await toggle('Move');
+  await page.getByLabel('Move start time',{exact:true}).fill('11:00');
+  await page.getByRole('button',{name:'Save move',exact:true}).click();
+  await page.getByText('Placement moved.',{exact:true}).waitFor(); await focused(summary());
+  await toggle('Protect this time');
+  await page.getByText('This private time is protected.',{exact:true}).waitFor(); await focused(summary());
+  await toggle('Unprotect');
+  await page.getByText('Protection removed.',{exact:true}).waitFor();
+  await page.waitForFunction(() => document.activeElement?.textContent === 'Correct Send form' || document.activeElement?.matches('.plan-details-disclosure > summary'));
+  await toggle('Move');
+  await page.getByLabel('Move date',{exact:true}).fill('2026-10-06');
+  await page.getByRole('button',{name:'Save move',exact:true}).click();
+  await page.getByText('Placement moved.',{exact:true}).waitFor();
+  await focused(page.locator('.plan-details-disclosure > summary'));
+  assert.equal(await row().count(),0,'Cross-day row remained in Monday');
+  await page.locator('.plan-day-line__select select').focus();
+  await page.locator('.plan-day-line__select select').selectOption('Tuesday');
+  await summary().waitFor();
+  await page.waitForTimeout(100);
+  await focused(page.locator('.plan-day-line__select select'));
+  const tables=['softPlacements','schedulerPlanState','taskPoolItems','calendarSources'];
+  const saved=(await dbRead(page,['softPlacements'])).softPlacements.find(p=>p.taskId==='planned-form');
+  assert.equal(saved.date,'2026-10-06');
+  await page.evaluate(async()=>{
+    const {getCurrentLifeRhythmDatabase}=await import('/src/data/localDataNamespace.ts');
+    await getCurrentLifeRhythmDatabase().calendarSources.put({id:'primary',invalidSyntheticFixture:true});
+  });
+  await page.getByText('Day Line could not be loaded.',{exact:true}).waitFor();
+  const failedReadSnapshot=await dbRead(page,tables);
+  await page.getByText('Plan details',{exact:true}).click();
+  await page.locator('.soft-placements__list').getByText('Send form',{exact:true}).waitFor();
+  const fallback=page.getByText(`${saved.blockLabelSnapshot} · ${saved.start}-${saved.end}`,{exact:true});
+  await fallback.waitFor();
+  assert.deepEqual(await dbRead(page,tables),failedReadSnapshot,'Fallback inspection caused writes');
+  await shot(page,'plan-saved-correction-read-failure-mobile.png');
+  await page.evaluate(async()=>{
+    const {getCurrentLifeRhythmDatabase}=await import('/src/data/localDataNamespace.ts');
+    await getCurrentLifeRhythmDatabase().calendarSources.delete('primary');
+  });
+  await row().waitFor();
+  assert.equal(await page.getByText('Send form',{exact:true}).count(),1,'Successful Day Line duplicated saved correction');
+  assert.equal(await fallback.count(),0,'Saved fallback remained after its Day Line row returned');
+  return {firstAutomaticProtectFocus:true,existingCorrectionProtectUnprotectFocus:true,sameDayMoveFocus:true,crossDayMoveStableFocus:true,navigationNoFocusTheft:true,savedCorrectionFailureTitleTime:true,fallbackInspectionNoWrite:true,successfulReadDeduplicated:true};
 }
 async function reducedRow(page) {
   await page.getByRole('button',{name:'Plan',exact:true}).click();
@@ -239,13 +305,14 @@ async function reliefRow(page,count,action) {
     await scenario(browser,'mobile-long-task-edit-keyboard',390,3,false,editRow);
     await scenario(browser,'desktop-task-edit-keyboard',1280,3,false,editRow);
     await scenario(browser,'contextual-rhythm-correction',390,3,true,rhythmRow);
+    await scenario(browser,'plan-correction-failure-and-focus',390,3,true,planCorrectionRow);
     await scenario(browser,'reduced-day-changed-eligible-undo',390,3,false,reducedRow);
     await scenario(browser,'relief-zero',390,0,false,p=>reliefRow(p,0,'Narrow Today'));
     await scenario(browser,'relief-multiple-narrow',390,3,false,p=>reliefRow(p,3,'Narrow Today'));
     await scenario(browser,'relief-multiple-park',390,3,false,p=>reliefRow(p,3,'Park extras safely'));
     assert.deepEqual(errors,[],'Runtime page errors');
   } finally {
-    const result={reviewedSourceCommit:manifest.reviewedSourceCommit,runtimeSourceSha256:fingerprint(),applicationSourceTree:execFileSync('git',['rev-parse','HEAD:app/src'],{cwd:root}).toString().trim(),checkoutCommit:execFileSync('git',['rev-parse','HEAD'],{cwd:root}).toString().trim(),server:'fresh loopback Vite serving fingerprinted checkout (not hosted preview)',browser:browser?await browser.version():null,playwright:require('playwright/package.json').version,timezone:'Australia/Perth',clock:manifest.clock,builtFiles:builtFiles(),rows,errors,screenshots};
+    const result={originalReviewedSourceCommit:manifest.reviewedSourceCommit,correctionParentHead:manifest.correctionParentHead,correctionBase:manifest.correctionBase,runtimeSourceSha256:fingerprint(),applicationSourceTree:manifest.applicationSourceTree,sourceState:'fingerprinted working tree; source tree recorded in manifest',checkoutCommit:execFileSync('git',['rev-parse','HEAD'],{cwd:root}).toString().trim(),server:'fresh loopback Vite serving fingerprinted checkout (not hosted preview)',browser:browser?await browser.version():null,playwright:require('playwright/package.json').version,timezone:'Australia/Perth',clock:manifest.clock,builtFiles:builtFiles(),rows,errors,screenshots};
     fs.writeFileSync(path.join(output,'row-results.json'),JSON.stringify(result,null,2)+'\n');
     if(browser) await browser.close(); server.kill();
   }

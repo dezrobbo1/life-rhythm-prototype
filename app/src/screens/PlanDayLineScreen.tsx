@@ -248,6 +248,11 @@ export function PlanDayLineScreen({
           planRevision={planRevision}
           preferredPlacementDate={selectedDate}
           preferredTaskId={preferredTaskId}
+          dayLinePlacementIds={dayLineState.status === 'ready'
+            ? dayLineState.viewModel.items
+              .filter((item) => item.kind === 'automatic' || item.kind === 'userConfirmed')
+              .map((item) => item.id.slice('placement:'.length))
+            : []}
         />
     </div>
   );

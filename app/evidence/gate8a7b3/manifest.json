@@ -2,8 +2,8 @@
   "reviewedSourceCommit": "b1ae38bc56bf6f1205e9163fa3c3e81536cd753d",
   "reviewedFullTree": "e9a458aa0ec0448d256491d44a988fa7669a8c14",
   "baseCommit": "add82b74082f3bf347191d6ce97de2816169f4eb",
-  "applicationSourceTree": "5bc78ca338faea7362bb6b7afcfc8d03631d834d",
-  "runtimeSourceSha256": "d389265450ee09d77709a4cf15e7d6a1dbf67326e96997a58b5f11e128384a9a",
+  "applicationSourceTree": "0a1170ed53e231fee701a39c49768d3dad7cf180",
+  "runtimeSourceSha256": "36ef6075013f99b54804f0f7cf015ad908e00e8b459951388cf957db64be49cb",
   "fingerprintAlgorithm": "SHA256 of sorted tracked runtime paths + NUL + raw bytes + NUL; includes src/tests and app package/lock/config/public/index, excludes docs/evidence",
   "clock": {
     "anchorUtc": "2026-10-05T01:00:00Z",
@@ -82,5 +82,9 @@
       "delivery": "local supporting screenshot only; Library delivery failed"
     }
   ],
-  "reconciledPublicationBase": "c2ee838163497938e84b0a2044f3dc4ad961c2b6"
+  "reconciledPublicationBase": "c2ee838163497938e84b0a2044f3dc4ad961c2b6",
+  "priorRuntimeSourceSha256": "d389265450ee09d77709a4cf15e7d6a1dbf67326e96997a58b5f11e128384a9a",
+  "priorApplicationSourceTree": "5bc78ca338faea7362bb6b7afcfc8d03631d834d",
+  "correctionParentHead": "aaa0a31ae26fd2e174ef45b780df553698f6d3a4",
+  "correctionBase": "c2ee838163497938e84b0a2044f3dc4ad961c2b6"
 }

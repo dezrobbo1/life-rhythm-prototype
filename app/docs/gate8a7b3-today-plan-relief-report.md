@@ -1,6 +1,6 @@
 # Gate 8A7B3 populated daily surface and contextual correction
 
-Status: draft PR #175 remains unmerged. Independent engineering review found no confirmed code findings; bounded browser evidence completion passes. Targeted independent evidence verification and the parent final merge gate remain pending.
+Status: open PR #175 remains unmerged. Three later confirmed review blockers are corrected below. Corrected-source UTC/Perth tests, build and eight-row browser replay pass; parent targeted verification remains pending. Earlier evidence remains dated and attributable.
 Date: 2026-10-05. Source/base: `add82b74082f3bf347191d6ce97de2816169f4eb` (PR #174).
 Evidence continuation reconciled with policy merge `c2ee838163497938e84b0a2044f3dc4ad961c2b6` (PR #176). Reviewed application commit: `b1ae38bc56bf6f1205e9163fa3c3e81536cd753d`; application source tree `5bc78ca338faea7362bb6b7afcfc8d03631d834d`.
 Branch: `feat/gate8a7b3-today-plan-relief`. Exact published head is recorded in PR metadata/body; this report does not manufacture a self-referential commit SHA.
@@ -89,3 +89,38 @@ PASS below identifies observed engineering/browser evidence at the reviewed appl
 - The screenshot ZIP/PNGs remain local. Names/hashes are supporting attribution only; source replay/results are the durable reproducible deliverable. The original replay was already executed; portable adjustments and a corrected observation label received syntax validation and were not broadly rerun.
 - Hosted navigation remains blocked as recorded above; local Vite/browser checks do not claim hosted-runtime acceptance. No specific unresolved B3 device-only behavior was reproduced. An OS software keyboard was not emulated; any subsequently identified device-specific failure must retain its own required evidence.
 - Preserve #168/#160 open and historical observed FAIL records until the authorized acceptance disposition; no B3 final acceptance or 8A8 PASS is declared here. Account continuity 8A7C, live read-only calendar 8A7D, final integrated 8A8 and owner longitudinal 8B gates remain. #146 remains separate.
+
+
+## Consolidated confirmed-review correction — 2026-10-05 UTC
+
+Correction parent/head: `aaa0a31ae26fd2e174ef45b780df553698f6d3a4`. Reverified live main/base: `c2ee838163497938e84b0a2044f3dc4ad961c2b6`; it is already an ancestor of the continuation. Same branch/PR #175; no merge. Corrected `app/src` tree: `0a1170ed53e231fee701a39c49768d3dad7cf180`. Runtime paths/bytes SHA-256: `36ef6075013f99b54804f0f7cf015ad908e00e8b459951388cf957db64be49cb`. Exact published correction head is recorded in PR metadata/body; the report avoids a self-referential commit SHA.
+
+The completed built-in Codex review at the parent head added two focus blockers to the independently confirmed CodeRabbit read-fallback blocker. All three were verified and consolidated in this pass; external review text was evidence, and no suggested third-party tooling or new broad review was invoked.
+
+| Finding | Confirmed consequence and correction |
+| --- | --- |
+| [Saved correction fallback](https://github.com/dezrobbo1/life-rhythm-prototype/pull/175#discussion_r4185271735) | Day Line failure previously hid every corrected manual placement from details too. Details now deduplicate only exact placement IDs actually represented by ready Day Line rows. Loading/error/absent rows retain readable saved title/time; partial manual reads retain readable items. Existing accepted-plan/action guards remain. |
+| [Cross-day Move focus](https://github.com/dezrobbo1/life-rhythm-prototype/pull/175#discussion_r4185731172) | Off-screen Move removed the opener and left a logical pending target. A successful Move has an explicit connected destination: the exact same-day successor when available, otherwise Plan details. Cancel retains opener return. Date navigation clears pending requests. |
+| [First Protect focus](https://github.com/dezrobbo1/life-rhythm-prototype/pull/175#discussion_r4185731189) | Automatic first Protect remounted a keyed row and lost its button. Protect/Unprotect prepare focus for the exact result placement ID or a stable Plan details fallback. A request survives the asynchronous row refresh sequence, then clears on the next keyboard/pointer action or selected-date change. It cannot be consumed by an obsolete row or steal focus after the user moves on. |
+
+The bounded matrix covers loading/error versus represented/absent Day Line rows; successful and partial manual reads; normal deduplication; unavailable accepted-plan guards; same-day and cross-day Move; conflict/cancel/no-write; first automatic Protect; existing corrected Protect/Unprotect; repeated successor remounts; next keyboard action and destination-date navigation without stale focus theft. Scheduler/coordinator semantics, persisted schema and migrations were not changed.
+
+Regression evidence: the new focused tests were replayed against exact original source at `aaa0a31`; six assertions failed (manual fallback for successful/partial reads, ID forwarding, disconnected-opener fallback, cross-day Move, and automatic Protect). The corrected focused set, including Gate 6 integrated focus and repeated-remount/no-theft assertions, passes **4 files / 41 tests**. No safety assertion was removed. A concurrent full run hit an existing 5-second acceptance timeout; isolation passed. A later full run exposed the extra row-remount race and drove the final focus-request correction; final runs follow below.
+
+Final corrected-source validation (no concurrent browser load; two workers, unchanged assertion/time limits):
+
+| Command / evidence | Result |
+| --- | --- |
+| `TZ=UTC npm test -- --maxWorkers=2` | PASS — 111 files / 1,390 tests |
+| `TZ=Australia/Perth npm test -- --maxWorkers=2` | PASS — 111 files / 1,390 tests |
+| `npm run build` | PASS — TypeScript/Vite; existing bundle-size advisory |
+| Complete `node app/evidence/gate8a7b3/replay.cjs` | PASS — 8/8 rows; zero page errors; mobile 390×844 / desktop 1280×844; Chromium 151.0.7922.173, Playwright 1.62.1; advancing clock anchored to 2026-10-05 09:00 Perth |
+| `node --check` for replay; root staged/unstaged `git diff --check` | PASS |
+
+The fresh run records the parent checkout commit plus the exact corrected working-source tree/fingerprint above. The published correction has those same application bytes; it does not relabel the old reviewed commit as the corrected source. Build hashes are in `row-results.json`; browser interaction served fingerprinted local Vite source.
+
+The browser uses fresh synthetic contexts and fingerprinted loopback Vite source. Its extra Plan row explicitly corrupts then removes only its synthetic calendar-source fixture to exercise read failure; persistence snapshots during fallback inspection remain byte-identical. Original seven-row results remain in [pre-correction-row-results.json](../evidence/gate8a7b3/pre-correction-row-results.json), and refreshed results/manifest/replay remain in `app/evidence/gate8a7b3`. New screenshots remain local supporting files; no screenshot delivery is claimed.
+
+Model route: initially GPT-6 Luna / Medium under route B. The platform failed with “Selected model is at capacity. Please try a different model.” Parent resumed the same workspace on GPT-6.1 Sol / Medium as the next available route. This was an availability fallback, not a reasoning escalation.
+
+Parent targeted independent verification of all three corrections and the final gate remain pending. PR #175 stays open/unmerged; BoB handles any eventual merge. This correction does not declare B3 final acceptance, integrated 8A8 PASS or 8B commencement.

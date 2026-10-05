@@ -15,14 +15,17 @@ type ModalProps = {
   children: ReactNode;
   onClose: () => void;
   open: boolean;
+  returnFocusTo?: () => HTMLElement | null;
   title: string;
 };
 
-export function Modal({ children, onClose, open, title }: ModalProps) {
+export function Modal({ children, onClose, open, returnFocusTo, title }: ModalProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
+  const returnFocusToRef = useRef(returnFocusTo);
   onCloseRef.current = onClose;
+  returnFocusToRef.current = returnFocusTo;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -76,7 +79,9 @@ export function Modal({ children, onClose, open, title }: ModalProps) {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousOverflow;
-      previouslyFocused?.focus();
+      const explicitDestination = returnFocusToRef.current?.();
+      if (explicitDestination?.isConnected) explicitDestination.focus();
+      else if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
   }, [open]);
 

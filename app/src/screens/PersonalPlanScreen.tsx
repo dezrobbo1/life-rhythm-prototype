@@ -99,6 +99,7 @@ function failedManualPlanState(): ManualPlanState {
 
 type PersonalPlanScreenProps = {
   detailsFooter?: ReactNode;
+  dayLinePlacementIds?: string[];
   renderDayLine?: (renderCorrection: (placementId: string) => ReactNode) => ReactNode;
   embeddedInDayLine?: boolean;
   onPlanRecovered?: () => void;
@@ -189,6 +190,7 @@ export function PersonalPlanScreen({
   detailsFooter = null,
   renderDayLine,
   embeddedInDayLine = false,
+  dayLinePlacementIds = [],
   onPlanRecovered,
   planRevision = 0,
   preferredPlacementDate = null,
@@ -215,6 +217,18 @@ export function PersonalPlanScreen({
   const [planDetailsOpen, setPlanDetailsOpen] = useState(!embeddedInDayLine);
   const manualPlanReadRequestRef = useRef(0);
   const correctionFocusTarget = useRef<string | null>(null);
+  const planDetailsSummaryRef = useRef<HTMLElement | null>(null);
+  const moveSucceededRef = useRef(false);
+  const moveReturnFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const clearCorrectionFocus = () => { correctionFocusTarget.current = null; };
+    document.addEventListener('pointerdown', clearCorrectionFocus);
+    document.addEventListener('keydown', clearCorrectionFocus);
+    return () => {
+      document.removeEventListener('pointerdown', clearCorrectionFocus);
+      document.removeEventListener('keydown', clearCorrectionFocus);
+    };
+  }, []);
   const { generation: manualPlanGeneration, placementsResult: placementReadState,
     itemsResult: poolReadState } = manualPlanState;
   const savedSoftPlacements = placementReadState.status === 'loading' || placementReadState.status === 'readFailed'
@@ -456,6 +470,7 @@ export function PersonalPlanScreen({
   useEffect(() => {
     setSelectedDay(dayNameForLocalDate(preferredPlacementDate) ?? 'Monday');
     setSelectedPlacementDateOverride(preferredPlacementDate);
+    correctionFocusTarget.current = null;
   }, [preferredPlacementDate]);
 
   const refreshPrivatePlan = useCallback(async () => {
@@ -653,7 +668,22 @@ export function PersonalPlanScreen({
     }
   }, [manualPlanGeneration, refreshPlanData, repairAfterUserPlacementChange, retryManualPlanData]);
 
+  const prepareCorrectionFocus = useCallback((placement: InternalPlacement, plan: SchedulerPlan, repairPending: boolean) => {
+    const targetId = placement.targetKind === 'rhythm'
+      ? placement.rhythmId ?? placement.intentionId : placement.intentionId;
+    const replacement = plan.placements.find((item) =>
+      (item.targetKind === 'rhythm' ? item.rhythmId ?? item.intentionId : item.intentionId) === targetId &&
+      item.date === selectedPlacementDate,
+    );
+    // Wait for the exact replacement row, never an earlier row for this target.
+    correctionFocusTarget.current = embeddedInDayLine && !repairPending &&
+      dayLinePlacementIds.includes(placement.id) ? replacement?.id ?? null : null;
+  }, [dayLinePlacementIds, embeddedInDayLine, selectedPlacementDate]);
+
   const openMove = useCallback((placement: InternalPlacement) => {
+    moveSucceededRef.current = false;
+    moveReturnFocusRef.current = null;
+    correctionFocusTarget.current = null;
     setMoveTarget(placement);
     setMoveDate(placement.date);
     setMoveStart(placement.start);
@@ -692,8 +722,9 @@ export function PersonalPlanScreen({
           generation: privatePlanState.generation,
         });
       }
-      correctionFocusTarget.current = moveTarget.targetKind === 'rhythm'
-        ? moveTarget.rhythmId ?? moveTarget.intentionId : moveTarget.intentionId;
+      prepareCorrectionFocus(moveTarget, result.plan, result.repairPending);
+      moveSucceededRef.current = true;
+      moveReturnFocusRef.current = planDetailsSummaryRef.current;
       setMoveTarget(null);
       setPlacementFeedback({
         kind: 'success',
@@ -713,6 +744,7 @@ export function PersonalPlanScreen({
     moveStart,
     moveTarget,
     privatePlanState,
+    prepareCorrectionFocus,
     refreshPlanData,
     reloadPrivatePlan,
     retryManualPlanData,
@@ -731,6 +763,7 @@ export function PersonalPlanScreen({
         setPlacementFeedback({ kind: 'error', lines: result.errors });
         return;
       }
+      prepareCorrectionFocus(placement, result.plan, result.repairPending);
       await refreshPlanData();
       if (result.repairPending) {
         setPrivatePlanState({
@@ -753,6 +786,9 @@ export function PersonalPlanScreen({
           'Hard calendar commitments and unavailable boundaries still take priority.',
         ],
       });
+      if (!correctionFocusTarget.current) {
+        window.setTimeout(() => planDetailsSummaryRef.current?.focus(), 0);
+      }
     } catch {
       setPlacementFeedback({ kind: 'error', lines: ['Protection was not saved. Nothing else changed.'] });
     } finally {
@@ -760,6 +796,7 @@ export function PersonalPlanScreen({
     }
   }, [
     privatePlanState,
+    prepareCorrectionFocus,
     refreshPlanData,
     reloadPrivatePlan,
     retryManualPlanData,
@@ -778,6 +815,7 @@ export function PersonalPlanScreen({
         setPlacementFeedback({ kind: 'error', lines: result.errors });
         return;
       }
+      prepareCorrectionFocus(placement, result.plan, result.repairPending);
       await refreshPlanData();
       if (result.repairPending) {
         setPrivatePlanState({
@@ -802,6 +840,9 @@ export function PersonalPlanScreen({
             : 'Future automatic repair may move this flexible placement.',
         ],
       });
+      if (!correctionFocusTarget.current) {
+        window.setTimeout(() => planDetailsSummaryRef.current?.focus(), 0);
+      }
     } catch {
       setPlacementFeedback({ kind: 'error', lines: ['Protection was not removed. Nothing else changed.'] });
     } finally {
@@ -809,6 +850,7 @@ export function PersonalPlanScreen({
     }
   }, [
     privatePlanState,
+    prepareCorrectionFocus,
     refreshPlanData,
     reloadPrivatePlan,
     retryManualPlanData,
@@ -849,13 +891,17 @@ export function PersonalPlanScreen({
     return (
       <details className="plan-context-correction">
         <summary tabIndex={0} ref={(element) => {
-          // A successful Move replaces placement identity. Return to the same
-          // task/rhythm's disclosure once its refreshed Day Line row exists.
-          if (element && !moveTarget && correctionFocusTarget.current === targetId) {
+          // Corrections may replace a keyed row. Focus only its exact successor
+          // and let modal cleanup use the same destination when it is ready.
+          if (element && !moveTarget && correctionFocusTarget.current === placement.id) {
+            moveReturnFocusRef.current = element;
             window.setTimeout(() => {
-              if (element.isConnected && correctionFocusTarget.current === targetId) {
-                correctionFocusTarget.current = null;
-                element.focus();
+              if (element.isConnected && correctionFocusTarget.current === placement.id) {
+                const current = document.activeElement;
+                if (current === document.body || current === planDetailsSummaryRef.current ||
+                    element.closest('details')?.contains(current)) {
+                  element.focus();
+                }
               }
             }, 0);
           }
@@ -1016,7 +1062,12 @@ export function PersonalPlanScreen({
           </div>
         ) : null}
 
-      <Modal open={moveTarget !== null} onClose={() => { if (correctionBusyId === null) setMoveTarget(null); }} title="Move this planned time">
+      <Modal
+        open={moveTarget !== null}
+        onClose={() => { if (correctionBusyId === null) setMoveTarget(null); }}
+        returnFocusTo={() => moveSucceededRef.current ? moveReturnFocusRef.current : null}
+        title="Move this planned time"
+      >
           <section className="soft-suggestions__feedback">
             <p>
               Choose the exact local time you want. Life Rhythm will reject hard conflicts rather than silently choosing another time.
@@ -1081,7 +1132,7 @@ export function PersonalPlanScreen({
         onToggle={(event) => setPlanDetailsOpen(event.currentTarget.open)}
         open={planDetailsOpen}
       >
-        <summary>
+        <summary ref={planDetailsSummaryRef}>
           <span>Plan details</span>
           <span>Flexible times, boundaries and your choices</span>
         </summary>
@@ -1351,7 +1402,9 @@ export function PersonalPlanScreen({
             </div>
           ) : placementReadState.status === 'readFailed' ? null : visibleSoftPlacements.length > 0 ? (
             <ul className="soft-placements__list">
-              {visibleSoftPlacements.filter((placement) => !embeddedInDayLine || !placement.correctionKind).map((placement) => {
+              {visibleSoftPlacements.filter((placement) =>
+                !embeddedInDayLine || !placement.correctionKind || !dayLinePlacementIds.includes(placement.id),
+              ).map((placement) => {
                 const accepted = placement.correctionKind ? planPlacementForCorrection(placement) : null;
                 const protectedPlacement = placement.correctionKind === 'protect' ||
                   placement.correctionKind === 'moveProtected';
