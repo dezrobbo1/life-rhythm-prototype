@@ -1,8 +1,16 @@
 # Gate 8A7B3 reproducible cloud-browser evidence
 
-The current replay/manifest includes the narrow post-merge correction for [the late #175 focus finding](https://github.com/dezrobbo1/life-rhythm-prototype/pull/175#discussion_r4186367782). See [correction report](../../docs/plan-correction-focus-report.md), [red-first evidence](post-merge-focus-red.json) and [fresh scoped results](post-merge-focus-results.json). The current application tree/fingerprint is in `manifest.json`. The fresh run covers **11 affected rows**, not the unrelated completion rows. It uses isolated Chromium contexts and synthetic data only.
+The current replay/manifest includes the narrow post-merge correction for [the late #175 focus finding](https://github.com/dezrobbo1/life-rhythm-prototype/pull/175#discussion_r4186367782). See [correction report](../../docs/plan-correction-focus-report.md), [red-first evidence](post-merge-focus-red.json) and [first-publication scoped results](post-merge-focus-results.json). The current application tree/fingerprint is in `manifest.json`. That first-publication run covers **11 affected rows**, not the unrelated completion rows. It uses isolated Chromium contexts and synthetic data only.
 
 The original `prior-results.json`, `pre-correction-row-results.json` and accepted pre-merge `row-results.json` remain dated evidence on their embedded source identifiers. Their outcomes have not been relabelled or rerun as a broad acceptance review. Manifest fields `acceptedPrePostMergeApplicationSourceTree` and `acceptedPrePostMergeRuntimeSourceSha256` retain the accepted pre-merge source identity. `prior-replay.cjs` remains the historical replay. Screenshots remain local and are not remotely delivered.
+
+The latest consolidated lifecycle pass continues PR #178 after its pending-Move input finding. [Lifecycle red evidence](focus-lifecycle-red.json) and [lifecycle results](focus-lifecycle-results.json) identify the current matrix; `post-merge-focus-results.json` is preserved first-publication evidence. The manifest's `focusLifecycleReviewedHead` and prior-post-merge source fields distinguish the generations. Run **only the 42 affected focus rows** with:
+
+```sh
+B3_FOCUS_ONLY=1 B3_OUTPUT=/tmp/life-rhythm-focus-lifecycle node app/evidence/gate8a7b3/replay.cjs
+```
+
+The 31 added lifecycle rows cover 24 Move combinations (Tab/click × immediate/delayed/missing successor × same/cross day × replaced/stable ID), two rejected Move cases, four pending within-correction Protect/Unprotect cases, and the pending Move keyboard case at desktop width. They hold UI result delivery after the real Move coordinator completes. For Protect/Unprotect, they hold command start until the pending disclosure input occurs, then run the real command. All use real React/IndexedDB and independently controlled Day Line delivery. This tests asynchronous ownership, connected return, cancellation and unchanged persisted authority without relying on arbitrary focus timing.
 
 For the nine new ordering rows, the replay intercepts only the compiled `PlanDayLineScreen` subscriber `next` callback at the loopback browser route. It holds real read results or supplies synthetic loading/error delivery, then explicitly releases the latest result. React mounts/commits, correction coordinators and IndexedDB remain real. This fixture does not change application source or scheduler/storage semantics. The immediate-successor, same/cross-day Move, rhythm and conflict/cancel regressions use the existing uninstrumented rows. Results state the instrumentation; no hosted-deployment or physical-device check is claimed.
 
@@ -39,7 +47,7 @@ Or, with Playwright already available:
 node app/evidence/gate8a7b3/replay.cjs
 ```
 
-Set `B3_CHROMIUM` to a valid Chromium executable on another platform. `B3_PORT` changes the private loopback port (default 5187); `B3_OUTPUT` changes the local output directory (default `/tmp/life-rhythm-b3-replay`). `B3_ROWS` optionally selects comma-separated exact row names for failure diagnosis; omit it for all 17 available rows. A filtered run covers only its named rows. Do not claim a filtered run covers omitted rows.
+Set `B3_CHROMIUM` to a valid Chromium executable on another platform. `B3_PORT` changes the private loopback port (default 5187); `B3_OUTPUT` changes the local output directory (default `/tmp/life-rhythm-b3-replay`). `B3_ROWS` optionally selects comma-separated exact row names for failure diagnosis; omit it for all 48 available rows. A filtered run covers only its named rows. Do not claim a filtered run covers omitted rows.
 
 The harness starts and stops its own server. It records the executing checkout commit, the fixed reviewed source commit, current runtime fingerprint and source tree, browser and Playwright versions, viewport per row, timezone, advancing-clock rule, assertions/results, runtime page errors, and screenshot hashes in `row-results.json` under the output directory. Screenshots and generated build output stay local. The server serves the fingerprinted Vite source; the recorded `builtFiles` are hashes of the separately validated local build, not a claim that the browser visited a production preview. If no `dist` exists, `builtFiles` is null.
 
