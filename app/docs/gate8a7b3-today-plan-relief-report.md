@@ -1,6 +1,6 @@
 # Gate 8A7B3 populated daily surface and contextual correction
 
-Status: open PR #175 remains unmerged. Three later confirmed review blockers are corrected below. Corrected-source UTC/Perth tests, build and eight-row browser replay pass; parent targeted verification remains pending. Earlier evidence remains dated and attributable.
+Status: Original B3 acceptance/#175 merge was followed by a narrow keyboard reopening. Correction #178 is independently verified and merged; that reopening is now closed and the original late thread resolved. See the dated completion/correction record below. Earlier evidence remains dated and attributable.
 Date: 2026-10-05. Source/base: `add82b74082f3bf347191d6ce97de2816169f4eb` (PR #174).
 Evidence continuation reconciled with policy merge `c2ee838163497938e84b0a2044f3dc4ad961c2b6` (PR #176). Reviewed application commit: `b1ae38bc56bf6f1205e9163fa3c3e81536cd753d`; application source tree `5bc78ca338faea7362bb6b7afcfc8d03631d834d`.
 Branch: `feat/gate8a7b3-today-plan-relief`. Exact published head is recorded in PR metadata/body; this report does not manufacture a self-referential commit SHA.
@@ -65,7 +65,7 @@ Harness development corrected expectations for trimmed authored inputs and actua
 
 ## Current intermediate acceptance rows
 
-PASS below identifies observed engineering/browser evidence at the reviewed application source; final B3 acceptance remains pending the parent's targeted independent evidence verification and final merge gate. Prior B2 owner acceptance is not substituted for this integrated evidence.
+At evidence preparation, PASS below identified observed engineering/browser evidence and final B3 acceptance was pending parent verification. The dated post-merge completion below now records that decision; prior B2 owner acceptance is not substituted for this evidence.
 
 | Row | Evidence route and observed result | Current disposition |
 | --- | --- | --- |
@@ -123,4 +123,34 @@ The browser uses fresh synthetic contexts and fingerprinted loopback Vite source
 
 Model route: initially GPT-6 Luna / Medium under route B. The platform failed with “Selected model is at capacity. Please try a different model.” Parent resumed the same workspace on GPT-6.1 Sol / Medium as the next available route. This was an availability fallback, not a reasoning escalation.
 
-Parent targeted independent verification of all three corrections and the final gate remain pending. PR #175 stays open/unmerged; BoB handles any eventual merge. This correction does not declare B3 final acceptance, integrated 8A8 PASS or 8B commencement.
+At correction publication, parent targeted verification and the final gate remained pending, and PR #175 was open/unmerged. The following dated completion records the subsequent parent decision. No integrated 8A8 PASS or 8B commencement follows from this correction.
+
+
+## Post-merge completion — 2026-10-05
+
+Parent accepted B3 ordinary calm-surface convergence under merged policy #176 and directly merged [PR #175](https://github.com/dezrobbo1/life-rhythm-prototype/pull/175), head `bfa8c08275a4a3819775a3dfeca928099031e4dc`, main/merge `f98cca4424cc482407fea1b2862d0d79a3c9a7b2`. The [final gate comment](https://github.com/dezrobbo1/life-rhythm-prototype/pull/175#issuecomment-5998704908) at 16:31:38 UTC records independent targeted PASS for all three supported corrections and resolution of those three threads. Independent cloud task `01a10c81-9d18-71f3-a0ea-cc2ecc2fa03a` verified 41 focused tests and corrected 8/8 browser rows at 390×844 and desktop with no page errors or overflow. Chromium 151.0.7922.173, Playwright 1.62.1 and synthetic advancing-clock Perth fixtures are recorded above/in the durable replay.
+
+Original #175 accepted runtime fingerprint: `36ef6075013f99b54804f0f7cf015ad908e00e8b459951388cf957db64be49cb`; corrected `app/src` tree `0a1170ed53e231fee701a39c49768d3dad7cf180`. App CI #398 passed 1,390 tests/build; App Preview #621 and Vercel passed on that final source. Full UTC and Perth 1,390-test runs were reported by the author; this documentation task does not claim to have rerun them. [Original #175 manifest/replay/results](https://github.com/dezrobbo1/life-rhythm-prototype/blob/bfa8c08275a4a3819775a3dfeca928099031e4dc/app/evidence/gate8a7b3/README.md) remain the immutable original evidence route; current #178 evidence is linked in the closure below. Screenshots remain undelivered; no attachment or physical-device/subjective owner PASS is invented.
+
+| Tracker / scope | Post-B3 disposition |
+| --- | --- |
+| #168 ordinary B1/B2/B3 convergence | Satisfied by original acceptance plus independently verified #178 closure of the narrow reopening. Keep open in this task; parent closes only after durable completion docs review/merge. |
+| #160 ordinary flow/focus/overflow/persistence and rhythm execution | Satisfied by accepted B evidence on the attributed source. These scoped results do not certify every integrated path. |
+| #160 cleared-core-hours | Not independently demonstrated in browser; pending integrated 8A8 on an identified build. |
+| #160 recurring static-calendar import/status/buffer browser controls | Not independently demonstrated; pending integrated 8A8. Static ICS is still a snapshot/fallback, not the 8A7D live-calendar prerequisite. |
+| Historical 3 October owner evidence | Retains partial observed FAIL and attribution limitations. No historical FAIL report is rewritten as PASS. |
+
+**Dated narrow reopening:** at 16:34:11 UTC, after #175's recorded final gate, an automated review posted [Protect successor never mounts](https://github.com/dezrobbo1/life-rhythm-prototype/pull/175#discussion_r4186367782). The original code queued a predicted placement ID and invoked the details fallback only when no target was queued; a delayed/missing/error successor could leave focus on BODY. The failure was subsequently confirmed, so B3 keyboard acceptance was reopened only for this mechanism while other accepted B3 work remained. PR #178's first correction then exposed a confirmed pending Move/in-modal-input failure: closing the modal could disconnect both input and opener. The consolidated correction and verified closure are recorded below; these failures are not relabelled as uninterrupted PASS.
+
+After the verified correction below, the next approved milestone is 8A7C; C1 implementation is next once its [contract](gate8a7c1-account-boundary-contract.md) review passes. True provider/manual gates remain. Account-backed continuity, one live read-only calendar, genuine provider/account authorization and final integrated owner judgment/trial remain required. Gate 8A8 stays **BLOCK**, Gate 8B has not started and baseline/Day 1 are not authorized. #160 remains open for its pending integrated rows; no PASS by omission.
+
+
+## Narrow reopening, correction and closure — 2026-10-05
+
+BoB directly merged [PR #178](https://github.com/dezrobbo1/life-rhythm-prototype/pull/178), exact final correction head `112fec975081492721f65c7a6b7aedbd8a47ebb7`, into main/merge `301a333da4a0d3a0ef347610ff9376a4905a5fe9`. The [final coordinator gate](https://github.com/dezrobbo1/life-rhythm-prototype/pull/178#issuecomment-6000233758) at 18:05:43 UTC records independent targeted PASS: **93 focused tests and all 42 Chromium lifecycle rows**, including red-before-fix pending internal Move input, genuine external navigation, delayed/missing/error successors and persistence comparisons. Runtime SHA-256 `9bb8f8a0968dc669c73a1e311c6ee64b349d810df0dc69dd5e2def8c8f537db9` matches the final source; `app/src` tree is `5e81e3cfbd80b39f10b91933d4387adfc36b6194`. App CI #401 passed **1,454 tests/build**, App Preview #625 and Vercel passed. Built-in review completed on this exact head with no new findings; the corrected P1 thread resolved.
+
+The shared saving/saved focus lifecycle retains ownership during internal pending input, cancels on genuine external interaction/date navigation and selects an actually connected successor or Plan details after DOM commit. A closing modal input cannot become the preserved external destination. This repairs the narrowly reopened focus paths without changing persistence/lifecycle authority. [Correction report](plan-correction-focus-report.md), [red evidence](../evidence/gate8a7b3/focus-lifecycle-red.json) and [42-row results](../evidence/gate8a7b3/focus-lifecycle-results.json) remain untouched from #178. Their pre-merge status wording is dated publication history; this addendum records the later verified merge. Author-reported UTC/Perth 1,454-test runs remain separate from independent focused evidence; no app tests are rerun by this docs correction.
+
+The narrow B3 keyboard reopening is **closed after independent verification and merge**. The original late #175 review thread is now resolved, confirmed through the live GitHub plugin. Current ordinary B convergence is satisfied; its record includes original acceptance, temporary narrow reopening and verified correction rather than uninterrupted PASS. Evidence is local cloud-browser execution on attributed source at 390×844 and desktop, not hosted interaction, physical-device acceptance or final subjective owner judgment. Original screenshots remain undelivered.
+
+#168 stays open for parent closure after these durable docs are reviewed/merged. #160 stays open for cleared-core-hours and recurring static-calendar import/status/buffer browser rows at integrated 8A8; none passes by omission. C1 implementation is next once contract review passes, with its actual provider/manual prerequisites intact. Gate 8A8 remains **BLOCK**, Gate 8B has not started and baseline/Day 1 remain unauthorized. No further application correction, broad contract review, provider provisioning or merge is performed by this docs task.
