@@ -2,7 +2,7 @@
 
 Status: Current boundary contract with a narrow implementation subset
 
-Current implementation is the opt-in Clerk identity/local-namespace subset; no account data upload is implemented yet. MVP_PLAN.md now requires explicit account-backed durability before the owner longitudinal trial. This contract records the existing no-silent-upload safety boundary; the 8A7C contract must define authorized data movement, verified account ownership, local replica/sync, migration and access policy before implementation. Authentication alone is not durability. Legacy data remain local until a previewed/confirmed migration; no unrelated profile is silently merged or uploaded.
+Historical merged implementation is the opt-in Clerk identity/local-namespace subset. Owner-approved C1 amendment in unmerged PR #180 replaces it with Supabase Auth; no personal account data upload is implemented. MVP_PLAN.md now requires explicit account-backed durability before the owner longitudinal trial. This contract records the existing no-silent-upload safety boundary; the 8A7C contract must define authorized data movement, verified account ownership, local replica/sync, migration and access policy before implementation. Authentication alone is not durability. Legacy data remain local until a previewed/confirmed migration; no unrelated profile is silently merged or uploaded.
 
 This contract defines the boundary for trial accounts and login in Life Rhythm. It does not itself authorize backend data movement; that authority belongs to the reviewed 8A7C data-flow contract and implementation.
 
@@ -104,24 +104,7 @@ Boundaries:
 
 ## 7. Auth Provider Direction
 
-The current narrow identity shell uses Clerk. This documentation consolidation does not add another provider or expand the current shell into public signup, cloud data, or external-trial operations. Gate 8A7C must separately select and authorize the account-data backend.
-
-Future provider decisions:
-
-- Supabase may be evaluated for the required account-data backend, including the fit with current Clerk identity; this contract does not select it.
-- Firebase, Auth0, and other providers remain alternatives, but need separate review before use.
-
-Provider choice should be evaluated against:
-
-- invite-only trial access,
-- local-first boundaries,
-- user-scoped local data,
-- low implementation surface,
-- clear sign-in and sign-out behavior,
-- no silent upload of unrelated or unconfirmed legacy local data,
-- no analytics requirement.
-
-This documentation correction does not bundle auth-provider changes, account sync, backend data storage or AI data upload. Gate 8A7C implements its approved identity/data boundary in bounded PRs.
+The original June contract suggested Clerk and the optional shell implemented it. No configured account/provider was proven. Owner approved Supabase Auth as sole C1 identity authority on 2026-10-05. The [current C1 contract](gate8a7c1-account-boundary-contract.md) defines restricted sign-in, memory-only sessions and metadata access; hosted setup remains separately gated. Existing namespaces remain preserved, and no email mapping or silent profile migration is allowed.
 
 ## 8. Remaining Implementation Sequence
 

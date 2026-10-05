@@ -1,310 +1,283 @@
 // @vitest-environment jsdom
-
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import {
+  cleanup,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthBoundary } from './AuthShell';
-import { readAuthConfig, type AuthRuntimeConfig } from './authConfig';
+import { readAuthConfig } from './authConfig';
 import {
   createAuthLocalDataNamespace,
   getCurrentLocalDataNamespace,
   getLegacyLocalDataNamespace,
-  resetCurrentLocalDataNamespace,
 } from '../data/localDataNamespace';
-
-const clerkState = vi.hoisted(() => ({
-  providerProps: vi.fn(),
-  signedIn: false,
-  userId: 'user_test_alpha',
-  sessionId: 'sess_test_alpha',
-  getToken: vi.fn(async () => 'synthetic.session.token'),
+const state = vi.hoisted(() => ({
+  callback: null as null | ((event: string, session: unknown) => void),
+  session: null as unknown,
+  options: vi.fn(),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  stop: vi.fn(),
 }));
-
-const namespaceMocks = vi.hoisted(() => ({
-  inspectLegacyLocalData: vi.fn(),
-}));
-
-vi.mock('@clerk/react', () => ({
-  ClerkProvider: ({ children, publishableKey }: { children: ReactNode; publishableKey: string }) => {
-    clerkState.providerProps({ publishableKey });
-    return <div data-testid="clerk-provider">{children}</div>;
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: (_url: string, _key: string, options: unknown) => {
+    state.options(options);
+    return {
+      auth: {
+        onAuthStateChange: (cb: typeof state.callback) => {
+          state.callback = cb;
+          queueMicrotask(() => cb?.('INITIAL_SESSION', state.session));
+          return { data: { subscription: { unsubscribe: vi.fn() } } };
+        },
+        signInWithPassword: state.signIn,
+        signOut: state.signOut,
+        stopAutoRefresh: state.stop,
+        startAutoRefresh: vi.fn(),
+      },
+    };
   },
-  Show: ({ children, when }: { children: ReactNode; when: 'signed-in' | 'signed-out' }) => {
-    const visibleState = clerkState.signedIn ? 'signed-in' : 'signed-out';
-    return when === visibleState ? <>{children}</> : null;
-  },
-  SignInButton: ({ children, mode }: { children: ReactNode; mode?: string }) => (
-    <span data-testid="clerk-sign-in" data-mode={mode}>
-      {children}
-    </span>
-  ),
-  SignOutButton: ({ children, redirectUrl }: { children: ReactNode; redirectUrl?: string }) => (
-    <span data-testid="clerk-sign-out" data-redirect-url={redirectUrl}>
-      {children}
-    </span>
-  ),
-  useAuth: () => ({
-    userId: clerkState.userId,
-    sessionId: clerkState.sessionId, isLoaded:true, isSignedIn:clerkState.signedIn, getToken:clerkState.getToken,
-  }),
-  UserButton: () => (
-    <button aria-label="Account" type="button">
-      Account
-    </button>
-  ),
 }));
-
-vi.mock('../data/localDataNamespace', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../data/localDataNamespace')>();
-
+const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+function session(id = A, sid = '11111111-1111-4111-8111-111111111111') {
+  const payload = btoa(
+    JSON.stringify({
+      sub: id,
+      session_id: sid,
+      exp: Math.floor(Date.now() / 1000) + 60,
+    }),
+  );
   return {
-    ...actual,
-    inspectLegacyLocalData: namespaceMocks.inspectLegacyLocalData,
+    user: { id },
+    access_token: `e30.${payload}.synthetic`,
+    expires_at: Math.floor(Date.now() / 1000) + 60,
   };
+}
+const env = {
+  VITE_LIFE_RHYTHM_AUTH_ENABLED: 'true',
+  VITE_SUPABASE_URL: 'https://synthetic.supabase.co',
+  VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_synthetic',
+};
+const enabled = () => readAuthConfig(env);
+const ready = {
+  kind: 'ready',
+  protocolVersion: 1,
+  schemaVersion: 1,
+  buildId: 'test',
+  head: null,
+};
+const mount = () =>
+  render(
+    <AuthBoundary config={enabled()}>
+      <p>Ordinary app</p>
+    </AuthBoundary>,
+  );
+beforeEach(() => {
+  state.session = null;
+  state.callback = null;
+  state.options.mockClear();
+  state.stop.mockClear();
+  state.signIn.mockReset();
+  state.signOut.mockReset();
+  state.signIn.mockImplementation(async () => {
+    state.callback?.('SIGNED_IN', session());
+    return { error: null };
+  });
+  state.signOut.mockResolvedValue({ error: null });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(JSON.stringify(ready), {
+          headers: { 'content-type': 'application/json' },
+        }),
+    ),
+  );
 });
-
-const disabledConfig: AuthRuntimeConfig = {
-  authRequested: false,
-  publishableKey: null,
-  status: 'local-fixture',
-  mode: 'local-fixture',
-};
-
-const missingKeyConfig: AuthRuntimeConfig = {
-  authRequested: true,
-  publishableKey: null,
-  status: 'missing-key',
-  mode: 'required',
-};
-
-const enabledConfig: AuthRuntimeConfig = {
-  authRequested: true,
-  publishableKey: 'pk_test_life_rhythm',
-  status: 'enabled',
-  mode: 'required',
-};
-
 afterEach(() => {
   cleanup();
-  vi.restoreAllMocks();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
-  clerkState.providerProps.mockClear();
-  namespaceMocks.inspectLegacyLocalData.mockReset();
-  resetCurrentLocalDataNamespace();
 });
-
-beforeEach(() => {
-  clerkState.signedIn = false;
-  clerkState.userId = 'user_test_alpha';
-  namespaceMocks.inspectLegacyLocalData.mockResolvedValue({
-    activeTaskCount: 0,
-    customRhythmCount: 0,
-    hasActiveTasks: false,
-    hasChangedSettings: false,
-    hasCustomLibraryRhythms: false,
-    hasLegacyLocalData: false,
+async function login() {
+  await screen.findByLabelText('Email');
+  fireEvent.change(screen.getByLabelText('Email'), {
+    target: { value: 'owner@example.test' },
   });
-  resetCurrentLocalDataNamespace();
-  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({kind:'ready',protocolVersion:1,schemaVersion:1,buildId:'test',head:null}),{headers:{'content-type':'application/json'}})));
-});
-
-describe('auth config', () => {
-  it('requires auth by default and never grants local fallback', () => {
-    expect(readAuthConfig({})).toEqual({authRequested:false,publishableKey:null,status:'missing-key',mode:'required'});
-    expect(readAuthConfig({VITE_LIFE_RHYTHM_MODE:'local-fixture',DEV:false,MODE:'production'}).status).toBe('invalid-mode');
-    expect(readAuthConfig({VITE_LIFE_RHYTHM_MODE:'local-fixture',DEV:true}).status).toBe('local-fixture');
+  fireEvent.change(screen.getByLabelText('Password'), {
+    target: { value: 'synthetic-password' },
   });
-
-  it('requires both the auth flag and a publishable key before enabling Clerk', () => {
-    expect(readAuthConfig({ VITE_LIFE_RHYTHM_AUTH_ENABLED: 'true' })).toEqual(missingKeyConfig);
-    expect(readAuthConfig({ VITE_CLERK_PUBLISHABLE_KEY: 'pk_test_without_flag' }).status).toBe('missing-key');
-    expect(readAuthConfig({
-      VITE_CLERK_PUBLISHABLE_KEY: ' pk_test_life_rhythm ',
-      VITE_LIFE_RHYTHM_AUTH_ENABLED: 'true',
-    })).toEqual(enabledConfig);
-  });
-});
-
-describe('AuthBoundary', () => {
-  it('renders current local-first app behavior when auth is disabled', () => {
-    render(
-      <AuthBoundary config={disabledConfig}>
-        <main>Current local-first app</main>
-      </AuthBoundary>,
-    );
-
-    expect(screen.getByText('Current local-first app')).toBeTruthy();
-    expect(screen.queryByTestId('clerk-provider')).toBeNull();
-    expect(getCurrentLocalDataNamespace()).toEqual(getLegacyLocalDataNamespace());
-  });
-
-  it('blocks ordinary content when the required Clerk key is missing', () => {
-    render(
-      <AuthBoundary config={missingKeyConfig}>
-        <main>Local development app</main>
-      </AuthBoundary>,
-    );
-
-    expect(screen.queryByText('Local development app')).toBeNull();
-    expect(screen.getByRole('alert').textContent).toContain('Access is unavailable');
-    expect(screen.queryByText('Life Rhythm trial access')).toBeNull();
-    expect(screen.queryByTestId('clerk-provider')).toBeNull();
-    expect(getCurrentLocalDataNamespace()).toEqual(getLegacyLocalDataNamespace());
-  });
-
-  it('shows the invite-only trial landing for signed-out users', () => {
-    render(
-      <AuthBoundary config={enabledConfig}>
-        <main>Private app shell</main>
-      </AuthBoundary>,
-    );
-
-    expect(clerkState.providerProps).toHaveBeenCalledWith({ publishableKey: 'pk_test_life_rhythm' });
-    expect(screen.getByRole('heading', { name: 'Life Rhythm trial access' })).toBeTruthy();
-    expect(screen.getByText('Sign in with your invited account.')).toBeTruthy();
-    expect(screen.getByText('Login identifies you for trial access. It does not upload your Life Rhythm data.')).toBeTruthy();
-    expect(screen.getByText('Your local data stays on this device unless a future sync feature clearly says otherwise.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy();
-    expect(screen.queryByText('Private app shell')).toBeNull();
-  });
-
-  it('does not render a public sign-up button in the app UI', () => {
-    render(
-      <AuthBoundary config={enabledConfig}>
-        <main>Private app shell</main>
-      </AuthBoundary>,
-    );
-
-    expect(screen.queryByRole('button', { name: /sign up/i })).toBeNull();
-    expect(screen.queryByText(/sign up/i)).toBeNull();
-  });
-
-  it('renders the app shell and sign-out affordance for signed-in users', async () => {
-    clerkState.signedIn = true;
-
-    render(
-      <AuthBoundary config={enabledConfig}>
-        <main className="app-shell">Private app shell</main>
-      </AuthBoundary>,
-    );
-
-    await screen.findByText('Private app shell');
-    expect(screen.getByText('Signed in.')).toBeTruthy();
-    expect(screen.getByText('Local-first data remains on this device.')).toBeTruthy();
-    expect(screen.getByText('This local profile is separate from other signed-in testers on this device.')).toBeTruthy();
-    expect(screen.getByText('Signing out does not delete local data.')).toBeTruthy();
-    expect(screen.getByText('Backup and export remain user-controlled.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Account' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
-    expect(screen.getByText('Private app shell')).toBeTruthy();
-    expect(getCurrentLocalDataNamespace()).toEqual(createAuthLocalDataNamespace('user_test_alpha'));
-    await waitFor(() => expect(namespaceMocks.inspectLegacyLocalData).toHaveBeenCalledTimes(1));
-    expect(screen.queryByText('Existing local setup found')).toBeNull();
-  });
-
-  it('shows a calm handoff notice when legacy local data exists', async () => {
-    namespaceMocks.inspectLegacyLocalData.mockResolvedValue({
-      activeTaskCount: 1,
-      customRhythmCount: 1,
-      hasActiveTasks: true,
-      hasChangedSettings: true,
-      hasCustomLibraryRhythms: true,
-      hasLegacyLocalData: true,
-    });
-    clerkState.signedIn = true;
-
-    render(
-      <AuthBoundary config={enabledConfig}>
-        <main className="app-shell">Private app shell</main>
-      </AuthBoundary>,
-    );
-
-    const noticeTitle = await screen.findByText('Existing local setup found');
-    const notice = noticeTitle.closest('section');
-
-    expect(notice).toBeTruthy();
-    expect(within(notice as HTMLElement).getByText('It has not been deleted.')).toBeTruthy();
-    expect(within(notice as HTMLElement).getByText('You are now using a separate signed-in local profile.')).toBeTruthy();
-    expect(within(notice as HTMLElement).getByText('The existing setup remains available for a future consented migration.')).toBeTruthy();
-    expect(within(notice as HTMLElement).getByText('Backup and export remain user-controlled.')).toBeTruthy();
-    expect(within(notice as HTMLElement).getByText('No data has been uploaded or synced.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
-  });
-
-  it('uses different local namespaces for different signed-in users', async () => {
-    clerkState.signedIn = true;
-    clerkState.userId = 'user_test_alpha';
-
-    const { rerender } = render(
-      <AuthBoundary config={enabledConfig}>
-        <main>Private app shell</main>
-      </AuthBoundary>,
-    );
-    await screen.findByText('Private app shell');
-    const userANamespace = getCurrentLocalDataNamespace();
-
-    clerkState.userId = 'user_test_beta';
-    rerender(
-      <AuthBoundary config={enabledConfig}>
-        <main>Private app shell</main>
-      </AuthBoundary>,
-    );
-
-    expect(screen.queryByText('Private app shell')).toBeNull();
-    await screen.findByText('Private app shell');
-    const userBNamespace = getCurrentLocalDataNamespace();
-
-    expect(userANamespace.source).toBe('auth');
-    expect(userBNamespace.source).toBe('auth');
-    expect(userBNamespace.databaseName).not.toBe(userANamespace.databaseName);
-    expect(userANamespace.databaseName).not.toContain('user_test_alpha');
-    expect(userBNamespace.databaseName).not.toContain('user_test_beta');
-  });
-
-  it('does not call browser data upload or local storage APIs from the auth shell', () => {
-    const originalFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
-    const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
-    const fetchSpy = vi.fn();
-    const localStorage = {
-      getItem: vi.fn(() => {
-        throw new Error('localStorage must not be read by auth shell');
-      }),
-      setItem: vi.fn(() => {
-        throw new Error('localStorage must not be written by auth shell');
-      }),
-    };
-
-    Object.defineProperty(globalThis, 'fetch', {
-      configurable: true,
-      value: fetchSpy,
-    });
-    Object.defineProperty(globalThis, 'localStorage', {
-      configurable: true,
-      value: localStorage,
-    });
-
-    try {
-      render(
-        <AuthBoundary config={enabledConfig}>
-          <main>Private app shell</main>
-        </AuthBoundary>,
+  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+}
+describe('required Supabase sign-in', () => {
+  it('requires flag, project URL and publishable key; invalid fixture remains closed', () => {
+    expect(enabled().status).toBe('enabled');
+    expect(readAuthConfig({}).status).toBe('missing-key');
+    for (const override of [
+      { VITE_SUPABASE_URL: 'https://foreign.test' },
+      { VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_secret_never' },
+      { VITE_LIFE_RHYTHM_AUTH_ENABLED: 'false' },
+    ])
+      expect(readAuthConfig({ ...env, ...override }).status).toBe(
+        'missing-key',
       );
-
-      expect(fetchSpy).not.toHaveBeenCalled();
-      expect(localStorage.getItem).not.toHaveBeenCalled();
-      expect(localStorage.setItem).not.toHaveBeenCalled();
-    } finally {
-      if (originalFetch) {
-        Object.defineProperty(globalThis, 'fetch', originalFetch);
-      } else {
-        Reflect.deleteProperty(globalThis, 'fetch');
-      }
-
-      if (originalLocalStorage) {
-        Object.defineProperty(globalThis, 'localStorage', originalLocalStorage);
-      } else {
-        Reflect.deleteProperty(globalThis, 'localStorage');
-      }
-    }
+    expect(
+      readAuthConfig({
+        VITE_LIFE_RHYTHM_MODE: 'local-fixture',
+        MODE: 'production',
+      }).status,
+    ).toBe('invalid-mode');
+  });
+  it('missing configuration never opens ordinary content', () => {
+    render(
+      <AuthBoundary config={readAuthConfig({})}>
+        <p>Ordinary app</p>
+      </AuthBoundary>,
+    );
+    expect(screen.queryByText('Ordinary app')).toBeNull();
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Access is unavailable',
+    );
+  });
+  it('keeps explicit development fixture and legacy namespace', () => {
+    render(
+      <AuthBoundary
+        config={readAuthConfig({
+          VITE_LIFE_RHYTHM_MODE: 'local-fixture',
+          DEV: true,
+        })}
+      >
+        <p>Ordinary app</p>
+      </AuthBoundary>,
+    );
+    expect(screen.getByText('Ordinary app')).toBeTruthy();
+    expect(getCurrentLocalDataNamespace()).toEqual(
+      getLegacyLocalDataNamespace(),
+    );
+  });
+  it('shows restricted login and truthful persistence/recovery without signup', async () => {
+    mount();
+    await screen.findByLabelText('Email');
+    expect(screen.getByText(/Reloading requires sign-in/)).toBeTruthy();
+    expect(
+      screen.getByText(/Password recovery is not configured/),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: /sign up|reset password/i }),
+    ).toBeNull();
+    expect(screen.queryByText('Ordinary app')).toBeNull();
+  });
+  it('uses memory-only sessions and disables URL credential detection', async () => {
+    mount();
+    await screen.findByLabelText('Email');
+    expect(state.options).toHaveBeenCalledWith({
+      auth: {
+        persistSession: false,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+      },
+    });
+  });
+  it('signs in only then verifies metadata and selects separate namespace', async () => {
+    mount();
+    await login();
+    await screen.findByText('Ordinary app');
+    expect(getCurrentLocalDataNamespace()).toEqual(
+      createAuthLocalDataNamespace(
+        'https://synthetic.supabase.co/auth/v1|' + A,
+      ),
+    );
+    expect(screen.queryByLabelText('Password')).toBeNull();
+  });
+  it('sanitizes login failures and clears password', async () => {
+    state.signIn.mockResolvedValue({
+      error: { message: 'PRIVATE PROVIDER ERROR' },
+    });
+    mount();
+    await login();
+    await screen.findByRole('alert');
+    expect(screen.queryByText(/PRIVATE PROVIDER ERROR/)).toBeNull();
+    expect((screen.getByLabelText('Password') as HTMLInputElement).value).toBe(
+      '',
+    );
+    expect(screen.queryByText('Ordinary app')).toBeNull();
+  });
+  it('clears content immediately even when sign-out provider fails', async () => {
+    state.session = session();
+    state.signOut.mockResolvedValue({ error: { message: 'private failure' } });
+    mount();
+    await screen.findByText('Ordinary app');
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(screen.queryByText('Ordinary app')).toBeNull();
+    await screen.findByLabelText('Email');
+    expect(getCurrentLocalDataNamespace()).toEqual(
+      getLegacyLocalDataNamespace(),
+    );
+  });
+  it('late A response cannot authorize B after provider account switch', async () => {
+    let resolve!: (v: Response) => void;
+    const fetcher = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<Response>((r) => (resolve = r)))
+      .mockResolvedValue(new Response('{}', { status: 503 }));
+    vi.stubGlobal('fetch', fetcher);
+    state.session = session();
+    mount();
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    act(() =>
+      state.callback?.(
+        'SIGNED_IN',
+        session(B, '22222222-2222-4222-8222-222222222222'),
+      ),
+    );
+    await act(async () => resolve(new Response(JSON.stringify(ready))));
+    await screen.findByRole('alert');
+    expect(screen.queryByText('Ordinary app')).toBeNull();
+  });
+  it('rejects corrupted client session before requesting metadata', async () => {
+    state.session = { user: { id: A }, access_token: 'broken' };
+    mount();
+    await screen.findByLabelText('Email');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('closes the app at access-token expiry if no refresh arrives', async () => {
+    vi.useFakeTimers();
+    state.session = session();
+    await act(async () => {
+      mount();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText('Ordinary app')).toBeTruthy();
+    await act(async () => vi.advanceTimersByTimeAsync(61000));
+    expect(screen.queryByText('Ordinary app')).toBeNull();
+  });
+  it('refresh for the same session retains account and rechecks metadata', async () => {
+    state.session = session();
+    mount();
+    await screen.findByText('Ordinary app');
+    act(() => state.callback?.('TOKEN_REFRESHED', session()));
+    await screen.findByText('Ordinary app');
+    expect(getCurrentLocalDataNamespace().source).toBe('auth');
+  });
+  it('sign-out during pending login ignores late session result', async () => {
+    let finish!: () => void;
+    state.signIn.mockImplementation(
+      () =>
+        new Promise((r) => {
+          finish = () => {
+            state.callback?.('SIGNED_IN', session());
+            r({ error: null });
+          };
+        }),
+    );
+    mount();
+    await login();
+    act(() => state.callback?.('SIGNED_OUT', null));
+    await act(async () => finish());
+    expect(screen.queryByText('Ordinary app')).toBeNull();
   });
 });

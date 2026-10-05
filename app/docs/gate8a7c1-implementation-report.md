@@ -1,3 +1,45 @@
+# C1 provider amendment — Supabase Auth
+
+Owner approved replacing Clerk on existing draft [PR #180](https://github.com/dezrobbo1/life-rhythm-prototype/pull/180), 2026-10-05 UTC. This is local implementation, **unmerged and NOT ACCEPTED HOSTED**. Earlier Clerk code-review PASS is not transferable; BoB obtains fresh independent review. No new PR, hosted changes, personal-data upload or merge.
+
+Base/main `b58b7442c478770f9c0e1db9b6208c8c8e803e30`; preceding PR head `2330b45a1249cee3e98ccefa8ff3d3a968bdae02`. Final published head is recorded in PR #180 to avoid a recursive documentation hash. Current executable manifest: `808674d283b0f6c9dd6d98e2ce0f2ab5f38e20a3f1e3db13a8ef940ed1a0877b`, 308 files. [Durable results/replay](../evidence/gate8a7c1/README.md).
+
+## Result and source scope
+
+Supabase Auth is the sole login authority. Restricted email/password form has no signup, anonymous/OAuth, admin or reset workflow. Supabase session/refresh credentials remain in tab memory (`persistSession:false`, automatic refresh, URL ingestion disabled); reload requires sign-in again. Password clears on submission and errors omit provider details. Sign-out clears content immediately even on provider failure; refreshed/changed/expired sessions cannot retain old account access, and pending login/boundary responses are discarded after cancellation or switch. Actual SDK session-persistence test proves no browser credential storage access.
+
+JOSE verifies approved public RSA/EC keys, exact dedicated-project issuer `/auth/v1`, authenticated audience/role, UUID text subject/session ID, non-anonymous user session, assurance/time/type and bounded malformed tokens. No Clerk `sid`/`azp` claims are invented. Origin protections remain separate and unchanged. Server caller bearer and publishable key still read metadata under forced RLS/SELECT-only grants; no privileged runtime key. Public trust config rejects private/symmetric/duplicate/unsupported key material. Unknown keys fail closed until approved config update; no instantaneous token revocation claim.
+
+Ownership columns remain text `(issuer,subject)`. Migration changes only authorized issuer binding; synthetic SQL/Data API fixtures now use Supabase-shaped UUID identities. New local namespace input is issuer plus subject. Existing hashing, all prior local/Clerk namespace names/data, Dexie version 6, portable/recovery invariants, scheduler and protected root bytes are unchanged. No email mapping, merge/migration or automatic profile upload. C1 keeps device-only status; C2/C3 and live calendar remain later work.
+
+Affected paths: auth/session adapter/UI/config/tests; server verification/config/tests; package/lock (remove Clerk, make existing JOSE production dependency); migration issuer binding and isolated fixtures; SDK/browser replay and privacy scan; current architecture, contract, runbook, roadmap/state and tracker wording. Pure metadata/projection schemas, API protocol/revision/generation and origin/routing semantics are unchanged.
+
+## Validation on amended source
+
+- Red: Supabase session/config/API expectations against previous implementation: 21 failed/54 passed/29 skipped (crypto setup initially shadowed a variable). Corrected crypto setup separately replayed against previous verifier: **2 failed/27 passed**, including valid Supabase identity rejection. UI baseline: **10 failed/2 passed**. Expiry regression: **1 failed/12 passed** before timer fix. Privacy prefix regression: **1 failed/2 passed** before credential-shaped matching.
+- Node **22.23.3 / 24.19.0**: **234/234 tests each, 12 files**, covering signed sessions/API/shared schema, UI/storage/expiry/switch, local namespace/portable exports and privacy regression. Both server typechecks PASS.
+- Full final **UTC: 120 files / 1,615 tests PASS**; **Australia/Perth: 120 files / 1,615 tests PASS**. One-worker runs; assertions/timeouts were not weakened. Earlier UTC run passed 1,611 before added checks. An intermediate final run passed 1,611/failed one added trust-material test because the test attempted export of a non-extractable ephemeral private key; fixed the fixture to test forbidden private fields without exporting private material. No implementation failure was suppressed.
+- Actual disposable **PostgreSQL 17.11** normal-role grants/forced-RLS matrix PASS: own A/B rows, missing/disabled/foreign claims, no anonymous access, independent grants and RLS even under temporary test-only grants, writes/ownership changes denied. Container state removed.
+- Actual disposable **PostgREST 13.0.7 + signed RSA/API/Supabase SDK**: **60/60 assertions PASS**, including audience before-read matrix, A/B isolation, disabled/uninvited denial, version/head/bigint and direct-provider writes denied. Ephemeral keys stayed in memory; loopback provider, isolated network and containers removed. This is not a running hosted Supabase Auth gateway.
+- Synthetic Chromium **151.0.7922.173**, Playwright **1.63.0**, **16/16 browser rows PASS** at 390×844 and 1280×844: signed-out/config error, keyboard form, authenticated device-only status, sign-out, 401/403/426/503 and retry, account-switch late response, reload/recovery wording. Test-server SDK alias and intercepted metadata; no native hosted sign-in is claimed. Browser source/replay/result manifest is durable; screenshots/build binaries are not committed or delivered.
+- Clean `npm ci --ignore-scripts`, app build, built-client privacy and diff check PASS. Existing large-chunk advisory remains. API-before-SPA routing tests pass within focused server suite. Built-client scan initially found SDK literal `sb_secret_` key-type detection, not a credential; revised scan permits the bare prefix but rejects any attached value, with sanitized negative regression. Export/local preservation checks are included in focused/full suites.
+
+## Remaining gates and runtime limitations
+
+Dedicated Life Rhythm Supabase project now exists: `lfwadowwdvcnibjkeerg`, org `xbwsomlomdmyipdbaipk`, Sydney `ap-southeast-2`, ACTIVE_HEALTHY; read-only catalog confirmed empty metadata schema/migrations. Project creation does not authorize Auth/account/credential settings, signing-key changes, email services, schema apply/access rows or Vercel configuration. No secrets/environment/user lists were retrieved. Free is the owner's approved selection, not independently verified billing metadata.
+
+Exact remaining bundle in [setup runbook](gate8a7c1-setup-runbook.md): after fresh review, authorize non-production signup restriction/disposable accounts, approved public asymmetric keys, exact metadata-only migration/exposure/access fixtures, Preview-branch-only public Vercel settings and bounded native A/B acceptance. Confirm root `app`; otherwise separately resolve layout. Existing Vercel team/project are identified, root is unverified, compute metadata reports `iad1`, and anonymous navigation was proxy-blocked before origin. Do not change protection, create bypass tokens or alter production. Missing asymmetric keys requires a separate decision, not a shared-secret fallback.
+
+Owner recovery/email delivery is not configured by this app. Default provider mail is restricted/best-effort; native recovery/account lifecycle and C2 data region/retention/deletion/operator access/consent remain explicit separate gates. Memory-only sessions are a C1 limitation. No server personal-state durability, C1 hosted PASS, integrated 8A8 PASS or 8B start.
+
+Prior-head App CI run `37363612961`, attempt 2: failure/cancelled job, no runner (ID 0/name empty), zero steps. No blind retry. New-head normal CI/deployment state belongs in the updated PR; no runner execution or hosted acceptance is inferred from publication. Fresh independent review and any qualifying merge are BoB's work.
+
+---
+
+## Historical Clerk implementation and audience correction
+
+The following dated record describes superseded source/provider selection, not current configuration, capabilities or transferable acceptance.
+
 # Gate 8A7C1 local implementation report
 
 Date: 2026-10-05 UTC. Base: `b58b7442c478770f9c0e1db9b6208c8c8e803e30` (live GitHub main, reviewed contract merged via #177). Branch: `feat/gate8a7c1-account-boundary`. Exact published head/PR is recorded in the draft PR and handoff. [Source manifest and browser replay](../evidence/gate8a7c1/README.md) attribute executable source without recursive documentation SHA updates. Requested route: GPT-6.1 Sol / Medium, Standard; no model escalation or additional reviewer launched.

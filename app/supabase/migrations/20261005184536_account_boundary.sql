@@ -1,9 +1,9 @@
--- Operator must set life_rhythm.clerk_issuer to the authorized native Clerk issuer
+-- Operator must set life_rhythm.auth_issuer to the authorized Supabase Auth issuer
 -- in this SAME connection before applying. No real issuer/trust is configured by this file.
 begin;
 do $$ begin
- if coalesce(current_setting('life_rhythm.clerk_issuer',true),'') !~ '^https://[A-Za-z0-9.-]+$' then
-  raise exception 'Authorized Clerk issuer configuration required before schema apply';
+ if coalesce(current_setting('life_rhythm.auth_issuer',true),'') !~ '^https://[a-z0-9-]+\.supabase\.co/auth/v1$' then
+  raise exception 'Authorized Supabase Auth issuer configuration required before schema apply';
  end if;
 end $$;
 create schema life_rhythm;
@@ -38,7 +38,7 @@ alter default privileges in schema life_rhythm revoke all on sequences from publ
 alter default privileges in schema life_rhythm revoke execute on functions from public,anon,authenticated;
 grant select on life_rhythm.trial_access,life_rhythm.account_heads to authenticated;
 -- Compile the operator-supplied issuer as a policy literal. Runtime sessions cannot change it.
-do $$ declare trusted_issuer text := current_setting('life_rhythm.clerk_issuer'); begin
+do $$ declare trusted_issuer text := current_setting('life_rhythm.auth_issuer'); begin
  execute format('create policy own_access on life_rhythm.trial_access for select to authenticated using
  (issuer = %L and issuer = (select auth.jwt()->>''iss'') and subject = (select auth.jwt()->>''sub''))',trusted_issuer);
  execute format('create policy active_own_head on life_rhythm.account_heads for select to authenticated using

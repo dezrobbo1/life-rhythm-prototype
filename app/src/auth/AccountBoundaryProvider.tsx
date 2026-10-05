@@ -1,4 +1,4 @@
-import { useAuth } from '@clerk/react';
+import { useSessionAuth } from './SupabaseSessionProvider';
 import { useEffect, useState, type ReactNode } from 'react';
 import { boundaryResponseSchema } from '../account/accountBoundarySchema';
 import { boundedJson } from '../account/boundedJson';
@@ -24,15 +24,19 @@ function BoundRequest({ children, getToken }: GateProps) {
         const bearer = await getToken();
         if (!active || controller.signal.aborted) return;
         if (!bearer) throw new Error('unavailable');
-        const response = await fetch('/api/account/boundary?protocolVersion=1&schemaVersion=1', {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${bearer}` },
-          credentials: 'omit',
-          cache: 'no-store',
-          signal: controller.signal,
-        });
+        const response = await fetch(
+          '/api/account/boundary?protocolVersion=1&schemaVersion=1',
+          {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${bearer}` },
+            credentials: 'omit',
+            cache: 'no-store',
+            signal: controller.signal,
+          },
+        );
         const body = boundaryResponseSchema.parse(await boundedJson(response));
-        if (response.status !== 200 || body.kind !== 'ready') throw new Error('unavailable');
+        if (response.status !== 200 || body.kind !== 'ready')
+          throw new Error('unavailable');
         if (active && !controller.signal.aborted) setState('ready');
       } catch {
         if (active) setState('failed');
@@ -60,7 +64,9 @@ function BoundRequest({ children, getToken }: GateProps) {
       <main className="auth-landing">
         <section className="auth-card" role="alert">
           <h1>Account access is unavailable</h1>
-          <p>Access could not be verified. Your local data has been preserved.</p>
+          <p>
+            Access could not be verified. Your local data has been preserved.
+          </p>
           <button
             type="button"
             onClick={() => {
@@ -76,7 +82,8 @@ function BoundRequest({ children, getToken }: GateProps) {
   return (
     <>
       <p className="auth-handoff-notice" role="status">
-        Device-only data. Account access is verified; personal data is not synced.
+        Device-only data. Account access is verified; personal data is not
+        synced.
       </p>
       {children}
     </>
@@ -84,19 +91,28 @@ function BoundRequest({ children, getToken }: GateProps) {
 }
 /** Keyed by both account and session: old success cannot render during a new identity's first frame. */
 export function AccountBoundaryGate(props: GateProps) {
-  return <BoundRequest key={JSON.stringify([props.accountId, props.sessionId])} {...props} />;
+  return (
+    <BoundRequest
+      key={JSON.stringify([props.accountId, props.sessionId])}
+      {...props}
+    />
+  );
 }
 export function AccountBoundaryProvider({ children }: { children: ReactNode }) {
-  const { isLoaded, isSignedIn, userId, sessionId, getToken } = useAuth();
-  if (!isLoaded)
+  const { loading, identity, getToken } = useSessionAuth();
+  if (loading)
     return (
       <main className="auth-landing" role="status">
         Checking sign-in
       </main>
     );
-  if (!isSignedIn || !userId || !sessionId) return null;
+  if (!identity) return null;
   return (
-    <AccountBoundaryGate accountId={userId} sessionId={sessionId} getToken={getToken}>
+    <AccountBoundaryGate
+      accountId={identity.issuer + '|' + identity.userId}
+      sessionId={identity.sessionId}
+      getToken={getToken}
+    >
       {children}
     </AccountBoundaryGate>
   );

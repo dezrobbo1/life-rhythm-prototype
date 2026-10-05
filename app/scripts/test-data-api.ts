@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
-import { exportJWK, exportSPKI, generateKeyPair, SignJWT } from 'jose';
+import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { handleBoundary } from '../server/account/boundary';
 import type { ServerConfig } from '../server/account/config';
 import { audienceCases } from '../test/fixtures/audienceCases';
@@ -12,7 +12,10 @@ const suffix = randomUUID().slice(0, 8),
   db = `lr-c1-db-${suffix}`,
   api = `lr-c1-api-${suffix}`;
 const docker = (...args: string[]) =>
-  execFileSync('docker', args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+  execFileSync('docker', args, {
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  }).trim();
 const sql = (input: string) =>
   execFileSync(
     'docker',
@@ -20,19 +23,25 @@ const sql = (input: string) =>
     { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
   );
 const keys = await generateKeyPair('RS256');
-const publicKey = await exportSPKI(keys.publicKey),
-  publicKeyId = 'ephemeral-data-api';
-const jwk = { ...(await exportJWK(keys.publicKey)), kid: publicKeyId, alg: 'RS256', use: 'sig' };
-const issuer = 'https://synthetic.clerk.accounts.dev',
+const publicKeyId = 'ephemeral-data-api';
+const jwk = {
+  ...(await exportJWK(keys.publicKey)),
+  kid: publicKeyId,
+  alg: 'RS256',
+  use: 'sig',
+};
+const issuer = 'https://synthetic.supabase.co/auth/v1',
   origin = 'https://app.example.test';
 async function token(subject: string, claims: Record<string, unknown> = {}) {
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT({
     iss: issuer,
     sub: subject,
-    sid: 'sess_synthetic',
+    session_id: '11111111-1111-4111-8111-111111111111',
     role: 'authenticated',
-    azp: origin,
+    aud: 'authenticated',
+    is_anonymous: false,
+    aal: 'aal1',
     iat: now,
     nbf: now - 1,
     exp: now + 60,
@@ -97,14 +106,20 @@ try {
   );
   const port = docker('port', api, '3000/tcp').split(':').at(-1),
     base = `http://127.0.0.1:${port}`;
-  const readinessToken = await token('user_A');
+  const readinessToken = await token('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
   let healthy = false,
     lastCode = 'not-ready';
   for (let attempt = 0; attempt < 40; attempt++) {
     try {
-      const response = await fetch(base + '/account_heads?select=subject&limit=0', {
-        headers: { 'Accept-Profile': 'life_rhythm', Authorization: `Bearer ${readinessToken}` },
-      });
+      const response = await fetch(
+        base + '/account_heads?select=subject&limit=0',
+        {
+          headers: {
+            'Accept-Profile': 'life_rhythm',
+            Authorization: `Bearer ${readinessToken}`,
+          },
+        },
+      );
       if (response.status === 200) {
         healthy = true;
         break;
@@ -117,8 +132,8 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
   assert.ok(healthy, `Local Data API unavailable: ${lastCode}`);
-  const a = await token('user_A'),
-    b = await token('user_B');
+  const a = await token('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+    b = await token('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
   const direct = (path: string, bearer?: string, init: RequestInit = {}) =>
     fetch(base + path, {
       ...init,
@@ -130,19 +145,29 @@ try {
       },
     });
   const read = async (bearer: string) => {
-    const response = await direct('/account_heads?select=subject,revision::text', bearer);
+    const response = await direct(
+      '/account_heads?select=subject,revision::text',
+      bearer,
+    );
     assert.equal(response.status, 200);
     checks++;
     return response.json();
   };
-  assert.deepEqual(await read(a), [{ subject: 'user_A', revision: '9007199254740993' }]);
+  assert.deepEqual(await read(a), [
+    {
+      subject: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      revision: '9007199254740993',
+    },
+  ]);
   checks++;
-  assert.deepEqual(await read(b), [{ subject: 'user_B', revision: '42' }]);
+  assert.deepEqual(await read(b), [
+    { subject: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', revision: '42' },
+  ]);
   checks++;
   const query =
     '?select=enabled,account_heads(protocol_version,canonical_schema_version,revision::text,generation,updated_at)&issuer=eq.' +
     encodeURIComponent(issuer) +
-    '&subject=eq.user_A&enabled=eq.true&limit=2';
+    '&subject=eq.aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa&enabled=eq.true&limit=2';
   const relation = await (await direct('/trial_access' + query, a)).json();
   assert.equal(typeof relation[0].account_heads, 'object');
   assert.equal(relation[0].account_heads.revision, '9007199254740993');
@@ -150,8 +175,7 @@ try {
   const config: ServerConfig = {
     issuer,
     origins: [origin],
-    publicKey,
-    publicKeyId,
+    jwks: { keys: [jwk] },
     supabaseUrl: 'https://synthetic.supabase.co',
     publishableKey: 'sb_publishable_synthetic',
     buildId: 'local-integration',
@@ -160,9 +184,15 @@ try {
   const providerFetch: typeof fetch = async (input, init) => {
     providerCalls++;
     const url = new URL(String(input));
-    return fetch(base + url.pathname.replace(/^\/rest\/v1/, '') + url.search, init);
+    return fetch(
+      base + url.pathname.replace(/^\/rest\/v1/, '') + url.search,
+      init,
+    );
   };
-  const boundary = (bearer: string, query = 'protocolVersion=1&schemaVersion=1') =>
+  const boundary = (
+    bearer: string,
+    query = 'protocolVersion=1&schemaVersion=1',
+  ) =>
     handleBoundary(
       new Request(`${origin}/api/account/boundary?${query}`, {
         headers: { origin, authorization: `Bearer ${bearer}` },
@@ -175,22 +205,45 @@ try {
   checks += 2;
   assert.equal((await boundary(b)).status, 200);
   checks++;
-  config.audience = 'issued';
   for (const { name, aud, status } of audienceCases) {
     const before = providerCalls;
-    const response = await boundary(await token('user_A', { aud }));
+    const response = await boundary(
+      await token('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', { aud }),
+    );
     assert.equal(response.status, status, `configured audience: ${name}`);
-    assert.equal(providerCalls - before, status === 200 ? 1 : 0, `provider calls: ${name}`);
+    assert.equal(
+      providerCalls - before,
+      status === 200 ? 1 : 0,
+      `provider calls: ${name}`,
+    );
     checks += 2;
   }
-  delete config.audience;
-  assert.equal((await boundary(await token('user_uninvited'))).status, 403);
+  assert.equal(
+    (await boundary(await token('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')))
+      .status,
+    403,
+  );
   checks++;
-  assert.equal((await boundary(await token('user_disabled'))).status, 403);
+  assert.equal(
+    (await boundary(await token('dddddddd-dddd-4ddd-8ddd-dddddddddddd')))
+      .status,
+    403,
+  );
   checks++;
-  assert.equal((await boundary(a, 'protocolVersion=1&schemaVersion=1&owner=user_B')).status, 400);
+  assert.equal(
+    (
+      await boundary(
+        a,
+        'protocolVersion=1&schemaVersion=1&owner=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      )
+    ).status,
+    400,
+  );
   checks++;
-  assert.equal((await boundary(a, 'protocolVersion=2&schemaVersion=1')).status, 426);
+  assert.equal(
+    (await boundary(a, 'protocolVersion=2&schemaVersion=1')).status,
+    426,
+  );
   checks++;
   assert.equal(
     (
@@ -215,29 +268,38 @@ try {
               body: JSON.stringify(
                 method === 'POST'
                   ? path === '/trial_access'
-                    ? { issuer, subject: 'user_C', enabled: true }
+                    ? {
+                        issuer,
+                        subject: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+                        enabled: true,
+                      }
                     : {
                         issuer,
-                        subject: 'user_C',
+                        subject: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
                         protocol_version: 1,
                         canonical_schema_version: 1,
                         revision: '0',
                         generation: '11111111-1111-4111-8111-111111111111',
                       }
-                  : { subject: 'user_B' },
+                  : { subject: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
               ),
             }),
       });
-      assert.ok([401, 403].includes(response.status), `${method} ${path}: ${response.status}`);
+      assert.ok(
+        [401, 403].includes(response.status),
+        `${method} ${path}: ${response.status}`,
+      );
       checks++;
     }
-  sql(`update life_rhythm.trial_access set enabled=false where subject='user_A';`);
+  sql(
+    `update life_rhythm.trial_access set enabled=false where subject='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';`,
+  );
   assert.deepEqual(await read(a), []);
   checks++;
   assert.equal((await boundary(a)).status, 403);
   checks++;
   console.log(
-    `PASS: ${checks} local signed-JWT PostgREST/SDK/API checks; no native hosted Clerk trust claim`,
+    `PASS: ${checks} local signed-JWT PostgREST/SDK/API checks; no native hosted Supabase Auth acceptance claim`,
   );
 } finally {
   for (const name of [api, db])

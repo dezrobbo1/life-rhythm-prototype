@@ -1,4 +1,4 @@
-import { useAuth } from '@clerk/react';
+import { useSessionAuth } from './SupabaseSessionProvider';
 import { useLayoutEffect, useState, type ReactNode } from 'react';
 import {
   createAuthLocalDataNamespace,
@@ -17,7 +17,10 @@ type AuthLocalNamespaceProviderProps = {
   children: ReactNode;
 };
 
-export function LocalDataNamespaceBoundary({ children, namespace }: NamespaceBoundaryProps) {
+export function LocalDataNamespaceBoundary({
+  children,
+  namespace,
+}: NamespaceBoundaryProps) {
   const [isReady, setIsReady] = useState(false);
 
   useLayoutEffect(() => {
@@ -32,7 +35,9 @@ export function LocalDataNamespaceBoundary({ children, namespace }: NamespaceBou
   return isReady ? <>{children}</> : null;
 }
 
-export function LegacyLocalNamespaceProvider({ children }: AuthLocalNamespaceProviderProps) {
+export function LegacyLocalNamespaceProvider({
+  children,
+}: AuthLocalNamespaceProviderProps) {
   const namespace = getLegacyLocalDataNamespace();
 
   return (
@@ -45,14 +50,18 @@ export function LegacyLocalNamespaceProvider({ children }: AuthLocalNamespacePro
   );
 }
 
-export function AuthLocalNamespaceProvider({ children }: AuthLocalNamespaceProviderProps) {
-  const { userId } = useAuth();
+export function AuthLocalNamespaceProvider({
+  children,
+}: AuthLocalNamespaceProviderProps) {
+  const { identity } = useSessionAuth();
 
-  if (!userId) {
+  if (!identity) {
     return null;
   }
 
-  const namespace = createAuthLocalDataNamespace(userId);
+  const namespace = createAuthLocalDataNamespace(
+    identity.issuer + '|' + identity.userId,
+  );
 
   return (
     <LocalDataNamespaceBoundary

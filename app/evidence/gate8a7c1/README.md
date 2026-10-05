@@ -1,3 +1,19 @@
+# C1 Supabase Auth evidence
+
+Current provider amendment is unmerged on [PR #180](https://github.com/dezrobbo1/life-rhythm-prototype/pull/180). [source-manifest.json](source-manifest.json) fingerprints the amended executable tree; [supabase-auth-results.json](supabase-auth-results.json) records current results. Prior Clerk acceptance/review does not transfer.
+
+Reproduce: `npm run typecheck:server`, `npm run test:server`, focused `vitest run server src/auth src/account src/data/portableProfileBackup.test.ts src/data/localDataNamespace.test.ts scripts/clientPrivacy.test.ts`, `npm run test:database`, `npm run test:data-api`, UTC/Perth `npm test -- --maxWorkers=1`, build/privacy, and `npm run test:browser:c1`.
+
+Browser replay uses actual production auth/session/UI components with a separate test-server Supabase SDK alias in `supabase-fixture.ts` and intercepted synthetic metadata. `replay.spec.ts` covers 16 rows at 390px/1280px, including sign-in fields, errors/keyboard/status/sign-out/switch and memory-only reload/recovery. It is not native hosted sign-in. The actual SDK persistence test independently proves memory-only storage behavior. No screenshot delivery or physical-device acceptance is claimed.
+
+SQL engine and signed PostgREST transport use disposable synthetic state and in-memory ephemeral signing keys, not the hosted project. No real profile is serialized. [Current implementation report](../../docs/gate8a7c1-implementation-report.md) and [hosted approval/runbook](../../docs/gate8a7c1-setup-runbook.md) retain the actual acceptance gate.
+
+---
+
+## Historical Clerk evidence (superseded executable source)
+
+`results.json` and `audience-correction-results.json` below retain their original source attribution. They are historical records; current amended SQL/client/server/browser boundaries use the new results above.
+
 # C1 local synthetic evidence
 
 Base: `b58b7442c478770f9c0e1db9b6208c8c8e803e30`. Local implementation is unmerged; exact PR head is in the draft PR/handoff. `source-manifest.json` attributes the executable tree (including tests, fixtures, configs, lockfile and app CI). Markdown/evidence JSON are excluded to avoid recursive hashes. Reproduce with `npm run source:manifest`; renew evidence for affected boundaries after executable source changes; document source-independent reuse explicitly.

@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+} from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AccountBoundaryGate } from './AccountBoundaryProvider';
 const ready = {
@@ -15,39 +21,45 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 const response = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-describe('required account gate', () => {
-  it.each([401, 403, 426, 503, 409])('never mounts ordinary content after %s', async (status) => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () =>
-        response(
-          {
-            kind: 'error',
-            category:
-              status === 401
-                ? 'unauthorized'
-                : status === 403
-                  ? 'forbidden'
-                  : status === 426
-                    ? 'upgrade-required'
-                    : status === 409
-                      ? 'conflict'
-                      : 'unavailable',
-            requestId: '11111111-1111-4111-8111-111111111111',
-          },
-          status,
-        ),
-      ),
-    );
-    render(
-      <AccountBoundaryGate accountId="A" sessionId="A" getToken={getToken}>
-        <p>Ordinary app</p>
-      </AccountBoundaryGate>,
-    );
-    await screen.findByRole('alert');
-    expect(screen.queryByText('Ordinary app')).toBeNull();
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
   });
+describe('required account gate', () => {
+  it.each([401, 403, 426, 503, 409])(
+    'never mounts ordinary content after %s',
+    async (status) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () =>
+          response(
+            {
+              kind: 'error',
+              category:
+                status === 401
+                  ? 'unauthorized'
+                  : status === 403
+                    ? 'forbidden'
+                    : status === 426
+                      ? 'upgrade-required'
+                      : status === 409
+                        ? 'conflict'
+                        : 'unavailable',
+              requestId: '11111111-1111-4111-8111-111111111111',
+            },
+            status,
+          ),
+        ),
+      );
+      render(
+        <AccountBoundaryGate accountId="A" sessionId="A" getToken={getToken}>
+          <p>Ordinary app</p>
+        </AccountBoundaryGate>,
+      );
+      await screen.findByRole('alert');
+      expect(screen.queryByText('Ordinary app')).toBeNull();
+    },
+  );
   it('mounts healthy device-only content and sends no profile/body', async () => {
     const f = vi.fn(async () => response(ready));
     vi.stubGlobal('fetch', f);
@@ -126,22 +138,24 @@ describe('required account gate', () => {
     expect(screen.queryByText('Ordinary app')).toBeNull();
     await screen.findByRole('alert');
   });
-  it.each([{}, { ...ready, protocolVersion: 2 }, { ...ready, profile: {} }, 'x'.repeat(20000)])(
-    'blocks malformed or oversized response',
-    async (body) => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(async () => response(body)),
-      );
-      render(
-        <AccountBoundaryGate accountId="A" sessionId="A" getToken={getToken}>
-          <p>Ordinary app</p>
-        </AccountBoundaryGate>,
-      );
-      await screen.findByRole('alert');
-      expect(screen.queryByText('Ordinary app')).toBeNull();
-    },
-  );
+  it.each([
+    {},
+    { ...ready, protocolVersion: 2 },
+    { ...ready, profile: {} },
+    'x'.repeat(20000),
+  ])('blocks malformed or oversized response', async (body) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response(body)),
+    );
+    render(
+      <AccountBoundaryGate accountId="A" sessionId="A" getToken={getToken}>
+        <p>Ordinary app</p>
+      </AccountBoundaryGate>,
+    );
+    await screen.findByRole('alert');
+    expect(screen.queryByText('Ordinary app')).toBeNull();
+  });
   it('blocks token failure and retries explicitly', async () => {
     const token = vi
       .fn()

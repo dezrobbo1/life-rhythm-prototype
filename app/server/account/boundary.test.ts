@@ -1,21 +1,30 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { generateKeyPair, exportSPKI, SignJWT } from 'jose';
+import { generateKeyPair, exportJWK, SignJWT } from 'jose';
 import { handleBoundary } from './boundary';
 import { readServerConfig, type ServerConfig } from './config';
 import { audienceCases } from '../../test/fixtures/audienceCases';
 const origin = 'https://app.example.test',
-  issuer = 'https://synthetic.clerk.accounts.dev';
+  issuer = 'https://synthetic.supabase.co/auth/v1';
 const generation = '11111111-1111-4111-8111-111111111111';
-let publicKey: string, keys: Awaited<ReturnType<typeof generateKeyPair>>;
+let jwks: { keys: Awaited<ReturnType<typeof exportJWK>>[] },
+  keys: Awaited<ReturnType<typeof generateKeyPair>>;
 beforeAll(async () => {
   keys = await generateKeyPair('RS256');
-  publicKey = await exportSPKI(keys.publicKey);
+  jwks = {
+    keys: [
+      {
+        ...(await exportJWK(keys.publicKey)),
+        kid: 'throwaway',
+        alg: 'RS256',
+        use: 'sig',
+      },
+    ],
+  };
 });
 const config = () => ({
   issuer,
   origins: [origin],
-  publicKey,
-  publicKeyId: 'throwaway',
+  jwks,
   supabaseUrl: 'https://synthetic.supabase.co',
   publishableKey: 'sb_publishable_synthetic',
   buildId: 'test-build',
@@ -24,10 +33,12 @@ async function token(claims: Record<string, unknown> = {}) {
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT({
     iss: issuer,
-    sub: 'user_A',
-    sid: 'sess_A',
+    sub: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    session_id: '11111111-1111-4111-8111-111111111111',
     role: 'authenticated',
-    azp: origin,
+    aud: 'authenticated',
+    is_anonymous: false,
+    aal: 'aal1',
     iat: now,
     nbf: now - 1,
     exp: now + 60,
@@ -74,26 +85,39 @@ function provider(value: unknown = rows(), status = 200) {
       }),
   );
 }
-async function run(req: Request, fetcher = provider(), cfg: ServerConfig | null = config()) {
+async function run(
+  req: Request,
+  fetcher = provider(),
+  cfg: ServerConfig | null = config(),
+) {
   return handleBoundary(req, { config: () => cfg, fetch: fetcher });
 }
 describe('metadata API', () => {
-  it.each(audienceCases)('configured audience: $name', async ({ aud, status }) => {
-    const fetcher = provider();
-    const res = await run(
-      await request(undefined, {}, 'GET', { aud }),
-      fetcher,
-      { ...config(), audience: 'issued' },
-    );
-    expect({ status: res.status, providerCalls: fetcher.mock.calls.length }).toEqual({
-      status, providerCalls: status === 200 ? 1 : 0,
-    });
-    if (status === 401) {
-      expect(await res.json()).toEqual({
-        kind: 'error', category: 'unauthorized', requestId: expect.any(String),
+  it.each(audienceCases)(
+    'configured audience: $name',
+    async ({ aud, status }) => {
+      const fetcher = provider();
+      const res = await run(
+        await request(undefined, {}, 'GET', { aud }),
+        fetcher,
+        config(),
+      );
+      expect({
+        status: res.status,
+        providerCalls: fetcher.mock.calls.length,
+      }).toEqual({
+        status,
+        providerCalls: status === 200 ? 1 : 0,
       });
-    }
-  });
+      if (status === 401) {
+        expect(await res.json()).toEqual({
+          kind: 'error',
+          category: 'unauthorized',
+          requestId: expect.any(String),
+        });
+      }
+    },
+  );
   it('forwards caller bearer per request and only reads own compatible metadata', async () => {
     const req = await request(),
       fetcher = provider();
@@ -107,11 +131,18 @@ describe('metadata API', () => {
       buildId: 'test-build',
       head: { revision: '9007199254740993', generation },
     });
-    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    const [url, init] = fetcher.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
     expect(url).toContain('issuer=eq.');
-    expect(url).toContain('subject=eq.user_A');
-    expect(new Headers(init.headers).get('authorization')).toBe(req.headers.get('authorization'));
-    expect(new Headers(init.headers).get('apikey')).toBe('sb_publishable_synthetic');
+    expect(url).toContain('subject=eq.aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    expect(new Headers(init.headers).get('authorization')).toBe(
+      req.headers.get('authorization'),
+    );
+    expect(new Headers(init.headers).get('apikey')).toBe(
+      'sb_publishable_synthetic',
+    );
     expect(new Headers(init.headers).get('accept-profile')).toBe('life_rhythm');
     expect(init.method).toBe('GET');
   });
@@ -119,11 +150,25 @@ describe('metadata API', () => {
     const fetcher = provider();
     await Promise.all([
       run(await request(), fetcher),
-      run(await request(undefined, {}, 'GET', { sub: 'user_B', sid: 'sess_B' }), fetcher),
+      run(
+        await request(undefined, {}, 'GET', {
+          sub: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          session_id: '22222222-2222-4222-8222-222222222222',
+        }),
+        fetcher,
+      ),
     ]);
     const calls = fetcher.mock.calls as unknown as [string, RequestInit][];
-    expect(calls.some(([url]) => url.includes('subject=eq.user_A'))).toBe(true);
-    expect(calls.some(([url]) => url.includes('subject=eq.user_B'))).toBe(true);
+    expect(
+      calls.some(([url]) =>
+        url.includes('subject=eq.aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+      ),
+    ).toBe(true);
+    expect(
+      calls.some(([url]) =>
+        url.includes('subject=eq.bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
+      ),
+    ).toBe(true);
     expect(new Headers(calls[0][1].headers).get('authorization')).not.toBe(
       new Headers(calls[1][1].headers).get('authorization'),
     );
@@ -136,22 +181,29 @@ describe('metadata API', () => {
     'expectedGeneration=bad',
   ])('rejects extra/invalid query %s before reads', async (extra) => {
     const f = provider();
-    expect((await run(await request(`protocolVersion=1&schemaVersion=1&${extra}`), f)).status).toBe(
-      400,
-    );
+    expect(
+      (
+        await run(
+          await request(`protocolVersion=1&schemaVersion=1&${extra}`),
+          f,
+        )
+      ).status,
+    ).toBe(400);
     expect(f).not.toHaveBeenCalled();
   });
   it.each([
     { exp: 1 },
-    { sid: '' },
-    { azp: '' },
+    { session_id: '' },
+    { is_anonymous: true },
     { iss: 'https://foreign.test' },
     { token_type: 'oauth_token' },
     { role: 'service_role' },
     { role: undefined },
   ])('401 rejected sessions avoid provider reads %j', async (claims) => {
     const f = provider();
-    expect((await run(await request(undefined, {}, 'GET', claims), f)).status).toBe(401);
+    expect(
+      (await run(await request(undefined, {}, 'GET', claims), f)).status,
+    ).toBe(401);
     expect(f).not.toHaveBeenCalled();
   });
   it('denies cookie-only requests', async () => {
@@ -159,9 +211,12 @@ describe('metadata API', () => {
     expect(
       (
         await run(
-          new Request(`${origin}/api/account/boundary?protocolVersion=1&schemaVersion=1`, {
-            headers: { origin, cookie: '__session=synthetic' },
-          }),
+          new Request(
+            `${origin}/api/account/boundary?protocolVersion=1&schemaVersion=1`,
+            {
+              headers: { origin, cookie: '__session=synthetic' },
+            },
+          ),
           f,
         )
       ).status,
@@ -177,7 +232,8 @@ describe('metadata API', () => {
     const f = provider();
     const req = await request();
     req.headers.delete('origin');
-    for (const [key, value] of Object.entries(headers)) req.headers.set(key, value);
+    for (const [key, value] of Object.entries(headers))
+      req.headers.set(key, value);
     expect((await run(req, f)).status).toBe(403);
     expect(f).not.toHaveBeenCalled();
   });
@@ -189,16 +245,24 @@ describe('metadata API', () => {
   });
   it('denies approved origin with a foreign request URL', async () => {
     const req = await request();
-    const foreign = new Request(req.url.replace(origin, 'https://foreign.test'), {
-      headers: req.headers,
-    });
+    const foreign = new Request(
+      req.url.replace(origin, 'https://foreign.test'),
+      {
+        headers: req.headers,
+      },
+    );
     expect((await run(foreign)).status).toBe(403);
   });
-  it.each(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'])('disables %s', async (method) => {
-    const f = provider();
-    expect((await run(await request(undefined, {}, method), f)).status).toBe(405);
-    expect(f).not.toHaveBeenCalled();
-  });
+  it.each(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'])(
+    'disables %s',
+    async (method) => {
+      const f = provider();
+      expect((await run(await request(undefined, {}, method), f)).status).toBe(
+        405,
+      );
+      expect(f).not.toHaveBeenCalled();
+    },
+  );
   it.each([
     { authorization: 'Bearer ' + 'a'.repeat(8193) },
     { 'content-length': '1' },
@@ -209,9 +273,13 @@ describe('metadata API', () => {
     expect(f).not.toHaveBeenCalled();
   });
   it.each(
-    [[], [{ enabled: false, account_heads: null }], [...rows(), ...rows()]].map((value) => [value]),
+    [[], [{ enabled: false, account_heads: null }], [...rows(), ...rows()]].map(
+      (value) => [value],
+    ),
   )('denies missing disabled or multiple access rows %j', async (value) =>
-    expect((await run(await request(), provider(value))).status).toBe(value.length > 1 ? 503 : 403),
+    expect((await run(await request(), provider(value))).status).toBe(
+      value.length > 1 ? 503 : 403,
+    ),
   );
   it('returns null without writing for no head', async () => {
     const res = await run(await request(), provider(rows(null)));
@@ -245,7 +313,12 @@ describe('metadata API', () => {
         revision: 9007199254740993,
         generation,
       }),
-      [{ enabled: true, account_heads: [rows()[0].account_heads, rows()[0].account_heads] }],
+      [
+        {
+          enabled: true,
+          account_heads: [rows()[0].account_heads, rows()[0].account_heads],
+        },
+      ],
       rows({ privateProfile: 'NEVER_ECHO' }),
     ].map((value) => [value]),
   )('fails unreadable metadata %j', async (value) =>
@@ -253,7 +326,9 @@ describe('metadata API', () => {
   );
   it('checks client versions before reads', async () => {
     const f = provider();
-    expect((await run(await request('protocolVersion=2&schemaVersion=1'), f)).status).toBe(426);
+    expect(
+      (await run(await request('protocolVersion=2&schemaVersion=1'), f)).status,
+    ).toBe(426);
     expect(f).not.toHaveBeenCalled();
   });
   it('compares exact head and preserves compatible own head on conflict', async () => {
@@ -264,7 +339,10 @@ describe('metadata API', () => {
         ),
       );
       expect(res.status).toBe(revision === '9007199254740993' ? 200 : 409);
-      expect(await res.json()).toHaveProperty('head.revision', '9007199254740993');
+      expect(await res.json()).toHaveProperty(
+        'head.revision',
+        '9007199254740993',
+      );
     }
   });
   it('conflicts on generation change or no head', async () => {
@@ -276,19 +354,23 @@ describe('metadata API', () => {
   });
   it('sanitizes provider errors and missing configuration', async () => {
     for (const cfg of [null, config()]) {
-      const res = await run(await request(), provider({ message: 'NEVER_ECHO' }, 500), cfg);
+      const res = await run(
+        await request(),
+        provider({ message: 'NEVER_ECHO' }, 500),
+        cfg,
+      );
       expect(res.status).toBe(503);
       expect(await res.text()).not.toContain('NEVER_ECHO');
     }
   });
   it('bounds provider responses', async () =>
-    expect((await run(await request(), provider('x'.repeat(20000)))).status).toBe(503));
+    expect(
+      (await run(await request(), provider('x'.repeat(20000)))).status,
+    ).toBe(503));
 });
 describe('public verification/runtime config', () => {
   const env = () => ({
-    CLERK_ISSUER: issuer,
-    CLERK_JWT_PUBLIC_KEY: publicKey,
-    CLERK_JWT_KEY_ID: 'throwaway',
+    SUPABASE_AUTH_JWKS: JSON.stringify(jwks),
     LIFE_RHYTHM_ALLOWED_ORIGINS: origin,
     SUPABASE_URL: 'https://synthetic.supabase.co',
     SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_synthetic',
@@ -297,9 +379,7 @@ describe('public verification/runtime config', () => {
   it('accepts public verification settings', () =>
     expect(readServerConfig(env())).toEqual(config()));
   it.each([
-    'CLERK_ISSUER',
-    'CLERK_JWT_PUBLIC_KEY',
-    'CLERK_JWT_KEY_ID',
+    'SUPABASE_AUTH_JWKS',
     'LIFE_RHYTHM_ALLOWED_ORIGINS',
     'SUPABASE_URL',
     'SUPABASE_PUBLISHABLE_KEY',
@@ -309,13 +389,28 @@ describe('public verification/runtime config', () => {
     delete value[key as keyof typeof value];
     expect(() => readServerConfig(value)).toThrow();
   });
+  it('rejects private, duplicate and unsupported public trust material', async () => {
+    const privateKey = { ...jwks.keys[0], d: 'synthetic-private-field' };
+    for (const value of [
+      { keys: [{ ...privateKey, kid: 'throwaway', alg: 'RS256' }] },
+      { keys: [...jwks.keys, ...jwks.keys] },
+      { keys: [{ kty: 'oct', k: 'private', kid: 'shared', alg: 'HS256' }] },
+      { keys: [] },
+    ])
+      expect(() =>
+        readServerConfig({
+          ...env(),
+          SUPABASE_AUTH_JWKS: JSON.stringify(value),
+        }),
+      ).toThrow();
+  });
   it.each([
     { SUPABASE_PUBLISHABLE_KEY: 'sb_secret_never' },
     { SUPABASE_PUBLISHABLE_KEY: 'eyJlegacy' },
-    { CLERK_ISSUER: 'http://foreign.test' },
+    { SUPABASE_URL: 'http://foreign.test' },
     { LIFE_RHYTHM_ALLOWED_ORIGINS: '*' },
     { LIFE_RHYTHM_ALLOWED_ORIGINS: origin + '/path' },
-    { CLERK_JWT_PUBLIC_KEY: 'broken' },
+    { SUPABASE_AUTH_JWKS: 'broken' },
     { SUPABASE_URL: 'https://unrelated.test' },
   ])('rejects wrong config %j', (override) =>
     expect(() => readServerConfig({ ...env(), ...override })).toThrow(),

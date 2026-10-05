@@ -50,6 +50,9 @@ Canonical state belongs to Life Rhythm, not to an LLM conversation and not to a 
 
 ### Account-backed durability and local replica
 
+C1 provider amendment (owner approved 2026-10-05, draft PR #180): Supabase Auth is the sole sign-in authority on the dedicated Life Rhythm project. The former Clerk shell is implementation history, not a proven operational account. Restricted email/password login, tab-memory-only sessions and public-key verified server tokens preserve the same-origin API, text `(issuer, subject)` ownership and SELECT-only metadata boundary. See [current C1 contract](app/docs/gate8a7c1-account-boundary-contract.md). Existing local/Clerk namespaces remain untouched; no email matching or silent migration. Hosted settings/schema/accounts/recovery and later personal-data consent remain separate gates.
+
+
 For the owner personal trial, acknowledged canonical personal state belongs to an authenticated account and has a durable server-side copy. Browser IndexedDB is the local replica/cache, not the only durable authority. Sign-in to a clean supported browser/device hydrates that account's acknowledged state. Pending offline edits remain explicit local authority until accepted; the interface distinguishes queued, synced and attention-needed state.
 
 Authentication authority and personal data authority are separate boundaries. Server reads/writes derive account identity from a verified session and enforce per-account isolation; client-supplied IDs and hashed local database names are not authorization. Retain existing identity infrastructure unless a reviewed architecture decision justifies migration.
