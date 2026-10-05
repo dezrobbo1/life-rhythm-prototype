@@ -1505,6 +1505,7 @@ describe('Today screen', () => {
   });
 
   it('keeps the bottom navigation available in the app shell', async () => {
+    const user = userEvent.setup();
     render(<App />);
 
     const nav = await screen.findByRole('navigation', { name: 'Primary' });
@@ -1515,6 +1516,7 @@ describe('Today screen', () => {
     expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
     expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();
 
+    await user.click(await screen.findByRole('button', { name: 'More' }));
     const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
     expect(within(secondaryNav).getByRole('button', { name: 'Reset' })).toBeTruthy();
     expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();

@@ -322,6 +322,7 @@ describe('Reset screen', () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await user.click(await screen.findByRole('button', { name: 'More' }));
     await user.click(await screen.findByRole('button', { name: 'Settings' }));
 
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy();
@@ -332,6 +333,7 @@ describe('Reset screen', () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await user.click(await screen.findByRole('button', { name: 'More' }));
     await user.click(await screen.findByRole('button', { name: 'Reset' }));
 
     const nav = screen.getByRole('navigation', { name: 'Primary' });
@@ -342,6 +344,7 @@ describe('Reset screen', () => {
     expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
     expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();
 
+    await user.click(await screen.findByRole('button', { name: 'More' }));
     const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
     expect(within(secondaryNav).getByRole('button', { name: 'Reset' })).toBeTruthy();
     expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();

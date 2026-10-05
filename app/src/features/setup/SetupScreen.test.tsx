@@ -487,6 +487,7 @@ describe('Setup screen', () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await user.click(await screen.findByRole('button', { name: 'More' }));
     await user.click(await screen.findByRole('button', { name: 'Settings' }));
     await user.click(screen.getByRole('radio', { name: /Clear/ }));
 
@@ -884,6 +885,7 @@ describe('Setup screen', () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await user.click(await screen.findByRole('button', { name: 'More' }));
     await user.click(await screen.findByRole('button', { name: 'Settings' }));
 
     const nav = screen.getByRole('navigation', { name: 'Primary' });
@@ -894,6 +896,7 @@ describe('Setup screen', () => {
     expect(within(nav).queryByRole('button', { name: 'Reset' })).toBeNull();
     expect(within(nav).queryByRole('button', { name: 'Settings' })).toBeNull();
 
+    await user.click(await screen.findByRole('button', { name: 'More' }));
     const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
     expect(within(secondaryNav).getByRole('button', { name: 'Reset' })).toBeTruthy();
     expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();
