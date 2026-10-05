@@ -1,6 +1,6 @@
 # Gate 8A7B3 populated daily surface and contextual correction
 
-Status: open PR #175 remains unmerged. Three later confirmed review blockers are corrected below. Corrected-source UTC/Perth tests, build and eight-row browser replay pass; parent targeted verification remains pending. Earlier evidence remains dated and attributable.
+Status: B3 ordinary convergence accepted and PR #175 merged; see the dated post-merge completion below. Earlier evidence remains dated and attributable. A later post-gate focus finding awaits parent disposition.
 Date: 2026-10-05. Source/base: `add82b74082f3bf347191d6ce97de2816169f4eb` (PR #174).
 Evidence continuation reconciled with policy merge `c2ee838163497938e84b0a2044f3dc4ad961c2b6` (PR #176). Reviewed application commit: `b1ae38bc56bf6f1205e9163fa3c3e81536cd753d`; application source tree `5bc78ca338faea7362bb6b7afcfc8d03631d834d`.
 Branch: `feat/gate8a7b3-today-plan-relief`. Exact published head is recorded in PR metadata/body; this report does not manufacture a self-referential commit SHA.
@@ -65,7 +65,7 @@ Harness development corrected expectations for trimmed authored inputs and actua
 
 ## Current intermediate acceptance rows
 
-PASS below identifies observed engineering/browser evidence at the reviewed application source; final B3 acceptance remains pending the parent's targeted independent evidence verification and final merge gate. Prior B2 owner acceptance is not substituted for this integrated evidence.
+At evidence preparation, PASS below identified observed engineering/browser evidence and final B3 acceptance was pending parent verification. The dated post-merge completion below now records that decision; prior B2 owner acceptance is not substituted for this evidence.
 
 | Row | Evidence route and observed result | Current disposition |
 | --- | --- | --- |
@@ -123,4 +123,23 @@ The browser uses fresh synthetic contexts and fingerprinted loopback Vite source
 
 Model route: initially GPT-6 Luna / Medium under route B. The platform failed with “Selected model is at capacity. Please try a different model.” Parent resumed the same workspace on GPT-6.1 Sol / Medium as the next available route. This was an availability fallback, not a reasoning escalation.
 
-Parent targeted independent verification of all three corrections and the final gate remain pending. PR #175 stays open/unmerged; BoB handles any eventual merge. This correction does not declare B3 final acceptance, integrated 8A8 PASS or 8B commencement.
+At correction publication, parent targeted verification and the final gate remained pending, and PR #175 was open/unmerged. The following dated completion records the subsequent parent decision. No integrated 8A8 PASS or 8B commencement follows from this correction.
+
+
+## Post-merge completion — 2026-10-05
+
+Parent accepted B3 ordinary calm-surface convergence under merged policy #176 and directly merged [PR #175](https://github.com/dezrobbo1/life-rhythm-prototype/pull/175), head `bfa8c08275a4a3819775a3dfeca928099031e4dc`, main/merge `f98cca4424cc482407fea1b2862d0d79a3c9a7b2`. The [final gate comment](https://github.com/dezrobbo1/life-rhythm-prototype/pull/175#issuecomment-5998704908) at 16:31:38 UTC records independent targeted PASS for all three supported corrections and resolution of those three threads. Independent cloud task `01a10c81-9d18-71f3-a0ea-cc2ecc2fa03a` verified 41 focused tests and corrected 8/8 browser rows at 390×844 and desktop with no page errors or overflow. Chromium 151.0.7922.173, Playwright 1.62.1 and synthetic advancing-clock Perth fixtures are recorded above/in the durable replay.
+
+Accepted runtime fingerprint: `36ef6075013f99b54804f0f7cf015ad908e00e8b459951388cf957db64be49cb`; corrected `app/src` tree `0a1170ed53e231fee701a39c49768d3dad7cf180`. App CI #398 passed 1,390 tests/build; App Preview #621 and Vercel passed on that final source. Full UTC and Perth 1,390-test runs were reported by the author; this documentation task does not claim to have rerun them. [Manifest/replay/results](../evidence/gate8a7b3/README.md) remain the source-controlled evidence route. Screenshots remain undelivered; no attachment or physical-device/subjective owner PASS is invented.
+
+| Tracker / scope | Post-B3 disposition |
+| --- | --- |
+| #168 ordinary B1/B2/B3 convergence | Satisfied by recorded bounded acceptance. Keep open in this task; parent closes only after durable completion docs review/merge and disposition of the late finding below. |
+| #160 ordinary flow/focus/overflow/persistence and rhythm execution | Satisfied by accepted B evidence on the attributed source. These scoped results do not certify every integrated path. |
+| #160 cleared-core-hours | Not independently demonstrated in browser; pending integrated 8A8 on an identified build. |
+| #160 recurring static-calendar import/status/buffer browser controls | Not independently demonstrated; pending integrated 8A8. Static ICS is still a snapshot/fallback, not the 8A7D live-calendar prerequisite. |
+| Historical 3 October owner evidence | Retains partial observed FAIL and attribution limitations. No historical FAIL report is rewritten as PASS. |
+
+**Later live finding:** at 16:34:11 UTC, after the recorded final gate, an automated review posted [Protect successor never mounts](https://github.com/dezrobbo1/life-rhythm-prototype/pull/175#discussion_r4186367782). The live thread is unresolved and alleges that a predicted successor can leave focus on the document if Day Line stays loading/errors. The existing code queues a predicted placement ID and only invokes the details fallback when no target is queued; this documentation task has not reproduced or adjudicated the combined failure case. Preserve the accepted parent gate as dated fact, surface this later finding for parent disposition and do not describe all current threads as resolved. No new broad review, application fix or issue closure is launched here.
+
+Next approved milestone is 8A7C; its [C1 contract](gate8a7c1-account-boundary-contract.md) defines the proposed verified account/server boundary. Account-backed continuity, one live read-only calendar, genuine provider/account authorization and final integrated owner judgment/trial remain required. Gate 8A8 stays **BLOCK**, Gate 8B has not started and baseline/Day 1 are not authorized. #160 remains open for its pending integrated rows; no PASS by omission.
