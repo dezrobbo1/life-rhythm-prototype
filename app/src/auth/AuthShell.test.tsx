@@ -16,6 +16,8 @@ const clerkState = vi.hoisted(() => ({
   providerProps: vi.fn(),
   signedIn: false,
   userId: 'user_test_alpha',
+  sessionId: 'sess_test_alpha',
+  getToken: vi.fn(async () => 'synthetic.session.token'),
 }));
 
 const namespaceMocks = vi.hoisted(() => ({
@@ -43,6 +45,7 @@ vi.mock('@clerk/react', () => ({
   ),
   useAuth: () => ({
     userId: clerkState.userId,
+    sessionId: clerkState.sessionId, isLoaded:true, isSignedIn:clerkState.signedIn, getToken:clerkState.getToken,
   }),
   UserButton: () => (
     <button aria-label="Account" type="button">
@@ -63,24 +66,28 @@ vi.mock('../data/localDataNamespace', async (importOriginal) => {
 const disabledConfig: AuthRuntimeConfig = {
   authRequested: false,
   publishableKey: null,
-  status: 'disabled',
+  status: 'local-fixture',
+  mode: 'local-fixture',
 };
 
 const missingKeyConfig: AuthRuntimeConfig = {
   authRequested: true,
   publishableKey: null,
   status: 'missing-key',
+  mode: 'required',
 };
 
 const enabledConfig: AuthRuntimeConfig = {
   authRequested: true,
   publishableKey: 'pk_test_life_rhythm',
   status: 'enabled',
+  mode: 'required',
 };
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   clerkState.providerProps.mockClear();
   namespaceMocks.inspectLegacyLocalData.mockReset();
   resetCurrentLocalDataNamespace();
@@ -98,16 +105,19 @@ beforeEach(() => {
     hasLegacyLocalData: false,
   });
   resetCurrentLocalDataNamespace();
+  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({kind:'ready',protocolVersion:1,schemaVersion:1,buildId:'test',head:null}),{headers:{'content-type':'application/json'}})));
 });
 
 describe('auth config', () => {
-  it('keeps auth disabled by default', () => {
-    expect(readAuthConfig({})).toEqual(disabledConfig);
+  it('requires auth by default and never grants local fallback', () => {
+    expect(readAuthConfig({})).toEqual({authRequested:false,publishableKey:null,status:'missing-key',mode:'required'});
+    expect(readAuthConfig({VITE_LIFE_RHYTHM_MODE:'local-fixture',DEV:false,MODE:'production'}).status).toBe('invalid-mode');
+    expect(readAuthConfig({VITE_LIFE_RHYTHM_MODE:'local-fixture',DEV:true}).status).toBe('local-fixture');
   });
 
   it('requires both the auth flag and a publishable key before enabling Clerk', () => {
     expect(readAuthConfig({ VITE_LIFE_RHYTHM_AUTH_ENABLED: 'true' })).toEqual(missingKeyConfig);
-    expect(readAuthConfig({ VITE_CLERK_PUBLISHABLE_KEY: 'pk_test_without_flag' })).toEqual(disabledConfig);
+    expect(readAuthConfig({ VITE_CLERK_PUBLISHABLE_KEY: 'pk_test_without_flag' }).status).toBe('missing-key');
     expect(readAuthConfig({
       VITE_CLERK_PUBLISHABLE_KEY: ' pk_test_life_rhythm ',
       VITE_LIFE_RHYTHM_AUTH_ENABLED: 'true',
@@ -128,14 +138,15 @@ describe('AuthBoundary', () => {
     expect(getCurrentLocalDataNamespace()).toEqual(getLegacyLocalDataNamespace());
   });
 
-  it('falls back safely when auth is requested but the Clerk key is missing', () => {
+  it('blocks ordinary content when the required Clerk key is missing', () => {
     render(
       <AuthBoundary config={missingKeyConfig}>
         <main>Local development app</main>
       </AuthBoundary>,
     );
 
-    expect(screen.getByText('Local development app')).toBeTruthy();
+    expect(screen.queryByText('Local development app')).toBeNull();
+    expect(screen.getByRole('alert').textContent).toContain('Access is unavailable');
     expect(screen.queryByText('Life Rhythm trial access')).toBeNull();
     expect(screen.queryByTestId('clerk-provider')).toBeNull();
     expect(getCurrentLocalDataNamespace()).toEqual(getLegacyLocalDataNamespace());
@@ -177,7 +188,8 @@ describe('AuthBoundary', () => {
       </AuthBoundary>,
     );
 
-    expect(screen.getByText('Signed in for trial access.')).toBeTruthy();
+    await screen.findByText('Private app shell');
+    expect(screen.getByText('Signed in.')).toBeTruthy();
     expect(screen.getByText('Local-first data remains on this device.')).toBeTruthy();
     expect(screen.getByText('This local profile is separate from other signed-in testers on this device.')).toBeTruthy();
     expect(screen.getByText('Signing out does not delete local data.')).toBeTruthy();
@@ -213,13 +225,13 @@ describe('AuthBoundary', () => {
     expect(notice).toBeTruthy();
     expect(within(notice as HTMLElement).getByText('It has not been deleted.')).toBeTruthy();
     expect(within(notice as HTMLElement).getByText('You are now using a separate signed-in local profile.')).toBeTruthy();
-    expect(within(notice as HTMLElement).getByText('Sign out to return to the existing local setup.')).toBeTruthy();
+    expect(within(notice as HTMLElement).getByText('The existing setup remains available for a future consented migration.')).toBeTruthy();
     expect(within(notice as HTMLElement).getByText('Backup and export remain user-controlled.')).toBeTruthy();
     expect(within(notice as HTMLElement).getByText('No data has been uploaded or synced.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
   });
 
-  it('uses different local namespaces for different signed-in users', () => {
+  it('uses different local namespaces for different signed-in users', async () => {
     clerkState.signedIn = true;
     clerkState.userId = 'user_test_alpha';
 
@@ -228,6 +240,7 @@ describe('AuthBoundary', () => {
         <main>Private app shell</main>
       </AuthBoundary>,
     );
+    await screen.findByText('Private app shell');
     const userANamespace = getCurrentLocalDataNamespace();
 
     clerkState.userId = 'user_test_beta';
@@ -237,6 +250,8 @@ describe('AuthBoundary', () => {
       </AuthBoundary>,
     );
 
+    expect(screen.queryByText('Private app shell')).toBeNull();
+    await screen.findByText('Private app shell');
     const userBNamespace = getCurrentLocalDataNamespace();
 
     expect(userANamespace.source).toBe('auth');

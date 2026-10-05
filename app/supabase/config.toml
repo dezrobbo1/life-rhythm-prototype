@@ -1,0 +1,15 @@
+# Local metadata schema exposure only; native hosted Clerk trust remains an operator gate.
+project_id = "life-rhythm-c1-local"
+[api]
+enabled = true
+port = 54321
+schemas = ["life_rhythm"]
+extra_search_path = ["public", "extensions"]
+max_rows = 10
+[db]
+port = 54322
+major_version = 17
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+# Do not configure third-party issuer here to impersonate hosted provider acceptance.

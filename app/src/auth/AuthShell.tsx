@@ -2,6 +2,7 @@ import { ClerkProvider, Show, SignInButton, SignOutButton, UserButton } from '@c
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '../components';
 import { inspectLegacyLocalData, type LegacyLocalDataInspection } from '../data/localDataNamespace';
+import { AccountBoundaryProvider } from './AccountBoundaryProvider';
 import { canUseAuth, readAuthConfig, type AuthRuntimeConfig } from './authConfig';
 import {
   AuthLocalNamespaceProvider,
@@ -44,7 +45,7 @@ function LegacyLocalDataNotice() {
         <strong id="auth-handoff-title">Existing local setup found</strong>
         <span>It has not been deleted.</span>
         <span>You are now using a separate signed-in local profile.</span>
-        <span>Sign out to return to the existing local setup.</span>
+        <span>The existing setup remains available for a future consented migration.</span>
         <span>Backup and export remain user-controlled.</span>
         <span>No data has been uploaded or synced.</span>
       </div>
@@ -53,8 +54,11 @@ function LegacyLocalDataNotice() {
 }
 
 export function AuthBoundary({ children, config = readAuthConfig() }: AuthBoundaryProps) {
+  if (config.mode === 'local-fixture' && config.status === 'local-fixture' && (import.meta.env.DEV || import.meta.env.MODE === 'test')) {
+    return <LegacyLocalNamespaceProvider><p role="status">Local development fixture. Data stays on this device.</p>{children}</LegacyLocalNamespaceProvider>;
+  }
   if (!canUseAuth(config)) {
-    return <LegacyLocalNamespaceProvider>{children}</LegacyLocalNamespaceProvider>;
+    return <main className="auth-landing"><section className="auth-card" role="alert"><h1>Access is unavailable</h1><p>Required account access is not configured. Your local data has been preserved.</p></section></main>;
   }
 
   return (
@@ -83,10 +87,10 @@ export function AuthShell({ children }: AuthShellProps) {
       </Show>
 
       <Show when="signed-in">
-        <AuthLocalNamespaceProvider>
+        <>
           <aside className="auth-account-bar" aria-label="Trial access status">
             <div>
-              <strong>Signed in for trial access.</strong>
+              <strong>Signed in.</strong>
               <span>Local-first data remains on this device.</span>
               <span>This local profile is separate from other signed-in testers on this device.</span>
               <span>Signing out does not delete local data.</span>
@@ -99,9 +103,13 @@ export function AuthShell({ children }: AuthShellProps) {
               </SignOutButton>
             </div>
           </aside>
-          <LegacyLocalDataNotice />
-          {children}
-        </AuthLocalNamespaceProvider>
+          <AccountBoundaryProvider>
+            <AuthLocalNamespaceProvider>
+              <LegacyLocalDataNotice />
+              {children}
+            </AuthLocalNamespaceProvider>
+          </AccountBoundaryProvider>
+        </>
       </Show>
     </>
   );

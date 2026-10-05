@@ -1,50 +1,45 @@
-export type AuthStatus = 'disabled' | 'missing-key' | 'enabled';
-
 export type AuthRuntimeConfig = {
+  mode: 'required' | 'local-fixture';
   authRequested: boolean;
   publishableKey: string | null;
-  status: AuthStatus;
+  status: 'enabled' | 'missing-key' | 'invalid-mode' | 'local-fixture';
 };
-
 type AuthEnv = {
   VITE_CLERK_PUBLISHABLE_KEY?: unknown;
   VITE_LIFE_RHYTHM_AUTH_ENABLED?: unknown;
+  VITE_LIFE_RHYTHM_MODE?: unknown;
+  DEV?: boolean;
+  MODE?: string;
 };
-
-function envString(value: unknown) {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
+const envString = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 export function readAuthConfig(env: AuthEnv = import.meta.env): AuthRuntimeConfig {
-  const authEnabledValue = envString(env.VITE_LIFE_RHYTHM_AUTH_ENABLED);
-  const authRequested = authEnabledValue === 'true';
-  const publishableKey = envString(env.VITE_CLERK_PUBLISHABLE_KEY);
-
-  if (!authRequested) {
+  const mode = envString(env.VITE_LIFE_RHYTHM_MODE) || 'required';
+  const fixture = mode === 'local-fixture' && (env.DEV === true || env.MODE === 'test');
+  if (fixture)
     return {
+      mode: 'local-fixture',
       authRequested: false,
       publishableKey: null,
-      status: 'disabled',
+      status: 'local-fixture',
     };
-  }
-
-  if (!publishableKey) {
-    return {
-      authRequested: true,
-      publishableKey: null,
-      status: 'missing-key',
-    };
-  }
-
+  const authRequested = envString(env.VITE_LIFE_RHYTHM_AUTH_ENABLED) === 'true';
+  const key = envString(env.VITE_CLERK_PUBLISHABLE_KEY);
+  const validKey = /^pk_(test|live)_[A-Za-z0-9_-]+$/.test(key);
   return {
-    authRequested: true,
-    publishableKey,
-    status: 'enabled',
+    mode: 'required',
+    authRequested,
+    publishableKey: authRequested && validKey ? key : null,
+    status:
+      mode !== 'required' ? 'invalid-mode' : authRequested && validKey ? 'enabled' : 'missing-key',
   };
 }
-
 export function canUseAuth(
   config: AuthRuntimeConfig,
 ): config is AuthRuntimeConfig & { publishableKey: string; status: 'enabled' } {
-  return config.status === 'enabled' && Boolean(config.publishableKey);
+  return (
+    config.mode === 'required' &&
+    config.status === 'enabled' &&
+    config.authRequested &&
+    !!config.publishableKey
+  );
 }
