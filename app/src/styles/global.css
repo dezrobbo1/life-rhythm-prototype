@@ -3721,6 +3721,11 @@ textarea:focus-visible {
     flex-direction: column;
   }
 
+  .library-backup-actions .button,
+  .setup-action-row .button {
+    flex: 0 1 auto;
+  }
+
   .library-card__actions .button,
   .library-card__secondary-actions .button,
   .library-backup-actions .button,
