@@ -52,11 +52,13 @@ vi.mock('../features/plan/CalendarSourceControl', () => ({
   ),
 }));
 vi.mock('./PersonalPlanScreen', () => ({
-  PersonalPlanScreen: ({ detailsFooter, preferredPlacementDate }: {
+  PersonalPlanScreen: ({ detailsFooter, preferredPlacementDate, renderDayLine }: {
     detailsFooter?: ReactNode;
+    renderDayLine?: (renderCorrection: (id: string) => ReactNode) => ReactNode;
     preferredPlacementDate?: string | null;
   }) => (
     <div data-testid="personal-plan-proxy">
+      {renderDayLine?.(() => null)}
       Detailed Plan {preferredPlacementDate}
       {detailsFooter}
     </div>

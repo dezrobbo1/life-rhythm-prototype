@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import 'fake-indexeddb/auto';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
@@ -87,6 +87,7 @@ beforeEach(async () => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.useRealTimers();
   resetCurrentLocalDataNamespace();
 });
 
@@ -168,4 +169,50 @@ describe('Gate 6 connected daily loop', () => {
     expect(heldTask).toMatchObject({ status: 'parked' });
     expect(await getCurrentLifeRhythmDatabase().rhythmTemplates.count()).toBe(1);
   });
+  it('corrects private work from Day Line with maintenance closed and returns Move focus', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 5, 9, 0));
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Today' });
+    await user.click(screen.getByRole('button', { name: 'Capture' }));
+    await user.type(screen.getByLabelText('Task title'), 'Contextual correction');
+    await user.type(screen.getByLabelText('Smallest useful action'), 'Open the note');
+    await user.type(screen.getByLabelText('Minutes for this action'), '5');
+    await user.click(screen.getByRole('button', { name: 'Save captured task' }));
+    await screen.findByText('Task captured. Held outside Today. Life Rhythm can privately plan it when it fits.');
+    await user.click(screen.getByRole('button', { name: 'Plan' }));
+    const line = await screen.findByRole('list', { name: /Day Line/ });
+    const row = (await within(line).findByText('Contextual correction')).closest('li')!;
+    await user.click(await within(row).findByText('Correct Contextual correction'));
+    const move = within(row).getByRole('button', { name: 'Move' });
+    expect(screen.getByText('Plan details').closest('details')?.open).toBe(false);
+    expect(within(row).getByRole('button', { name: 'Protect this time' })).toBeTruthy();
+    await user.click(move);
+    const dialog = screen.getByRole('dialog', { name: 'Move this planned time' });
+    expect(within(dialog).getByLabelText('Move date')).toBeTruthy();
+    expect(within(dialog).getByLabelText('Move start time')).toBeTruthy();
+    expect(within(dialog).getByText(/Keeps the current 5-minute form/)).toBeTruthy();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(move);
+    await user.click(move);
+    await user.clear(screen.getByLabelText('Move start time'));
+    await user.type(screen.getByLabelText('Move start time'), '18:30');
+    await user.click(screen.getByRole('button', { name: 'Save move' }));
+    expect(await within(screen.getByRole('dialog')).findByRole('status')).toBeTruthy();
+    expect(await getCurrentLifeRhythmDatabase().softPlacements.count()).toBe(0);
+    await user.clear(screen.getByLabelText('Move start time'));
+    await user.type(screen.getByLabelText('Move start time'), '19:10');
+    vi.setSystemTime(new Date(2026, 9, 5, 9, 2));
+    await user.click(screen.getByRole('button', { name: 'Save move' }));
+    await screen.findByText('Placement moved.');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    const saved = await getCurrentLifeRhythmDatabase().softPlacements.toArray();
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ start: '19:10', end: '19:15', correctionKind: 'move' });
+    await waitFor(() => expect(document.activeElement?.textContent).toBe('Correct Contextual correction'));
+    expect(screen.getByText('Plan details').closest('details')?.open).toBe(false);
+  });
+
 });

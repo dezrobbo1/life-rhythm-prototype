@@ -245,3 +245,41 @@
     padding-inline: var(--space-1);
   }
 }
+
+/* B3 contextual corrections share the existing Plan state owner. */
+.plan-context-correction > summary,
+.relief-history-disclosure > summary {
+  color: var(--fg-secondary, var(--color-muted));
+  cursor: pointer;
+  font-weight: 750;
+  min-height: var(--control-min-height);
+  padding-block: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.plan-context-correction__content {
+  display: grid;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+}
+
+.plan-day-line__row .surface-ledger-row__main,
+.reset-screen .reset-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 46rem) {
+  .plan-context-correction .button-row,
+  .modal .soft-suggestions__feedback .button-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .plan-context-correction .button,
+  .modal .soft-suggestions__feedback .button,
+  .reset-screen .reset-card .button {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+}

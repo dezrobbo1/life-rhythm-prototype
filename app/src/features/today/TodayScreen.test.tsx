@@ -82,6 +82,7 @@ import { TodayScreen } from '../../screens/TodayScreen';
 import { AppSnapshotProvider } from '../../data/AppSnapshotProvider';
 import { emptyAppSnapshot, normalDayWithOneTaskSnapshot, oneOffTodayTask } from '../../viewModels/fixtures';
 import { mockTodayTask } from './mockTodayData';
+import { TaskCard, type TaskProgress } from './TaskCard';
 
 function persistedOneOffTask(overrides: Partial<ActiveTask> = {}): ActiveTask {
   return activeTaskSchema.parse({
@@ -1884,7 +1885,7 @@ describe('Today screen', () => {
     await user.click(screen.getByRole('button', { name: 'Mark minimum done' }));
 
     expect(screen.getAllByText('Minimum done. That counts.').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Minimum done' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Stop here' }).classList.contains('button--primary')).toBe(true);
   });
 
   it('persists Start as inProgress for a persisted active task', async () => {
@@ -3074,5 +3075,29 @@ describe('Today screen', () => {
       reason: 'Retry the saved planning settings using current scheduling information.',
       trigger: 'settingsChanged',
     });
+  });
+});
+
+
+describe('B3 current action hierarchy', () => {
+  it.each([
+    ['idle', false, 'Start task'],
+    ['inProgress', false, 'Mark minimum done'],
+    ['inProgress', true, 'Stop here'],
+    ['paused', true, 'Resume'],
+    ['minimumDone', true, 'Stop here'],
+  ] as const)('offers a useful primary action for %s (Minimum %s)', (progress, minimumAchieved, label) => {
+    render(<TaskCard task={mockTodayTask} progress={progress as TaskProgress}
+      minimumAchieved={minimumAchieved} minimumChoiceActive={false}
+      onKeepGoing={vi.fn()} onMarkFullDone={vi.fn()} onMarkMinimumDone={vi.fn()}
+      onMarkNormalDone={vi.fn()} onNotToday={vi.fn()} onParkTask={vi.fn()}
+      onPauseTask={vi.fn()} onResumeTask={vi.fn()} onStartTask={vi.fn()}
+      onStartBoost={vi.fn()} onStopHere={vi.fn()} />);
+    const primary = document.querySelectorAll<HTMLButtonElement>('.task-card .button--primary');
+    expect(primary).toHaveLength(1);
+    expect(primary[0].textContent).toBe(label);
+    expect(primary[0].disabled).toBe(false);
+    expect(screen.getByRole('button', { name: 'Park' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Not today' })).toBeTruthy();
   });
 });

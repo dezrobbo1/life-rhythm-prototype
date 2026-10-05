@@ -139,6 +139,8 @@ export function PlanDayLineScreen({
 
   return (
     <div className="gate6-plan-surface">
+        <PersonalPlanScreen
+          renderDayLine={(renderCorrection) => (<>
       <ScreenHero
         className="plan-hero"
         tagline="See what is fixed, protected and flexibly planned."
@@ -201,6 +203,8 @@ export function PlanDayLineScreen({
                 <div className="surface-ledger-row__main">
                   <strong>{item.title}</strong>
                   <span>{dayLineKindLabels[item.kind]} · {item.detail}</span>
+                  {(item.kind === 'automatic' || item.kind === 'userConfirmed')
+                    ? renderCorrection(item.id.slice('placement:'.length)) : null}
                 </div>
               </li>
             ))}
@@ -231,8 +235,7 @@ export function PlanDayLineScreen({
         </section>
       ) : null}
 
-      <div className="gate6-plan-surface__details" aria-label="Detailed Plan controls">
-        <PersonalPlanScreen
+          </>)}
           detailsFooter={(
             <CalendarSourceControl
               onPlanRepaired={handleCalendarPlanRepaired}
@@ -246,7 +249,6 @@ export function PlanDayLineScreen({
           preferredPlacementDate={selectedDate}
           preferredTaskId={preferredTaskId}
         />
-      </div>
     </div>
   );
 }

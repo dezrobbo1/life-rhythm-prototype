@@ -165,7 +165,7 @@ describe('AppSnapshotProvider', () => {
     await user.click(await screen.findByRole('button', { name: 'More' }));
     const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
     await user.click(within(secondaryNav).getByRole('button', { name: 'Reset' }));
-    expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Relief' })).toBeTruthy();
 
     await user.click(await screen.findByRole('button', { name: 'More' }));
     await user.click(within(screen.getByRole('navigation', { name: 'Secondary' })).getByRole('button', { name: 'Settings' }));

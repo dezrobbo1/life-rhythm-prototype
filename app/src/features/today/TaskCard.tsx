@@ -190,49 +190,32 @@ export function TaskCard({
           <span>Choosing Minimum does not complete it.</span>
         </div>
       ) : null}
+      {!minimumChoiceActive ? <p className="task-card__first-step">
+        Minimum: {task.minimumVersion}{task.versionMinutes ? ` · ${task.versionMinutes.minimum} min` : ''}
+      </p> : null}
       <div className="chip-row task-card__chips" aria-label="Task cues">
         {visibleChips.map((chip) => (
           <Chip key={chip}>{chip}</Chip>
         ))}
       </div>
       <div className="task-card__actions">
-        {progress === 'idle' ? (
-          <Button disabled={actionBusy} onClick={onStartTask} variant="primary">Start task</Button>
-        ) : null}
-        {progress === 'inProgress' ? (
-          <>
-            {!minimumCounts ? <Button disabled={actionBusy} onClick={onMarkMinimumDone} variant="primary">Mark minimum done</Button> : null}
-            <Button disabled={actionBusy} onClick={onPauseTask}>Pause</Button>
-            <Button disabled={actionBusy} onClick={toggleKeepGoing}>Keep going</Button>
-            {minimumCounts ? <Button disabled={actionBusy} onClick={onStopHere}>Stop here</Button> : null}
-            {minimumCounts ? <Button disabled={actionBusy} onClick={onParkTask}>Park</Button> : null}
-            {minimumCounts ? <Button disabled={actionBusy} onClick={onNotToday}>Not today</Button> : null}
-          </>
-        ) : null}
-        {progress === 'paused' ? (
-          <>
-            <Button disabled={actionBusy} onClick={onResumeTask} variant="primary">Resume</Button>
-            {!minimumCounts ? <Button disabled={actionBusy} onClick={onMarkMinimumDone}>Mark minimum done</Button> : null}
-            {minimumCounts ? <Button disabled={actionBusy} onClick={onStopHere}>Stop here</Button> : null}
-          </>
-        ) : null}
-        {progress === 'minimumDone' ? (
-          <>
-            <Button disabled variant="primary">Minimum done</Button>
-            <Button disabled={actionBusy} onClick={toggleKeepGoing}>Keep going</Button>
-            <Button disabled={actionBusy} onClick={onStopHere}>Stop here</Button>
-            <Button disabled={actionBusy} onClick={onParkTask}>Park</Button>
-            <Button disabled={actionBusy} onClick={onNotToday}>Not today</Button>
-          </>
-        ) : null}
-        {progress !== 'minimumDone' ? <Button disabled={actionBusy} onClick={onStartBoost}>Start Boost</Button> : null}
-        <Button
-          aria-expanded={detailsOpen}
-          aria-controls={`${task.id}-details`}
-          onClick={() => setDetailsOpen((isOpen) => !isOpen)}
-        >
-          Details
-        </Button>
+        <div className="task-card__primary-action">
+          {progress === 'idle' ? <Button disabled={actionBusy} onClick={onStartTask} variant="primary">Start task</Button> : null}
+          {isPaused ? <Button disabled={actionBusy} onClick={onResumeTask} variant="primary">Resume</Button> : null}
+          {isInProgress && !minimumCounts ? <Button disabled={actionBusy} onClick={onMarkMinimumDone} variant="primary">Mark minimum done</Button> : null}
+          {(isMinimumDone || (isInProgress && minimumCounts)) ? <Button disabled={actionBusy} onClick={onStopHere} variant="primary">Stop here</Button> : null}
+        </div>
+        <div className="task-card__secondary-actions">
+          {isInProgress ? <Button disabled={actionBusy} onClick={onPauseTask}>Pause</Button> : null}
+          {isPaused && !minimumCounts ? <Button disabled={actionBusy} onClick={onMarkMinimumDone}>Mark minimum done</Button> : null}
+          {(isInProgress || isMinimumDone) ? <Button disabled={actionBusy} onClick={toggleKeepGoing} aria-expanded={keepGoingOpen}>Keep going</Button> : null}
+          {isPaused && minimumCounts ? <Button disabled={actionBusy} onClick={onStopHere}>Stop here</Button> : null}
+          <Button disabled={actionBusy} onClick={onParkTask} variant="quiet">Park</Button>
+          <Button disabled={actionBusy} onClick={onNotToday} variant="quiet">Not today</Button>
+          {!isMinimumDone ? <Button disabled={actionBusy} onClick={onStartBoost}>Start Boost</Button> : null}
+          <Button aria-expanded={detailsOpen} aria-controls={`${task.id}-details`}
+            onClick={() => setDetailsOpen((isOpen) => !isOpen)}>Details</Button>
+        </div>
       </div>
       {keepGoingOpen ? (
         <section className="task-card__continuation" aria-labelledby={`${task.id}-continuation-title`}>
@@ -295,10 +278,7 @@ export function TaskCard({
             </ul>
           </section> : null}
           {onEditTask ? <Button disabled={actionBusy} onClick={onEditTask}>Edit task</Button> : null}
-          <div className="task-card__quiet-actions" aria-label="Placeholder task actions">
-            <button type="button">Move later</button>
-            <button type="button">Hide later</button>
-          </div>
+
         </div>
       ) : null}
     </article>

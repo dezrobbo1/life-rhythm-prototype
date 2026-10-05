@@ -101,7 +101,7 @@ describe('primary app shell navigation', () => {
     await user.click(within(secondaryNav).getByRole('button', { name: 'Reset' }));
     await user.click(await screen.findByRole('button', { name: 'More' }));
     expect(within(screen.getByRole('navigation', { name: 'Secondary' })).getByRole('button', { name: 'Reset' }).getAttribute('aria-current')).toBe('page');
-    expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Relief' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Daily reset actions' })).toBeTruthy();
     expect(document.querySelector('.reset-card__icon .app-icon')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();

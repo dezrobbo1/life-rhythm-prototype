@@ -65,6 +65,7 @@ describe('read generation accompanies additional rendered actions', () => {
     const onBehaviourHistoryDeleted = vi.fn(async () => true);
     const user = userEvent.setup();
     render(<ResetScreen onBehaviourHistoryDeleted={onBehaviourHistoryDeleted} />);
+    await user.click(screen.getByText("Behaviour history controls"));
     const input = screen.getByLabelText(`Type ${BEHAVIOUR_HISTORY_DELETE_CONFIRMATION} to delete behaviour history`) as HTMLInputElement;
     await waitFor(() => expect(input.disabled).toBe(false));
     await user.type(input, BEHAVIOUR_HISTORY_DELETE_CONFIRMATION);

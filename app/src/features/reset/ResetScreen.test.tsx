@@ -112,12 +112,15 @@ describe('Reset screen', () => {
     expect(screen.getByText('Safe Today reset actions. Tasks are not deleted.')).toBeTruthy();
   });
 
-  it('renders secondary options', () => {
+  it('keeps unsupported controls hidden and history behind explicit disclosure', async () => {
+    const user = userEvent.setup();
     render(<ResetScreen />);
-
-    expect(screen.getByRole('heading', { name: 'Review tomorrow' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Restore hidden items' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Reset whole app' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Restore hidden items' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Review tomorrow' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Confirm disabled full reset' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Export behaviour history' })).toBeNull();
+    await user.click(screen.getByText('Behaviour history controls'));
+    expect(screen.getByRole('button', { name: 'Export behaviour history' })).toBeTruthy();
   });
 
   it('marks extra visible Today tasks notToday when Narrow Today runs', async () => {
@@ -201,7 +204,9 @@ describe('Reset screen', () => {
     expect(screen.getByText('Selected restart action')).toBeTruthy();
     expect(screen.getByText('Paperwork reset')).toBeTruthy();
     expect(screen.getByText('Open the form')).toBeTruthy();
-    expect(screen.getByText('One action is enough. That counts.')).toBeTruthy();
+    expect(screen.getByText('Restart preview only. No task was started or completed.')).toBeTruthy();
+    expect(harness.updateTaskStatus).not.toHaveBeenCalled();
+    expect(screen.getByText('5 min · Preview only')).toBeTruthy();
   });
 
   it('shows calm empty copy when restart has no Today task', async () => {
@@ -215,45 +220,6 @@ describe('Reset screen', () => {
 
     expect(screen.getByRole('status').textContent).toContain('No Today task is waiting. Add one small action when ready.');
     expect(screen.queryByText('Selected restart action')).toBeNull();
-  });
-
-  it('keeps Restore hidden items preview-only', async () => {
-    const user = userEvent.setup();
-    render(<ResetScreen />);
-
-    await user.click(screen.getByRole('button', { name: 'Restore hidden items' }));
-
-    expect(screen.getByRole('status').textContent).toContain('Restore is not connected yet. Nothing changed.');
-  });
-
-  it('requires typed RESET before full reset can run', async () => {
-    const user = userEvent.setup();
-    render(<ResetScreen />);
-
-    const confirmButton = screen.getByRole('button', { name: 'Confirm disabled full reset' }) as HTMLButtonElement;
-    expect(confirmButton.disabled).toBe(true);
-
-    await user.type(screen.getByLabelText('Type RESET to confirm full reset'), 'RESET');
-
-    expect(confirmButton.disabled).toBe(false);
-  });
-
-  it('does not perform real storage writes for full reset', async () => {
-    const user = userEvent.setup();
-    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
-    const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
-    const clearSpy = vi.spyOn(Storage.prototype, 'clear');
-    render(<ResetScreen />);
-
-    await user.type(screen.getByLabelText('Type RESET to confirm full reset'), 'RESET');
-    await user.click(screen.getByRole('button', { name: 'Confirm disabled full reset' }));
-
-    expect(screen.getAllByRole('status').some((status) =>
-      status.textContent?.includes('Full app reset is not enabled for this trial. No data is cleared.'),
-    )).toBe(true);
-    expect(setItemSpy).not.toHaveBeenCalled();
-    expect(removeItemSpy).not.toHaveBeenCalled();
-    expect(clearSpy).not.toHaveBeenCalled();
   });
 
   it('exports behaviour history through the dedicated local JSON control', async () => {
@@ -270,6 +236,7 @@ describe('Reset screen', () => {
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     render(<ResetScreen exportBehaviourHistoryAction={exportBehaviourHistoryAction} />);
 
+    await user.click(screen.getByText('Behaviour history controls'));
     await user.click(screen.getByRole('button', { name: 'Export behaviour history' }));
 
     expect(exportBehaviourHistoryAction).toHaveBeenCalledTimes(1);
@@ -289,6 +256,7 @@ describe('Reset screen', () => {
       />,
     );
 
+    await user.click(screen.getByText('Behaviour history controls'));
     const button = screen.getByRole('button', { name: 'Delete behaviour history' }) as HTMLButtonElement;
     const input = screen.getByLabelText('Type DELETE BEHAVIOUR HISTORY to delete behaviour history');
     expect(button.disabled).toBe(true);
@@ -348,7 +316,8 @@ describe('Reset screen', () => {
     const secondaryNav = screen.getByRole('navigation', { name: 'Secondary' });
     expect(within(secondaryNav).getByRole('button', { name: 'Reset' })).toBeTruthy();
     expect(within(secondaryNav).getByRole('button', { name: 'Settings' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Reset' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Relief' })).toBeTruthy();
+    await user.click(screen.getByText('Behaviour history controls'));
     const behaviourHistoryHeading = screen.getByRole('heading', { name: 'Behaviour history' });
     expect(behaviourHistoryHeading.closest('section')?.classList.contains('reset-danger-zone')).toBe(false);
   });

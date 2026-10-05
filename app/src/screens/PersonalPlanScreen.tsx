@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, ScreenHero } from '../components';
+import { Button, Modal, ScreenHero } from '../components';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import {
   ensureCurrentPrivatePlan,
@@ -99,6 +99,7 @@ function failedManualPlanState(): ManualPlanState {
 
 type PersonalPlanScreenProps = {
   detailsFooter?: ReactNode;
+  renderDayLine?: (renderCorrection: (placementId: string) => ReactNode) => ReactNode;
   embeddedInDayLine?: boolean;
   onPlanRecovered?: () => void;
   planRevision?: number;
@@ -186,6 +187,7 @@ function formatChangedLine(
 
 export function PersonalPlanScreen({
   detailsFooter = null,
+  renderDayLine,
   embeddedInDayLine = false,
   onPlanRecovered,
   planRevision = 0,
@@ -212,6 +214,7 @@ export function PersonalPlanScreen({
   const [moveStart, setMoveStart] = useState('');
   const [planDetailsOpen, setPlanDetailsOpen] = useState(!embeddedInDayLine);
   const manualPlanReadRequestRef = useRef(0);
+  const correctionFocusTarget = useRef<string | null>(null);
   const { generation: manualPlanGeneration, placementsResult: placementReadState,
     itemsResult: poolReadState } = manualPlanState;
   const savedSoftPlacements = placementReadState.status === 'loading' || placementReadState.status === 'readFailed'
@@ -674,7 +677,6 @@ export function PersonalPlanScreen({
         setPlacementFeedback({ kind: 'error', lines: result.errors });
         return;
       }
-      setMoveTarget(null);
       await refreshPlanData();
       if (result.repairPending) {
         setPrivatePlanState({
@@ -690,6 +692,9 @@ export function PersonalPlanScreen({
           generation: privatePlanState.generation,
         });
       }
+      correctionFocusTarget.current = moveTarget.targetKind === 'rhythm'
+        ? moveTarget.rhythmId ?? moveTarget.intentionId : moveTarget.intentionId;
+      setMoveTarget(null);
       setPlacementFeedback({
         kind: 'success',
         lines: [
@@ -833,8 +838,48 @@ export function PersonalPlanScreen({
   const manualDataPartial = poolReadState.status === 'partial' || placementReadState.status === 'partial';
   const moveTiming = moveTimingSummary(moveTarget, moveStart);
 
+  function renderCorrection(placementId: string) {
+    if (privatePlanState.status !== 'ready') return null;
+    const placement = privatePlanState.plan.placements.find((item) => item.id === placementId);
+    if (!placement) return null;
+    const targetId = placement.targetKind === 'rhythm' ? placement.rhythmId ?? placement.intentionId : placement.intentionId;
+    const title = placementTitle(privatePlanState.titleByTargetId, targetId);
+    const protectedTime = placement.provenance.includes('User explicitly protected this private placement.');
+    const reasons = placementReasonLines(placement.provenance);
+    return (
+      <details className="plan-context-correction">
+        <summary tabIndex={0} ref={(element) => {
+          // A successful Move replaces placement identity. Return to the same
+          // task/rhythm's disclosure once its refreshed Day Line row exists.
+          if (element && !moveTarget && correctionFocusTarget.current === targetId) {
+            window.setTimeout(() => {
+              if (element.isConnected && correctionFocusTarget.current === targetId) {
+                correctionFocusTarget.current = null;
+                element.focus();
+              }
+            }, 0);
+          }
+        }}>Correct {title}</summary>
+        <div className="plan-context-correction__content">
+          <div className="button-row" aria-label={`Correction actions for ${title}`}>
+            <Button disabled={correctionBusyId !== null} onClick={() => openMove(placement)}>Move</Button>
+            <Button disabled={correctionBusyId !== null}
+              onClick={() => void (protectedTime ? unprotectPlacement(placement) : protectPlacement(placement))}>
+              {correctionBusyId === placement.id ? 'Saving' : protectedTime ? 'Unprotect' : 'Protect this time'}
+            </Button>
+          </div>
+          {reasons.length > 0 ? <details className="plan-section__details">
+            <summary>Why this time?</summary>
+            <ul>{reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+          </details> : null}
+        </div>
+      </details>
+    );
+  }
+
   return (
     <div className="screen-stack plan-screen personal-plan-screen">
+      {renderDayLine?.(renderCorrection)}
       {!embeddedInDayLine ? (
         <ScreenHero
           className="plan-hero"
@@ -842,6 +887,10 @@ export function PersonalPlanScreen({
           title="Plan"
           titleId="plan-title"
         />
+      ) : null}
+
+      {embeddedInDayLine && privatePlanState.status === 'loading' ? (
+        <p role="status">Preparing the private plan.</p>
       ) : null}
 
       {embeddedInDayLine && privatePlanState.status === 'error' ? (
@@ -920,32 +969,6 @@ export function PersonalPlanScreen({
         </section>
       ) : null}
 
-      <details
-        className="plan-details-disclosure"
-        onToggle={(event) => setPlanDetailsOpen(event.currentTarget.open)}
-        open={planDetailsOpen}
-      >
-        <summary>
-          <span>Plan details</span>
-          <span>Flexible times, boundaries and your choices</span>
-        </summary>
-        <div className="plan-details-disclosure__content" hidden={!planDetailsOpen}>
-
-      <section
-        className="private-plan plan-section plan-section--private"
-        aria-labelledby="personal-private-plan-title"
-      >
-        <div className="soft-placements__header">
-          <p className="section-label">Life Rhythm can arrange these times</p>
-          <h2 id="personal-private-plan-title">Flexible plan</h2>
-          <div className="plan-section__guidance">
-            <p>
-              Life Rhythm can place flexible private work inside usable or explicitly available time.
-              It does not create, move, or cancel external calendar events.
-            </p>
-          </div>
-        </div>
-
         {privatePlanState.status === 'ready' && correctionConflicts.length > 0 ? (
           <div className="soft-suggestions__feedback soft-suggestions__feedback--error" role="alert">
             <h3>Saved private time needs a new choice.</h3>
@@ -993,7 +1016,93 @@ export function PersonalPlanScreen({
           </div>
         ) : null}
 
-        {privatePlanState.status === 'loading' ? (
+      <Modal open={moveTarget !== null} onClose={() => { if (correctionBusyId === null) setMoveTarget(null); }} title="Move this planned time">
+          <section className="soft-suggestions__feedback">
+            <p>
+              Choose the exact local time you want. Life Rhythm will reject hard conflicts rather than silently choosing another time.
+            </p>
+            {moveTiming ? (
+              <p className="plan-section__context">
+                Keeps the current {moveTiming.duration}-minute form
+                {moveTiming.end ? ` · requested time ${moveStart}–${moveTiming.end}` : ' · this start would reach the end of the local day'}.
+              </p>
+            ) : null}
+            <div className="life-shape-inline">
+              <label>
+                <span>Move date</span>
+                <input
+                  aria-label="Move date"
+                  type="date"
+                  value={moveDate}
+                  onChange={(event) => setMoveDate(event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Move start time</span>
+                <input
+                  aria-label="Move start time"
+                  type="time"
+                  value={moveStart}
+                  onChange={(event) => setMoveStart(event.target.value)}
+                />
+              </label>
+            </div>
+            {placementFeedback ? (
+              <div role="status" className={`soft-suggestions__feedback--${placementFeedback.kind}`}>
+                {placementFeedback.lines.map((line) => <p key={line}>{line}</p>)}
+              </div>
+            ) : null}
+            <div className="button-row">
+              <Button
+                disabled={correctionBusyId !== null || !moveDate || !moveStart}
+                onClick={() => void saveMove()}
+                variant="primary"
+              >
+                {correctionBusyId ? 'Saving move' : 'Save move'}
+              </Button>
+              <Button
+                disabled={correctionBusyId !== null}
+                onClick={() => setMoveTarget(null)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </section>
+      </Modal>
+
+      {placementFeedback && !moveTarget ? (
+        <div className={`soft-suggestions__feedback soft-suggestions__feedback--${placementFeedback.kind}`} role="status">
+          {placementFeedback.lines.map((line) => <p key={line}>{line}</p>)}
+        </div>
+      ) : null}
+
+      <details
+        className="plan-details-disclosure"
+        onToggle={(event) => setPlanDetailsOpen(event.currentTarget.open)}
+        open={planDetailsOpen}
+      >
+        <summary>
+          <span>Plan details</span>
+          <span>Flexible times, boundaries and your choices</span>
+        </summary>
+        <div className="plan-details-disclosure__content" hidden={!planDetailsOpen}>
+
+      <section
+        className="private-plan plan-section plan-section--private"
+        aria-labelledby="personal-private-plan-title"
+      >
+        <div className="soft-placements__header">
+          <p className="section-label">Life Rhythm can arrange these times</p>
+          <h2 id="personal-private-plan-title">Flexible plan</h2>
+          <div className="plan-section__guidance">
+            <p>
+              Life Rhythm can place flexible private work inside usable or explicitly available time.
+              It does not create, move, or cancel external calendar events.
+            </p>
+          </div>
+        </div>
+
+        {embeddedInDayLine ? null : privatePlanState.status === 'loading' ? (
           <div className="soft-placements__empty" role="status">
             <h3>Preparing the private plan.</h3>
           </div>
@@ -1055,56 +1164,6 @@ export function PersonalPlanScreen({
             <p>Blank time is not assumed to be usable capacity.</p>
           </div>
         )}
-
-        {moveTarget ? (
-          <section className="soft-suggestions__feedback" aria-labelledby="move-private-placement-title">
-            <h3 id="move-private-placement-title">Move this planned time</h3>
-            <p>
-              Choose the exact local time you want. Life Rhythm will reject hard conflicts rather than silently choosing another time.
-            </p>
-            {moveTiming ? (
-              <p className="plan-section__context">
-                Keeps the current {moveTiming.duration}-minute form
-                {moveTiming.end ? ` · requested time ${moveStart}–${moveTiming.end}` : ' · this start would reach the end of the local day'}.
-              </p>
-            ) : null}
-            <div className="life-shape-inline">
-              <label>
-                <span>Move date</span>
-                <input
-                  aria-label="Move date"
-                  type="date"
-                  value={moveDate}
-                  onChange={(event) => setMoveDate(event.target.value)}
-                />
-              </label>
-              <label>
-                <span>Move start time</span>
-                <input
-                  aria-label="Move start time"
-                  type="time"
-                  value={moveStart}
-                  onChange={(event) => setMoveStart(event.target.value)}
-                />
-              </label>
-            </div>
-            <div className="button-row">
-              <Button
-                disabled={correctionBusyId !== null || !moveDate || !moveStart}
-                onClick={() => void saveMove()}
-                variant="primary"
-              >
-                {correctionBusyId ? 'Saving move' : 'Save move'}
-              </Button>
-              <Button
-                disabled={correctionBusyId !== null}
-                onClick={() => setMoveTarget(null)}
-              >
-                Cancel
-              </Button>
-            </div>
-          </section>
-        ) : null}
 
         <div className="button-row">
           <Button
@@ -1292,7 +1351,7 @@ export function PersonalPlanScreen({
             </div>
           ) : placementReadState.status === 'readFailed' ? null : visibleSoftPlacements.length > 0 ? (
             <ul className="soft-placements__list">
-              {visibleSoftPlacements.map((placement) => {
+              {visibleSoftPlacements.filter((placement) => !embeddedInDayLine || !placement.correctionKind).map((placement) => {
                 const accepted = placement.correctionKind ? planPlacementForCorrection(placement) : null;
                 const protectedPlacement = placement.correctionKind === 'protect' ||
                   placement.correctionKind === 'moveProtected';
@@ -1364,13 +1423,7 @@ export function PersonalPlanScreen({
             </div>
           )}
 
-          {placementFeedback ? (
-            <div className={`soft-suggestions__feedback soft-suggestions__feedback--${placementFeedback.kind}`} role="status">
-              {placementFeedback.lines.map((line) => (
-                <p key={line}>{line}</p>
-              ))}
-            </div>
-          ) : null}
+
       </section>
           {detailsFooter}
         </div>

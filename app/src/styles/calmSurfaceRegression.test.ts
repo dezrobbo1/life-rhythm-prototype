@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 // @ts-expect-error -- Tests run in Node; application typings intentionally omit Node.
 import { readFileSync } from 'node:fs';
 const globalCss = readFileSync('src/styles/global.css', 'utf8');
+const todayCss = readFileSync('src/styles/today-calm-surface.css', 'utf8');
+const planCss = readFileSync('src/styles/plan-day-line.css', 'utf8');
 const personalCss = readFileSync('src/styles/personal-trial.css', 'utf8');
 
 // jsdom has no layout/media engine. Exercise matching rules at a declared
@@ -53,4 +55,13 @@ describe('calm surface CSS regressions', () => {
     }
     expect(appliedStyle(document.getElementById('limits')!, personalCss, 390).display).not.toBe('none');
   });
+  it('keeps Today, re-entry, Reduce and contextual Move buttons content-sized at 390px', () => {
+    document.body.innerHTML = '<div class="today-now"><div class="task-card__actions"><div class="task-card__secondary-actions"><button class="button">Start Boost</button></div></div></div><div class="reentry-review__options"><button class="button">Keep for review</button></div><div class="reduced-day-control__actions"><button class="button">Return to normal day</button></div><div class="plan-context-correction"><div class="button-row"><button class="button">Move</button></div></div>';
+    for (const button of document.querySelectorAll<HTMLButtonElement>('button')) {
+      const css = globalCss + todayCss + planCss;
+      expect(appliedStyle(button.parentElement!, css, 390).flexDirection).toBe('column');
+      expect(appliedStyle(button, css, 390).flexBasis).toBe('auto');
+    }
+  });
+
 });
