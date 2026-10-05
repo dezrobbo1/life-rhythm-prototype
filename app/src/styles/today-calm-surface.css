@@ -174,3 +174,57 @@
     flex-direction: column;
   }
 }
+
+/* B3: one current action; optional actions retain their own quieter row. */
+.today-now .task-card__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.task-card__primary-action,
+.task-card__secondary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.task-card__first-step {
+  line-height: var(--leading-relaxed);
+  overflow-wrap: anywhere;
+}
+
+.today-calm-ledger__row .surface-ledger-row__main,
+.today-now .task-card__header > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 46rem) {
+  .task-card__primary-action,
+  .task-card__secondary-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .today-now .task-card__actions .button,
+  .today-now .task-card__version-options .button {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+}
+
+@media (max-width: 46rem) {
+  .reentry-review__options,
+  .reduced-day-control__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .reentry-review__options .button,
+  .reduced-day-control__actions .button,
+  .reduced-day-preview__actions .button {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+}

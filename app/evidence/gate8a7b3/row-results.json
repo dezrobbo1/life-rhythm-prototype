@@ -1,0 +1,281 @@
+{
+  "originalReviewedSourceCommit": "b1ae38bc56bf6f1205e9163fa3c3e81536cd753d",
+  "correctionParentHead": "aaa0a31ae26fd2e174ef45b780df553698f6d3a4",
+  "correctionBase": "c2ee838163497938e84b0a2044f3dc4ad961c2b6",
+  "runtimeSourceSha256": "36ef6075013f99b54804f0f7cf015ad908e00e8b459951388cf957db64be49cb",
+  "applicationSourceTree": "0a1170ed53e231fee701a39c49768d3dad7cf180",
+  "sourceState": "fingerprinted working tree; source tree recorded in manifest",
+  "checkoutCommit": "aaa0a31ae26fd2e174ef45b780df553698f6d3a4",
+  "server": "fresh loopback Vite serving fingerprinted checkout (not hosted preview)",
+  "browser": "151.0.7922.173",
+  "playwright": "1.62.1",
+  "timezone": "Australia/Perth",
+  "clock": {
+    "anchorUtc": "2026-10-05T01:00:00Z",
+    "localAnchor": "2026-10-05 09:00 Australia/Perth",
+    "mode": "Playwright clock.install running clock; explicit runFor(1000) before successive repair writes; never setFixedTime"
+  },
+  "builtFiles": [
+    {
+      "file": "assets/index-CczVCBLZ.css",
+      "sha256": "d72732e6cb259fcabb58e3c7c6746d417e10c173db8662733f807230e1a585c4"
+    },
+    {
+      "file": "assets/index-DlHda3Id.js",
+      "sha256": "ce857f587a848313f7fb84c85eb2bf454da6355e89bd0e47309ea77f769ee21c"
+    },
+    {
+      "file": "index.html",
+      "sha256": "331c4efd6e4ac6048918548689fcfd468b697fbe40af0ef621190b34f6f9916c"
+    }
+  ],
+  "rows": [
+    {
+      "row": "mobile-long-task-edit-keyboard",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "keyboard": {
+          "controls": 13,
+          "focusIndicator": {
+            "outline": "solid",
+            "width": "3px",
+            "shadow": "none"
+          }
+        },
+        "titleLength": 209,
+        "minimumLength": 195,
+        "cancelNoWrite": true,
+        "saveReload": true,
+        "authoredMinutes": 7,
+        "statusPreserved": true,
+        "focusReturned": true
+      }
+    },
+    {
+      "row": "desktop-task-edit-keyboard",
+      "result": "PASS",
+      "viewport": {
+        "width": 1280,
+        "height": 844
+      },
+      "details": {
+        "keyboard": {
+          "controls": 13,
+          "focusIndicator": {
+            "outline": "solid",
+            "width": "3px",
+            "shadow": "none"
+          }
+        },
+        "titleLength": 209,
+        "minimumLength": 195,
+        "cancelNoWrite": true,
+        "saveReload": true,
+        "authoredMinutes": 7,
+        "statusPreserved": true,
+        "focusReturned": true
+      }
+    },
+    {
+      "row": "contextual-rhythm-correction",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "conflictNoWrite": true,
+        "cancelNoWrite": true,
+        "moveSaveReload": true,
+        "durationPreserved": true,
+        "linkedIdentityPreserved": true,
+        "protectUnprotect": true,
+        "groundedWhy": true,
+        "focusReturn": true
+      }
+    },
+    {
+      "row": "plan-correction-failure-and-focus",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "firstAutomaticProtectFocus": true,
+        "existingCorrectionProtectUnprotectFocus": true,
+        "sameDayMoveFocus": true,
+        "crossDayMoveStableFocus": true,
+        "navigationNoFocusTheft": true,
+        "savedCorrectionFailureTitleTime": true,
+        "fallbackInspectionNoWrite": true,
+        "successfulReadDeduplicated": true
+      }
+    },
+    {
+      "row": "reduced-day-changed-eligible-undo",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "previewNoWrite": true,
+        "keyboardTrapEscapeReturn": true,
+        "changedFromSavedRepair": true,
+        "oneEligibleUndo": true,
+        "undoRestoresPlanAndMode": true,
+        "undoReload": true,
+        "returnNormalReload": true
+      }
+    },
+    {
+      "row": "relief-zero",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "initialTaskCount": 0,
+        "previewNoWrite": true,
+        "action": "Narrow Today",
+        "taskStatuses": [],
+        "noneDeleted": true,
+        "reload": true,
+        "unsupportedAbsent": true
+      }
+    },
+    {
+      "row": "relief-multiple-narrow",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "initialTaskCount": 3,
+        "previewNoWrite": true,
+        "action": "Narrow Today",
+        "taskStatuses": [
+          {
+            "id": "today-0",
+            "status": "active"
+          },
+          {
+            "id": "today-1",
+            "status": "notToday"
+          },
+          {
+            "id": "today-2",
+            "status": "notToday"
+          }
+        ],
+        "noneDeleted": true,
+        "reload": true,
+        "unsupportedAbsent": true
+      }
+    },
+    {
+      "row": "relief-multiple-park",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "initialTaskCount": 3,
+        "previewNoWrite": true,
+        "action": "Park extras safely",
+        "taskStatuses": [
+          {
+            "id": "today-0",
+            "status": "active"
+          },
+          {
+            "id": "today-1",
+            "status": "parked"
+          },
+          {
+            "id": "today-2",
+            "status": "parked"
+          }
+        ],
+        "noneDeleted": true,
+        "reload": true,
+        "unsupportedAbsent": true
+      }
+    }
+  ],
+  "errors": [],
+  "screenshots": [
+    {
+      "file": "task-edit-focused-390.png",
+      "sha256": "7de36ddcf4cbcb75bf4e764c6dabce34e8237c45100af7439d9df221dab7013e"
+    },
+    {
+      "file": "task-edit-controls-390.png",
+      "sha256": "e1c05098ab1bfe115f70b3fc406c40202d1fe4fea78ec4b1f75a79d3c747c19f"
+    },
+    {
+      "file": "task-edit-saved-390.png",
+      "sha256": "ad4ecda1fcd82dd19542cca963665c03ef77ed543423e3d2278fef0eb7b24d4d"
+    },
+    {
+      "file": "task-edit-focused-1280.png",
+      "sha256": "719b4954df123b90c10c3f285cc7a1e7f4220c03e10cfb1d7a072714e98d3f85"
+    },
+    {
+      "file": "task-edit-controls-1280.png",
+      "sha256": "788fc441e59823daface9317c912c666a6b9a43712f3049f5fb24f134b8d6b6c"
+    },
+    {
+      "file": "task-edit-saved-1280.png",
+      "sha256": "b73079e76b8165593b4b3a97c5edd78c6db0a31e30d31ac42210475cf80278e5"
+    },
+    {
+      "file": "rhythm-move-conflict-mobile.png",
+      "sha256": "801877d0f24380dd92056b6babd16db07e51ca928392369c8a19af916f238b8e"
+    },
+    {
+      "file": "rhythm-correction-why-mobile.png",
+      "sha256": "9cb4579855246f0094657c2edd32713cae185ea8f563eec8cf31f888c455d622"
+    },
+    {
+      "file": "plan-saved-correction-read-failure-mobile.png",
+      "sha256": "2e423dbc8f4f12bedcbf993b669bb377ca4849e277434cad5f00791909e22ca2"
+    },
+    {
+      "file": "reduced-preview-mobile.png",
+      "sha256": "46fc0346a8145bd6eeed9e047f9d654dd46cd62b2d23aeb35f63bae4097fef5a"
+    },
+    {
+      "file": "changed-reduced-mobile.png",
+      "sha256": "911f012ef62c1b85db613a48e817628f86e3a9d97b2e51d8bbe71097552ad5b3"
+    },
+    {
+      "file": "relief-0-narrow-mobile.png",
+      "sha256": "05bb89335438d6bbbf28f3c34058d1dee13a48fef7b741de65aed483c4df2474"
+    },
+    {
+      "file": "relief-3-narrow-mobile.png",
+      "sha256": "cf9391a187a1b227fc5795e29fc75f6c4b52341cc85c0e7c1532d3b13753ba65"
+    },
+    {
+      "file": "relief-one-after-narrow-mobile.png",
+      "sha256": "2797fc775450b5b46122fa6e8bf593bf01662667652d759fb73eceec8f4c1f77"
+    },
+    {
+      "file": "relief-3-park-mobile.png",
+      "sha256": "cbfbf9c40202b12e9719e4e806f8919f01cfcda3a26bf209e51cd2f9958b00f7"
+    },
+    {
+      "file": "relief-one-after-park-mobile.png",
+      "sha256": "5c60d3d98931aad2ab87a183a83c98b99e18e8871ac0c124dbd3da87e3b455ad"
+    }
+  ]
+}

@@ -1,0 +1,256 @@
+{
+  "reviewedSourceCommit": "b1ae38bc56bf6f1205e9163fa3c3e81536cd753d",
+  "runtimeSourceSha256": "d389265450ee09d77709a4cf15e7d6a1dbf67326e96997a58b5f11e128384a9a",
+  "applicationSourceTree": "5bc78ca338faea7362bb6b7afcfc8d03631d834d",
+  "checkoutCommit": "b1ae38bc56bf6f1205e9163fa3c3e81536cd753d",
+  "server": "fresh loopback Vite serving fingerprinted checkout (not hosted preview)",
+  "browser": "151.0.7922.173",
+  "playwright": "1.62.1",
+  "timezone": "Australia/Perth",
+  "clock": {
+    "anchorUtc": "2026-10-05T01:00:00Z",
+    "localAnchor": "2026-10-05 09:00 Australia/Perth",
+    "mode": "Playwright clock.install running clock; explicit runFor(1000) before successive repair writes; never setFixedTime"
+  },
+  "builtFiles": [
+    {
+      "file": "assets/index-CczVCBLZ.css",
+      "sha256": "d72732e6cb259fcabb58e3c7c6746d417e10c173db8662733f807230e1a585c4"
+    },
+    {
+      "file": "assets/index-RkOBpHZC.js",
+      "sha256": "4fd3f989d47333b25b6d7801cefe903957057e8918a177a777e39e92a2848551"
+    },
+    {
+      "file": "index.html",
+      "sha256": "d4a01705fc133115ea0618987e45556d6a978c868da8ce6ae31b02f13d8f4e43"
+    }
+  ],
+  "rows": [
+    {
+      "row": "mobile-long-task-edit-keyboard",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "keyboard": {
+          "controls": 13,
+          "focusIndicator": {
+            "outline": "solid",
+            "width": "3px",
+            "shadow": "none"
+          }
+        },
+        "titleLength": 209,
+        "minimumLength": 195,
+        "cancelNoWrite": true,
+        "saveReload": true,
+        "authoredMinutes": 7,
+        "statusPreserved": true,
+        "focusReturned": true
+      }
+    },
+    {
+      "row": "desktop-task-edit-keyboard",
+      "result": "PASS",
+      "viewport": {
+        "width": 1280,
+        "height": 844
+      },
+      "details": {
+        "keyboard": {
+          "controls": 13,
+          "focusIndicator": {
+            "outline": "solid",
+            "width": "3px",
+            "shadow": "none"
+          }
+        },
+        "titleLength": 209,
+        "minimumLength": 195,
+        "cancelNoWrite": true,
+        "saveReload": true,
+        "authoredMinutes": 7,
+        "statusPreserved": true,
+        "focusReturned": true
+      }
+    },
+    {
+      "row": "contextual-rhythm-correction",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "conflictNoWrite": true,
+        "cancelNoWrite": true,
+        "moveSaveReload": true,
+        "durationPreserved": true,
+        "linkedIdentityPreserved": true,
+        "protectUnprotect": true,
+        "groundedWhy": true,
+        "focusReturn": true
+      }
+    },
+    {
+      "row": "reduced-day-changed-eligible-undo",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "previewNoWrite": true,
+        "keyboardTrapEscapeReturn": true,
+        "changedFromSavedRepair": true,
+        "oneEligibleUndo": true,
+        "undoRestoresPlanAndMode": true,
+        "undoReload": true,
+        "returnNormalReload": true
+      }
+    },
+    {
+      "row": "relief-zero",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "initialTaskCount": 0,
+        "previewNoWrite": true,
+        "action": "Narrow Today",
+        "taskStatuses": [],
+        "noneDeleted": true,
+        "reload": true,
+        "unsupportedAbsent": true
+      }
+    },
+    {
+      "row": "relief-multiple-narrow",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "initialTaskCount": 3,
+        "previewNoWrite": true,
+        "action": "Narrow Today",
+        "taskStatuses": [
+          {
+            "id": "today-0",
+            "status": "active"
+          },
+          {
+            "id": "today-1",
+            "status": "notToday"
+          },
+          {
+            "id": "today-2",
+            "status": "notToday"
+          }
+        ],
+        "noneDeleted": true,
+        "reload": true,
+        "unsupportedAbsent": true
+      }
+    },
+    {
+      "row": "relief-multiple-park",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "initialTaskCount": 3,
+        "previewNoWrite": true,
+        "action": "Park extras safely",
+        "taskStatuses": [
+          {
+            "id": "today-0",
+            "status": "active"
+          },
+          {
+            "id": "today-1",
+            "status": "parked"
+          },
+          {
+            "id": "today-2",
+            "status": "parked"
+          }
+        ],
+        "noneDeleted": true,
+        "reload": true,
+        "unsupportedAbsent": true
+      }
+    }
+  ],
+  "errors": [],
+  "screenshots": [
+    {
+      "file": "task-edit-focused-390.png",
+      "sha256": "7de36ddcf4cbcb75bf4e764c6dabce34e8237c45100af7439d9df221dab7013e"
+    },
+    {
+      "file": "task-edit-controls-390.png",
+      "sha256": "779ae2f64a011f987c74e12be73248e7f4d819ec97326a789108b268e64fb2cd"
+    },
+    {
+      "file": "task-edit-saved-390.png",
+      "sha256": "ad4ecda1fcd82dd19542cca963665c03ef77ed543423e3d2278fef0eb7b24d4d"
+    },
+    {
+      "file": "task-edit-focused-1280.png",
+      "sha256": "4a0aaaaa2b5c95f4ebbedf672bf2c826e8a129e2ce5dbcc8028de5eff5433f92"
+    },
+    {
+      "file": "task-edit-controls-1280.png",
+      "sha256": "ac6fa62925e2a8dc5fbfb04a45157406fdf86654c66b05d17591058e4fc844c8"
+    },
+    {
+      "file": "task-edit-saved-1280.png",
+      "sha256": "b73079e76b8165593b4b3a97c5edd78c6db0a31e30d31ac42210475cf80278e5"
+    },
+    {
+      "file": "rhythm-move-conflict-mobile.png",
+      "sha256": "801877d0f24380dd92056b6babd16db07e51ca928392369c8a19af916f238b8e"
+    },
+    {
+      "file": "rhythm-correction-why-mobile.png",
+      "sha256": "097375903ad981f0ee72930b3fff7aa6b51732423530cc7a65aae642f812eb24"
+    },
+    {
+      "file": "reduced-preview-mobile.png",
+      "sha256": "46fc0346a8145bd6eeed9e047f9d654dd46cd62b2d23aeb35f63bae4097fef5a"
+    },
+    {
+      "file": "changed-reduced-mobile.png",
+      "sha256": "911f012ef62c1b85db613a48e817628f86e3a9d97b2e51d8bbe71097552ad5b3"
+    },
+    {
+      "file": "relief-0-narrow-mobile.png",
+      "sha256": "1921600cbd2fa0a150017f3e5e0e6d7f3df76a7d38231d95d61b12f3a43bc9a3"
+    },
+    {
+      "file": "relief-3-narrow-mobile.png",
+      "sha256": "dae028412c98458cad55fd862136719c7e12a3298eb769bd371dea6ff8f797fd"
+    },
+    {
+      "file": "relief-one-after-narrow-mobile.png",
+      "sha256": "9db5ecbb63a8210374a3355ccd4f293abfbe31783b62424625323c1414abe946"
+    },
+    {
+      "file": "relief-3-park-mobile.png",
+      "sha256": "7921caa6b33bad6f7964aedc002ad69665bb5aa41e9dc4d5c6d4855d37b369cc"
+    },
+    {
+      "file": "relief-one-after-park-mobile.png",
+      "sha256": "97a1d48c74744799deca70d5b854016895beae84daf0092511e86d28acc2a5a4"
+    }
+  ]
+}

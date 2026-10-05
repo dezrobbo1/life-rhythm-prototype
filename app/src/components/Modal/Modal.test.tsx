@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -20,6 +20,31 @@ function ModalHarness() {
       <Modal onClose={() => setOpen(false)} open={open} title="Test dialog">
         <button type="button">First action</button>
         <button type="button">Last action</button>
+      </Modal>
+    </>
+  );
+}
+
+function ReplacedOpenerHarness() {
+  const [open, setOpen] = useState(false);
+  const [showOpener, setShowOpener] = useState(true);
+  const destination = useRef<HTMLButtonElement | null>(null);
+
+  return (
+    <>
+      <button ref={destination}>Plan details</button>
+      {showOpener ? <button onClick={() => setOpen(true)} type="button">Move placement</button> : null}
+      <Modal
+        onClose={() => {
+          setShowOpener(false);
+          setOpen(false);
+        }}
+        open={open}
+        returnFocusTo={() => destination.current}
+        title="Move this planned time"
+      >
+        <button type="button">Save move</button>
+        <button onClick={() => setOpen(false)} type="button">Cancel</button>
       </Modal>
     </>
   );
@@ -58,5 +83,16 @@ describe('Modal', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(opener);
+  });
+
+  it('returns focus to an explicit stable destination when a cross-day opener unmounts', async () => {
+    const user = userEvent.setup();
+    render(<ReplacedOpenerHarness />);
+
+    await user.click(screen.getByRole('button', { name: 'Move placement' }));
+    await user.click(screen.getByRole('button', { name: 'Close Move this planned time' }));
+
+    expect(screen.queryByRole('button', { name: 'Move placement' })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Plan details' }));
   });
 });

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import 'fake-indexeddb/auto';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
@@ -55,7 +55,8 @@ describe('personal task lifecycle flow', () => {
     expect(await screen.findByRole('heading', { name: 'Send school form' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Start task' }));
     await user.click(await screen.findByRole('button', { name: 'Mark minimum done' }));
-    await user.click(await screen.findByRole('button', { name: 'Park' }));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Park' }) as HTMLButtonElement).disabled).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Park' }));
 
     expect(await screen.findByText('Parked. It is safely held. No catch-up pile.')).toBeTruthy();
 

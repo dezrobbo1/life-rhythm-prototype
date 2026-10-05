@@ -1,0 +1,90 @@
+{
+  "reviewedSourceCommit": "b1ae38bc56bf6f1205e9163fa3c3e81536cd753d",
+  "reviewedFullTree": "e9a458aa0ec0448d256491d44a988fa7669a8c14",
+  "baseCommit": "add82b74082f3bf347191d6ce97de2816169f4eb",
+  "applicationSourceTree": "0a1170ed53e231fee701a39c49768d3dad7cf180",
+  "runtimeSourceSha256": "36ef6075013f99b54804f0f7cf015ad908e00e8b459951388cf957db64be49cb",
+  "fingerprintAlgorithm": "SHA256 of sorted tracked runtime paths + NUL + raw bytes + NUL; includes src/tests and app package/lock/config/public/index, excludes docs/evidence",
+  "clock": {
+    "anchorUtc": "2026-10-05T01:00:00Z",
+    "localAnchor": "2026-10-05 09:00 Australia/Perth",
+    "mode": "Playwright clock.install running clock; explicit runFor(1000) before successive repair writes; never setFixedTime"
+  },
+  "originalScreenshots": [
+    {
+      "file": "plan-context-desktop.png",
+      "sha256": "155ff95d54172ad6ff03d3d5e4d6c80a2a29aa6b0a8ae8c459bd0314e31fc555",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    },
+    {
+      "file": "plan-move-conflict-desktop.png",
+      "sha256": "a83d30a469392f5c3f4b05205b9ab381dde60b6ee2321e6e4edd26fb3d6514e9",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    },
+    {
+      "file": "plan-move-mobile.png",
+      "sha256": "d60264cad877bdeebfdae58a1ae5222bde9e758aa392c0d9af9d6c50cb6db928",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    },
+    {
+      "file": "portable-check-mobile.png",
+      "sha256": "41738ae465f2cf611aa7c884d10a925549288c2bb70955d4233b05b11b0aae06",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    },
+    {
+      "file": "reduced-day-preview-desktop.png",
+      "sha256": "0d0150a5999fa0eab9ef3459f93ccb9f61690daee1f33f34f817debaf38b33b9",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    },
+    {
+      "file": "reentry-mobile.png",
+      "sha256": "58661e8f2b1851b7baf5dbe22a5d8917922ebbcba0e22de7826034d1b1fc2845",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    },
+    {
+      "file": "relief-desktop.png",
+      "sha256": "759e486680ce48ec2e83d51161831e3b9d07d3bb54880c5cc90a850608d44638",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    },
+    {
+      "file": "relief-mobile.png",
+      "sha256": "4df5ff0c0f8432002ce5815a057960063316170de607c6ed2117b93ccbfa8261",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    },
+    {
+      "file": "rhythm-config-mobile.png",
+      "sha256": "8003bc304fe54fb23a6a4fef15b2d1647d0968d8b7ea781b3cb960667ae3769e",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    },
+    {
+      "file": "settings-planning-mobile.png",
+      "sha256": "935386e82cf8d2b8b5354c572cdf86ad1f1ddf0e6a684c3a1b28ae45e4a3de46",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    },
+    {
+      "file": "today-changed-reduced-desktop.png",
+      "sha256": "8f8347cc414d0812a7015ea86d4cc3c95eb7144cfb6f34380578c51bfaa49df3",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    },
+    {
+      "file": "today-desktop.png",
+      "sha256": "3160804395c267aa72d1bbddcd1e4a177ddb3a0640fffbaf10838cccd6f7541a",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    },
+    {
+      "file": "today-minimum-desktop.png",
+      "sha256": "51335f953539f615ca557114a5bcd013eec0bdcaa0cce3142516389aa7ca3373",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    },
+    {
+      "file": "today-mobile.png",
+      "sha256": "d7fae6bf4918d02555bfc1419353eceb1272bd98be7901249b0f89de2a4884d6",
+      "delivery": "local supporting screenshot only; Library delivery failed"
+    }
+  ],
+  "reconciledPublicationBase": "c2ee838163497938e84b0a2044f3dc4ad961c2b6",
+  "priorRuntimeSourceSha256": "d389265450ee09d77709a4cf15e7d6a1dbf67326e96997a58b5f11e128384a9a",
+  "priorApplicationSourceTree": "5bc78ca338faea7362bb6b7afcfc8d03631d834d",
+  "correctionParentHead": "aaa0a31ae26fd2e174ef45b780df553698f6d3a4",
+  "correctionBase": "c2ee838163497938e84b0a2044f3dc4ad961c2b6"
+}

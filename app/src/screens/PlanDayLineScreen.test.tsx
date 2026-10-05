@@ -52,11 +52,15 @@ vi.mock('../features/plan/CalendarSourceControl', () => ({
   ),
 }));
 vi.mock('./PersonalPlanScreen', () => ({
-  PersonalPlanScreen: ({ detailsFooter, preferredPlacementDate }: {
+  PersonalPlanScreen: ({ detailsFooter, dayLinePlacementIds = [], preferredPlacementDate, renderDayLine }: {
     detailsFooter?: ReactNode;
+    dayLinePlacementIds?: string[];
+    renderDayLine?: (renderCorrection: (id: string) => ReactNode) => ReactNode;
     preferredPlacementDate?: string | null;
   }) => (
     <div data-testid="personal-plan-proxy">
+      <span data-testid="day-line-placement-ids">{dayLinePlacementIds.join(',')}</span>
+      {renderDayLine?.(() => null)}
       Detailed Plan {preferredPlacementDate}
       {detailsFooter}
     </div>
@@ -180,6 +184,7 @@ describe('Gate 6C Plan Day Line screen', () => {
     expect(await screen.findByText('School run')).toBeTruthy();
     expect(screen.getByText('Protected morning')).toBeTruthy();
     expect(screen.getByText('Clear admin note')).toBeTruthy();
+    expect(screen.getByTestId('day-line-placement-ids').textContent).toBe('auto-admin');
     expect(screen.getByText(/Blank gaps stay unclassified/)).toBeTruthy();
     expect(screen.getByText(/Fixed commitments, protected time, and a flexible plan for this day/)).toBeTruthy();
     expect(screen.queryByText(/scheduling machinery/)).toBeNull();
@@ -260,6 +265,7 @@ describe('Gate 6C Plan Day Line screen', () => {
 
     expect((await screen.findByRole('alert')).textContent).toContain('Day Line could not be loaded.');
     expect(screen.getByTestId('personal-plan-proxy')).toBeTruthy();
+    expect(screen.getByTestId('day-line-placement-ids').textContent).toBe('');
     await user.click(screen.getByRole('button', { name: 'Retry Day Line' }));
 
     expect(await screen.findByText('School run')).toBeTruthy();

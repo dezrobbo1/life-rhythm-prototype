@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, ScreenHero } from '../components';
 import {
   loadActiveTodayTasks,
@@ -81,12 +81,14 @@ type RestartPreview = {
   area: string;
   firstAction: string;
   title: string;
+  minutes: number;
 };
 
 function restartPreviewFromTask(task: ActiveTask): RestartPreview {
   return {
     area: task.area,
     firstAction: task.minimum.label,
+    minutes: task.minimum.minutes,
     title: task.title,
   };
 }
@@ -109,12 +111,13 @@ export function ResetScreen({
       }),
     [snapshot],
   );
+  const [busy, setBusy] = useState(false);
+  const actionInFlight = useRef(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmation, setConfirmation] = useState('');
   const [visibleTodayTasks, setVisibleTodayTasks] = useState<ActiveTask[]>([]);
   const [visibleTaskGeneration, setVisibleTaskGeneration] = useState<number | null>(null);
   const [selectedRestart, setSelectedRestart] = useState<RestartPreview | null>(null);
-  const [fullResetInput, setFullResetInput] = useState('');
-  const [fullResetConfirmed, setFullResetConfirmed] = useState(false);
   const [behaviourDeleteInput, setBehaviourDeleteInput] = useState('');
   // This destructive control has its own rendered-profile authority. Refreshing
   // Today tasks cannot silently authorize a confirmation typed before restore.
@@ -206,7 +209,20 @@ export function ResetScreen({
   }
 
   async function runResetAction(action: ResetAction) {
-    setFullResetConfirmed(false);
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
+    setBusy(true);
+    try {
+      await performResetAction(action);
+    } catch {
+      setConfirmation('Relief could not finish. Check Today before trying again. Nothing was deleted.');
+    } finally {
+      actionInFlight.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function performResetAction(action: ResetAction) {
 
     if (action.id === 'tooMuchToday') {
       await updateExtras('notToday', action.confirmationCopy);
@@ -223,7 +239,7 @@ export function ResetScreen({
       const [firstTask] = currentTasks;
 
       setSelectedRestart(firstTask ? restartPreviewFromTask(firstTask) : null);
-      setConfirmation(firstTask ? action.confirmationCopy : 'No Today task is waiting. Add one small action when ready.');
+      setConfirmation(firstTask ? 'Restart preview only. No task was started or completed.' : 'No Today task is waiting. Add one small action when ready.');
       return;
     }
 
@@ -234,11 +250,6 @@ export function ResetScreen({
     }
 
     setConfirmation(action.confirmationCopy);
-  }
-
-  function confirmFullReset() {
-    setFullResetConfirmed(true);
-    setConfirmation(fullResetAction.confirmationCopy);
   }
 
   async function exportLocalBehaviourHistory() {
@@ -295,9 +306,9 @@ export function ResetScreen({
     <div className="screen-stack reset-screen">
       <ScreenHero
         className="reset-hero"
-        eyebrow="Re-entry surface"
+        eyebrow="Today support"
         tagline={resetViewModel.headline}
-        title="Reset"
+        title="Relief"
         titleId="reset-title"
       />
 
@@ -307,6 +318,7 @@ export function ResetScreen({
         <div className="section-heading">
           <h2 id="main-reset-title">Daily reset actions</h2>
           <p>Safe Today reset actions. Tasks are not deleted.</p>
+          <p>These choices change Today task visibility. Reduce today on Today previews the scheduler’s Reduced Day policy.</p>
         </div>
         <p className="setup-note">
           {visibleTodayTasks.length === 1
@@ -315,7 +327,16 @@ export function ResetScreen({
         </p>
         <div className="reset-card-grid">
           {resetViewModel.mainActions.map((action) => (
-            <ResetActionCard action={resetActionFromViewModel(action)} key={action.id} onRunAction={runResetAction} />
+            <ResetActionCard action={resetActionFromViewModel(action)} key={action.id} busy={busy}
+              onRunAction={runResetAction}
+              variant={(visibleTodayTasks.length > 1 ? action.id === 'tooMuchToday' : action.id === 'restartOneAction') ? 'primary' : 'secondary'}
+              consequence={action.id === 'restartOneAction'
+                ? 'Preview the first task’s authored Minimum. This does not start or complete it.'
+                : visibleTaskGeneration === null ? 'Read Today before making a choice. Nothing is deleted.'
+                : visibleTodayTasks.length > 1
+                  ? `Keeps ${visibleTodayTasks[0].title}. ${visibleTodayTasks.length - 1} extra task(s) will be ${action.id === 'tooMuchToday' ? 'marked not today' : 'parked'}. Nothing is deleted.`
+                  : visibleTodayTasks.length === 1 ? 'Today already has one action. Nothing else will change.'
+                  : 'No Today tasks are waiting. Nothing will change.'} />
           ))}
         </div>
       </section>
@@ -327,29 +348,15 @@ export function ResetScreen({
             <h2>{selectedRestart.title}</h2>
             <p>{selectedRestart.area}</p>
             <strong>{selectedRestart.firstAction}</strong>
-            <span>That counts.</span>
+            <span>{selectedRestart.minutes} min · Preview only</span>
           </div>
         </Card>
       ) : null}
 
-      <section className="reset-section" aria-labelledby="secondary-reset-title">
-        <div className="section-heading">
-          <h2 id="secondary-reset-title">Secondary options</h2>
-          <p>Soft review and preview-only restore actions.</p>
-        </div>
-        <div className="reset-secondary-list">
-          {resetViewModel.secondaryActions.map((action) => resetActionFromViewModel(action)).map((action) => (
-            <article className="reset-secondary" key={action.id}>
-              <div>
-                <h3>{action.title}</h3>
-                <p>{action.purpose}</p>
-              </div>
-              <Button onClick={() => runResetAction(action)}>{action.title}</Button>
-            </article>
-          ))}
-        </div>
-      </section>
-
+      <details className="relief-history-disclosure" open={historyOpen}
+        onToggle={(event) => setHistoryOpen(event.currentTarget.open)}>
+        <summary>Behaviour history controls</summary>
+        <div hidden={!historyOpen}>
       <section className="reset-behaviour-history" aria-labelledby="behaviour-history-title">
         <div>
           <p className="eyebrow">Local data control</p>
@@ -375,26 +382,8 @@ export function ResetScreen({
         </Button>
       </section>
 
-      <section className="reset-danger-zone" aria-labelledby="full-reset-title">
-        <div>
-          <p className="eyebrow">Protected action</p>
-          <h2 id="full-reset-title">{resetViewModel.destructiveAction.title}</h2>
-          <p>{resetViewModel.destructiveAction.purpose}</p>
-          <p>{resetActionFromViewModel(resetViewModel.destructiveAction).boundaryNote}</p>
         </div>
-        <label>
-          <span>Type RESET to confirm this disabled trial action</span>
-          <input
-            aria-label="Type RESET to confirm full reset"
-            onChange={(event) => setFullResetInput(event.target.value)}
-            value={fullResetInput}
-          />
-        </label>
-        <Button disabled={fullResetInput !== 'RESET'} onClick={confirmFullReset}>
-          Confirm disabled full reset
-        </Button>
-        {fullResetConfirmed ? <p role="status">Full app reset is not enabled for this trial. No data is cleared.</p> : null}
-      </section>
+      </details>
     </div>
   );
 }

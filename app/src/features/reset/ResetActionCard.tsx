@@ -1,9 +1,13 @@
 import { AppIcon, Button } from '../../components';
+import type { ButtonVariant } from '../../components/Button/Button';
 import type { AppIconName } from '../../components/AppIcon/AppIcon';
 import type { ResetAction } from './mockResetData';
 
 type ResetActionCardProps = {
   action: ResetAction;
+  busy?: boolean;
+  consequence?: string;
+  variant?: ButtonVariant;
   onRunAction: (action: ResetAction) => void | Promise<void>;
 };
 
@@ -16,7 +20,7 @@ const resetActionIcons: Record<ResetAction['id'], AppIconName> = {
   tooMuchToday: 'windDown',
 };
 
-export function ResetActionCard({ action, onRunAction }: ResetActionCardProps) {
+export function ResetActionCard({ action, busy = false, consequence, variant = "secondary", onRunAction }: ResetActionCardProps) {
   return (
     <article className={`reset-card ${action.destructive ? 'reset-card--destructive' : ''}`} aria-labelledby={`${action.id}-title`}>
       <div className="reset-card__header">
@@ -32,8 +36,8 @@ export function ResetActionCard({ action, onRunAction }: ResetActionCardProps) {
         <span>{action.destructive ? 'Not enabled' : 'Today support'}</span>
       </div>
       <p className="reset-card__when">{action.recommendedWhen}</p>
-      <p className="reset-card__boundary">{action.boundaryNote}</p>
-      <Button onClick={() => onRunAction(action)} variant={action.destructive ? 'secondary' : 'primary'}>
+      <p className="reset-card__boundary">{consequence ?? action.boundaryNote}</p>
+      <Button disabled={busy} onClick={() => onRunAction(action)} variant={variant}>
         {action.destructive ? 'Start protected reset' : action.title}
       </Button>
     </article>

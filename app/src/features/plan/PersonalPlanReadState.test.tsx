@@ -194,6 +194,259 @@ describe('Personal Plan read states', () => {
     expect(coordinatorMocks.repairCurrentPrivatePlan).not.toHaveBeenCalled();
   });
 
+  it.each(['ok', 'partial'] as const)(
+    'keeps saved correction details available when Day Line has no rendered row (%s manual read)',
+    async (readStatus) => {
+      const placement = {
+        id: 'correction:intention:visible-fallback',
+        taskId: 'visible-fallback',
+        taskTitleSnapshot: 'Visible corrected task',
+        blockId: 'correction-slot:visible-fallback',
+        blockLabelSnapshot: 'User-corrected private time',
+        date: '2026-09-07',
+        start: '10:15',
+        end: '10:45',
+        timezone: 'Australia/Perth',
+        placementSource: 'userConfirmed',
+        status: 'planned',
+        correctionKind: 'move',
+        targetKind: 'intention',
+        createdAt: '2026-09-07T00:00:00.000Z',
+        updatedAt: '2026-09-07T00:00:00.000Z',
+      };
+      placementMocks.loadSoftPlacementsForDateResult.mockResolvedValue({
+        invalidRecordCount: 0,
+        items: [placement],
+        status: readStatus,
+      });
+
+      const user = userEvent.setup();
+      render(
+        <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+          <PersonalPlanScreen embeddedInDayLine dayLinePlacementIds={[]} />
+        </AppSnapshotProvider>,
+      );
+
+      await user.click(screen.getByText('Plan details'));
+      expect(await screen.findByText('Visible corrected task')).toBeTruthy();
+      expect(screen.getByText('User-corrected private time · 10:15-10:45')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Move' })).toBeTruthy();
+      expect(correctionMocks.movePrivatePlacement).not.toHaveBeenCalled();
+      expect(correctionMocks.protectPrivatePlacement).not.toHaveBeenCalled();
+      expect(correctionMocks.unprotectPrivatePlacement).not.toHaveBeenCalled();
+    },
+  );
+
+  it('deduplicates a correction only while its Day Line row is rendered', async () => {
+    const placement = {
+      id: 'correction:intention:day-line-row',
+      taskId: 'day-line-row',
+      taskTitleSnapshot: 'Day Line corrected task',
+      blockId: 'correction-slot:day-line-row',
+      blockLabelSnapshot: 'User-corrected private time',
+      date: '2026-09-07',
+      start: '11:00',
+      end: '11:30',
+      timezone: 'Australia/Perth',
+      placementSource: 'userConfirmed',
+      status: 'planned',
+      correctionKind: 'move',
+      targetKind: 'intention',
+      createdAt: '2026-09-07T00:00:00.000Z',
+      updatedAt: '2026-09-07T00:00:00.000Z',
+    };
+    placementMocks.loadSoftPlacementsForDateResult.mockResolvedValue({
+      invalidRecordCount: 0,
+      items: [placement],
+      status: 'ok',
+    });
+
+    render(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen
+          embeddedInDayLine
+          dayLinePlacementIds={[placement.id]}
+          renderDayLine={(renderCorrection) => (
+            <div aria-label="Day Line row">
+              <strong>Day Line corrected task</strong>
+              <span>11:00-11:30</span>
+              {renderCorrection(placement.id)}
+            </div>
+          )}
+        />
+      </AppSnapshotProvider>,
+    );
+
+    const row = await screen.findByLabelText('Day Line row');
+    expect(within(row).getByText('Day Line corrected task')).toBeTruthy();
+    expect(within(row).getByText('11:00-11:30')).toBeTruthy();
+    expect(screen.getAllByText('Day Line corrected task')).toHaveLength(1);
+    expect(screen.queryByText('User-corrected private time · 11:00-11:30')).toBeNull();
+    expect(correctionMocks.movePrivatePlacement).not.toHaveBeenCalled();
+    expect(correctionMocks.protectPrivatePlacement).not.toHaveBeenCalled();
+  });
+
+  it('returns focus to Plan details when Move saves outside the displayed day', async () => {
+    const user = userEvent.setup();
+    const source = {
+      id: 'scheduler:intention:cross-day-focus:2026-09-07:09:00',
+      intentionId: 'cross-day-focus',
+      targetKind: 'intention' as const,
+      date: '2026-09-07',
+      start: '09:00',
+      end: '09:30',
+      timezone: 'Australia/Perth',
+      origin: 'scheduler' as const,
+      variantKind: 'normal' as const,
+      provenance: ['Automatically placed by the deterministic scheduler.'],
+    };
+    const moved = {
+      ...source,
+      id: 'correction:intention:cross-day-focus',
+      date: '2026-09-08',
+      sourcePlacementId: source.id,
+      origin: 'existingUserConfirmed' as const,
+      provenance: ['User explicitly moved this private placement.'],
+    };
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: { ...emptyPlan, placements: [source] },
+      titleByTargetId: { 'cross-day-focus': 'Cross-day task' },
+      warnings: [],
+    });
+    correctionMocks.movePrivatePlacement.mockResolvedValue({
+      ok: true,
+      repairPending: false,
+      plan: { ...emptyPlan, placements: [moved] },
+    });
+
+    let displayedPlacementId = source.id;
+    const rendered = render(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen
+          embeddedInDayLine
+          dayLinePlacementIds={[source.id]}
+          preferredPlacementDate="2026-09-07"
+          renderDayLine={(renderCorrection) => (
+            <div aria-label="Cross-day Day Line row">
+              <strong>Cross-day task</strong>
+              {renderCorrection(displayedPlacementId)}
+            </div>
+          )}
+        />
+      </AppSnapshotProvider>,
+    );
+
+    await user.click(await screen.findByText('Correct Cross-day task'));
+    await user.click(screen.getByRole('button', { name: 'Move' }));
+    await user.clear(screen.getByLabelText('Move date'));
+    await user.type(screen.getByLabelText('Move date'), '2026-09-08');
+    await user.click(screen.getByRole('button', { name: 'Save move' }));
+
+    const planDetails = screen.getByText('Plan details').closest('summary');
+    await waitFor(() => expect(document.activeElement).toBe(planDetails));
+    expect(correctionMocks.movePrivatePlacement).toHaveBeenCalledTimes(1);
+    displayedPlacementId = moved.id;
+    rendered.rerender(
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen
+          embeddedInDayLine
+          dayLinePlacementIds={[moved.id]}
+          preferredPlacementDate="2026-09-08"
+          renderDayLine={(renderCorrection) => (
+            <div aria-label="Cross-day Day Line row">
+              <strong>Cross-day task</strong>
+              {renderCorrection(displayedPlacementId)}
+            </div>
+          )}
+        />
+      </AppSnapshotProvider>,
+    );
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
+    expect(document.activeElement).toBe(planDetails);
+  });
+
+  it('restores focus to the replacement Day Line correction after Protect remounts an automatic row', async () => {
+    const user = userEvent.setup();
+    const source = {
+      id: 'scheduler:intention:protect-focus:2026-09-07:09:00',
+      intentionId: 'protect-focus',
+      targetKind: 'intention' as const,
+      date: '2026-09-07',
+      start: '09:00',
+      end: '09:30',
+      timezone: 'Australia/Perth',
+      origin: 'scheduler' as const,
+      variantKind: 'normal' as const,
+      provenance: ['Automatically placed by the deterministic scheduler.'],
+    };
+    const protectedPlacement = {
+      ...source,
+      id: 'correction:intention:protect-focus',
+      sourcePlacementId: source.id,
+      origin: 'existingUserConfirmed' as const,
+      provenance: ['User explicitly protected this private placement.'],
+    };
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true,
+      plan: { ...emptyPlan, placements: [source] },
+      titleByTargetId: { 'protect-focus': 'Focus task' },
+      warnings: [],
+    });
+    correctionMocks.protectPrivatePlacement.mockResolvedValue({
+      ok: true,
+      repairPending: false,
+      plan: { ...emptyPlan, placements: [protectedPlacement] },
+    });
+    let renderedPlacementId = source.id;
+    let rowVersion = 0;
+    const surface = () => (
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen
+          embeddedInDayLine
+          dayLinePlacementIds={[renderedPlacementId]}
+          preferredPlacementDate="2026-09-07"
+          renderDayLine={(renderCorrection) => (
+            <>
+              <div key={rowVersion} aria-label="Protect Day Line row">
+                <strong>Focus task</strong>
+                {renderCorrection(renderedPlacementId)}
+              </div>
+              <button type="button">Stable next control</button>
+            </>
+          )}
+        />
+      </AppSnapshotProvider>
+    );
+    const rendered = render(surface());
+
+    await user.click(await screen.findByText('Correct Focus task'));
+    await user.click(screen.getByRole('button', { name: 'Protect this time' }));
+    expect(correctionMocks.protectPrivatePlacement).toHaveBeenCalledTimes(1);
+    renderedPlacementId = protectedPlacement.id;
+    rendered.rerender(surface());
+    await waitFor(() => expect(document.activeElement).toBe(
+      screen.getByText('Correct Focus task').closest('summary'),
+    ));
+
+    // A later read can remount the same corrected row before user input.
+    rowVersion += 1;
+    rendered.rerender(surface());
+    await waitFor(() => expect(document.activeElement).toBe(
+      screen.getByText('Correct Focus task').closest('summary'),
+    ));
+
+    const nextControl = screen.getByRole('button', { name: 'Stable next control' });
+    for (let count = 0; count < 10 && document.activeElement !== nextControl; count += 1) {
+      await user.tab();
+    }
+    expect(document.activeElement).toBe(nextControl);
+    rowVersion += 1;
+    rendered.rerender(surface());
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
+    expect(document.activeElement).toBe(nextControl);
+  });
+
   it('rereads the accepted plan without closing Plan details when the plan revision changes', async () => {
     const user = userEvent.setup();
     const rendered = render(
