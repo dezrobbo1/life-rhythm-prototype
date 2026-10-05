@@ -246,7 +246,7 @@ UI should expose less scheduling machinery as the scheduler becomes stronger.
 
 Optimise for the simplest usable daily surface. `Now / Later / Changed / correct it` is a product target, not a required exact layout.
 
-For UI changes, still check desktop, narrow/mobile and keyboard interaction. Automated tests do not replace a basic human walkthrough.
+For UI changes, still check desktop, narrow/mobile and keyboard interaction. Before the final owner trial, reproducible cloud-browser checks may satisfy ordinary mobile/responsive acceptance under [MVP_PLAN.md](MVP_PLAN.md#acceptance-evidence-policy). Physical mobile checks are required only for behavior the cloud browser cannot represent. Source tests alone do not establish browser acceptance; final integrated owner judgment and longitudinal trial remain human gates.
 
 ## Validation
 

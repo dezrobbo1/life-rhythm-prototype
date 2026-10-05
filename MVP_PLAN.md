@@ -28,6 +28,18 @@ Issue #168 remains open as the whole-product Gate 8A7B calm/mobile convergence b
 
 Explicitly deferred: public signup, calendar writes, broad provider coverage, simultaneous automatic multi-device merging, collaboration/social features, AI, notifications, content analytics, broader inferred preferences and clinical claims. Account-backed continuity and one live calendar are not deferred owner-trial requirements.
 
+## Acceptance evidence policy
+
+Owner policy clarification: 2026-10-05, 14:41 UTC. This changes the evidence route for intermediate development gates; it does not record acceptance or promote readiness.
+
+Before the final owner trial, reproducible cloud-browser acceptance at approximately 390 px portrait is sufficient for ordinary mobile/responsive acceptance when it covers the relevant flows, focus/keyboard behavior, overflow, persistence and the exact reviewed build. Include desktop and keyboard-only checks where the milestone requires them. Record the commit/source tree, build or deployment identity, browser/version, viewport, date/time/timezone, replay steps and row-level outcomes with evidence. A READY deployment or source tests alone do not prove browser acceptance; local cloud evidence needs exact-build attribution and review of its adequacy before reuse.
+
+Do not require an owner physical mobile walkthrough for an intermediate milestone such as B3 unless the feature depends on behavior the cloud browser cannot represent. Identify the specific gap and require only the corresponding real-device evidence, for example an OS keyboard/zoom interaction or device capability that cannot be reproduced adequately in the cloud browser. Do not describe cloud evidence as performed physical-device evidence.
+
+For B3, the intermediate subjective-burden owner check is waived. Evaluate calm-surface requirements against PRODUCT.md and the approved UX criteria: one useful action, quiet Later/Changed, reachable corrections, progressive disclosure, truthful authored minutes/authority and no shame/debt framing. Existing B3 cloud evidence may satisfy mobile/layout rows only if independent review and exact-build verification confirm adequate coverage. Missing coverage stays pending; historical FAIL/evidence rows remain dated evidence rather than being relabelled PASS.
+
+Final integrated Gate 8A8 owner-trial subjective acceptance and Gate 8B longitudinal owner trial remain required. Preserve provider consent/account authorization, unavailable credentials, production/destructive approval and genuinely device-specific manual gates. Account-backed continuity and one live read-only calendar remain prerequisites, in the existing 8A7B → 8A7C → 8A7D → integrated 8A8 → 8B order. The new policy alone does not satisfy any milestone, close #168/#160 or authorize baseline/Day 1.
+
 ## MVP definition
 
 The MVP is the first version that proves Life Rhythm can act as an external executive-function system rather than a manual task manager.
@@ -278,7 +290,7 @@ Delivered slices, retained with their actual scope:
 
 #### Gate 8A7B — Whole-product calm-surface convergence
 
-Goal: make ordinary use feel like the intended V0 product on the owner's actual mobile device and on desktop/keyboard.
+Goal: converge ordinary use on the intended V0 calm/mobile product and desktop/keyboard surface. Intermediate acceptance follows the Acceptance evidence policy above; final owner-trial usability remains integrated 8A8 acceptance.
 
 Dependencies: corrected roadmap; current input, lifecycle, correction and learning contracts.
 
@@ -290,11 +302,11 @@ Bounded implementation PRs:
 
 Data/migration work: no migration merely for styling. If a form or state model change requires persisted semantics, isolate its schema/compatibility contract and preserve existing records.
 
-Human acceptance: actual mobile portrait with keyboard, readable primary actions without horizontal panning/clipping, populated Now and quiet exits, Capture save/reload, rhythm enable/occurrence/execution, seven-day setup, Plan repair/correction, Reduced Day/re-entry and safe recovery; desktop and keyboard-only focus/activation/Escape/return. Record exact build and each result.
+Intermediate acceptance: approximately 390 px portrait cloud-browser checks covering keyboard/focus behavior, readable primary actions without horizontal panning/clipping, populated Now and quiet exits, Capture save/reload, rhythm enable/occurrence/execution, seven-day setup, Plan repair/correction, Reduced Day/re-entry and safe recovery; desktop and keyboard-only focus/activation/Escape/return. Cover persistence and record exact reviewed build and each result. Require physical-device evidence only for an identified behavior the cloud browser cannot represent. B3 calm-surface acceptance uses approved criteria and objective evidence; its intermediate subjective-burden owner check is waived.
 
-Automated validation: focused component/integration tests for changed interactions and relevant truth/repair boundaries; required full test/build checks for the changed source. Test outcomes do not replace human acceptance.
+Automated validation: focused component/integration tests for changed interactions and relevant truth/repair boundaries; required full test/build checks for the changed source. Source test outcomes alone do not replace browser acceptance or preserved human gates.
 
-Exit: observed mobile defects fixed; necessary ordinary choices have clear priority; specialist machinery is disclosed; all scoped human paths pass. Owns the convergence defects separated from #160 and completes or transfers #160's evidence rows without losing them.
+Exit: observed mobile defects fixed; necessary ordinary choices have clear priority; specialist machinery is disclosed; all scoped acceptance paths pass under the Acceptance evidence policy. Owns the convergence defects separated from #160 and completes or transfers #160's evidence rows without losing them.
 
 Non-goals: scheduler rewrite, invented task defaults, wholesale new navigation, literal duplication of every design board, AI, account sync or provider implementation inside these UI PRs.
 
@@ -351,7 +363,7 @@ Scope: current deployed task/rhythm authoring/execution, calendar freshness/repa
 
 Data/migration work: no exploratory schema changes in acceptance; verify deployed compatible versions and migration results. Use throwaway state for destructive recovery, never the owner's only durable copy.
 
-Human acceptance: every applicable matrix row is Pass on an identified integrated build. Failed/blocked rows retain blocker disposition. Completing or closing an evidence issue does not change a failed product result to PASS.
+Human acceptance: final integrated owner-trial subjective acceptance remains required; the B3 waiver does not apply here. Every applicable matrix row is Pass on an identified integrated build. Failed/blocked rows retain blocker disposition. Completing or closing an evidence issue does not change a failed product result to PASS.
 
 Automated validation: required full suites/build for changed source; relevant timezone controls; API/isolation/sync/provider integration tests; reuse valid unchanged evidence rather than rerunning for status alone.
 
