@@ -88,6 +88,27 @@ async function scenario(browser, name, width, count, rhythm, run) {
   if (process.env.B3_ROWS && !process.env.B3_ROWS.split(',').includes(name)) return;
   const context = await browser.newContext({ viewport:{width,height:844}, timezoneId:'Australia/Perth' });
   const page = await context.newPage(); page.on('pageerror', e => errors.push({ row:name, message:e.message }));
+  if (name.startsWith('plan-ordering-')) {
+    // Test-only control of subscriber delivery, not coordinator/storage behavior.
+    // Vite has compiled this module before the route substitutes its delivery callback.
+    await page.route('**/src/screens/PlanDayLineScreen.tsx', async route => {
+      const response = await route.fetch();
+      const body = await response.text();
+      const callback = 'next: (state) => setDayLineState(state),';
+      assert.ok(body.includes(callback), 'Day Line delivery callback changed; update bounded ordering fixture');
+      await route.fulfill({ response, body: body.replace(callback,
+        'next: (state) => window.__b3DeliverDayLine(state, setDayLineState),') });
+    });
+    await page.addInitScript(() => {
+      window.__b3DayLineMode = 'normal';
+      window.__b3DeliverDayLine = (state, deliver) => {
+        if (window.__b3DayLineMode === 'normal') return deliver(state);
+        window.__b3PendingDayLine = () => deliver(state);
+        if (window.__b3DayLineMode === 'error') deliver({status:'error', errors:['Synthetic delayed subscription error.']});
+        if (window.__b3DayLineMode === 'loading') deliver({status:'loading'});
+      };
+    });
+  }
   await page.clock.install({ time:new Date(manifest.clock.anchorUtc) });
   await page.goto(origin); await page.getByRole('button',{name:'Add one-off',exact:true}).waitFor();
   await seed(page,count,rhythm); await page.reload(); await page.getByRole('button',{name:'Reduce today',exact:true}).waitFor();
@@ -237,6 +258,55 @@ async function planCorrectionRow(page) {
   assert.equal(await fallback.count(),0,'Saved fallback remained after its Day Line row returned');
   return {firstAutomaticProtectFocus:true,existingCorrectionProtectUnprotectFocus:true,sameDayMoveFocus:true,crossDayMoveStableFocus:true,navigationNoFocusTheft:true,savedCorrectionFailureTitleTime:true,fallbackInspectionNoWrite:true,successfulReadDeduplicated:true};
 }
+async function correctionOrderingRow(page, action, mode, cancellation = 'none') {
+  await page.getByRole('button',{name:'Plan',exact:true}).click();
+  const row = () => page.locator('.plan-day-line__row').filter({has:page.getByText('Send form',{exact:true})});
+  const summary = () => row().getByText('Correct Send form',{exact:true});
+  const fallback = page.locator('.plan-details-disclosure > summary');
+  await summary().waitFor();
+  async function openCorrection() {
+    if (!(await row().locator('details.plan-context-correction').evaluate(e=>e.open))) await summary().click();
+  }
+  if (action === 'Unprotect') {
+    await openCorrection(); await row().getByRole('button',{name:'Protect this time',exact:true}).click();
+    await page.getByText('This private time is protected.',{exact:true}).waitFor(); await focused(summary());
+    await page.clock.runFor(1000);
+  }
+  await openCorrection();
+  await page.evaluate(mode => { window.__b3DayLineMode = mode; }, mode);
+  await row().getByRole('button',{name:action === 'Protect' ? 'Protect this time' : action,exact:true}).focus();
+  await page.keyboard.press('Enter');
+  if (action === 'Move') {
+    await page.getByLabel('Move start time',{exact:true}).fill('11:00');
+    await page.getByRole('button',{name:'Save move',exact:true}).focus(); await page.keyboard.press('Enter');
+  }
+  await page.getByText(action === 'Protect' ? 'This private time is protected.' : action === 'Move' ? 'Placement moved.' : 'Protection removed.',{exact:true}).waitFor();
+  await page.waitForFunction(() => Boolean(window.__b3PendingDayLine));
+  await focused(fallback);
+  assert.equal(await fallback.evaluate(e => e.isConnected),true);
+  const tables=['softPlacements','schedulerPlanState','taskPoolItems','taskHistory','calendarSources'];
+  const saved=await dbRead(page,tables);
+  const placement=saved.softPlacements.find(p=>p.taskId==='planned-form');
+  assert.ok(placement,'Correction was not persisted');
+  assert.equal(placement.correctionKind,action === 'Move' ? 'move' : 'protect');
+  assert.equal(placement.status,action === 'Unprotect' ? 'removed' : action === 'Move' ? 'moved' : 'planned');
+  const dateControl=page.locator('.plan-day-line__select select');
+  if (cancellation === 'keyboard') {
+    await dateControl.focus(); await page.keyboard.press('ArrowRight');
+  } else if (cancellation === 'pointer') {
+    await page.getByRole('heading',{name:'Plan',exact:true}).click();
+    await dateControl.focus();
+  } else if (cancellation === 'date') {
+    await dateControl.focus(); await dateControl.selectOption('Tuesday');
+  }
+  // Inspection does not write. No arbitrary delay decides whether the destination exists.
+  assert.deepEqual(await dbRead(page,tables),saved,'Focus/fallback inspection wrote persisted state');
+  await page.evaluate(() => { window.__b3DayLineMode='normal'; window.__b3PendingDayLine(); });
+  if (cancellation === 'none') { await summary().waitFor(); await focused(summary()); }
+  else await focused(dateControl);
+  assert.deepEqual(await dbRead(page,tables),saved,'Delayed focus restoration wrote persisted state');
+  return {action,subscriberDelivery:mode,connectedFallback:true,delayedSuccessor:cancellation==='none'?'focused':'cancelled',cancellation,persistedCorrection:true,inspectionNoWrite:true,instrumentation:'Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active'};
+}
 async function reducedRow(page) {
   await page.getByRole('button',{name:'Plan',exact:true}).click();
   await page.getByRole('list',{name:/Day Line/}).getByText('Open water bill',{exact:true}).waitFor();
@@ -306,13 +376,22 @@ async function reliefRow(page,count,action) {
     await scenario(browser,'desktop-task-edit-keyboard',1280,3,false,editRow);
     await scenario(browser,'contextual-rhythm-correction',390,3,true,rhythmRow);
     await scenario(browser,'plan-correction-failure-and-focus',390,3,true,planCorrectionRow);
+    await scenario(browser,'plan-ordering-protect-delayed',390,3,true,p=>correctionOrderingRow(p,'Protect','hold'));
+    await scenario(browser,'plan-ordering-protect-error',390,3,true,p=>correctionOrderingRow(p,'Protect','error'));
+    await scenario(browser,'plan-ordering-protect-loading',390,3,true,p=>correctionOrderingRow(p,'Protect','loading'));
+    await scenario(browser,'plan-ordering-protect-keyboard',390,3,true,p=>correctionOrderingRow(p,'Protect','hold','keyboard'));
+    await scenario(browser,'plan-ordering-protect-pointer',390,3,true,p=>correctionOrderingRow(p,'Protect','hold','pointer'));
+    await scenario(browser,'plan-ordering-protect-date',390,3,true,p=>correctionOrderingRow(p,'Protect','hold','date'));
+    await scenario(browser,'plan-ordering-unprotect-error',390,3,true,p=>correctionOrderingRow(p,'Unprotect','error'));
+    await scenario(browser,'plan-ordering-move-delayed',390,3,true,p=>correctionOrderingRow(p,'Move','hold'));
+    await scenario(browser,'plan-ordering-protect-desktop',1280,3,true,p=>correctionOrderingRow(p,'Protect','hold'));
     await scenario(browser,'reduced-day-changed-eligible-undo',390,3,false,reducedRow);
     await scenario(browser,'relief-zero',390,0,false,p=>reliefRow(p,0,'Narrow Today'));
     await scenario(browser,'relief-multiple-narrow',390,3,false,p=>reliefRow(p,3,'Narrow Today'));
     await scenario(browser,'relief-multiple-park',390,3,false,p=>reliefRow(p,3,'Park extras safely'));
     assert.deepEqual(errors,[],'Runtime page errors');
   } finally {
-    const result={originalReviewedSourceCommit:manifest.reviewedSourceCommit,correctionParentHead:manifest.correctionParentHead,correctionBase:manifest.correctionBase,runtimeSourceSha256:fingerprint(),applicationSourceTree:manifest.applicationSourceTree,sourceState:'fingerprinted working tree; source tree recorded in manifest',checkoutCommit:execFileSync('git',['rev-parse','HEAD'],{cwd:root}).toString().trim(),server:'fresh loopback Vite serving fingerprinted checkout (not hosted preview)',browser:browser?await browser.version():null,playwright:require('playwright/package.json').version,timezone:'Australia/Perth',clock:manifest.clock,builtFiles:builtFiles(),rows,errors,screenshots};
+    const result={runAtUtc:new Date().toISOString(),postMergeCorrectionBase:manifest.postMergeCorrectionBase,originalReviewedSourceCommit:manifest.reviewedSourceCommit,correctionParentHead:manifest.correctionParentHead,correctionBase:manifest.correctionBase,runtimeSourceSha256:fingerprint(),applicationSourceTree:manifest.applicationSourceTree,sourceState:'fingerprinted working tree; source tree recorded in manifest',checkoutCommit:execFileSync('git',['rev-parse','HEAD'],{cwd:root}).toString().trim(),server:'fresh loopback Vite serving fingerprinted checkout (not hosted preview)',browser:browser?await browser.version():null,playwright:require('playwright/package.json').version,timezone:'Australia/Perth',clock:manifest.clock,builtFiles:builtFiles(),rows,errors,screenshots};
     fs.writeFileSync(path.join(output,'row-results.json'),JSON.stringify(result,null,2)+'\n');
     if(browser) await browser.close(); server.kill();
   }

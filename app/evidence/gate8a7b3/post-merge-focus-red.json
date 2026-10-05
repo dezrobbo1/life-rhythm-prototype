@@ -1,0 +1,31 @@
+{
+  "baselineMain": "f98cca4424cc482407fea1b2862d0d79a3c9a7b2",
+  "baselineProductionAppSourceTree": "0a1170ed53e231fee701a39c49768d3dad7cf180",
+  "browserDiagnosticRuntimeSha256": "702e0660d16e0dc48ebc4085c43422e4aca0b2f4f2c81026326fe872c658fa03",
+  "browserDiagnosticSource": "baseline production screen plus the new rendered regression tests; fingerprint covers both; no passing final-build claim",
+  "browser": "151.0.7922.173",
+  "playwright": "1.62.1",
+  "timezone": "Australia/Perth",
+  "row": "plan-ordering-protect-delayed",
+  "expectedFocus": "connected Plan details summary",
+  "actualFocus": "BODY",
+  "result": "FAIL as expected before fix",
+  "renderedRed": {
+    "existingAndInitialMatrix": {
+      "failed": 8,
+      "passed": 28,
+      "total": 36
+    },
+    "additionalMoveInFlightCancellationAgainstInitialFix": {
+      "failed": 3,
+      "passed": 36,
+      "total": 39
+    }
+  },
+  "fixedRendered": {
+    "failed": 0,
+    "passed": 39,
+    "total": 39
+  },
+  "note": "Red logs were local diagnostic runs. Matrix was extended before final green/full-suite validation. No persistence failure or data loss was demonstrated."
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Modal, ScreenHero } from '../components';
 import { useAppSnapshot } from '../data/AppSnapshotProvider';
 import {
@@ -216,12 +216,17 @@ export function PersonalPlanScreen({
   const [moveStart, setMoveStart] = useState('');
   const [planDetailsOpen, setPlanDetailsOpen] = useState(!embeddedInDayLine);
   const manualPlanReadRequestRef = useRef(0);
-  const correctionFocusTarget = useRef<string | null>(null);
+  const correctionFocusTarget = useRef<{ id: string | null; originId: string } | null>(null);
+  const correctionFocusVersion = useRef(0);
+  const correctionSummaryRefs = useRef(new Map<string, HTMLElement>());
   const planDetailsSummaryRef = useRef<HTMLElement | null>(null);
   const moveSucceededRef = useRef(false);
   const moveReturnFocusRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    const clearCorrectionFocus = () => { correctionFocusTarget.current = null; };
+    const clearCorrectionFocus = () => {
+      correctionFocusVersion.current += 1;
+      correctionFocusTarget.current = null;
+    };
     document.addEventListener('pointerdown', clearCorrectionFocus);
     document.addEventListener('keydown', clearCorrectionFocus);
     return () => {
@@ -467,7 +472,8 @@ export function PersonalPlanScreen({
     };
   }, [applyManualPlanData, readManualPlanData]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    correctionFocusVersion.current += 1;
     setSelectedDay(dayNameForLocalDate(preferredPlacementDate) ?? 'Monday');
     setSelectedPlacementDateOverride(preferredPlacementDate);
     correctionFocusTarget.current = null;
@@ -668,17 +674,40 @@ export function PersonalPlanScreen({
     }
   }, [manualPlanGeneration, refreshPlanData, repairAfterUserPlacementChange, retryManualPlanData]);
 
-  const prepareCorrectionFocus = useCallback((placement: InternalPlacement, plan: SchedulerPlan, repairPending: boolean) => {
+  const prepareCorrectionFocus = useCallback((placement: InternalPlacement, plan: SchedulerPlan, repairPending: boolean, focusVersion: number) => {
+    if (focusVersion !== correctionFocusVersion.current) return;
     const targetId = placement.targetKind === 'rhythm'
       ? placement.rhythmId ?? placement.intentionId : placement.intentionId;
     const replacement = plan.placements.find((item) =>
       (item.targetKind === 'rhythm' ? item.rhythmId ?? item.intentionId : item.intentionId) === targetId &&
       item.date === selectedPlacementDate,
     );
-    // Wait for the exact replacement row, never an earlier row for this target.
-    correctionFocusTarget.current = embeddedInDayLine && !repairPending &&
-      dayLinePlacementIds.includes(placement.id) ? replacement?.id ?? null : null;
+    // Track the exact successor; a predicted ID is not a mounted destination.
+    correctionFocusTarget.current = {
+      id: embeddedInDayLine && !repairPending && dayLinePlacementIds.includes(placement.id)
+        ? replacement?.id ?? null : null,
+      originId: placement.id,
+    };
   }, [dayLinePlacementIds, embeddedInDayLine, selectedPlacementDate]);
+
+  useLayoutEffect(() => {
+    const request = correctionFocusTarget.current;
+    if (!request || moveTarget) return;
+    // Refs now describe the committed DOM. Keep the request alive for delayed
+    // successor reads, but provide a connected fallback on this commit.
+    const successor = request.id ? correctionSummaryRefs.current.get(request.id) : null;
+    const destination = successor?.isConnected ? successor : planDetailsSummaryRef.current;
+    if (!destination?.isConnected) return;
+    const current = document.activeElement;
+    const origin = correctionSummaryRefs.current.get(request.originId);
+    if (current === document.body || current === planDetailsSummaryRef.current ||
+        successor?.closest('details')?.contains(current) || origin?.closest('details')?.contains(current)) {
+      moveReturnFocusRef.current = destination;
+      destination.focus();
+    } else {
+      correctionFocusTarget.current = null;
+    }
+  });
 
   const openMove = useCallback((placement: InternalPlacement) => {
     moveSucceededRef.current = false;
@@ -692,6 +721,7 @@ export function PersonalPlanScreen({
 
   const saveMove = useCallback(async () => {
     if (!moveTarget || privatePlanState.status !== 'ready') return;
+    const focusVersion = correctionFocusVersion.current;
     setCorrectionBusyId(moveTarget.id);
     setPlacementFeedback(null);
     try {
@@ -722,9 +752,11 @@ export function PersonalPlanScreen({
           generation: privatePlanState.generation,
         });
       }
-      prepareCorrectionFocus(moveTarget, result.plan, result.repairPending);
+      prepareCorrectionFocus(moveTarget, result.plan, result.repairPending, focusVersion);
       moveSucceededRef.current = true;
-      moveReturnFocusRef.current = planDetailsSummaryRef.current;
+      moveReturnFocusRef.current = focusVersion === correctionFocusVersion.current
+        ? planDetailsSummaryRef.current
+        : document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setMoveTarget(null);
       setPlacementFeedback({
         kind: 'success',
@@ -752,6 +784,7 @@ export function PersonalPlanScreen({
 
   const protectPlacement = useCallback(async (placement: InternalPlacement) => {
     if (privatePlanState.status !== 'ready') return;
+    const focusVersion = correctionFocusVersion.current;
     setCorrectionBusyId(placement.id);
     setPlacementFeedback(null);
     try {
@@ -763,8 +796,8 @@ export function PersonalPlanScreen({
         setPlacementFeedback({ kind: 'error', lines: result.errors });
         return;
       }
-      prepareCorrectionFocus(placement, result.plan, result.repairPending);
       await refreshPlanData();
+      prepareCorrectionFocus(placement, result.plan, result.repairPending, focusVersion);
       if (result.repairPending) {
         setPrivatePlanState({
           status: 'error',
@@ -786,9 +819,6 @@ export function PersonalPlanScreen({
           'Hard calendar commitments and unavailable boundaries still take priority.',
         ],
       });
-      if (!correctionFocusTarget.current) {
-        window.setTimeout(() => planDetailsSummaryRef.current?.focus(), 0);
-      }
     } catch {
       setPlacementFeedback({ kind: 'error', lines: ['Protection was not saved. Nothing else changed.'] });
     } finally {
@@ -804,6 +834,7 @@ export function PersonalPlanScreen({
 
   const unprotectPlacement = useCallback(async (placement: InternalPlacement) => {
     if (privatePlanState.status !== 'ready') return;
+    const focusVersion = correctionFocusVersion.current;
     setCorrectionBusyId(placement.id);
     setPlacementFeedback(null);
     try {
@@ -815,8 +846,8 @@ export function PersonalPlanScreen({
         setPlacementFeedback({ kind: 'error', lines: result.errors });
         return;
       }
-      prepareCorrectionFocus(placement, result.plan, result.repairPending);
       await refreshPlanData();
+      prepareCorrectionFocus(placement, result.plan, result.repairPending, focusVersion);
       if (result.repairPending) {
         setPrivatePlanState({
           status: 'error',
@@ -840,9 +871,6 @@ export function PersonalPlanScreen({
             : 'Future automatic repair may move this flexible placement.',
         ],
       });
-      if (!correctionFocusTarget.current) {
-        window.setTimeout(() => planDetailsSummaryRef.current?.focus(), 0);
-      }
     } catch {
       setPlacementFeedback({ kind: 'error', lines: ['Protection was not removed. Nothing else changed.'] });
     } finally {
@@ -891,20 +919,8 @@ export function PersonalPlanScreen({
     return (
       <details className="plan-context-correction">
         <summary tabIndex={0} ref={(element) => {
-          // Corrections may replace a keyed row. Focus only its exact successor
-          // and let modal cleanup use the same destination when it is ready.
-          if (element && !moveTarget && correctionFocusTarget.current === placement.id) {
-            moveReturnFocusRef.current = element;
-            window.setTimeout(() => {
-              if (element.isConnected && correctionFocusTarget.current === placement.id) {
-                const current = document.activeElement;
-                if (current === document.body || current === planDetailsSummaryRef.current ||
-                    element.closest('details')?.contains(current)) {
-                  element.focus();
-                }
-              }
-            }, 0);
-          }
+          if (element) correctionSummaryRefs.current.set(placement.id, element);
+          else correctionSummaryRefs.current.delete(placement.id);
         }}>Correct {title}</summary>
         <div className="plan-context-correction__content">
           <div className="button-row" aria-label={`Correction actions for ${title}`}>

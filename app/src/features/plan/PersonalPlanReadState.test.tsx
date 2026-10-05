@@ -447,6 +447,77 @@ describe('Personal Plan read states', () => {
     expect(document.activeElement).toBe(nextControl);
   });
 
+  it.each([
+    ['Protect', 'none'], ['Unprotect', 'none'], ['Move', 'none'],
+    ['Move', 'keyboard'], ['Move', 'pointer'], ['Move', 'date'],
+    ['Move', 'keyboard-before-save'], ['Move', 'pointer-before-save'], ['Move', 'date-before-save'],
+    ['Protect', 'keyboard'], ['Protect', 'pointer'], ['Protect', 'date'],
+    ['Protect', 'keyboard-before-save'], ['Protect', 'pointer-before-save'], ['Protect', 'date-before-save'],
+  ])('restores delayed %s focus safely with %s cancellation', async (action, cancellation) => {
+    const user = userEvent.setup();
+    const source = {
+      id: 'old-focus', intentionId: 'focus-task', targetKind: 'intention' as const,
+      date: '2026-09-07', start: '09:00', end: '09:30', timezone: 'Australia/Perth',
+      origin: 'scheduler' as const, variantKind: 'normal' as const,
+      provenance: action === 'Unprotect' ? ['User explicitly protected this private placement.'] : [],
+    };
+    const successor = { ...source, id: 'new-focus', provenance: [] };
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true, plan: { ...emptyPlan, placements: [source] },
+      titleByTargetId: { 'focus-task': 'Ordering task' }, warnings: [],
+    });
+    let finishSave!: () => void;
+    correctionMocks[action === 'Protect' ? 'protectPrivatePlacement' : action === 'Move' ? 'movePrivatePlacement' : 'unprotectPrivatePlacement']
+      .mockImplementation(() => new Promise((resolve) => {
+        finishSave = () => resolve({ ok: true, repairPending: false, plan: { ...emptyPlan, placements: [successor] } });
+      }));
+    let rowId = source.id;
+    let date = source.date;
+    const surface = () => (
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen embeddedInDayLine dayLinePlacementIds={rowId ? [rowId] : []}
+          preferredPlacementDate={date}
+          renderDayLine={(correction) => <>{correction(rowId)}<button>Next control</button></>} />
+      </AppSnapshotProvider>
+    );
+    const rendered = render(surface());
+    await user.click(await screen.findByText('Correct Ordering task'));
+    await user.click(screen.getByRole('button', { name: action === 'Protect' ? 'Protect this time' : action === 'Move' ? 'Move' : 'Unprotect' }));
+    if (action === 'Move') await user.click(screen.getByRole('button', { name: 'Save move' }));
+    const savedMessage = action === 'Protect' ? 'This private time is protected.' : action === 'Move' ? 'Placement moved.' : 'Protection removed.';
+    const beforeSave = cancellation.endsWith('before-save');
+    const fallback = screen.getByText('Plan details').closest('summary');
+    if (!beforeSave) {
+      finishSave();
+      await screen.findByText(savedMessage);
+      // The private plan removed the old control, but the subscription has not published its successor.
+      await waitFor(() => expect(document.activeElement).toBe(fallback));
+      expect(fallback?.isConnected).toBe(true);
+      rowId = ''; // Loading/error: no Day Line row at all.
+      rendered.rerender(surface());
+      expect(document.activeElement).toBe(fallback);
+    }
+    const next = screen.getByRole('button', { name: 'Next control' });
+    if (cancellation !== 'none') {
+      next.focus();
+      if (cancellation.startsWith('keyboard')) await user.keyboard('{ArrowRight}');
+      else if (cancellation.startsWith('pointer')) await user.pointer({ target: next, keys: '[MouseLeft]' });
+      else { date = '2026-09-08'; rendered.rerender(surface()); }
+    }
+    if (cancellation !== 'none') next.blur();
+    if (beforeSave) { finishSave(); await screen.findByText(savedMessage); }
+    rowId = successor.id;
+    rendered.rerender(surface());
+    await screen.findByText('Correct Ordering task');
+    await waitFor(() => expect(document.activeElement).toBe(cancellation === 'none'
+      ? screen.getByText('Correct Ordering task').closest('summary') : document.body));
+    // Repeated subscription commits cannot resurrect a cancelled request.
+    rendered.rerender(surface());
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
+    expect(document.activeElement).toBe(cancellation === 'none'
+      ? screen.getByText('Correct Ordering task').closest('summary') : document.body);
+  });
+
   it('rereads the accepted plan without closing Plan details when the plan revision changes', async () => {
     const user = userEvent.setup();
     const rendered = render(
