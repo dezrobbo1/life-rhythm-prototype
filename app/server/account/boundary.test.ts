@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { generateKeyPair, exportSPKI, SignJWT } from 'jose';
 import { handleBoundary } from './boundary';
 import { readServerConfig, type ServerConfig } from './config';
+import { audienceCases } from '../../test/fixtures/audienceCases';
 const origin = 'https://app.example.test',
   issuer = 'https://synthetic.clerk.accounts.dev';
 const generation = '11111111-1111-4111-8111-111111111111';
@@ -77,6 +78,22 @@ async function run(req: Request, fetcher = provider(), cfg: ServerConfig | null 
   return handleBoundary(req, { config: () => cfg, fetch: fetcher });
 }
 describe('metadata API', () => {
+  it.each(audienceCases)('configured audience: $name', async ({ aud, status }) => {
+    const fetcher = provider();
+    const res = await run(
+      await request(undefined, {}, 'GET', { aud }),
+      fetcher,
+      { ...config(), audience: 'issued' },
+    );
+    expect({ status: res.status, providerCalls: fetcher.mock.calls.length }).toEqual({
+      status, providerCalls: status === 200 ? 1 : 0,
+    });
+    if (status === 401) {
+      expect(await res.json()).toEqual({
+        kind: 'error', category: 'unauthorized', requestId: expect.any(String),
+      });
+    }
+  });
   it('forwards caller bearer per request and only reads own compatible metadata', async () => {
     const req = await request(),
       fetcher = provider();

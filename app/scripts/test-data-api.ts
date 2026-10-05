@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { exportJWK, exportSPKI, generateKeyPair, SignJWT } from 'jose';
 import { handleBoundary } from '../server/account/boundary';
+import type { ServerConfig } from '../server/account/config';
+import { audienceCases } from '../test/fixtures/audienceCases';
 const suffix = randomUUID().slice(0, 8),
   network = `lr-c1-${suffix}`,
   db = `lr-c1-db-${suffix}`,
@@ -23,7 +25,7 @@ const publicKey = await exportSPKI(keys.publicKey),
 const jwk = { ...(await exportJWK(keys.publicKey)), kid: publicKeyId, alg: 'RS256', use: 'sig' };
 const issuer = 'https://synthetic.clerk.accounts.dev',
   origin = 'https://app.example.test';
-async function token(subject: string) {
+async function token(subject: string, claims: Record<string, unknown> = {}) {
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT({
     iss: issuer,
@@ -34,6 +36,7 @@ async function token(subject: string) {
     iat: now,
     nbf: now - 1,
     exp: now + 60,
+    ...claims,
   })
     .setProtectedHeader({ alg: 'RS256', typ: 'JWT', kid: publicKeyId })
     .sign(keys.privateKey);
@@ -144,7 +147,7 @@ try {
   assert.equal(typeof relation[0].account_heads, 'object');
   assert.equal(relation[0].account_heads.revision, '9007199254740993');
   checks += 2;
-  const config = {
+  const config: ServerConfig = {
     issuer,
     origins: [origin],
     publicKey,
@@ -153,7 +156,9 @@ try {
     publishableKey: 'sb_publishable_synthetic',
     buildId: 'local-integration',
   };
+  let providerCalls = 0;
   const providerFetch: typeof fetch = async (input, init) => {
+    providerCalls++;
     const url = new URL(String(input));
     return fetch(base + url.pathname.replace(/^\/rest\/v1/, '') + url.search, init);
   };
@@ -170,6 +175,15 @@ try {
   checks += 2;
   assert.equal((await boundary(b)).status, 200);
   checks++;
+  config.audience = 'issued';
+  for (const { name, aud, status } of audienceCases) {
+    const before = providerCalls;
+    const response = await boundary(await token('user_A', { aud }));
+    assert.equal(response.status, status, `configured audience: ${name}`);
+    assert.equal(providerCalls - before, status === 200 ? 1 : 0, `provider calls: ${name}`);
+    checks += 2;
+  }
+  delete config.audience;
   assert.equal((await boundary(await token('user_uninvited'))).status, 403);
   checks++;
   assert.equal((await boundary(await token('user_disabled'))).status, 403);

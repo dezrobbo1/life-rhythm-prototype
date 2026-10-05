@@ -1,0 +1,21 @@
+// One bounded matrix shared by real signed-session API and local Data API tests.
+export const audienceCases = [
+  { name: 'absent', aud: undefined, status: 401 },
+  { name: 'empty string', aud: '', status: 401 },
+  { name: 'number', aud: 7, status: 401 },
+  { name: 'null', aud: null, status: 401 },
+  { name: 'boolean', aud: true, status: 401 },
+  { name: 'object', aud: { audience: 'issued' }, status: 401 },
+  { name: 'empty array', aud: [], status: 401 },
+  { name: 'numeric array', aud: [7], status: 401 },
+  { name: 'matching then numeric', aud: ['issued', 7], status: 401 },
+  { name: 'numeric then matching', aud: [7, 'issued'], status: 401 },
+  { name: 'matching then empty', aud: ['issued', ''], status: 401 },
+  { name: 'matching then null', aud: ['issued', null], status: 401 },
+  { name: 'wrong string', aud: 'other', status: 401 },
+  { name: 'wrong array', aud: ['other'], status: 401 },
+  { name: 'different case', aud: 'Issued', status: 401 },
+  { name: 'matching string', aud: 'issued', status: 200 },
+  { name: 'matching array', aud: ['issued'], status: 200 },
+  { name: 'multiple valid audiences', aud: ['other', 'issued'], status: 200 },
+] as const;

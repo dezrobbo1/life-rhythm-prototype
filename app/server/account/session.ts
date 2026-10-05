@@ -24,6 +24,19 @@ export async function verifySession(
     clockSkewInMs: 0,
     headerType: 'JWT',
   });
+  // The SDK can skip absent/malformed aud. Enforce configured audience on verified claims.
+  // JWT audiences are case-sensitive strings; every array member must be valid, with no coercion.
+  if (config.audience !== undefined) {
+    const aud: unknown = claims?.aud;
+    const audiences = typeof aud === 'string' ? [aud] : aud;
+    if (
+      !Array.isArray(audiences) ||
+      audiences.length === 0 ||
+      !audiences.every((value) => typeof value === 'string' && value.length > 0) ||
+      !audiences.includes(config.audience)
+    )
+      throw new Error('unauthorized');
+  }
   // verifyToken is the SDK signature/time verifier; the wrapper restricts it to Clerk sessions.
   if (
     !claims ||
