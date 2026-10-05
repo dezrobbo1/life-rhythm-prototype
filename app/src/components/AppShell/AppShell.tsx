@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { themeLabels, themes, type ThemeName } from '../../app/theme';
 import { AppIcon, type AppIconName } from '../AppIcon/AppIcon';
 import { BrandMark } from '../BrandMark/BrandMark';
@@ -38,6 +38,19 @@ export function AppShell({
   const [utilitiesOpen, setUtilitiesOpen] = useState(false);
   const utilitiesButtonRef = useRef<HTMLButtonElement>(null);
 
+  useEffect(() => {
+    if (!utilitiesOpen) return undefined;
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      setUtilitiesOpen(false);
+      utilitiesButtonRef.current?.focus();
+    }
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [utilitiesOpen]);
+
   function openSecondaryScreen(screen: ScreenId) {
     setUtilitiesOpen(false);
     onScreenChange(screen);
@@ -72,12 +85,7 @@ export function AppShell({
               </select>
             </label>
           ) : null}
-          <div className="shell-utilities" onKeyDown={(event) => {
-            if (event.key === 'Escape' && utilitiesOpen) {
-              setUtilitiesOpen(false);
-              utilitiesButtonRef.current?.focus();
-            }
-          }}>
+          <div className="shell-utilities">
             <button
               aria-controls="shell-utilities-panel"
               aria-expanded={utilitiesOpen}

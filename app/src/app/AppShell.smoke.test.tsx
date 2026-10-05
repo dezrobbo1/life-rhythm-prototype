@@ -167,6 +167,27 @@ describe('primary app shell navigation', () => {
     expect(document.activeElement).toBe(more);
   });
 
+  it('closes More with Escape after tabbing beyond its utility actions', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const more = await screen.findByRole('button', { name: 'More' });
+    await user.click(more);
+    const utilities = screen.getByRole('navigation', { name: 'Secondary' });
+
+    for (const name of ['Example day', 'Reset', 'Settings']) {
+      await user.tab();
+      expect(document.activeElement).toBe(within(utilities).getByRole('button', { name }));
+    }
+    await user.tab();
+    expect(document.activeElement?.closest('.shell-utilities')).toBeNull();
+    expect(more.getAttribute('aria-expanded')).toBe('true');
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('navigation', { name: 'Secondary' })).toBeNull();
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(more);
+  });
+
   it('keeps core Setup trial surfaces available at phone width', async () => {
     const user = userEvent.setup();
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
