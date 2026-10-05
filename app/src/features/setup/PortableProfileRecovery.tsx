@@ -92,39 +92,45 @@ export function PortableProfileRecovery({ onReload = () => window.location.reloa
   return (
     <section className="setup-backup-panel" aria-labelledby="portable-profile-title">
       <h3 id="portable-profile-title">Portable backup</h3>
-      <p>Keeps your current Life Rhythm profile in a file you control. You can restore it in another browser or device.</p>
-      <p>The file may contain tasks, routines, settings, behavioural history and calendar information. Keep it private. Sign-in does not upload or sync this data.</p>
-      <Button onClick={exportBackup} disabled={busy}>Export portable backup</Button>
-      <label className="setup-backup-checker">
-        <span>Select portable backup file</span>
-        <input type="file" accept=".json,application/json" onChange={readFile} disabled={busy} />
-      </label>
-      <label className="setup-backup-checker">
-        <span>Or paste portable backup text</span>
-        <textarea value={source} onChange={(event) => changeSource(event.target.value)} rows={4} disabled={busy} />
-      </label>
-      <Button onClick={check} disabled={busy || !source.trim()}>Check backup</Button>
-      {checked?.ok && 'expectation' in checked ? <div aria-label="Portable backup preview">
-        <p>Exported {checked.preview.exportedAt}. Current local profile: {checked.hasData ? 'contains data' : 'appears empty'}.</p>
-        <dl className="setup-about-list">
-          {Object.entries({ Settings: checked.preview.settingsPresent ? 'Present' : 'Absent',
-            'Held items': checked.preview.pool, 'Today tasks': checked.preview.today,
-            'Configured rhythms': checked.preview.rhythms, 'Rhythm instances': checked.preview.instances,
-            'Soft placements': checked.preview.placements, 'Routed rhythm times': checked.preview.routedRhythmTimes,
-            'Explicit preferences': checked.preview.preferences,
-            'Duration controls': checked.preview.durationControls, 'Behaviour events': checked.preview.behaviourEvents,
-            'Calendar source': checked.preview.calendarPresent ? 'Present' : 'Absent',
-          }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
-        </dl>
-        <p>Restore replaces this local profile; it does not merge or use timestamps to choose changes. It does not change another device or upload anything. Your backup file remains unchanged.</p>
-        {checked.hasData ? <label>
-          <span>Type {REPLACE_LOCAL_PROFILE_CONFIRMATION} to replace this local profile</span>
-          <input value={confirmed} onChange={(event) => setConfirmed(event.target.value)} autoComplete="off" />
-        </label> : null}
-        <Button onClick={restore} disabled={busy || (checked.hasData && confirmed !== REPLACE_LOCAL_PROFILE_CONFIRMATION)}>
-          Restore backup
-        </Button>
-      </div> : null}
+      <p>Keep an independent copy of your current Life Rhythm profile in a private file.</p>
+      <Button onClick={exportBackup} disabled={busy} variant="primary">Export portable backup</Button>
+      <details className="setup-recovery-disclosure">
+        <summary>Restore from a portable backup</summary>
+        <div className="setup-recovery-disclosure__content">
+          <p>Choose or paste a backup, then check it before anything can change. Restore replaces this local profile; it never merges profiles.</p>
+          <p>The file may contain tasks, rhythms, settings, behavioural history and calendar information. Keep it private. Sign-in does not upload or sync this data.</p>
+          <label className="setup-backup-checker">
+            <span>Select portable backup file</span>
+            <input type="file" accept=".json,application/json" onChange={readFile} disabled={busy} />
+          </label>
+          <label className="setup-backup-checker">
+            <span>Or paste portable backup text</span>
+            <textarea value={source} onChange={(event) => changeSource(event.target.value)} rows={4} disabled={busy} />
+          </label>
+          <Button onClick={check} disabled={busy || !source.trim()}>Check backup</Button>
+          {checked?.ok && 'expectation' in checked ? <div className="setup-recovery-preview" aria-label="Portable backup preview">
+            <p>Exported {checked.preview.exportedAt}. Current local profile: {checked.hasData ? 'contains data' : 'appears empty'}.</p>
+            <dl className="setup-about-list">
+              {Object.entries({ Settings: checked.preview.settingsPresent ? 'Present' : 'Absent',
+                'Held items': checked.preview.pool, 'Today tasks': checked.preview.today,
+                'Configured rhythms': checked.preview.rhythms, 'Rhythm instances': checked.preview.instances,
+                'Soft placements': checked.preview.placements, 'Routed rhythm times': checked.preview.routedRhythmTimes,
+                'Explicit preferences': checked.preview.preferences,
+                'Duration controls': checked.preview.durationControls, 'Behaviour events': checked.preview.behaviourEvents,
+                'Calendar source': checked.preview.calendarPresent ? 'Present' : 'Absent',
+              }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+            </dl>
+            <p>Restore replaces this local profile; it does not merge or use timestamps to choose changes. It does not change another device or upload anything. Your backup file remains unchanged.</p>
+            {checked.hasData ? <label>
+              <span>Type {REPLACE_LOCAL_PROFILE_CONFIRMATION} to replace this local profile</span>
+              <input value={confirmed} onChange={(event) => setConfirmed(event.target.value)} autoComplete="off" />
+            </label> : null}
+            <Button onClick={restore} disabled={busy || (checked.hasData && confirmed !== REPLACE_LOCAL_PROFILE_CONFIRMATION)}>
+              Restore backup
+            </Button>
+          </div> : null}
+        </div>
+      </details>
       {message ? <p role="status">{message}</p> : null}
     </section>
   );

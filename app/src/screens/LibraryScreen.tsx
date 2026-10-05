@@ -351,20 +351,50 @@ export function LibraryScreen() {
     return (activeCategory === 'All' || rhythm.category === activeCategory) &&
       (!search || `${rhythm.title} ${rhythm.category} ${rhythm.purpose}`.toLowerCase().includes(search));
   });
-  const grouped = filtered.reduce<Partial<Record<LibraryRhythm['category'], LibraryRhythm[]>>>((groups, rhythm) => {
-    groups[rhythm.category] = [...(groups[rhythm.category] ?? []), rhythm];
-    return groups;
-  }, {});
+  const personalRhythms = filtered.filter((rhythm) => {
+    const state = configurationFor(rhythm.id).state;
+    return state === 'enabled' || state === 'paused' || state === 'disabled';
+  });
+  const catalogueRhythms = filtered.filter((rhythm) => !personalRhythms.includes(rhythm));
+
+  const rhythmRow = (rhythm: LibraryRhythm) => (
+    <LibraryRhythmCard
+      actionsDisabled={authority.status !== 'ok'}
+      configuration={configurationFor(rhythm.id)}
+      key={rhythm.id}
+      onAddToday={(item) => { void addToToday(item); }}
+      onConfigure={openConfiguration}
+      onSetState={(id, state) => { void changeState(id, state); }}
+      rhythm={rhythm}
+    />
+  );
 
   return <div className="screen-stack library-screen">
-    <ScreenHero className="library-hero" eyebrow="Rhythm catalogue" tagline="Configure real minutes and a flexible frequency, then keep the rhythm under your control." title="Library" titleId="library-title" />
-    <Card><section aria-labelledby="library-create-title" className="library-create-card"><div><h2 id="library-create-title">Reusable support</h2><p>Catalogue rhythms are suggestions until you configure them. Turning a rhythm on lets Life Rhythm privately plan its future occurrences when they fit. Add to Today once does not turn recurrence on.</p></div><div className="library-create-card__actions"><Button disabled={authority.status !== 'ok'} onClick={() => setConfigTarget({ mode: 'create' })} variant="primary">Create rhythm</Button><Button disabled={authority.status !== 'ok'} onClick={() => { void exportBackup(); }}>Export rhythm backup</Button></div></section></Card>
+    <ScreenHero className="library-hero" eyebrow="Your rhythm shelf" tagline="Keep reusable support close, and add new ideas only when they fit." title="Library" titleId="library-title" />
+    <section aria-labelledby="library-create-title" className="library-create-card">
+      <div><h2 id="library-create-title">Rhythms that fit your life</h2><p>Ideas stay inactive until you set them up with your own actions, minutes and frequency.</p></div>
+      <Button disabled={authority.status !== 'ok'} onClick={() => setConfigTarget({ mode: 'create' })}>Create rhythm</Button>
+    </section>
     {authority.status === 'loading' ? <div aria-busy="true" className="surface-read-state" role="status"><h2>Reading saved rhythm configuration...</h2></div> : authority.status === 'error' ? <div className="surface-read-state surface-read-state--error" role="alert"><h2>Saved rhythm configuration could not be read.</h2><p>Catalogue suggestions remain visible, but configuration and scheduling are unavailable until the saved data can be read safely.</p><Button onClick={() => { setAuthority({ status: 'loading' }); void reloadAuthority(); }}>Retry</Button></div> : null}
-    <Card><section aria-labelledby="rhythm-backup-check-title" className="library-backup-checker"><div className="library-subheading"><h2 id="rhythm-backup-check-title">Check rhythm backup</h2><p>Validation only. Restore is not connected.</p></div><label className="library-backup-field"><span>Paste backup text</span><textarea onChange={(event) => { setBackupJson(event.target.value); setBackupPreview(null); setBackupErrors([]); }} rows={5} value={backupJson} /></label><div className="library-backup-actions"><label className="library-file-picker"><span>Select backup file</span><input accept="application/json,.json" onChange={(event) => { void readBackupFile(event); }} type="file" /></label><Button onClick={checkBackup}>Check rhythm backup</Button></div>{backupPreview ? <p role="status">Valid backup: {backupPreview.templateCount} templates, {backupPreview.planCount} plans, {backupPreview.instanceCount} occurrences. Dependencies: {backupPreview.dependencyState}.</p> : null}{backupErrors.length ? <div role="alert"><ul>{backupErrors.slice(0, 4).map((error) => <li key={error}>{error}</li>)}</ul></div> : null}</section></Card>
     <Card><div className="library-filters"><label><span>Search rhythms</span><input onChange={(event) => setSearchTerm(event.target.value)} type="search" value={searchTerm} /></label><div aria-label="Library categories" className="library-category-row" role="list">{libraryCategories.map((category) => <button aria-pressed={activeCategory === category} key={category} onClick={() => setActiveCategory(category)} type="button">{category}</button>)}</div></div></Card>
     {confirmation ? <p className="library-confirmation" role="status">{confirmation}</p> : null}
-    {filtered.length ? <div className="library-groups">{Object.entries(grouped).map(([category, rhythms]) => rhythms ? <section aria-labelledby={`${category}-library-heading`} className="library-group" key={category}><div className="section-heading"><h2 id={`${category}-library-heading`}>{category}</h2><p>{rhythms.length} rhythm{rhythms.length === 1 ? '' : 's'} in this view.</p></div><div className="library-card-grid">{rhythms.map((rhythm) => <LibraryRhythmCard actionsDisabled={authority.status !== 'ok'} configuration={configurationFor(rhythm.id)} key={rhythm.id} onAddToday={(item) => { void addToToday(item); }} onConfigure={openConfiguration} onSetState={(id, state) => { void changeState(id, state); }} rhythm={rhythm} />)}</div></section> : null)}</div> : <EmptyState action={<Button onClick={() => { setActiveCategory('All'); setSearchTerm(''); }}>Clear filters</Button>} message="Try another category or clear the search." title="No rhythms match this filter" />}
+    {filtered.length ? <div className="library-shelf">
+      <section aria-labelledby="personal-rhythms-heading" className="library-group library-group--personal">
+        <div className="section-heading"><h2 id="personal-rhythms-heading">Your rhythms</h2><p>{personalRhythms.length ? 'The rhythms you have set up, with their current state.' : 'Nothing configured yet. Choose an idea below when one feels useful.'}</p></div>
+        {personalRhythms.length ? <div className="library-card-grid">{personalRhythms.map(rhythmRow)}</div> : null}
+      </section>
+      {catalogueRhythms.length ? <section aria-labelledby="catalogue-rhythms-heading" className="library-group library-group--catalogue">
+        <div className="section-heading"><h2 id="catalogue-rhythms-heading">More rhythm ideas</h2><p>Suggestions only. Set one up before it can create future occurrences.</p></div>
+        <div className="library-card-grid">{catalogueRhythms.map(rhythmRow)}</div>
+      </section> : null}
+    </div> : <EmptyState action={<Button onClick={() => { setActiveCategory('All'); setSearchTerm(''); }}>Clear filters</Button>} message="Try another category or clear the search." title="No rhythms match this filter" />}
     <details className="quick-packs"><summary>Quick packs · preview only</summary><p>These collections are ideas. Previewing does not configure or turn on a rhythm.</p><div className="quick-pack-grid">{mockQuickPacks.map((pack) => <QuickPackCard key={pack.id} onPreviewPack={(id) => setPreviewPackId((current) => current === id ? null : id)} pack={pack} previewOpen={previewPackId === pack.id} rhythms={libraryRhythms.filter((rhythm) => pack.rhythmIds.includes(rhythm.id))} />)}</div></details>
+    <details className="library-technical-tools">
+      <summary>Technical rhythm backup</summary>
+      <p>Specialist export and validation tools. Restore is not connected.</p>
+      <div className="library-backup-actions"><Button disabled={authority.status !== 'ok'} onClick={() => { void exportBackup(); }}>Export rhythm backup</Button></div>
+      <section aria-labelledby="rhythm-backup-check-title" className="library-backup-checker"><div className="library-subheading"><h2 id="rhythm-backup-check-title">Check rhythm backup</h2><p>Validation only. Checking changes nothing.</p></div><label className="library-backup-field"><span>Paste backup text</span><textarea onChange={(event) => { setBackupJson(event.target.value); setBackupPreview(null); setBackupErrors([]); }} rows={5} value={backupJson} /></label><div className="library-backup-actions"><label className="library-file-picker"><span>Select backup file</span><input accept="application/json,.json" onChange={(event) => { void readBackupFile(event); }} type="file" /></label><Button onClick={checkBackup}>Check rhythm backup</Button></div>{backupPreview ? <p role="status">Valid backup: {backupPreview.templateCount} templates, {backupPreview.planCount} plans, {backupPreview.instanceCount} occurrences. Dependencies: {backupPreview.dependencyState}.</p> : null}{backupErrors.length ? <div role="alert"><ul>{backupErrors.slice(0, 4).map((error) => <li key={error}>{error}</li>)}</ul></div> : null}</section>
+    </details>
     {configTarget ? <CreateRhythmModal initial={formInitial()} key={`${configTarget.mode}:${configTarget.mode === 'create' ? 'new' : configTarget.rhythm.id}`} mode={configTarget.mode} onClose={() => setConfigTarget(null)} onSave={saveConfiguration} open /> : null}
   </div>;
 }

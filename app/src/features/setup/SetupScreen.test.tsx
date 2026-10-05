@@ -848,6 +848,34 @@ describe('Setup screen', () => {
     expect(screen.getByText('Tasks, rhythms, scheduling preferences, packs, imports, dev tickets, and future modules are not changed by these two settings buttons.')).toBeTruthy();
   });
 
+  it('leads with life shape and preserves advanced values across disclosure changes', async () => {
+    const user = userEvent.setup();
+    render(<SetupScreen />);
+
+    expect(screen.getByRole('heading', { name: 'When Life Rhythm may plan' })).toBeTruthy();
+    for (const weekday of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']) {
+      expect(screen.getByText(weekday)).toBeTruthy();
+    }
+
+    const advanced = screen.getByText('Advanced settings').closest('details');
+    const recoveryTools = screen.getByText('Individual and technical backup tools').closest('details');
+    const version = screen.getByText('About this version').closest('details');
+    expect(advanced).toHaveProperty('open', false);
+    expect(recoveryTools).toHaveProperty('open', false);
+    expect(version).toHaveProperty('open', false);
+
+    await user.click(screen.getByText('Advanced settings'));
+    const safetyChoice = screen.getByRole('checkbox', { name: /Avoid food rewards/ });
+    expect(safetyChoice).toHaveProperty('checked', false);
+    await user.click(safetyChoice);
+    await user.click(screen.getByText('Advanced settings'));
+    await user.click(screen.getByText('Advanced settings'));
+    expect(safetyChoice).toHaveProperty('checked', true);
+
+    expect(screen.getByRole('button', { name: 'Export portable backup' })).toBeTruthy();
+    expect(screen.getByText('Restore from a portable backup').closest('details')).toHaveProperty('open', false);
+  });
+
   it('renders dev tickets as a local mock entry point', () => {
     render(<SetupScreen />);
 

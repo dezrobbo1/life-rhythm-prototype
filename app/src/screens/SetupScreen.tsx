@@ -482,15 +482,17 @@ export function SetupScreen({
     <div className="screen-stack setup-screen">
       <ScreenHero
         className="setup-hero"
-        eyebrow="Local settings"
-        tagline="Adjust the app without changing your whole day."
+        eyebrow="Life shape"
+        tagline="Give Life Rhythm the boundaries it needs to plan safely."
         title="Settings"
         titleId="setup-title"
       />
 
       {status ? <p className="setup-confirmation" role="status">{status}</p> : null}
 
-      <Card>
+      <details className="setup-disclosure setup-disclosure--secondary">
+        <summary>Appearance</summary>
+        <Card>
         <div className="setup-section-heading">
           <h2>Appearance</h2>
           <p>Themes change colour only. Layout, task logic, copy and scheduling stay the same.</p>
@@ -518,7 +520,8 @@ export function SetupScreen({
           <Chip>Selected: {setupViewModel.themeChoices.find((option) => option.id === selectedTheme)?.label}</Chip>
           <Chip>Colour only</Chip>
         </div>
-      </Card>
+        </Card>
+      </details>
 
       <Card>
         <div className="setup-section-heading">
@@ -594,7 +597,11 @@ export function SetupScreen({
         <p>Choose Save settings below to apply. Without reviewed hours, existing explicit open-capacity blocks still work.</p>
       </Card>
 
-      <CalendarSourceControl onPlanRepaired={onCalendarPlanRepaired} onRepairIssueChange={onCalendarRepairIssueChange} />
+      <details className="setup-disclosure setup-disclosure--secondary">
+        <summary>Calendar snapshot</summary>
+        <p>Import a read-only calendar snapshot when you need it. This is not a live calendar connection.</p>
+        <CalendarSourceControl onPlanRepaired={onCalendarPlanRepaired} onRepairIssueChange={onCalendarRepairIssueChange} />
+      </details>
 
       <Card>
         <div className="setup-section-heading">
@@ -850,10 +857,14 @@ export function SetupScreen({
         <p className="setup-note">Reviewed planning hours and time blocks guide the private plan. Meal and sleep anchors remain context only.</p>
       </Card>
 
-      <SchedulingPreferencesPanel onPlanChanged={onPreferencePlanChanged} />
-      <DurationLearningPanel onPlanChanged={onDurationLearningPlanChanged} />
+      <details className="setup-disclosure setup-disclosure--advanced">
+        <summary>Advanced settings</summary>
+        <p>Scheduling preferences, learning controls and Start Boost safeguards remain available when you need them.</p>
+        <div className="setup-disclosure__content">
+          <SchedulingPreferencesPanel onPlanChanged={onPreferencePlanChanged} />
+          <DurationLearningPanel onPlanChanged={onDurationLearningPlanChanged} />
 
-      <Card>
+          <Card>
         <div className="setup-section-heading">
           <h2>Start Boost safety</h2>
           <p>Safety choices are saved on this device when you choose Save settings.</p>
@@ -873,7 +884,9 @@ export function SetupScreen({
             </label>
           ))}
         </div>
-      </Card>
+          </Card>
+        </div>
+      </details>
 
       <Card>
         <div className="setup-section-heading">
@@ -882,9 +895,13 @@ export function SetupScreen({
         </div>
         <div className="setup-action-row">
           <Button onClick={saveCurrentSettings} variant="primary">Save settings</Button>
-          <Button onClick={resetCurrentSettings}>Reset settings to defaults</Button>
         </div>
         <p className="setup-note">Save writes appearance, Start Boost safety, Life Shape and reviewed planning hours. Reset returns these settings to defaults.</p>
+        <details className="setup-destructive-disclosure">
+          <summary>Reset these settings</summary>
+          <p>Reset returns these settings to defaults. Tasks, rhythms, scheduling preferences, imports and backups are not changed.</p>
+          <Button onClick={resetCurrentSettings}>Reset settings to defaults</Button>
+        </details>
         <p className="setup-note setup-note--quiet">Tasks, rhythms, scheduling preferences, packs, imports, dev tickets, and future modules are not changed by these two settings buttons.</p>
       </Card>
 
@@ -895,6 +912,10 @@ export function SetupScreen({
         </div>
         <p className="setup-note">{setupViewModel.dataPreview.copy}</p>
         <PortableProfileRecovery />
+        <details className="setup-disclosure setup-disclosure--technical">
+          <summary>Individual and technical backup tools</summary>
+          <p>These specialist tools export or check one part of the local profile. Whole-profile portable backup is the ordinary recovery route.</p>
+          <div className="setup-disclosure__content">
         <div className="setup-backup-panel">
           <div className="setup-subheading">
             <h3>Export settings</h3>
@@ -1135,8 +1156,13 @@ export function SetupScreen({
             </Button>
           ))}
         </div>
+          </div>
+        </details>
       </Card>
 
+      <details className="setup-disclosure setup-disclosure--version">
+        <summary>About this version</summary>
+        <div className="setup-disclosure__content">
       <Card>
         <div className="setup-section-heading">
           <h2>Current limits</h2>
@@ -1214,6 +1240,8 @@ export function SetupScreen({
           </div>
         ) : null}
       </Card>
+        </div>
+      </details>
     </div>
   );
 }
