@@ -1,7 +1,8 @@
 # Gate 8A7B3 populated daily surface and contextual correction
 
-Status: implementation prepared for one draft PR; unmerged; integrated human acceptance pending.
+Status: draft PR #175 remains unmerged. Independent engineering review found no confirmed code findings; bounded browser evidence completion passes. Targeted independent evidence verification and the parent final merge gate remain pending.
 Date: 2026-10-05. Source/base: `add82b74082f3bf347191d6ce97de2816169f4eb` (PR #174).
+Evidence continuation reconciled with policy merge `c2ee838163497938e84b0a2044f3dc4ad961c2b6` (PR #176). Reviewed application commit: `b1ae38bc56bf6f1205e9163fa3c3e81536cd753d`; application source tree `5bc78ca338faea7362bb6b7afcfc8d03631d834d`.
 Branch: `feat/gate8a7b3-today-plan-relief`. Exact published head is recorded in PR metadata/body; this report does not manufacture a self-referential commit SHA.
 
 ## Bounded implementation
@@ -14,11 +15,11 @@ Approved outcome: one useful current action, quiet Later/Changed, reachable corr
 - Relief varies its primary action and consequence copy by zero/one/multiple visible Today tasks. Narrow Today marks extras not today; Park extras parks them. Neither is scheduler Reduced Day. Restart shows the first task's authored Minimum/minutes as an explicit preview and performs no start/completion write. Busy actions are guarded. History export/typed-confirmation deletion remain under explicit disclosure with inputs kept mounted; unsupported restore/tomorrow/full-reset prototypes are absent.
 - Scoped CSS retains content-sized stacked controls and wrapping at mobile width, including Today, contextual Move, Reduced Day and re-entry. No scheduler policy, schema, migration, navigation lifecycle, account/provider, or legacy runtime change.
 
-Implementation sequence: regressions for action hierarchy, unsupported/disclosed Relief, contextual correction, conflict and focus return; minimal UI changes; focused verification; full tests/build/timezone controls; cloud browser; unmerged handoff and draft publication. No additional broad review was requested; parent supplies one fresh independent review.
+Implementation sequence: regressions for action hierarchy, unsupported/disclosed Relief, contextual correction, conflict and focus return; minimal UI changes; focused verification; full tests/build/timezone controls; cloud browser; unmerged handoff and draft publication. One fresh independent engineering review subsequently returned MERGE at the reviewed application commit with no confirmed code findings (task `01a10c81-9d18-71f3-a0ea-cc2ecc2fa03a`). This completion pass requests only targeted evidence verification through the parent.
 
 ## Automated evidence
 
-Final source validation from `app`:
+Final implementation-source validation from `app` at the reviewed application commit (reused for this evidence/documentation continuation because application files, dependencies, configuration and tests are byte-identical):
 
 | Command | Result |
 | --- | --- |
@@ -37,36 +38,54 @@ Harness corrections: fixed local wall-clock time for the new integrated test so 
 
 Actual cloud Chromium `151.0.7922.173`, Playwright through the installed runtime (agent-browser CLI unavailable). Fresh isolated browser context, throwaway IndexedDB data, Australia/Perth, running local date/time anchored to 2026-10-05 09:00. Desktop 1280×900 and mobile viewport 390×844. This is a cloud browser, not the owner's physical mobile or operating-system keyboard.
 
-Observed PASS: populated Today and factual Later; Capture save/reload; contextual task Move rejection in the modal and successful preserved-duration move; Protect/Unprotect/Why with maintenance closed; Escape return; Start/Minimum/continuation/Pause/Resume; Reduced Day preview/apply/return with genuine Changed; truthful Relief preview and history disclosure preserving an unsaved confirmation; mobile wrapping/no horizontal overflow; dated re-entry choices; configured rhythm edit and occurrence execution; seven weekdays/work/usable-day inputs; downloaded portable export and checked uploaded file. Portable restore was not applied in this browser run; destructive/stale recovery remains covered by isolated automated tests. No runtime page errors were recorded.
+Observed PASS: populated Today and factual Later; Capture save/reload; contextual task Move rejection in the modal and successful preserved-duration move; Protect/Unprotect/Why with maintenance closed; Escape return; Start/Minimum/continuation/Pause/Resume; Reduced Day preview/apply/return with genuine Changed; truthful Relief preview and history disclosure preserving an unsaved confirmation; mobile wrapping/no horizontal overflow; dated re-entry choices; configured rhythm edit and generated occurrence surfaces (linked execution remains automated/B2 evidence); seven weekdays/work/usable-day inputs; downloaded portable export and checked uploaded file. Portable restore was not applied in this browser run; destructive/stale recovery remains covered by isolated automated tests. No runtime page errors were recorded.
 
-Screenshots and replay/report artifacts are delivered separately in `gate8a7b3-browser-evidence.zip`, not committed as generated output or personal data:
+The original local `gate8a7b3-browser-evidence.zip` contains the following supporting screenshots. **It was not remotely delivered**: Library upload and one bounded retry failed at tool discovery before preparation. Screenshot binaries are not committed. Their names/hashes and sanitized replay/results are now durable under [evidence](../evidence/gate8a7b3/README.md):
 
 - `today-desktop.png`, `today-minimum-desktop.png`, `today-mobile.png`;
 - `plan-context-desktop.png`, `plan-move-conflict-desktop.png`, `plan-move-mobile.png`;
 - `reduced-day-preview-desktop.png`, `today-changed-reduced-desktop.png`, `reentry-mobile.png`;
 - `relief-desktop.png`, `relief-mobile.png`;
 - `rhythm-config-mobile.png`, `settings-planning-mobile.png`, `portable-check-mobile.png`;
-- `browser-report.json` and replay script. Throwaway exported profile JSON is excluded from the delivered archive.
+- `browser-report.json` and replay script. Throwaway exported profile JSON is excluded from the local archive and from the repository.
 
-Browser screenshots come from the final source tree on the local Vite server. No immutable hosted preview was available at report preparation. A later preview must identify the exact PR head before owner acceptance. Source/build tests and cloud screenshots cannot establish hosted/device readiness.
+Browser screenshots come from the reviewed application source on local Vite. Original immutable preview `https://life-rhythm-prototype-5yyl73gl8-daler-project-lr.vercel.app` (deployment `dpl_BxKjBdhyptWncbFhoUchkzf1Fyqp`) became READY with metadata attributing `b1ae38bc56bf6f1205e9163fa3c3e81536cd753d`. Hosted cloud-browser navigation was **BLOCKED** at the proxy by `net::ERR_TUNNEL_CONNECTION_FAILED` before rendering. This report claims local exact-source runtime verification, not hosted interaction or physical-device acceptance.
 
-## Exact-build human acceptance record
+## Dated policy and evidence reassessment — 2026-10-05
 
-**MANUAL ACTION REQUIRED** under [HUMAN_GATES](../../docs/HUMAN_GATES.md): perform the rows below on the exact draft-PR head and attributable preview/build. Record SHA, preview URL/build ID, device, OS, browser/version, portrait dimensions, physical keyboard type and date/time/timezone. Record PASS/FAIL, observed outcome and screenshot/video for each row. Rows remain PENDING; prior B2 acceptance does not establish B3 integrated acceptance.
+The original report required a physical/owner walkthrough for every row and an intermediate subjective-burden decision. The owner's explicit direction is now durable in merged policy [PR #176](https://github.com/dezrobbo1/life-rhythm-prototype/pull/176), main `c2ee838163497938e84b0a2044f3dc4ad961c2b6`, [MVP_PLAN acceptance evidence policy](../../MVP_PLAN.md#acceptance-evidence-policy) and [HUMAN_GATES](../../docs/HUMAN_GATES.md). Approximately 390px reproducible cloud-browser evidence can satisfy ordinary intermediate responsive, flow, keyboard/focus, overflow, persistence and exact-source criteria. Only an identified behavior the cloud cannot represent requires a device-specific check. B3's intermediate subjective-burden owner check is waived; no owner PASS is invented. Final integrated 8A8 owner-trial subjective judgment and true manual gates remain.
 
-| Row | Required real-device/owner evidence | Status |
+The fresh independent engineering reviewer reproduced Capture/save/reload, task Move conflict/no-write/duration/Escape/opener/success-row focus, Protect/Unprotect/Why, Minimum/continuation/pause/resume and Relief preview/disclosure input at 390×844 in Chromium 151 with a running Perth clock. It returned **MERGE**, no confirmed code findings, at the reviewed application commit. That verdict predates this evidence-only continuation; parent independently verifies these specific additions next.
+
+[Executable completion replay](../evidence/gate8a7b3/replay.cjs), [manifest](../evidence/gate8a7b3/manifest.json), [observed row results](../evidence/gate8a7b3/row-results.json), and [run instructions](../evidence/gate8a7b3/README.md) provide the remotely inspectable reproduction route. The new harness actually executed: **7/7 rows PASS**, zero runtime page errors, no horizontal overflow. Chromium `151.0.7922.173`, Playwright `1.62.1`, Australia/Perth; mobile 390×844 and desktop 1280×844; running clock anchored to `2026-10-05T01:00:00Z` (09:00 Perth), explicitly advancing between repair writes. Every scenario uses a fresh isolated context with synthetic fixtures. The harness refuses application fingerprint mismatch.
+
+Runtime source SHA-256: `d389265450ee09d77709a4cf15e7d6a1dbf67326e96997a58b5f11e128384a9a`. It covers sorted tracked `app/src`, public, package/lock, index and TypeScript/Vite configuration paths/bytes, including existing tests, excluding documentation/evidence. The policy integration and evidence additions preserve that fingerprint and the reviewed `app/src` Git tree. Results also record separately validated build-output hashes; browser assertions run against the fingerprinted local Vite source, not the production preview. No application test suite or build was rerun for this source-unchanged continuation; valid UTC/Perth 1,384-test/build evidence above is reused.
+
+Harness development corrected expectations for trimmed authored inputs and actual placement fields. Reduced Day now establishes a normal plan first and isolates its fixture from background rhythm-occurrence materialization, so preview/no-write compares a settled baseline. These are replay-fixture corrections; no product defect was confirmed and no product code/test was changed.
+
+## Current intermediate acceptance rows
+
+PASS below identifies observed engineering/browser evidence at the reviewed application source; final B3 acceptance remains pending the parent's targeted independent evidence verification and final merge gate. Prior B2 owner acceptance is not substituted for this integrated evidence.
+
+| Row | Evidence route and observed result | Current disposition |
 | --- | --- | --- |
-| Mobile Capture | Portrait with OS keyboard; title/action/minutes, optional details, reachable Save/Cancel; save and reload | PENDING |
-| Mobile Task edit | Populated Now; Details/Edit task, long text and inputs; keyboard open; reachable save/cancel | PENDING |
-| Populated Today | Idle/in-progress/paused/Minimum/continuation/terminal; one useful action; truthful later facts and quiet Changed; empty/no debt | PENDING |
-| Contextual correction | Task and rhythm Day Line disclosures; Move local date/start, duration, conflict, save/cancel; Protect/Unprotect/Why; no external write | PENDING |
-| Repair and Undo | Genuine disruption/Changed; material repair attention; eligible Undo/reload; no unsafe persistent-correction Undo | PENDING |
-| Reduced Day and re-entry | Preview before apply; Return to normal/eligible Undo; explicit no-catch-up re-entry choices | PENDING |
-| Relief | Zero/one/multiple tasks; clear Narrow/Park consequences; preview-only restart; history disclosure and safeguards | PENDING |
-| Rhythm | Configure/enable, generated occurrence and Today execution, Minimum counts and linked identity after reload | PENDING |
-| Life shape/calendar snapshot | All seven weekdays; work and usable-day inputs, Save; clearly static read-only snapshot controls | PENDING |
-| Portable recovery | Export/check; throwaway recovery only after explicit replacement confirmation; reload and isolation | PENDING |
-| Desktop/keyboard | Tab and Enter/Space activation, visible focus, Escape, Save/Cancel return and disclosure preserving inputs | PENDING |
-| Subjective burden | Owner judgment: fewer decisions, calm surface, tolerable wrapping/scrolling, useful corrections and relief | PENDING |
+| Mobile Capture | Independent reviewer at 390×844: save/reload and reachable controls; earlier replay available | Browser PASS; independent evidence retained |
+| Mobile Task edit | New replay: 209-character title, 195-character Minimum, focused inputs, 7 authored minutes, scroll-reachable Save/Cancel, cancel/no-write, save/status preservation, opener return and reload; mobile + desktop | Browser PASS |
+| Populated Today | Earlier replay and independent reviewer: idle/start/Minimum/continuation/pause/resume; truthful Later and hierarchy; terminal/empty/busy/read-failure/midnight matrices remain covered by unchanged suites | Checked browser states PASS; edge-state tests reused |
+| Contextual correction | Independently checked task controls; new rhythm conflict/no-write/cancel, local start/duration/save/reload, successful-row focus, Protect/Unprotect/Why, preserved linked identity and external records | Browser PASS |
+| Repair and Undo | New replay: real saved Reduced Day repair produces Changed; one eligible Undo restores placements and mode together, persists across reload; persistent-correction fencing remains in unchanged tests | Browser PASS; safety regression evidence reused |
+| Reduced Day and re-entry | New preview/no-write/trap/Escape/return/apply/Undo/normal-return/reload; prior dated explicit re-entry choices/no catch-up and unchanged re-entry suites | Browser PASS for checked paths |
+| Relief | New zero/multiple Narrow and Park cases, no deletion, reload, resulting one-task preview and no-op; earlier history disclosure input and safety suites for stale/partial failure | Browser PASS; safety regression evidence reused |
+| Rhythm setup/execution | Earlier B2 configuration/edit/generated-occurrence surfaces, with execution covered by unchanged suites (the original browser-summary overstatement is corrected in prior-results); independent reviewed source unchanged; new contextual correction validates linked provenance/reload | Earlier browser and automated evidence retained |
+| Seven-day/life shape/static snapshot | Earlier mobile seven weekday/work/usable-day surfaces; reviewed B2 controls and unchanged Settings/calendar tests; no new live-calendar claim | Existing bounded evidence retained |
+| Portable recovery | Earlier browser export and uploaded-file check; explicit throwaway replacement safeguards/stale recovery covered by isolated tests. Portable replacement was not applied in this browser pass | Browser export/check PASS; recovery safety tests retained, no browser replacement claim |
+| Desktop/keyboard | New mobile/desktop Enter/Space activation, Tab/Shift+Tab trap, 3px visible focus outline, Save/Cancel return and persistence; earlier disclosure/Escape observations | Browser PASS |
+| Objective calm-surface criteria | One useful primary action, quiet Later/Changed, contextual correction, preview-only Relief versus scheduler Reduced Day, wrapped/stacked mobile controls; screenshots inspected and new no-overflow/flow assertions passed | Objective evidence recorded; targeted verification pending |
+| Subjective burden | Intermediate owner check waived by merged policy; final integrated owner-trial subjective judgment remains | WAIVED for B3 intermediate check; no owner PASS |
 
-**PRODUCT OWNER DECISION REQUIRED** for the final subjective acceptance decision. Independent engineering review also remains pending. Do not close #168/#160, declare B3 acceptance complete or 8A8 PASS, begin 8B or merge in this cloud task. Later sequence remains 8A7C account continuity, 8A7D live read-only calendar, then integrated 8A8. #146 remains separate for internal DST-transition populations.
+## Remaining limits and gates
+
+- Parent must independently verify the specific evidence additions, exact application-source equivalence and reconciled policy before disposition. This task performs no GitHub merge and creates no second implementation PR or broad review.
+- The screenshot ZIP/PNGs remain local. Names/hashes are supporting attribution only; source replay/results are the durable reproducible deliverable. The original replay was already executed; portable adjustments and a corrected observation label received syntax validation and were not broadly rerun.
+- Hosted navigation remains blocked as recorded above; local Vite/browser checks do not claim hosted-runtime acceptance. No specific unresolved B3 device-only behavior was reproduced. An OS software keyboard was not emulated; any subsequently identified device-specific failure must retain its own required evidence.
+- Preserve #168/#160 open and historical observed FAIL records until the authorized acceptance disposition; no B3 final acceptance or 8A8 PASS is declared here. Account continuity 8A7C, live read-only calendar 8A7D, final integrated 8A8 and owner longitudinal 8B gates remain. #146 remains separate.

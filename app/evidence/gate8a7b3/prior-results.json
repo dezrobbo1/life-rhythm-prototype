@@ -1,0 +1,30 @@
+{
+  "seed": {
+    "database": "life-rhythm-app"
+  },
+  "browser": "151.0.7922.173",
+  "timezone": "Australia/Perth",
+  "date": "2026-10-05 09:00",
+  "checks": [
+    "Populated Today, authored Minimum/minutes, factual Later",
+    "Task Move conflict visible inside modal, Save success with preserved duration, Protect/Unprotect and grounded Why; maintenance closed",
+    "Today idle/start/Minimum/continuation/pause/resume with one useful primary action",
+    "Reduced Day preview/apply/return and real Changed",
+    "Relief preview truthful; history explicit disclosure retains input, unsupported controls absent",
+    "390px Today/Plan Move/Relief; no horizontal overflow; Escape focus return",
+    "Dated re-entry review with explicit choices and no blanket catch-up",
+    "B2 configured rhythm editable in mobile modal; occurrence generated and rendered; linked execution covered by existing tests",
+    "B2 seven weekdays, work and usable-day inputs reachable on mobile",
+    "B2 portable export download and file check in cloud browser, restore safeguarded and not applied"
+  ],
+  "errors": [],
+  "head": "b1ae38bc56bf6f1205e9163fa3c3e81536cd753d",
+  "base": "add82b74082f3bf347191d6ce97de2816169f4eb",
+  "sourceTree": "e9a458aa0ec0448d256491d44a988fa7669a8c14",
+  "server": "local Vite 5173; final source matches published tree",
+  "immutablePreview": "https://life-rhythm-prototype-5yyl73gl8-daler-project-lr.vercel.app",
+  "deployment": "dpl_BxKjBdhyptWncbFhoUchkzf1Fyqp",
+  "hostedBrowser": "BLOCKED by cloud proxy: net::ERR_TUNNEL_CONNECTION_FAILED before rendering; no auth/security bypass attempted",
+  "artifactDelivery": "ZIP/PNG bytes remain local; Library tool discovery failed before preparation on initial attempt and bounded retry. See committed replay/manifest for independent reproduction.",
+  "coverageCorrection": "Original summary overstated browser occurrence execution: prior-replay executes an ad-hoc task, not the generated rhythm. Rhythm execution relies on unchanged automated/B2 evidence; no browser occurrence-execution PASS is claimed."
+}
