@@ -2,6 +2,18 @@
 
 This file applies to the whole repository.
 
+## Autonomous development operating contract
+
+Within the approved MVP and existing product/engineering rules, Codex may inspect live repository state, select the next already-approved bounded slice from [`MVP_PLAN.md`](MVP_PLAN.md), create a focused branch, implement it, run required tests/builds, create commits, open/update one PR, inspect CI/review findings, correct confirmed merge blockers, rerun affected verification, merge an ordinary development PR when every defined gate passes, update durable programme state and proceed to the next approved slice.
+
+This authority does not override a task-specific restriction such as draft-only or no-merge. Codex must not materially redefine product direction, remove an owner-trial prerequisite, weaken safety/data-integrity/privacy invariants, perform destructive or irreversible production operations, spend money or create paid external resources without authority, expose or invent credentials, perform a production data migration without explicit authority, claim physical-device/user acceptance it did not perform, begin owner longitudinal trial evidence before its documented gate, or continue beyond the approved MVP boundary. Do not ask the owner for routine engineering decisions resolvable within current product/architecture authority.
+
+Use [`docs/HUMAN_GATES.md`](docs/HUMAN_GATES.md) for explicit stop conditions, [`docs/CODEX_WORKFLOW.md`](docs/CODEX_WORKFLOW.md) for live-base/access/loop instructions and repository skills, and [`docs/CODEX_MODEL_POLICY.md`](docs/CODEX_MODEL_POLICY.md) for routing guidance. [`CURRENT_STATE.md`](CURRENT_STATE.md) is a reconstructable operational handoff, never a second roadmap. MVP_PLAN.md remains delivery/readiness authority and [`docs/DOCUMENTATION_AUTHORITY.md`](docs/DOCUMENTATION_AUTHORITY.md) retains the authority hierarchy.
+
+Before implementation or publication, compare local source/base with plugin-reported live main and inspect open implementation PRs to avoid duplicate or conflicting work. Reconcile safely with current main; if that is impossible, stop with **STALE WORKSPACE BLOCKER**. Never publish against an unverified or stale base. Recheck live main and exact PR head before merge; changed source invalidates affected validation/review evidence.
+
+Autonomous merge requires bounded milestone acceptance, required checks/tests, no unresolved **Block before merge** findings, and no unsatisfied human gate. Preserve the Code review rules below: severity alone does not decide disposition, safely deferred P2 findings may remain follow-ups, and corrections do not automatically restart broad review. A prepared evidence protocol or successful source tests cannot establish human acceptance or Gate 8A8 PASS.
+
 ## Read first
 
 Before changing current product code or product-direction documentation, read in this order:
