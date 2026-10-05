@@ -1,0 +1,893 @@
+{
+  "runAtUtc": "2026-10-05T17:54:58.961Z",
+  "postMergeCorrectionBase": "f98cca4424cc482407fea1b2862d0d79a3c9a7b2",
+  "focusLifecycleReviewedHead": "d9448dbe6291f892d72bf8264e3903b4781bcc8f",
+  "originalReviewedSourceCommit": "b1ae38bc56bf6f1205e9163fa3c3e81536cd753d",
+  "correctionParentHead": "aaa0a31ae26fd2e174ef45b780df553698f6d3a4",
+  "correctionBase": "c2ee838163497938e84b0a2044f3dc4ad961c2b6",
+  "runtimeSourceSha256": "9bb8f8a0968dc669c73a1e311c6ee64b349d810df0dc69dd5e2def8c8f537db9",
+  "applicationSourceTree": "5e81e3cfbd80b39f10b91933d4387adfc36b6194",
+  "sourceState": "fingerprinted working tree; source tree recorded in manifest",
+  "checkoutCommit": "d9448dbe6291f892d72bf8264e3903b4781bcc8f",
+  "server": "fresh loopback Vite serving fingerprinted checkout (not hosted preview)",
+  "browser": "151.0.7922.173",
+  "playwright": "1.62.1",
+  "timezone": "Australia/Perth",
+  "clock": {
+    "anchorUtc": "2026-10-05T01:00:00Z",
+    "localAnchor": "2026-10-05 09:00 Australia/Perth",
+    "mode": "Playwright clock.install running clock; explicit runFor(1000) before successive repair writes; never setFixedTime"
+  },
+  "builtFiles": [
+    {
+      "file": "assets/index-CR-aQNsR.js",
+      "sha256": "b350f6f3a6b22c88c4f3542e5e9ee71e761bb899cea00bfbd27db7bb03f18838"
+    },
+    {
+      "file": "assets/index-CczVCBLZ.css",
+      "sha256": "d72732e6cb259fcabb58e3c7c6746d417e10c173db8662733f807230e1a585c4"
+    },
+    {
+      "file": "index.html",
+      "sha256": "963a7e6500a19d11317946816abe2c5a2c5c56947312de7030765a985804984d"
+    }
+  ],
+  "rows": [
+    {
+      "row": "contextual-rhythm-correction",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "conflictNoWrite": true,
+        "cancelNoWrite": true,
+        "moveSaveReload": true,
+        "durationPreserved": true,
+        "linkedIdentityPreserved": true,
+        "protectUnprotect": true,
+        "groundedWhy": true,
+        "focusReturn": true
+      }
+    },
+    {
+      "row": "plan-correction-failure-and-focus",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "firstAutomaticProtectFocus": true,
+        "existingCorrectionProtectUnprotectFocus": true,
+        "sameDayMoveFocus": true,
+        "crossDayMoveStableFocus": true,
+        "navigationNoFocusTheft": true,
+        "savedCorrectionFailureTitleTime": true,
+        "fallbackInspectionNoWrite": true,
+        "successfulReadDeduplicated": true
+      }
+    },
+    {
+      "row": "plan-ordering-protect-delayed",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "hold",
+        "connectedFallback": true,
+        "delayedSuccessor": "focused",
+        "cancellation": "none",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-protect-error",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "error",
+        "connectedFallback": true,
+        "delayedSuccessor": "focused",
+        "cancellation": "none",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-protect-loading",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "loading",
+        "connectedFallback": true,
+        "delayedSuccessor": "focused",
+        "cancellation": "none",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-protect-keyboard",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "hold",
+        "connectedFallback": true,
+        "delayedSuccessor": "cancelled",
+        "cancellation": "keyboard",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-protect-pointer",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "hold",
+        "connectedFallback": true,
+        "delayedSuccessor": "cancelled",
+        "cancellation": "pointer",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-protect-date",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "hold",
+        "connectedFallback": true,
+        "delayedSuccessor": "cancelled",
+        "cancellation": "date",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-unprotect-error",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Unprotect",
+        "subscriberDelivery": "error",
+        "connectedFallback": true,
+        "delayedSuccessor": "focused",
+        "cancellation": "none",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-move-delayed",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "subscriberDelivery": "hold",
+        "connectedFallback": true,
+        "delayedSuccessor": "focused",
+        "cancellation": "none",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-ordering-protect-desktop",
+      "result": "PASS",
+      "viewport": {
+        "width": 1280,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "subscriberDelivery": "hold",
+        "connectedFallback": true,
+        "delayedSuccessor": "focused",
+        "cancellation": "none",
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-immediate-same-replaced",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "delivery": "immediate",
+        "crossDay": false,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-immediate-same-stable",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "delivery": "immediate",
+        "crossDay": false,
+        "stableId": true,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-immediate-cross-replaced",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "delivery": "immediate",
+        "crossDay": true,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-immediate-cross-stable",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "delivery": "immediate",
+        "crossDay": true,
+        "stableId": true,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-delayed-same-replaced",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "delivery": "delayed",
+        "crossDay": false,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-delayed-same-stable",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "delivery": "delayed",
+        "crossDay": false,
+        "stableId": true,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-delayed-cross-replaced",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "delivery": "delayed",
+        "crossDay": true,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-delayed-cross-stable",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "delivery": "delayed",
+        "crossDay": true,
+        "stableId": true,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-missing-same-replaced",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "delivery": "missing",
+        "crossDay": false,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-missing-same-stable",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "delivery": "missing",
+        "crossDay": false,
+        "stableId": true,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-missing-cross-replaced",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "delivery": "missing",
+        "crossDay": true,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-missing-cross-stable",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "delivery": "missing",
+        "crossDay": true,
+        "stableId": true,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-failure",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "failure": true,
+        "pendingFocusOwned": true,
+        "failedDialogRemains": true,
+        "cancelReturnsConnectedOpener": true,
+        "noWrite": true
+      }
+    },
+    {
+      "row": "plan-lifecycle-protect-keyboard-owned",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "input": "keyboard",
+        "delivery": "delayed",
+        "crossDay": false,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-unprotect-keyboard-owned",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Unprotect",
+        "input": "keyboard",
+        "delivery": "delayed",
+        "crossDay": false,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-pointer-immediate-same-replaced",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "pointer",
+        "delivery": "immediate",
+        "crossDay": false,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-pointer-immediate-same-stable",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "pointer",
+        "delivery": "immediate",
+        "crossDay": false,
+        "stableId": true,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-pointer-immediate-cross-replaced",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "pointer",
+        "delivery": "immediate",
+        "crossDay": true,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-pointer-immediate-cross-stable",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "pointer",
+        "delivery": "immediate",
+        "crossDay": true,
+        "stableId": true,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-pointer-delayed-same-replaced",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "pointer",
+        "delivery": "delayed",
+        "crossDay": false,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-pointer-delayed-same-stable",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "pointer",
+        "delivery": "delayed",
+        "crossDay": false,
+        "stableId": true,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-pointer-delayed-cross-replaced",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "pointer",
+        "delivery": "delayed",
+        "crossDay": true,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-pointer-delayed-cross-stable",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "pointer",
+        "delivery": "delayed",
+        "crossDay": true,
+        "stableId": true,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-pointer-missing-same-replaced",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "pointer",
+        "delivery": "missing",
+        "crossDay": false,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-pointer-missing-same-stable",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "pointer",
+        "delivery": "missing",
+        "crossDay": false,
+        "stableId": true,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-pointer-missing-cross-replaced",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "pointer",
+        "delivery": "missing",
+        "crossDay": true,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-pointer-missing-cross-stable",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "pointer",
+        "delivery": "missing",
+        "crossDay": true,
+        "stableId": true,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-pointer-failure",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "pointer",
+        "failure": true,
+        "pendingFocusOwned": true,
+        "failedDialogRemains": true,
+        "cancelReturnsConnectedOpener": true,
+        "noWrite": true
+      }
+    },
+    {
+      "row": "plan-lifecycle-protect-pointer-owned",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Protect",
+        "input": "pointer",
+        "delivery": "delayed",
+        "crossDay": false,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-unprotect-pointer-owned",
+      "result": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "details": {
+        "action": "Unprotect",
+        "input": "pointer",
+        "delivery": "delayed",
+        "crossDay": false,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    },
+    {
+      "row": "plan-lifecycle-move-keyboard-desktop",
+      "result": "PASS",
+      "viewport": {
+        "width": 1280,
+        "height": 844
+      },
+      "details": {
+        "action": "Move",
+        "input": "keyboard",
+        "delivery": "immediate",
+        "crossDay": false,
+        "stableId": false,
+        "pendingFocusOwned": true,
+        "connectedReturn": true,
+        "lateInputCancelsFocus": true,
+        "persistedCorrection": true,
+        "inspectionNoWrite": true,
+        "instrumentation": "Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules"
+      }
+    }
+  ],
+  "errors": [],
+  "screenshots": [
+    {
+      "file": "rhythm-move-conflict-mobile.png",
+      "sha256": "801877d0f24380dd92056b6babd16db07e51ca928392369c8a19af916f238b8e"
+    },
+    {
+      "file": "rhythm-correction-why-mobile.png",
+      "sha256": "530de2336e375a2855dfb9250be50f0439870c6b76750ca86d40d57dc8e55b6f"
+    },
+    {
+      "file": "plan-saved-correction-read-failure-mobile.png",
+      "sha256": "2e423dbc8f4f12bedcbf993b669bb377ca4849e277434cad5f00791909e22ca2"
+    }
+  ]
+}

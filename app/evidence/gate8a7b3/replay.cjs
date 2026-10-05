@@ -85,9 +85,68 @@ async function seed(page, count = 3, rhythm = true) {
   }, {count,rhythm});
 }
 async function scenario(browser, name, width, count, rhythm, run) {
+  if (process.env.B3_FOCUS_ONLY && name !== 'contextual-rhythm-correction' && !name.startsWith('plan-')) return;
   if (process.env.B3_ROWS && !process.env.B3_ROWS.split(',').includes(name)) return;
   const context = await browser.newContext({ viewport:{width,height:844}, timezoneId:'Australia/Perth' });
   const page = await context.newPage(); page.on('pageerror', e => errors.push({ row:name, message:e.message }));
+  if (name.startsWith('plan-ordering-') || name.startsWith('plan-lifecycle-')) {
+    // Test-only control of subscriber delivery, not coordinator/storage behavior.
+    // Vite has compiled this module before the route substitutes its delivery callback.
+    await page.route('**/src/screens/PlanDayLineScreen.tsx', async route => {
+      const response = await route.fetch();
+      const body = await response.text();
+      const callback = 'next: (state) => setDayLineState(state),';
+      assert.ok(body.includes(callback), 'Day Line delivery callback changed; update bounded ordering fixture');
+      await route.fulfill({ response, body: body.replace(callback,
+        'next: (state) => window.__b3DeliverDayLine(state, setDayLineState),') });
+    });
+    await page.addInitScript(() => {
+      window.__b3DayLineMode = 'normal';
+      window.__b3DeliverDayLine = (state, deliver) => {
+        if (window.__b3DayLineMode === 'normal') return deliver(state);
+        window.__b3PendingDayLine = () => deliver(state);
+        if (window.__b3DayLineMode === 'error') deliver({status:'error', errors:['Synthetic delayed subscription error.']});
+        if (window.__b3DayLineMode === 'loading') deliver({status:'loading'});
+      };
+    });
+  }
+  if (name.startsWith('plan-lifecycle-')) {
+    // Hold only UI delivery of the real coordinator's completed result.
+    await page.route('**/src/screens/PersonalPlanScreen.tsx', async route => {
+      const response = await route.fetch(); let body = await response.text();
+      for (const action of ['movePrivatePlacement','protectPrivatePlacement','unprotectPrivatePlacement']) {
+        const call = `await ${action}(`;
+        assert.ok(body.includes(call), 'Correction invocation changed: '+action);
+        body = body.replace(call, `await window.__b3Correction(${action}, `);
+      }
+      const read = 'await ensureCurrentPrivatePlan()';
+      assert.ok(body.includes(read), 'Private Plan read invocation changed');
+      body = body.replace(read, 'await window.__b3PrivateRead(ensureCurrentPrivatePlan)');
+      await route.fulfill({ response, body });
+    });
+    await page.addInitScript(() => {
+      window.__b3ReadsInFlight = 0;
+      window.__b3ReadCompletions = 0;
+      window.__b3PrivateRead = async perform => {
+        window.__b3ReadsInFlight += 1;
+        try { return await perform(); }
+        finally { window.__b3ReadsInFlight -= 1; window.__b3ReadCompletions += 1; }
+      };
+      window.__b3HoldCorrection = false;
+      window.__b3Correction = async (perform, ...args) => {
+        if (!window.__b3HoldCorrection) return perform(...args);
+        return new Promise(resolve => {
+          const run = async () => {
+            const result = await perform(...args);
+            window.__b3CorrectionResult = result;
+            window.__b3FinishCorrection = () => resolve(result);
+          };
+          if (window.__b3HoldBeforeCommand) window.__b3StartCorrection = run;
+          else void run();
+        });
+      };
+    });
+  }
   await page.clock.install({ time:new Date(manifest.clock.anchorUtc) });
   await page.goto(origin); await page.getByRole('button',{name:'Add one-off',exact:true}).waitFor();
   await seed(page,count,rhythm); await page.reload(); await page.getByRole('button',{name:'Reduce today',exact:true}).waitFor();
@@ -237,6 +296,156 @@ async function planCorrectionRow(page) {
   assert.equal(await fallback.count(),0,'Saved fallback remained after its Day Line row returned');
   return {firstAutomaticProtectFocus:true,existingCorrectionProtectUnprotectFocus:true,sameDayMoveFocus:true,crossDayMoveStableFocus:true,navigationNoFocusTheft:true,savedCorrectionFailureTitleTime:true,fallbackInspectionNoWrite:true,successfulReadDeduplicated:true};
 }
+async function correctionOrderingRow(page, action, mode, cancellation = 'none') {
+  await page.getByRole('button',{name:'Plan',exact:true}).click();
+  const row = () => page.locator('.plan-day-line__row').filter({has:page.getByText('Send form',{exact:true})});
+  const summary = () => row().getByText('Correct Send form',{exact:true});
+  const fallback = page.locator('.plan-details-disclosure > summary');
+  await summary().waitFor();
+  async function openCorrection() {
+    if (!(await row().locator('details.plan-context-correction').evaluate(e=>e.open))) await summary().click();
+  }
+  if (action === 'Unprotect') {
+    await openCorrection(); await row().getByRole('button',{name:'Protect this time',exact:true}).click();
+    await page.getByText('This private time is protected.',{exact:true}).waitFor(); await focused(summary());
+    await page.clock.runFor(1000);
+  }
+  await openCorrection();
+  await page.evaluate(mode => { window.__b3DayLineMode = mode; }, mode);
+  await row().getByRole('button',{name:action === 'Protect' ? 'Protect this time' : action,exact:true}).focus();
+  await page.keyboard.press('Enter');
+  if (action === 'Move') {
+    await page.getByLabel('Move start time',{exact:true}).fill('11:00');
+    await page.getByRole('button',{name:'Save move',exact:true}).focus(); await page.keyboard.press('Enter');
+  }
+  await page.getByText(action === 'Protect' ? 'This private time is protected.' : action === 'Move' ? 'Placement moved.' : 'Protection removed.',{exact:true}).waitFor();
+  await page.waitForFunction(() => Boolean(window.__b3PendingDayLine));
+  await focused(fallback);
+  assert.equal(await fallback.evaluate(e => e.isConnected),true);
+  const tables=['softPlacements','schedulerPlanState','taskPoolItems','taskHistory','calendarSources'];
+  const saved=await dbRead(page,tables);
+  const placement=saved.softPlacements.find(p=>p.taskId==='planned-form');
+  assert.ok(placement,'Correction was not persisted');
+  assert.equal(placement.correctionKind,action === 'Move' ? 'move' : 'protect');
+  assert.equal(placement.status,action === 'Unprotect' ? 'removed' : action === 'Move' ? 'moved' : 'planned');
+  const dateControl=page.locator('.plan-day-line__select select');
+  if (cancellation === 'keyboard') {
+    await dateControl.focus(); await page.keyboard.press('Shift');
+  } else if (cancellation === 'pointer') {
+    await page.getByRole('heading',{name:'Plan',exact:true}).click();
+    await dateControl.focus();
+  } else if (cancellation === 'date') {
+    await dateControl.focus(); await dateControl.selectOption('Tuesday');
+  }
+  // Inspection does not write. No arbitrary delay decides whether the destination exists.
+  assert.deepEqual(await dbRead(page,tables),saved,'Focus/fallback inspection wrote persisted state');
+  await page.evaluate(() => { window.__b3DayLineMode='normal'; window.__b3PendingDayLine(); });
+  if (cancellation === 'none') { await summary().waitFor(); await focused(summary()); }
+  else await focused(dateControl);
+  assert.deepEqual(await dbRead(page,tables),saved,'Delayed focus restoration wrote persisted state');
+  return {action,subscriberDelivery:mode,connectedFallback:true,delayedSuccessor:cancellation==='none'?'focused':'cancelled',cancellation,persistedCorrection:true,inspectionNoWrite:true,instrumentation:'Only compiled PlanDayLineScreen subscription next delivery is held/replaced; real React, coordinator and IndexedDB remain active'};
+}
+async function settledSnapshot(page, tables) {
+  // Let real correction-triggered reads/repairs finish before inspection begins.
+  // Observe in-flight reads, markers, DOM frames and the complete snapshot;
+  // never suppress writes or omit derived Plan metadata from the comparison.
+  await page.waitForFunction(async tables => {
+    const {getCurrentLifeRhythmDatabase}=await import('/src/data/localDataNamespace.ts');
+    const db=getCurrentLifeRhythmDatabase();
+    const read=async()=>Object.fromEntries(await Promise.all(tables.map(async n=>[n,await db.table(n).toArray()])));
+    const first=await read();
+    const plan=first.schedulerPlanState[0];
+    if (window.__b3ReadsInFlight || (plan && Object.keys(plan).some(k=>k.endsWith('RepairPendingAt') && plan[k]))) return false;
+    const completions=window.__b3ReadCompletions;
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    return !window.__b3ReadsInFlight && completions===window.__b3ReadCompletions && JSON.stringify(first)===JSON.stringify(await read());
+  }, tables);
+  return dbRead(page,tables);
+}
+async function pendingCorrectionRow(page, {input, delivery='delayed', crossDay=false, stableId=false, failure=false, action='Move'}) {
+  await page.getByRole('button',{name:'Plan',exact:true}).click();
+  const row=()=>page.locator('.plan-day-line__row').filter({has:page.getByText('Send form',{exact:true})});
+  const summary=()=>row().getByText('Correct Send form',{exact:true});
+  const fallback=page.locator('.plan-details-disclosure > summary');
+  const dateControl=page.locator('.plan-day-line__select select');
+  const tables=['softPlacements','schedulerPlanState','taskPoolItems','taskHistory','calendarSources'];
+  await summary().waitFor();
+  async function openCorrection() {
+    if (!(await row().locator('details.plan-context-correction').evaluate(e=>e.open))) await summary().click();
+  }
+  if (stableId || action==='Unprotect') {
+    await openCorrection(); await row().getByRole('button',{name:'Protect this time',exact:true}).click();
+    await page.getByText('This private time is protected.',{exact:true}).waitFor(); await focused(summary());
+    await page.clock.runFor(1000);
+  }
+  const before=await settledSnapshot(page,tables);
+  const sourceId=before.schedulerPlanState[0].plan.placements.find(p=>p.intentionId==='planned-form').id;
+  await openCorrection();
+  if (action==='Move') {
+    await row().getByRole('button',{name:'Move',exact:true}).click();
+    await page.getByLabel('Move start time',{exact:true}).fill(failure?'10:00':'11:00');
+    if (crossDay) await page.getByLabel('Move date',{exact:true}).fill('2026-10-06');
+  }
+  await page.evaluate(({mode,holdBefore}) => {
+    window.__b3DayLineMode=mode;
+    window.__b3HoldCorrection=true;
+    window.__b3HoldBeforeCommand=holdBefore;
+  }, {mode:action!=='Move'?'hold':delivery==='immediate'?'normal':delivery==='missing'?'error':'loading',holdBefore:action!=='Move'});
+  const save=action==='Move'?page.getByRole('button',{name:'Save move',exact:true})
+    :row().getByRole('button',{name:action==='Protect'?'Protect this time':'Unprotect',exact:true});
+  await save.focus(); await page.keyboard.press('Enter');
+  await page.waitForFunction(()=>Boolean(window.__b3FinishCorrection || window.__b3StartCorrection));
+  const pending=await settledSnapshot(page,tables);
+  if (action!=='Move' || failure) assert.deepEqual(pending,before,'Pending/rejected correction wrote before inspection');
+  const interaction=action==='Move'?page.getByLabel('Move date',{exact:true}):row().getByText('Why this time?',{exact:true});
+  await interaction.focus();
+  if (input==='keyboard') await page.keyboard.press(action==='Move'?'Tab':'ArrowRight');
+  else await interaction.click();
+  const focusedBefore=await page.evaluate(()=>({tag:document.activeElement.tagName,modal:!!document.activeElement.closest('[role="dialog"]'),correction:!!document.activeElement.closest('.plan-context-correction')}));
+  assert.equal(action==='Move'?focusedBefore.modal:focusedBefore.correction,true,'Pending input left its owned surface');
+  assert.deepEqual(await dbRead(page,tables),pending,'Pending focus interaction wrote');
+  if (action!=='Move') {
+    await page.evaluate(()=>{window.__b3DayLineMode='loading';return window.__b3StartCorrection();});
+    await row().waitFor({state:'detached'});
+    await focused(fallback); // Recovery before the held command result is delivered.
+  }
+  assert.equal(await page.evaluate(()=>window.__b3CorrectionResult.ok),!failure);
+  const completed=await settledSnapshot(page,tables);
+  if (failure) assert.deepEqual(completed,before,'Rejected Move wrote persisted state');
+  else {
+    const saved=completed.softPlacements.find(p=>p.taskId==='planned-form');
+    assert.ok(saved,'Successful correction missing');
+    assert.equal(saved.status,action==='Unprotect'?'removed':action==='Move'?'moved':'planned');
+    if (action==='Move') assert.equal(saved.id===sourceId,stableId,'Wrong correction identity lifecycle');
+  }
+  await page.evaluate(()=>window.__b3FinishCorrection());
+  if (failure) {
+    await page.getByRole('dialog').locator('.soft-suggestions__feedback--error').waitFor();
+    assert.equal(await page.getByRole('dialog').evaluate(e=>e.contains(document.activeElement)),true);
+    await page.getByRole('button',{name:'Cancel',exact:true}).click();
+    await focused(row().getByRole('button',{name:'Move',exact:true}));
+    assert.deepEqual(await dbRead(page,tables),before,'Failed Move inspection/Cancel wrote');
+    return {action,input,failure:true,pendingFocusOwned:true,failedDialogRemains:true,cancelReturnsConnectedOpener:true,noWrite:true};
+  }
+  await page.getByText(action==='Move'?'Placement moved.':action==='Protect'?'This private time is protected.':'Protection removed.',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('dialog').count(),0);
+  if (!crossDay && delivery==='immediate') await focused(summary());
+  else await focused(fallback);
+  assert.deepEqual(await dbRead(page,tables),completed,'Completion focus wrote');
+  if (delivery==='delayed' && !crossDay) {
+    await page.evaluate(()=>{window.__b3DayLineMode='normal';window.__b3PendingDayLine();});
+    await focused(summary());
+  }
+  await dateControl.focus(); await page.keyboard.press('Shift');
+  assert.equal(await dateControl.inputValue(),'Monday','Non-navigating cancellation key changed selected day');
+  await page.evaluate(()=>{window.__b3DayLineMode='normal';window.__b3PendingDayLine?.();});
+  if (crossDay) {
+    await dateControl.selectOption('Tuesday'); await summary().waitFor();
+  } else await summary().waitFor();
+  await focused(dateControl);
+  assert.deepEqual(await dbRead(page,tables),completed,'Delayed delivery/date inspection wrote');
+  return {action,input,delivery,crossDay,stableId,pendingFocusOwned:true,connectedReturn:true,lateInputCancelsFocus:true,persistedCorrection:true,inspectionNoWrite:true,instrumentation:'Real coordinator runs. Move result delivery is held; Protect/Unprotect command start and result delivery are held for pending owned input. Day Line delivery is independently controlled in compiled loopback modules'};
+}
 async function reducedRow(page) {
   await page.getByRole('button',{name:'Plan',exact:true}).click();
   await page.getByRole('list',{name:/Day Line/}).getByText('Open water bill',{exact:true}).waitFor();
@@ -306,13 +515,35 @@ async function reliefRow(page,count,action) {
     await scenario(browser,'desktop-task-edit-keyboard',1280,3,false,editRow);
     await scenario(browser,'contextual-rhythm-correction',390,3,true,rhythmRow);
     await scenario(browser,'plan-correction-failure-and-focus',390,3,true,planCorrectionRow);
+    await scenario(browser,'plan-ordering-protect-delayed',390,3,true,p=>correctionOrderingRow(p,'Protect','hold'));
+    await scenario(browser,'plan-ordering-protect-error',390,3,true,p=>correctionOrderingRow(p,'Protect','error'));
+    await scenario(browser,'plan-ordering-protect-loading',390,3,true,p=>correctionOrderingRow(p,'Protect','loading'));
+    await scenario(browser,'plan-ordering-protect-keyboard',390,3,true,p=>correctionOrderingRow(p,'Protect','hold','keyboard'));
+    await scenario(browser,'plan-ordering-protect-pointer',390,3,true,p=>correctionOrderingRow(p,'Protect','hold','pointer'));
+    await scenario(browser,'plan-ordering-protect-date',390,3,true,p=>correctionOrderingRow(p,'Protect','hold','date'));
+    await scenario(browser,'plan-ordering-unprotect-error',390,3,true,p=>correctionOrderingRow(p,'Unprotect','error'));
+    await scenario(browser,'plan-ordering-move-delayed',390,3,true,p=>correctionOrderingRow(p,'Move','hold'));
+    await scenario(browser,'plan-ordering-protect-desktop',1280,3,true,p=>correctionOrderingRow(p,'Protect','hold'));
+    for (const input of ['keyboard','pointer']) {
+      for (const delivery of ['immediate','delayed','missing']) {
+        for (const crossDay of [false,true]) for (const stableId of [false,true]) {
+          const name=`plan-lifecycle-move-${input}-${delivery}-${crossDay?'cross':'same'}-${stableId?'stable':'replaced'}`;
+          await scenario(browser,name,390,3,true,p=>pendingCorrectionRow(p,{input,delivery,crossDay,stableId}));
+        }
+      }
+      await scenario(browser,`plan-lifecycle-move-${input}-failure`,390,3,true,p=>pendingCorrectionRow(p,{input,delivery:'immediate',failure:true}));
+      for (const action of ['Protect','Unprotect']) {
+        await scenario(browser,`plan-lifecycle-${action.toLowerCase()}-${input}-owned`,390,3,true,p=>pendingCorrectionRow(p,{input,action}));
+      }
+    }
+    await scenario(browser,'plan-lifecycle-move-keyboard-desktop',1280,3,true,p=>pendingCorrectionRow(p,{input:'keyboard',delivery:'immediate'}));
     await scenario(browser,'reduced-day-changed-eligible-undo',390,3,false,reducedRow);
     await scenario(browser,'relief-zero',390,0,false,p=>reliefRow(p,0,'Narrow Today'));
     await scenario(browser,'relief-multiple-narrow',390,3,false,p=>reliefRow(p,3,'Narrow Today'));
     await scenario(browser,'relief-multiple-park',390,3,false,p=>reliefRow(p,3,'Park extras safely'));
     assert.deepEqual(errors,[],'Runtime page errors');
   } finally {
-    const result={originalReviewedSourceCommit:manifest.reviewedSourceCommit,correctionParentHead:manifest.correctionParentHead,correctionBase:manifest.correctionBase,runtimeSourceSha256:fingerprint(),applicationSourceTree:manifest.applicationSourceTree,sourceState:'fingerprinted working tree; source tree recorded in manifest',checkoutCommit:execFileSync('git',['rev-parse','HEAD'],{cwd:root}).toString().trim(),server:'fresh loopback Vite serving fingerprinted checkout (not hosted preview)',browser:browser?await browser.version():null,playwright:require('playwright/package.json').version,timezone:'Australia/Perth',clock:manifest.clock,builtFiles:builtFiles(),rows,errors,screenshots};
+    const result={runAtUtc:new Date().toISOString(),postMergeCorrectionBase:manifest.postMergeCorrectionBase,focusLifecycleReviewedHead:manifest.focusLifecycleReviewedHead,originalReviewedSourceCommit:manifest.reviewedSourceCommit,correctionParentHead:manifest.correctionParentHead,correctionBase:manifest.correctionBase,runtimeSourceSha256:fingerprint(),applicationSourceTree:manifest.applicationSourceTree,sourceState:'fingerprinted working tree; source tree recorded in manifest',checkoutCommit:execFileSync('git',['rev-parse','HEAD'],{cwd:root}).toString().trim(),server:'fresh loopback Vite serving fingerprinted checkout (not hosted preview)',browser:browser?await browser.version():null,playwright:require('playwright/package.json').version,timezone:'Australia/Perth',clock:manifest.clock,builtFiles:builtFiles(),rows,errors,screenshots};
     fs.writeFileSync(path.join(output,'row-results.json'),JSON.stringify(result,null,2)+'\n');
     if(browser) await browser.close(); server.kill();
   }

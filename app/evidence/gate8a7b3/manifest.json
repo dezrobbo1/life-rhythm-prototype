@@ -2,8 +2,8 @@
   "reviewedSourceCommit": "b1ae38bc56bf6f1205e9163fa3c3e81536cd753d",
   "reviewedFullTree": "e9a458aa0ec0448d256491d44a988fa7669a8c14",
   "baseCommit": "add82b74082f3bf347191d6ce97de2816169f4eb",
-  "applicationSourceTree": "0a1170ed53e231fee701a39c49768d3dad7cf180",
-  "runtimeSourceSha256": "36ef6075013f99b54804f0f7cf015ad908e00e8b459951388cf957db64be49cb",
+  "applicationSourceTree": "5e81e3cfbd80b39f10b91933d4387adfc36b6194",
+  "runtimeSourceSha256": "9bb8f8a0968dc669c73a1e311c6ee64b349d810df0dc69dd5e2def8c8f537db9",
   "fingerprintAlgorithm": "SHA256 of sorted tracked runtime paths + NUL + raw bytes + NUL; includes src/tests and app package/lock/config/public/index, excludes docs/evidence",
   "clock": {
     "anchorUtc": "2026-10-05T01:00:00Z",
@@ -86,5 +86,11 @@
   "priorRuntimeSourceSha256": "d389265450ee09d77709a4cf15e7d6a1dbf67326e96997a58b5f11e128384a9a",
   "priorApplicationSourceTree": "5bc78ca338faea7362bb6b7afcfc8d03631d834d",
   "correctionParentHead": "aaa0a31ae26fd2e174ef45b780df553698f6d3a4",
-  "correctionBase": "c2ee838163497938e84b0a2044f3dc4ad961c2b6"
+  "correctionBase": "c2ee838163497938e84b0a2044f3dc4ad961c2b6",
+  "postMergeCorrectionBase": "f98cca4424cc482407fea1b2862d0d79a3c9a7b2",
+  "acceptedPrePostMergeApplicationSourceTree": "0a1170ed53e231fee701a39c49768d3dad7cf180",
+  "acceptedPrePostMergeRuntimeSourceSha256": "36ef6075013f99b54804f0f7cf015ad908e00e8b459951388cf957db64be49cb",
+  "focusLifecycleReviewedHead": "d9448dbe6291f892d72bf8264e3903b4781bcc8f",
+  "priorPostMergeApplicationSourceTree": "0c0083ea70e8f42bba9b2f4b1a1bf35dee6114d1",
+  "priorPostMergeRuntimeSourceSha256": "27e03248a630a467fcbeceb88c4af8420c4c3b47681b005d869889b65f2ca2d5"
 }

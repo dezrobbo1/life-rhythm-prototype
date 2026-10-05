@@ -447,6 +447,218 @@ describe('Personal Plan read states', () => {
     expect(document.activeElement).toBe(nextControl);
   });
 
+  it.each([
+    ['Protect', 'none'], ['Unprotect', 'none'], ['Move', 'none'],
+    ['Unprotect', 'keyboard'], ['Unprotect', 'pointer'], ['Unprotect', 'date'],
+    ['Unprotect', 'keyboard-before-save'], ['Unprotect', 'pointer-before-save'], ['Unprotect', 'date-before-save'],
+    ...['Protect', 'Unprotect', 'Move'].flatMap((action) =>
+      ['keyboard', 'pointer', 'date'].map((input) => [action, input + '-before-save-connected'])),
+    ['Move', 'keyboard'], ['Move', 'pointer'], ['Move', 'date'],
+    ['Move', 'keyboard-before-save'], ['Move', 'pointer-before-save'], ['Move', 'date-before-save'],
+    ['Protect', 'keyboard'], ['Protect', 'pointer'], ['Protect', 'date'],
+    ['Protect', 'keyboard-before-save'], ['Protect', 'pointer-before-save'], ['Protect', 'date-before-save'],
+  ])('restores delayed %s focus safely with %s cancellation', async (action, cancellation) => {
+    const user = userEvent.setup();
+    const source = {
+      id: 'old-focus', intentionId: 'focus-task', targetKind: 'intention' as const,
+      date: '2026-09-07', start: '09:00', end: '09:30', timezone: 'Australia/Perth',
+      origin: 'scheduler' as const, variantKind: 'normal' as const,
+      provenance: action === 'Unprotect' ? ['User explicitly protected this private placement.'] : [],
+    };
+    const successor = { ...source, id: 'new-focus', provenance: [] };
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true, plan: { ...emptyPlan, placements: [source] },
+      titleByTargetId: { 'focus-task': 'Ordering task' }, warnings: [],
+    });
+    let finishSave!: () => void;
+    correctionMocks[action === 'Protect' ? 'protectPrivatePlacement' : action === 'Move' ? 'movePrivatePlacement' : 'unprotectPrivatePlacement']
+      .mockImplementation(() => new Promise((resolve) => {
+        finishSave = () => resolve({ ok: true, repairPending: false, plan: { ...emptyPlan, placements: [successor] } });
+      }));
+    let rowId = source.id;
+    let date = source.date;
+    const surface = () => (
+      <AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+        <PersonalPlanScreen embeddedInDayLine dayLinePlacementIds={rowId ? [rowId] : []}
+          preferredPlacementDate={date}
+          renderDayLine={(correction) => <>{correction(rowId)}<button>Next control</button></>} />
+      </AppSnapshotProvider>
+    );
+    const rendered = render(surface());
+    await user.click(await screen.findByText('Correct Ordering task'));
+    await user.click(screen.getByRole('button', { name: action === 'Protect' ? 'Protect this time' : action === 'Move' ? 'Move' : 'Unprotect' }));
+    if (action === 'Move') await user.click(screen.getByRole('button', { name: 'Save move' }));
+    const savedMessage = action === 'Protect' ? 'This private time is protected.' : action === 'Move' ? 'Placement moved.' : 'Protection removed.';
+    const beforeSave = cancellation.includes('before-save');
+    const connectedExternal = cancellation.endsWith('connected');
+    const fallback = screen.getByText('Plan details').closest('summary');
+    if (!beforeSave) {
+      finishSave();
+      await screen.findByText(savedMessage);
+      // The private plan removed the old control, but the subscription has not published its successor.
+      await waitFor(() => expect(document.activeElement).toBe(fallback));
+      expect(fallback?.isConnected).toBe(true);
+      rowId = ''; // Loading/error: no Day Line row at all.
+      rendered.rerender(surface());
+      expect(document.activeElement).toBe(fallback);
+    }
+    const next = screen.getByRole('button', { name: 'Next control' });
+    if (cancellation !== 'none') {
+      next.focus();
+      if (cancellation.startsWith('keyboard')) await user.keyboard('{ArrowRight}');
+      else if (cancellation.startsWith('pointer')) await user.pointer({ target: next, keys: '[MouseLeft]' });
+      else { date = '2026-09-08'; rendered.rerender(surface()); }
+    }
+    if (cancellation !== 'none' && !connectedExternal) next.blur();
+    if (beforeSave) { finishSave(); await screen.findByText(savedMessage); }
+    rowId = successor.id;
+    rendered.rerender(surface());
+    await screen.findByText('Correct Ordering task');
+    await waitFor(() => expect(document.activeElement).toBe(cancellation === 'none'
+      ? screen.getByText('Correct Ordering task').closest('summary') : connectedExternal ? next : document.body));
+    // Repeated subscription commits cannot resurrect a cancelled request.
+    rendered.rerender(surface());
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
+    expect(document.activeElement).toBe(cancellation === 'none'
+      ? screen.getByText('Correct Ordering task').closest('summary') : connectedExternal ? next : document.body);
+  });
+
+  it.each(['Protect', 'Unprotect'].flatMap((action) =>
+    ['keyboard', 'pointer'].flatMap((input) => [true, false].map((success) => ({ action, input, success }))),
+  ))('keeps pending $action interaction owned by its correction: $input, success=$success', async ({ action, input, success }) => {
+    const user = userEvent.setup();
+    const source = {
+      id: 'owned-source', intentionId: 'owned-task', targetKind: 'intention' as const,
+      date: '2026-09-07', start: '09:00', end: '09:30', timezone: 'Australia/Perth',
+      origin: 'scheduler' as const, variantKind: 'normal' as const,
+      provenance: [action === 'Protect' ? 'Automatically placed by the deterministic scheduler.'
+        : 'User explicitly protected this private placement.'],
+    };
+    const successor = { ...source, id: 'owned-successor' };
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true, plan: { ...emptyPlan, placements: [source] }, titleByTargetId: { 'owned-task': 'Owned task' }, warnings: [],
+    });
+    let finish!: () => void;
+    correctionMocks[action === 'Protect' ? 'protectPrivatePlacement' : 'unprotectPrivatePlacement']
+      .mockImplementation(() => new Promise((resolve) => {
+        finish = () => resolve(success ? { ok: true, repairPending: false, plan: { ...emptyPlan, placements: [successor] } }
+          : { ok: false, errors: ['Synthetic failed protection.'] });
+      }));
+    let rowId = source.id;
+    const surface = () => (<AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+      <PersonalPlanScreen embeddedInDayLine dayLinePlacementIds={[rowId]} preferredPlacementDate={source.date}
+        renderDayLine={(correction) => correction(rowId)} />
+    </AppSnapshotProvider>);
+    const rendered = render(surface());
+    await user.click(await screen.findByText('Correct Owned task'));
+    await user.click(screen.getByRole('button', { name: action === 'Protect' ? 'Protect this time' : 'Unprotect' }));
+    const why = screen.getByText('Why this time?');
+    if (input === 'pointer') { await user.click(why); why.focus(); }
+    else { why.focus(); await user.keyboard('{ArrowRight}'); }
+    if (success) {
+      // A loading/error live read may remove our disclosure before the command settles.
+      rowId = ''; rendered.rerender(surface());
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByText('Plan details').closest('summary')));
+    }
+    finish();
+    if (success) {
+      await screen.findByText(action === 'Protect' ? 'This private time is protected.' : 'Protection removed.');
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByText('Plan details').closest('summary')));
+      rowId = successor.id; rendered.rerender(surface());
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByText('Correct Owned task').closest('summary')));
+    } else {
+      await screen.findByText('Synthetic failed protection.');
+      expect(document.activeElement).toBe(why);
+      expect(why.isConnected).toBe(true);
+    }
+  });
+
+  const pendingMoveCases = (['keyboard', 'pointer'] as const).flatMap((input) =>
+    (['immediate', 'delayed', 'missing'] as const).flatMap((delivery) =>
+      [false, true].flatMap((crossDay) => [false, true].map((stableId) => ({ input, delivery, crossDay, stableId }))),
+    ),
+  );
+  async function pendingMoveFixture(crossDay = false, stableId = false) {
+    const user = userEvent.setup();
+    const source = {
+      id: 'pending-move', intentionId: 'focus-task', targetKind: 'intention' as const,
+      date: '2026-09-07', start: '09:00', end: '09:30', timezone: 'Australia/Perth',
+      origin: 'scheduler' as const, variantKind: 'normal' as const, provenance: [],
+    };
+    const successor = { ...source, id: stableId ? source.id : 'moved-successor',
+      date: crossDay ? '2026-09-08' : source.date, start: '11:00', end: '11:30' };
+    coordinatorMocks.ensureCurrentPrivatePlan.mockResolvedValue({
+      ok: true, plan: { ...emptyPlan, placements: [source] },
+      titleByTargetId: { 'focus-task': 'Pending task' }, warnings: [],
+    });
+    let finishSave!: (ok?: boolean) => void;
+    correctionMocks.movePrivatePlacement.mockImplementation(() => new Promise((resolve) => {
+      finishSave = (ok = true) => resolve(ok
+        ? { ok: true, repairPending: false, plan: { ...emptyPlan, placements: [successor] } }
+        : { ok: false, errors: ['Synthetic failed save.'] });
+    }));
+    let rowId = source.id;
+    const surface = () => (<AppSnapshotProvider snapshot={emptyAppSnapshot} source="personal">
+      <PersonalPlanScreen embeddedInDayLine dayLinePlacementIds={rowId ? [rowId] : []}
+        preferredPlacementDate={source.date} renderDayLine={(correction) => correction(rowId)} />
+    </AppSnapshotProvider>);
+    const rendered = render(surface());
+    await user.click(await screen.findByText('Correct Pending task'));
+    await user.click(screen.getByRole('button', { name: 'Move' }));
+    if (crossDay) {
+      await user.clear(screen.getByLabelText('Move date'));
+      await user.type(screen.getByLabelText('Move date'), successor.date);
+    }
+    await user.click(screen.getByRole('button', { name: 'Save move' }));
+    return { user, successor, finishSave, showRow(id: string) { rowId = id; rendered.rerender(surface()); } };
+  }
+  it.each(pendingMoveCases)(
+    'recovers pending Move after $input inside modal: $delivery successor, crossDay=$crossDay, stableId=$stableId',
+    async ({ input, delivery, crossDay, stableId }) => {
+      const { user, successor, finishSave, showRow } = await pendingMoveFixture(crossDay, stableId);
+      if (input === 'keyboard') { screen.getByLabelText('Move date').focus(); await user.tab(); }
+      else await user.click(screen.getByLabelText('Move start time'));
+      const activeInput = document.activeElement;
+      expect(screen.getByRole('dialog').contains(activeInput)).toBe(true);
+      // Hold or publish the subscriber row independently of private-plan completion.
+      showRow(!crossDay && delivery === 'immediate' ? successor.id : '');
+      finishSave();
+      await screen.findByText('Placement moved.');
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      const fallback = screen.getByText('Plan details').closest('summary');
+      const destination = !crossDay && delivery === 'immediate'
+        ? screen.getByText('Correct Pending task').closest('summary') : fallback;
+      await waitFor(() => expect(document.activeElement).toBe(destination));
+      expect(destination?.isConnected).toBe(true);
+      expect(activeInput?.isConnected).toBe(false);
+      if (!crossDay && delivery === 'delayed') {
+        showRow(successor.id);
+        await waitFor(() => expect(document.activeElement).toBe(screen.getByText('Correct Pending task').closest('summary')));
+      }
+      // Input after close cancels restoration on later subscriber remounts.
+      await user.keyboard('{ArrowRight}');
+      fallback?.focus();
+      showRow('');
+      if (!crossDay && delivery !== 'missing') showRow(successor.id);
+      expect(document.activeElement).toBe(fallback);
+    },
+  );
+  it.each(['keyboard', 'pointer'] as const)(
+    'keeps failed pending Move focused in its open modal after %s input', async (input) => {
+      const { user, finishSave } = await pendingMoveFixture();
+      if (input === 'keyboard') { screen.getByLabelText('Move date').focus(); await user.tab(); }
+      else await user.click(screen.getByLabelText('Move start time'));
+      const active = document.activeElement;
+      finishSave(false);
+      await screen.findByText('Synthetic failed save.');
+      expect(document.activeElement).toBe(active);
+      expect(screen.getByRole('dialog').contains(active)).toBe(true);
+      expect(active?.isConnected).toBe(true);
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Move' }));
+    },
+  );
+
   it('rereads the accepted plan without closing Plan details when the plan revision changes', async () => {
     const user = userEvent.setup();
     const rendered = render(

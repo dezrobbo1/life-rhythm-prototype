@@ -1,0 +1,36 @@
+{
+  "reviewedHead": "d9448dbe6291f892d72bf8264e3903b4781bcc8f",
+  "base": "f98cca4424cc482407fea1b2862d0d79a3c9a7b2",
+  "disposition": "Block before merge: confirmed, correction requires targeted verification",
+  "renderedRedOnReviewedHead": {
+    "failed": 24,
+    "passed": 56,
+    "total": 80,
+    "failure": "Every pending Move success combination failed connected-destination recovery after internal Tab/click; earlier regressions and real external navigation/failure cases passed"
+  },
+  "sharedProtectUnprotectExtension": {
+    "functionalFailures": 4,
+    "fixtureFocusSetupFailures": 2,
+    "note": "Why-summary pointer activation in jsdom needed explicit summary focus to emulate browser focus; kept input event and focus assertions intact"
+  },
+  "browserRed": {
+    "row": "plan-lifecycle-move-keyboard-immediate-same-replaced",
+    "actualFocus": "BODY",
+    "expectedFocus": "Correct Send form summary",
+    "runtimeSha256": "064898bfbb79eff9da0e9aac6313dd78ad4b44cf1dc4f6e9d12922d25478b789",
+    "diagnosticAppSourceTree": "0f11b5d9269aac07c5c767aafa364ac9b5f90b90",
+    "source": "Reviewed production screen plus current rendered regression tests",
+    "browser": "151.0.7922.173",
+    "playwright": "1.62.1",
+    "result": "FAIL as expected"
+  },
+  "note": "The real Move coordinator completed successfully; only delivery of its result to the UI was held. No data loss was demonstrated.",
+  "pendingSurfaceRemovalRed": {
+    "failed": 4,
+    "passed": 84,
+    "total": 88,
+    "trigger": "Loading/error live read removes owned Protect/Unprotect disclosure before command result settles",
+    "expected": "Connected Plan details immediately while command remains pending",
+    "actual": "BODY before the pending-phase recovery was added"
+  }
+}
