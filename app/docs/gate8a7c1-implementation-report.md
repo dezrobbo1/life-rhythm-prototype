@@ -1,3 +1,11 @@
+# C1 same-origin admission correction — 2026-10-06 UTC
+
+Parent's native startup correction is independently verified, but native account verification still failed before any observed function invocation. [Complete bounded diagnosis](gate8a7c1-admission-diagnosis.md) traces pre-fetch/session/query and post-fetch/error branches without real token/DevTools access. A controlled real-browser admission fixture reproduced the exact client compatibility defect: `credentials:omit` discarded same-origin host-admission cookies and failed before the handler. The single production change is `credentials:same-origin`; bearer-only API authorization, Supabase tab memory, origins, grants/RLS and required-mode closure are unchanged. **Native confirmation remains NOT RUN; C1 is not PASS.** No provider/protection changes or new bypass credentials.
+
+Red-first browser regression now PASS, with omit and cookie-only denial controls. Refreshed **1,643 tests / 123 files UTC PASS**, **105 focused tests PASS**, build/typecheck/privacy/diff PASS. [Results](../evidence/gate8a7c1/admission-results.json), final executable manifest **316 files**, `17e972aef2ee5fd730d82341536acc61da65d9a871a6515d6c4311824472291b`. Same draft PR180, input head `3f87edce…`; parent handles targeted review and native stage correlation. Historical server/layout evidence below retains its source and limitations.
+
+---
+
 # C1 sign-in layout correction — 2026-10-06 UTC
 
 Owner separately requested this bounded surface correction on existing draft PR #180. Input head and base are the same as the native ESM correction below. This is a distinct UI change: a simple **Sign in** title on shared `--text-2xl`/`--leading-tight`, one-column form/field grids, labels above inputs, shared spacing, full-width controls with `--control-min-height` (44px) and `--text-base` (16px) inputs. Existing palette and focused card remain. The introductory wording is “Use the account set up for you”; restricted accounts, no personal-data upload, tab-only/reload behavior and unavailable recovery remain explicit. No signup, reset, session persistence or authentication behavior change.

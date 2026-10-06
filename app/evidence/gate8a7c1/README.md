@@ -1,3 +1,9 @@
+# Same-origin admission correction — 2026-10-06
+
+[Bounded diagnosis](../../docs/gate8a7c1-admission-diagnosis.md), [results](admission-results.json) and [browser regression](admission.spec.ts) cover the latest one-line request correction and its complete failure trace. Current executable manifest: 316 files / `17e972aef2ee5fd730d82341536acc61da65d9a871a6515d6c4311824472291b`; 1,643 tests / 123 files UTC PASS. Local non-secret admission is not native provider acceptance; C1 remains not PASS. Historical evidence below retains original attribution.
+
+---
+
 # C1 Supabase Auth evidence
 
 Current provider amendment is unmerged on [PR #180](https://github.com/dezrobbo1/life-rhythm-prototype/pull/180). [source-manifest.json](source-manifest.json) fingerprints the amended executable tree; [review-correction-results.json](review-correction-results.json) records current correction results; [supabase-auth-results.json](supabase-auth-results.json) retains the preceding reviewed source. Prior Clerk acceptance/review does not transfer.

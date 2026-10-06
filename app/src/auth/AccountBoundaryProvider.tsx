@@ -31,7 +31,9 @@ function BoundRequest({ children, getToken }: GateProps) {
           {
             method: 'GET',
             headers: { Authorization: `Bearer ${bearer}` },
-            credentials: 'omit',
+            // Existing same-origin deployment admission cookies may reach the edge.
+            // Application account authorization still requires the verified bearer.
+            credentials: 'same-origin',
             cache: 'no-store',
             signal: controller.signal,
           },

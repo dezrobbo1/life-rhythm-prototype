@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
   fireEvent,
+  act,
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AccountBoundaryGate } from './AccountBoundaryProvider';
@@ -19,6 +20,7 @@ const getToken = async () => 'synthetic.session.token';
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 const response = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -26,6 +28,62 @@ const response = (body: unknown, status = 200) =>
     headers: { 'content-type': 'application/json' },
   });
 describe('required account gate', () => {
+  it.each(['null', 'rejected'] as const)('does not issue a fetch when token acquisition is %s', async (failure) => {
+    const f = vi.fn();
+    vi.stubGlobal('fetch', f);
+    render(<AccountBoundaryGate accountId="A" sessionId="A" getToken={async () => {
+      if (failure === 'rejected') throw new Error('private');
+      return null;
+    }}><p>Ordinary app</p></AccountBoundaryGate>);
+    await screen.findByRole('alert');
+    expect(f).not.toHaveBeenCalled();
+    expect(screen.queryByText('Ordinary app')).toBeNull();
+  });
+  it('closes on a pending-token deadline and never issues a late fetch', async () => {
+    vi.useFakeTimers();
+    let release!: (value: string) => void;
+    const pending = new Promise<string>(resolve => { release = resolve; });
+    const f = vi.fn();
+    vi.stubGlobal('fetch', f);
+    render(<AccountBoundaryGate accountId="A" sessionId="A" getToken={() => pending}><p>Ordinary app</p></AccountBoundaryGate>);
+    await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+    expect(screen.getByRole('alert')).toBeTruthy();
+    await act(async () => { release('synthetic.session.token'); });
+    expect(f).not.toHaveBeenCalled();
+    expect(screen.queryByText('Ordinary app')).toBeNull();
+  });
+  it('aborts an issued fetch at the deadline and ignores a late successful response', async () => {
+    vi.useFakeTimers();
+    let release!: (value: Response) => void;
+    const pending = new Promise<Response>(resolve => { release = resolve; });
+    const f = vi.fn(() => pending);
+    vi.stubGlobal('fetch', f);
+    render(<AccountBoundaryGate accountId="A" sessionId="A" getToken={getToken}><p>Ordinary app</p></AccountBoundaryGate>);
+    await act(async () => { await Promise.resolve(); });
+    expect(f).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+    expect(screen.getByRole('alert')).toBeTruthy();
+    await act(async () => { release(response(ready)); });
+    expect(screen.queryByText('Ordinary app')).toBeNull();
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    ['network rejection', () => Promise.reject(new Error('private'))],
+    ['HTML admission response', () => new Response('<h1>Admission</h1>', { status: 401, headers: { 'content-type': 'text/html' } })],
+    ['missing body', () => new Response(null, { headers: { 'content-type': 'application/json' } })],
+    ['invalid JSON', () => new Response('{', { headers: { 'content-type': 'application/json' } })],
+    ['invalid UTF8', () => new Response(new Uint8Array([0xc3, 0x28]), { headers: { 'content-type': 'application/json' } })],
+    ['stream read error', () => new Response(new ReadableStream({ start(controller) { controller.error(new Error('private')); } }), { headers: { 'content-type': 'application/json' } })],
+    ['wrong ready status', () => response(ready, 201)],
+  ])('fails closed after an issued fetch: %s', async (_name, makeResponse) => {
+    const f = vi.fn(makeResponse as () => Response | Promise<Response>);
+    vi.stubGlobal('fetch', f);
+    render(<AccountBoundaryGate accountId="A" sessionId="A" getToken={getToken}><p>Ordinary app</p></AccountBoundaryGate>);
+    await screen.findByRole('alert');
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Ordinary app')).toBeNull();
+    expect(screen.queryByText('private')).toBeNull();
+  });
   it.each([401, 403, 426, 503, 409])(
     'never mounts ordinary content after %s',
     async (status) => {
@@ -76,7 +134,7 @@ describe('required account gate', () => {
         method: 'GET',
         headers: { Authorization: 'Bearer synthetic.session.token' },
         cache: 'no-store',
-        credentials: 'omit',
+        credentials: 'same-origin',
       }),
     ]);
     expect(JSON.stringify(f.mock.calls)).not.toContain('profile');

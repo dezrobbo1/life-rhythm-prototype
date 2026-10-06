@@ -1,0 +1,20 @@
+{
+  "dateUtc": "2026-10-06",
+  "inputHead": "3f87edce929ac4f9dcf1f17b6d847d21e4cbe934",
+  "base": "b58b7442c478770f9c0e1db9b6208c8c8e803e30",
+  "sourceFileCount": 316,
+  "sourceSha256": "17e972aef2ee5fd730d82341536acc61da65d9a871a6515d6c4311824472291b",
+  "scope": "One same-origin boundary fetch credentials-mode correction; host admission remains separate from bearer-only account authorization",
+  "red": {"browserRegressionsFailed": 1, "validLocalProbeBeforeHandlerDenials": 1, "validLocalProbeHandlerInvocations": 0, "signedInUi": true, "ordinaryContentMounted": false},
+  "green": {"browserRegressionsPassed": 1, "handlerInvocations": 1, "bearerPresent": true, "omitControlStatus": 401, "cookieOnlyControlStatus": 401},
+  "browser": {"chromium": "151.0.7922.173", "playwright": "1.63.0", "trust": "Non-secret loopback-only synthetic admission; not native Vercel/Supabase proof"},
+  "focused": {"tests": 105, "files": 3, "result": "PASS"},
+  "full": {"tests": 1643, "files": 123, "timezone": "UTC", "seconds": 49.44, "result": "PASS"},
+  "build": "PASS; existing chunk advisory",
+  "serverTypecheck": "PASS",
+  "privacy": "PASS",
+  "diff": "PASS",
+  "nativeCorrectedHeadAcceptance": "NOT RUN",
+  "c1": "NOT PASS",
+  "limitation": "No real request/header/token captured; native cause confirmation pending. Invalid initial disposable middleware probe excluded; no parent session/tab changed."
+}
