@@ -1,6 +1,6 @@
 {
   "algorithm": "sha256(sorted path + NUL + bytes + NUL)",
   "base": "b58b7442c478770f9c0e1db9b6208c8c8e803e30",
-  "sourceFileCount": 308,
-  "sourceSha256": "808674d283b0f6c9dd6d98e2ce0f2ab5f38e20a3f1e3db13a8ef940ed1a0877b"
+  "sourceFileCount": 309,
+  "sourceSha256": "aba28c61e163d169eb7f7b1d3bb688924d0bbf0a900a1f9e2731f782849cc339"
 }

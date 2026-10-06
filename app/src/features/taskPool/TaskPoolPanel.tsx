@@ -20,7 +20,7 @@ import {
 import { reconcileTaskDefinitionAfterWrite } from '../../data/taskDefinitionPlanReconciliation';
 import { updateUserTaskDefinition } from '../../data/taskDefinitionRepository';
 import { resolveTaskVersions } from './taskVersionInput';
-import { getCurrentLifeRhythmDatabase } from '../../data/localDataNamespace';
+import { captureLocalDataContext, getCurrentLifeRhythmDatabase } from '../../data/localDataNamespace';
 import { assertProfileRecoveryGeneration, captureProfileRecoveryGeneration, StaleProfileRecoveryError,
   STALE_PROFILE_RECOVERY_MESSAGE } from '../../data/profileRecoveryGeneration';
 import { TaskPoolDeferModal } from './TaskPoolDeferModal';
@@ -315,7 +315,9 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
     setTaskPoolFeedback(null);
     taskPoolWriteGenerationRef.current += 1;
 
-    const result = await captureTaskPoolItem(input);
+    const context = captureLocalDataContext();
+    const result = await captureTaskPoolItem(input, { store: context.database });
+    if (!context.isCurrent()) return result;
 
     if (!result.ok) {
       setTaskPoolFeedback({
@@ -326,8 +328,10 @@ export function TaskPoolPanel({ captureRevision = 0, onOpenPlan }: TaskPoolPanel
     }
 
     await refreshTaskPoolItems();
+    if (!context.isCurrent()) return result;
     setTaskPoolCaptureOpen(false);
-    const repaired = await reconcileTaskDefinitionAfterWrite('A user captured a task for quiet private planning.');
+    const repaired = await reconcileTaskDefinitionAfterWrite('A user captured a task for quiet private planning.', context.database);
+    if (!context.isCurrent()) return result;
     setTaskPoolFeedback({
       kind: 'success',
       lines: [repaired.ok

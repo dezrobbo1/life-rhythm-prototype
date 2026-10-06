@@ -1,5 +1,6 @@
 // SDK alias for the synthetic replay server only. Production uses the actual Supabase SDK.
 let auth = {
+  revision: 0,
   isLoaded: true,
   isSignedIn: false,
   userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -19,7 +20,8 @@ function session() {
               exp: Math.floor(Date.now() / 1000) + 60,
             }),
           ) +
-          '.synthetic',
+          '.synthetic-' +
+          auth.revision,
       }
     : null;
 }
@@ -28,6 +30,10 @@ export function setFixtureAuth(update: Partial<typeof auth>) {
   listeners.forEach((cb) =>
     cb(auth.isSignedIn ? 'SIGNED_IN' : 'SIGNED_OUT', session()),
   );
+}
+export function refreshFixtureAuth() {
+  auth.revision++;
+  listeners.forEach((cb) => cb('TOKEN_REFRESHED', session()));
 }
 export function createClient() {
   return {

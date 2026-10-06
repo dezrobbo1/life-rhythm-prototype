@@ -190,3 +190,66 @@ for (const width of [390, 1280]) {
     });
   });
 }
+
+for (const width of [390, 1280]) {
+  test.describe(`capture draft viewport ${width}`, () => {
+    test.use({ viewport: { width, height: 844 } });
+    test('refresh/repeated sign-in preserve capture and denial closes it', async ({
+      page,
+    }) => {
+      let requests = 0;
+      let deny = false;
+      const bearers: string[] = [];
+      await page.route('**/api/account/boundary?**', async (route) => {
+        requests++;
+        bearers.push(route.request().headers().authorization);
+        await route.fulfill({
+          status: deny ? 403 : 200,
+          contentType: 'application/json',
+          body: JSON.stringify(deny ? denied : ready),
+        });
+      });
+      await page.goto(url + '?mode=capture');
+      await page.getByLabel('Email').fill('synthetic@example.test');
+      await page.getByLabel('Password').fill('synthetic-password');
+      await page.getByRole('button', { name: 'Sign in' }).click();
+      await page.getByLabel('Task title').fill('My synthetic unsaved task');
+      await page
+        .getByLabel('Smallest useful action')
+        .fill('One synthetic line');
+      await page.evaluate(() =>
+        (
+          window as unknown as { refreshFixtureAuth: () => void }
+        ).refreshFixtureAuth(),
+      );
+      await expect.poll(() => requests).toBe(2);
+      await expect(page.getByLabel('Task title')).toHaveValue(
+        'My synthetic unsaved task',
+      );
+      await expect(page.getByLabel('Smallest useful action')).toHaveValue(
+        'One synthetic line',
+      );
+      expect(bearers[1]).not.toBe(bearers[0]);
+      await page.evaluate(() =>
+        (
+          window as unknown as { setFixtureAuth: (value: object) => void }
+        ).setFixtureAuth({ isSignedIn: true }),
+      );
+      await expect(page.getByLabel('Task title')).toHaveValue(
+        'My synthetic unsaved task',
+      );
+      expect(requests).toBe(2);
+      await expect(page.getByRole('dialog')).toBeVisible();
+      deny = true;
+      await page.evaluate(() =>
+        (
+          window as unknown as { refreshFixtureAuth: () => void }
+        ).refreshFixtureAuth(),
+      );
+      await expect(page.getByRole('alert')).toContainText(
+        'Account access is unavailable',
+      );
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    });
+  });
+}

@@ -1,8 +1,34 @@
-# C1 provider amendment — Supabase Auth
+# C1 consolidated review corrections — 2026-10-06 UTC
+
+Existing draft [PR #180](https://github.com/dezrobbo1/life-rhythm-prototype/pull/180), reviewed input head `617d886a66e2de7e315099eb0be47cfde69e96c7`, unchanged live base/main `b58b7442c478770f9c0e1db9b6208c8c8e803e30`. Published corrected head is recorded in PR #180. Executable fingerprint `aba28c61e163d169eb7f7b1d3bb688924d0bbf0a900a1f9e2731f782849cc339` (**309 files**). One consolidated correction pass; BoB asks the same reviewer for targeted verification. **Unmerged; C1 hosted acceptance remains BLOCK / NOT RUN.** No broad review or provider changes.
+
+All three completed-review findings had disposition **Block before merge**. They are corrected locally, pending independent targeted verification:
+
+1. **P1 pending capture crossed accounts.** Capture retains its initiating database before the first await, carries the preflight recovery generation into the atomic write, and keeps task/history/repair marking in that database. It may complete only in A; recovery replacement cancels it. Both ordinary capture callers retain a runtime namespace lease and stop their late UI/repair continuations after cleanup or switch, including A→B→A. A repair that has already begun carries the explicit initiating database through live reads, persistence and its bounded retry. Database names/hashing, legacy bytes, Dexie version and portable formats are preserved; no migration/deletion/sync/reset feature.
+2. **P2 harmless auth events erased drafts.** Identical same-session credentials retain the identity object and do not restart verification. Changed credentials in the same account/session recheck metadata with the new bearer while preserving previously verified content and its ordinary capture form. Denial, malformed/failed response or the existing six-second deadline closes it; changed account/session uses a new gate key, expiry and sign-out still close immediately, and superseded responses remain aborted/discarded. This is bounded revalidation, not instantaneous revocation.
+3. **P2 late logout erased B.** SDK login/logout mutations are serialized. Sign-out still closes UI immediately; subsequent login waits for the old SDK session removal, including failed HTTP logout. Command epochs retain pending-login/sign-out cancellation. Tests use the actual pinned Supabase SDK 2.117.2 with only synthetic HTTP responses, rather than replacing SDK methods.
+
+## Reproduction and validation
+
+Red-first primary reproduction on the reviewed implementation: **6 failures / 18 passes, three files** — A→B and A→legacy capture, real capture drafts on TOKEN_REFRESHED/repeated SIGNED_IN, and actual-SDK logout ordering for HTTP 204/500. No assertions or timeouts were weakened. Additional real-Dexie regressions cover recovery replacement, runtime lease invalidation and repair switching during an awaited read. Synthetic responsive replay adds two real-capture-form rows to the original 16.
+
+Final results are recorded in [review-correction-results.json](../evidence/gate8a7c1/review-correction-results.json) and [replay/source evidence](../evidence/gate8a7c1/README.md). Both full suites passed **1,626/1,626 tests, 121 files** (UTC 111.33s; Perth 111.55s). Node 22.23.3 and 24.19.0 each passed **263/263 focused tests, 15 files**, plus server typechecks. Actual PostgreSQL **17.11** grants/forced-RLS matrix and PostgREST **13.0.7** signed API/SDK **60/60 assertions** passed. Chromium **151.0.7922.173** / Playwright **1.63.0** passed **18/18** responsive rows, 390×844 and 1280×844. Final build, built-client privacy scan, API-before-SPA routing, exports/local-preservation controls and diff check passed; existing chunk-size advisory remains. Historical records below retain their own source attribution.
+
+The correction changes auth lifecycle, the directly affected local capture/repair call chain, tests/replay and documentation. Server/SQL schemas/protocol/dependencies are unchanged. Supabase guidance and official [Auth events](https://supabase.com/docs/reference/javascript/auth-onauthstatechange)/[sign-out](https://supabase.com/docs/reference/javascript/auth-signout) docs were checked against installed SDK source. Live changelog retrieval was unavailable (markdown tool limitation / terminal HTTP 403); no library upgrade or hosted capability inference.
+
+The first full UTC attempt exposed a **test setup error** after adding a direct Dexie import before `fake-indexeddb/auto`: IndexedDB was unavailable in two files (**23 failures / 1,603 passes**, 121 files, 116.05s). A focused two-file reproduction confirmed all 23 failures. Correcting import order restored the focused checks; final complete UTC/Perth runs retain all assertions/timeouts. The earlier TypeScript run rejected native Promise test deferrals because Dexie promises require `timeout`; the deferrals now use Dexie.Promise. These failures are not hidden or counted as final passes.
+
+## Remaining gate
+
+No Auth/account/credential configuration, hosted schema apply/access seed, Vercel environment/protection change, personal-profile upload, resource/spend or merge occurred. Dedicated project identity and its missing metadata schema remain the last read-only observations documented in the [setup runbook](gate8a7c1-setup-runbook.md); no new hosted capability is inferred. After targeted review, owner must authorize the exact non-production bundle there: restricted disposable Auth A/B accounts/signup policy, approved public asymmetric verification keys, only reviewed metadata migration/exposure/access fixtures, branch-specific Preview public configuration with exact origins and bounded native acceptance. Root `app`, native Auth/trust, recovery and hosted direct-provider isolation remain unverified. C2 real-data region/retention/deletion/operator access and migration consent are separate. Gate 8A8 remains BLOCK; 8B has not started.
+
+---
+
+# Historical reviewed provider amendment — Supabase Auth
 
 Owner approved replacing Clerk on existing draft [PR #180](https://github.com/dezrobbo1/life-rhythm-prototype/pull/180), 2026-10-05 UTC. This is local implementation, **unmerged and NOT ACCEPTED HOSTED**. Earlier Clerk code-review PASS is not transferable; BoB obtains fresh independent review. No new PR, hosted changes, personal-data upload or merge.
 
-Base/main `b58b7442c478770f9c0e1db9b6208c8c8e803e30`; preceding PR head `2330b45a1249cee3e98ccefa8ff3d3a968bdae02`. Final published head is recorded in PR #180 to avoid a recursive documentation hash. Current executable manifest: `808674d283b0f6c9dd6d98e2ce0f2ab5f38e20a3f1e3db13a8ef940ed1a0877b`, 308 files. [Durable results/replay](../evidence/gate8a7c1/README.md).
+Base/main `b58b7442c478770f9c0e1db9b6208c8c8e803e30`; preceding PR head `2330b45a1249cee3e98ccefa8ff3d3a968bdae02`. Final published head is recorded in PR #180 to avoid a recursive documentation hash. Reviewed provider-amendment executable manifest: `808674d283b0f6c9dd6d98e2ce0f2ab5f38e20a3f1e3db13a8ef940ed1a0877b`, 308 files. [Durable results/replay](../evidence/gate8a7c1/README.md).
 
 ## Result and source scope
 

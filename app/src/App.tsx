@@ -38,7 +38,7 @@ import {
 import { reconcileExistingPrivatePlanAfterDurationEvidenceChange } from './data/durationLearningPlanReconciliation';
 import { reconcileTaskDefinitionAfterWrite } from './data/taskDefinitionPlanReconciliation';
 import { repairCurrentPrivatePlan } from './data/schedulerPlanCoordinator';
-import { getCurrentLifeRhythmDatabase } from './data/localDataNamespace';
+import { captureLocalDataContext, getCurrentLifeRhythmDatabase } from './data/localDataNamespace';
 import { assertProfileRecoveryGeneration, captureProfileRecoveryGeneration,
   STALE_PROFILE_RECOVERY_MESSAGE, StaleProfileRecoveryError } from './data/profileRecoveryGeneration';
 import {
@@ -438,7 +438,9 @@ export default function App() {
 
   async function handleCaptureTask(input: TaskPoolCaptureInput): Promise<TaskPoolCaptureResult> {
     setCaptureFeedback(null);
-    const result = await captureTaskPoolItem(input);
+    const context = captureLocalDataContext();
+    const result = await captureTaskPoolItem(input, { store: context.database });
+    if (!context.isCurrent()) return result;
 
     if (!result.ok) {
       setCaptureFeedback({ kind: 'error', message: result.errors[0] ?? 'Task was not captured. Nothing else changed.' });
@@ -447,7 +449,8 @@ export default function App() {
 
     setCaptureOpen(false);
     setCaptureRevision((revision) => revision + 1);
-    const repaired = await reconcileTaskDefinitionAfterWrite('A user captured a task for quiet private planning.');
+    const repaired = await reconcileTaskDefinitionAfterWrite('A user captured a task for quiet private planning.', context.database);
+    if (!context.isCurrent()) return result;
     // The accepted plan changed, or its automatic placements are now pending
     // repair. Refresh Today/Plan immediately while keeping their UI state.
     setPlanRevision((revision) => revision + 1);

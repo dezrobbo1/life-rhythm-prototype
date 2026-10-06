@@ -32,6 +32,7 @@ import {
   explicitPreferenceRulesForScheduler,
   loadExplicitPreferencesResult,
 } from './explicitPreferenceRepository';
+import type { LifeRhythmDatabase } from './db';
 import { getCurrentLifeRhythmDatabase } from './localDataNamespace';
 import {
   canonicalSchedulingInputSnapshot,
@@ -112,6 +113,8 @@ export type PrivatePlanActionResult =
     };
 
 export type PrivatePlanCoordinatorOptions = {
+  /** Retains the database that authorized an asynchronous caller. */
+  database?: LifeRhythmDatabase;
   horizonDays?: number;
   now?: Date;
   startDate?: string;
@@ -368,7 +371,7 @@ export async function buildCurrentLiveSchedulingContext(
   | { ok: true; context: LiveSchedulerContext; now: SchedulerRepairNow }
   | { ok: false; errors: string[]; warnings: string[] }
 > {
-  const database = getCurrentLifeRhythmDatabase();
+  const database = options.database ?? getCurrentLifeRhythmDatabase();
   if (options.expectedRecoveryGeneration !== undefined) {
     try {
       await assertProfileRecoveryGeneration(database, options.expectedRecoveryGeneration);
@@ -898,8 +901,10 @@ export async function ensureCurrentPrivatePlan(
 export async function repairCurrentPrivatePlan(
   request: PrivatePlanRepairRequest,
 ): Promise<PrivatePlanActionResult> {
+  const database = request.database ?? getCurrentLifeRhythmDatabase();
+  const boundRequest = { ...request, database };
   const attempt = async (): Promise<PrivatePlanActionResult> => {
-    const live = await buildCurrentLiveSchedulingContext(request);
+    const live = await buildCurrentLiveSchedulingContext(boundRequest);
     if (!live.ok) return live;
     const repaired = await repairAndPersistSchedulerPlan({
       nextInput: live.context.input,
@@ -909,7 +914,7 @@ export async function repairCurrentPrivatePlan(
       ...(request.releasePlacementIds ? { releasePlacementIds: request.releasePlacementIds } : {}),
       ...(request.surfacedPlacementIds ? { surfacedPlacementIds: request.surfacedPlacementIds } : {}),
       ...(request.pinnedPlacementIds ? { pinnedPlacementIds: request.pinnedPlacementIds } : {}),
-    }, undefined, undefined, undefined, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, live.context.schedulerStateSnapshot, {
+    }, database, undefined, undefined, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, live.context.schedulerStateSnapshot, {
       applied: live.context.durationLearningApplied,
       ...(live.context.durationLearningEventSnapshot
         ? { eventSnapshot: live.context.durationLearningEventSnapshot }

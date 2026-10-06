@@ -79,6 +79,7 @@ export function validateTaskPoolItemWrite(input: unknown): TaskPoolWriteResult {
 export async function saveTaskPoolItem(
   input: unknown,
   store: TaskPoolStore = getCurrentLifeRhythmDatabase(),
+  expectedRecoveryGeneration?: number,
 ): Promise<TaskPoolWriteResult> {
   const validated = validateTaskPoolItemWrite(input);
 
@@ -87,7 +88,7 @@ export async function saveTaskPoolItem(
   }
 
   if (store instanceof LifeRhythmDatabase) {
-    return store.transaction('rw', store.taskPoolItems, store.taskHistory, store.schedulerPlanState, async () => {
+    return profileWriteTransaction(store, [store.taskPoolItems, store.taskHistory, store.schedulerPlanState], async () => {
       const existing = await store.taskPoolItems.get(validated.item.id);
       if (existing) {
         return {
@@ -110,7 +111,7 @@ export async function saveTaskPoolItem(
         ...(validated.item.templateId ? { templateId: validated.item.templateId } : {}),
       }), store);
       return validated;
-    });
+    }, expectedRecoveryGeneration);
   }
 
   const existing = await store.taskPoolItems.get(validated.item.id);

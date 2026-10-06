@@ -1,3 +1,6 @@
+import { getCurrentLifeRhythmDatabase } from '../../data/localDataNamespace';
+import { LifeRhythmDatabase } from '../../data/db';
+import { captureProfileRecoveryGeneration, profileRecoveryErrorMessage } from '../../data/profileRecoveryGeneration';
 import type { TaskPoolItem } from '../../data/schemas';
 import {
   createTaskPoolItemId,
@@ -38,7 +41,17 @@ export async function captureTaskPoolItem(
   input: TaskPoolCaptureInput,
   options: CaptureTaskPoolItemOptions = {},
 ): Promise<TaskPoolCaptureResult> {
-  const readable = await loadTaskPoolItemsResult(options.store);
+  // Bind before the first await; namespace cleanup or account switch must never
+  // redirect this operation to a different account or the protected legacy root.
+  const store = options.store ?? getCurrentLifeRhythmDatabase();
+  let recoveryGeneration: number | undefined;
+  try {
+    recoveryGeneration = store instanceof LifeRhythmDatabase
+      ? await captureProfileRecoveryGeneration(store) : undefined;
+  } catch {
+    return { ok: false, errors: ['The local profile could not be verified. Try again.'] };
+  }
+  const readable = await loadTaskPoolItemsResult(store);
 
   if (readable.status === 'readFailed') {
     return {
@@ -73,10 +86,10 @@ export async function captureTaskPoolItem(
       status: 'captured',
       title: input.title,
       updatedAt: timestamp,
-    }, options.store);
-  } catch {
+    }, store, recoveryGeneration);
+  } catch (error) {
     return {
-      errors: ['Task was not captured because device storage could not be updated. Nothing else changed.'],
+      errors: [profileRecoveryErrorMessage(error, 'Task was not captured because device storage could not be updated. Nothing else changed.')],
       ok: false,
     };
   }

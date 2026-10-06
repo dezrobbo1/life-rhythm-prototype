@@ -1,0 +1,114 @@
+{
+  "dateUTC": "2026-10-06",
+  "status": "LOCAL VALIDATION PASS; TARGETED REVIEW PENDING; UNMERGED; HOSTED NOT RUN / C1 BLOCK",
+  "base": "b58b7442c478770f9c0e1db9b6208c8c8e803e30",
+  "reviewedInputHead": "617d886a66e2de7e315099eb0be47cfde69e96c7",
+  "publication": "Corrected head recorded in PR #180; no recursive documentation SHA update",
+  "sourceSha256": "aba28c61e163d169eb7f7b1d3bb688924d0bbf0a900a1f9e2731f782849cc339",
+  "sourceFiles": 309,
+  "corrections": [
+    {
+      "finding": "P1 capture across accounts",
+      "disposition": "Block before merge; corrected locally, targeted verification pending",
+      "proof": "Real Dexie A-to-B, A-to-legacy and same-session delayed preflight; A-only item/history, zero other task/history/repair rows; recovery replacement cancels; runtime lease rejects switch away/back; real repair retains A through delayed read"
+    },
+    {
+      "finding": "P2 same-session events erase drafts",
+      "disposition": "Block before merge; corrected locally, targeted verification pending",
+      "proof": "Real ordinary capture modal retains title/action/dialog on refreshed and repeated SIGNED_IN; refreshed bearer used for metadata recheck, identical token avoids redundant read; denial closes content; keyed account/session switch, expiry and late-response protections retained"
+    },
+    {
+      "finding": "P2 late logout erases newer session",
+      "disposition": "Block before merge; corrected locally, targeted verification pending",
+      "proof": "Actual SDK 2.117.2, synthetic HTTP only: B login waits for delayed A logout HTTP 204 and 500, then stays signed in; immediate UI closure and pending-login cancellation retained"
+    }
+  ],
+  "redFirst": {
+    "files": 3,
+    "failed": 6,
+    "passed": 18,
+    "source": "reviewed implementation plus primary reproduction tests"
+  },
+  "intermediateFailure": {
+    "UTC": {
+      "files": 121,
+      "failed": 23,
+      "passed": 1603,
+      "durationSeconds": 116.05
+    },
+    "cause": "Test Dexie import preceded fake-indexeddb/auto; focused two-file reproduction confirmed 23 failures; corrected import order, no weakened assertions/timeouts",
+    "typecheck": "Native Promise test deferrals lacked Dexie timeout; use Dexie.Promise, with polyfill imported first"
+  },
+  "node22": {
+    "version": "22.23.3",
+    "focusedPassed": 263,
+    "files": 15,
+    "durationSeconds": 10.13,
+    "serverTypecheck": "PASS"
+  },
+  "node24": {
+    "version": "24.19.0",
+    "focusedPassed": 263,
+    "files": 15,
+    "durationSeconds": 9.74,
+    "serverTypecheck": "PASS"
+  },
+  "UTC": {
+    "tests": 1626,
+    "files": 121,
+    "durationSeconds": 111.33,
+    "status": "PASS"
+  },
+  "Australia/Perth": {
+    "tests": 1626,
+    "files": 121,
+    "durationSeconds": 111.55,
+    "status": "PASS"
+  },
+  "database": {
+    "engine": "PostgreSQL 17.11",
+    "status": "PASS",
+    "scope": "isolated actual engine, normal roles, independent grants/forced RLS and A/B/missing/disabled/foreign claims/write-denial matrix; no hosted query"
+  },
+  "dataAPI": {
+    "engine": "PostgREST 13.0.7",
+    "assertions": 60,
+    "status": "PASS",
+    "scope": "isolated ephemeral signing keys, actual PostgreSQL/PostgREST/API/Supabase SDK; no native hosted Auth claim"
+  },
+  "browser": {
+    "engine": "Chromium 151.0.7922.173 / Playwright 1.63.0",
+    "rows": 18,
+    "durationSeconds": 13.7,
+    "viewports": [
+      "390x844",
+      "1280x844"
+    ],
+    "status": "PASS",
+    "scope": "production auth/session/UI plus real capture modal; synthetic test-server SDK alias and metadata interception",
+    "screenshots": "No screenshot delivery or physical-device acceptance claimed; replay/source manifest retained"
+  },
+  "build": "PASS; existing large-chunk advisory",
+  "clientPrivacy": "PASS; built client server/private/privileged/fixture scan; export/local-preservation checks in focused/full suites",
+  "routing": "PASS; local actual Node dispatch/API-before-SPA controls in server suite",
+  "diffCheck": "PASS",
+  "commands": [
+    "TZ=UTC npm test -- --maxWorkers=1",
+    "TZ=Australia/Perth npm test -- --maxWorkers=1",
+    "node node_modules/vitest/vitest.mjs run server src/auth src/account src/data/portableProfileBackup.test.ts src/data/localDataNamespace.test.ts src/data/schedulerPlanCoordinator.test.ts src/features/taskPool/taskPoolCapture.test.ts scripts/clientPrivacy.test.ts --maxWorkers=1",
+    "npm run typecheck:server",
+    "npm run test:database",
+    "npm run test:data-api",
+    "npm run build",
+    "npm run check:client-privacy",
+    "npm run test:browser:c1",
+    "npm run source:manifest",
+    "git diff --check"
+  ],
+  "hosted": "NOT RUN; exact native non-production approval bundle remains in setup runbook. No Auth/account/schema/env/protection/spend/personal-data/merge action",
+  "limitations": [
+    "Local tests do not establish native hosted Supabase Auth, hosted Data API policies, deployed root/routing or provider revocation",
+    "Live changelog retrieval unavailable (web unsupported markdown; terminal HTTP 403); no dependency update; pinned installed SDK source and official Auth event/signout docs checked",
+    "Memory-only sessions, no instantaneous revocation or server personal-data durability; C2/C3 and 8A8/8B acceptance unchanged"
+  ]
+}

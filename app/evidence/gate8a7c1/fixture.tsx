@@ -1,6 +1,7 @@
 import ReactDOM from 'react-dom/client';
 import { AuthBoundary } from '../../src/auth/AuthShell';
-import { setFixtureAuth } from './supabase-fixture';
+import { TaskPoolCaptureModal } from '../../src/features/taskPool/TaskPoolCaptureModal';
+import { refreshFixtureAuth, setFixtureAuth } from './supabase-fixture';
 import '../../src/styles/tokens.css';
 import '../../src/styles/themes.css';
 import '../../src/styles/global.css';
@@ -10,6 +11,9 @@ const mode = new URLSearchParams(location.search).get('mode');
 (
   window as unknown as { setFixtureAuth: typeof setFixtureAuth }
 ).setFixtureAuth = setFixtureAuth;
+(
+  window as unknown as { refreshFixtureAuth: typeof refreshFixtureAuth }
+).refreshFixtureAuth = refreshFixtureAuth;
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <AuthBoundary
     config={
@@ -33,6 +37,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <main data-testid="ordinary">
       <h1>Ordinary synthetic app</h1>
       <button>Local action</button>
+      {mode === 'capture' && (
+        <TaskPoolCaptureModal
+          open
+          onClose={() => {}}
+          onSave={() => ({ ok: false, errors: [] })}
+        />
+      )}
     </main>
   </AuthBoundary>,
 );

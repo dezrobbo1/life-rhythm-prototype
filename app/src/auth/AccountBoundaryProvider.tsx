@@ -18,7 +18,9 @@ function BoundRequest({ children, getToken }: GateProps) {
       controller.abort();
       if (active) setState('failed');
     }, 6000);
-    setState('loading');
+    // Previously verified same-session content survives credential refresh.
+    // A denied/failed recheck still closes it; changed identities have a new key.
+    setState((previous) => (previous === 'ready' ? previous : 'loading'));
     void (async () => {
       try {
         const bearer = await getToken();

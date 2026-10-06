@@ -1,8 +1,10 @@
 import 'fake-indexeddb/auto';
+import Dexie from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createAuthLocalDataNamespace,
   getCurrentLifeRhythmDatabase,
+  getLifeRhythmDatabaseForNamespace,
   resetCurrentLocalDataNamespace,
   setCurrentLocalDataNamespace,
 } from './localDataNamespace';
@@ -672,4 +674,34 @@ describe('live scheduler plan coordinator', () => {
     expect(await database.rhythmInstances.toArray()).toEqual(beforeRhythms);
   });
 
+});
+
+it('retains initiating repair database after an account switch during a live read', async () => {
+  const a = getCurrentLifeRhythmDatabase();
+  await saveLifeShape();
+  await a.taskPoolItems.put(task('task-a'));
+  expect((await ensureCurrentPrivatePlan(coordinatorOptions())).ok).toBe(true);
+  const b = getLifeRhythmDatabaseForNamespace(createAuthLocalDataNamespace('synthetic-repair-B'));
+  const originalGet = a.settings.get.bind(a.settings);
+  let release!: () => void;
+  vi.spyOn(a.settings, 'get').mockImplementationOnce((...args) => new Dexie.Promise((resolve, reject) => {
+    release = () => { originalGet(...args).then(resolve, reject); };
+  }));
+  try {
+    const pending = repairCurrentPrivatePlan({ ...coordinatorOptions(), reason: 'Synthetic capture repair', trigger: 'taskDefinitionChanged' });
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    setCurrentLocalDataNamespace(createAuthLocalDataNamespace('synthetic-repair-B'));
+    release();
+    expect((await pending).ok).toBe(true);
+    expect(await a.schedulerPlanState.count()).toBe(1);
+    expect(await b.settings.count()).toBe(0);
+    expect(await b.taskPoolItems.count()).toBe(0);
+    expect(await b.taskHistory.count()).toBe(0);
+    expect(await b.rhythmInstances.count()).toBe(0);
+    expect(await b.schedulerPlanState.count()).toBe(0);
+  } finally {
+    setCurrentLocalDataNamespace(createAuthLocalDataNamespace('unused-cleanup'));
+    await b.delete();
+    await a.delete();
+  }
 });

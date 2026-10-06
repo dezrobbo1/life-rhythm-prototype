@@ -76,6 +76,16 @@ export function SupabaseSessionProvider({
   const accepting = useRef(true),
     active = useRef(true),
     epoch = useRef(0);
+  const mutations = useRef<Promise<void>>(Promise.resolve());
+  const localLogout = useRef(false);
+  function enqueue<T>(operation: () => Promise<T>): Promise<T> {
+    const next = mutations.current.then(operation);
+    mutations.current = next.then(
+      () => {},
+      () => {},
+    );
+    return next;
+  }
   const issuer = url + '/auth/v1';
   useEffect(() => {
     active.current = true;
@@ -85,10 +95,21 @@ export function SupabaseSessionProvider({
       if (!active.current) return;
       if (event === 'SIGNED_OUT') {
         accepting.current = false;
-        epoch.current++;
+        if (!localLogout.current) epoch.current++;
       }
-      setIdentity(
-        accepting.current ? identityFromSession(session, issuer) : null,
+      const next = accepting.current
+        ? identityFromSession(session, issuer)
+        : null;
+      setIdentity((previous) =>
+        previous &&
+        next &&
+        previous.userId === next.userId &&
+        previous.sessionId === next.sessionId &&
+        previous.issuer === next.issuer &&
+        previous.bearer === next.bearer &&
+        previous.expiresAt === next.expiresAt
+          ? previous
+          : next,
       );
       setLoading(false);
     });
@@ -112,42 +133,53 @@ export function SupabaseSessionProvider({
     );
     return () => clearTimeout(timer);
   }, [identity, client]);
-  const signIn = async (email: string, password: string) => {
+  const signIn = (email: string, password: string) => {
     const attempt = ++epoch.current;
-    accepting.current = true;
+    accepting.current = false;
     setIdentity(null);
-    try {
-      const { error } = await client.auth.signInWithPassword({
-        email,
-        password,
-      });
+    return enqueue(async () => {
       if (!active.current || attempt !== epoch.current) return false;
-      if (error) {
-        accepting.current = false;
-        setIdentity(null);
+      accepting.current = true;
+      try {
+        const { error } = await client.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (!active.current || attempt !== epoch.current) return false;
+        if (error) {
+          accepting.current = false;
+          setIdentity(null);
+          return false;
+        }
+        client.auth.startAutoRefresh();
+        return true;
+      } catch {
+        if (active.current && attempt === epoch.current) {
+          accepting.current = false;
+          setIdentity(null);
+        }
         return false;
       }
-      client.auth.startAutoRefresh();
-      return true;
-    } catch {
-      if (active.current && attempt === epoch.current) {
-        accepting.current = false;
-        setIdentity(null);
-      }
-      return false;
-    }
+    });
   };
-  const signOut = async () => {
+  const signOut = () => {
     accepting.current = false;
     epoch.current++;
     setIdentity(null);
     setLoading(false);
     client.auth.stopAutoRefresh();
-    try {
-      await client.auth.signOut({ scope: 'local' });
-    } catch {
-      /* UI remains closed even if provider revocation fails. */
-    }
+    // SDK logout removes its current session after HTTP settles. A subsequent
+    // login must wait for that removal, even when the logout request fails.
+    return enqueue(async () => {
+      localLogout.current = true;
+      try {
+        await client.auth.signOut({ scope: 'local' });
+      } catch {
+        /* UI remains closed even if provider revocation fails. */
+      } finally {
+        localLogout.current = false;
+      }
+    });
   };
   const getToken = useCallback(
     async () => identity?.bearer ?? null,

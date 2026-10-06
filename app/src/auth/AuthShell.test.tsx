@@ -8,6 +8,7 @@ import {
   act,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TaskPoolCaptureModal } from '../features/taskPool/TaskPoolCaptureModal';
 import { AuthBoundary } from './AuthShell';
 import { readAuthConfig } from './authConfig';
 import {
@@ -255,13 +256,14 @@ describe('required Supabase sign-in', () => {
     await act(async () => vi.advanceTimersByTimeAsync(61000));
     expect(screen.queryByText('Ordinary app')).toBeNull();
   });
-  it('refresh for the same session retains account and rechecks metadata', async () => {
+  it('identical same-session refresh retains account without a redundant request', async () => {
     state.session = session();
     mount();
     await screen.findByText('Ordinary app');
     act(() => state.callback?.('TOKEN_REFRESHED', session()));
     await screen.findByText('Ordinary app');
     expect(getCurrentLocalDataNamespace().source).toBe('auth');
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
   it('sign-out during pending login ignores late session result', async () => {
     let finish!: () => void;
@@ -278,6 +280,70 @@ describe('required Supabase sign-in', () => {
     await login();
     act(() => state.callback?.('SIGNED_OUT', null));
     await act(async () => finish());
+    expect(screen.queryByText('Ordinary app')).toBeNull();
+  });
+});
+
+describe('same-session capture form preservation', () => {
+  it.each(['TOKEN_REFRESHED', 'SIGNED_IN'])(
+    'preserves ordinary capture draft on %s',
+    async (event) => {
+      state.session = session();
+      render(
+        <AuthBoundary config={enabled()}>
+          <TaskPoolCaptureModal
+            open
+            onClose={() => {}}
+            onSave={() => ({ ok: false, errors: [] })}
+          />
+        </AuthBoundary>,
+      );
+      const title = await screen.findByLabelText('Task title');
+      fireEvent.change(title, { target: { value: 'My unsaved task' } });
+      fireEvent.change(screen.getByLabelText('Smallest useful action'), {
+        target: { value: 'One private line' },
+      });
+      const refreshed =
+        event === 'TOKEN_REFRESHED'
+          ? {
+              ...session(),
+              access_token: session().access_token + '-refreshed',
+            }
+          : state.session;
+      act(() => state.callback?.(event, refreshed));
+      await waitFor(() =>
+        expect(
+          (screen.getByLabelText('Task title') as HTMLInputElement).value,
+        ).toBe('My unsaved task'),
+      );
+      expect(
+        (screen.getByLabelText('Smallest useful action') as HTMLInputElement)
+          .value,
+      ).toBe('One private line');
+      expect(screen.getByRole('dialog')).toBeTruthy();
+      if (event === 'TOKEN_REFRESHED') {
+        await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+        expect(vi.mocked(fetch).mock.calls[1][1]?.headers).toEqual({
+          Authorization:
+            'Bearer ' + (refreshed as { access_token: string }).access_token,
+        });
+      } else expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('closes preserved content when refreshed metadata denies access', async () => {
+    state.session = session();
+    mount();
+    await screen.findByText('Ordinary app');
+    vi.mocked(fetch).mockResolvedValueOnce(
+      Response.json({ kind: 'unavailable' }, { status: 403 }),
+    );
+    act(() =>
+      state.callback?.('TOKEN_REFRESHED', {
+        ...session(),
+        access_token: session().access_token + '-new',
+      }),
+    );
+    await screen.findByRole('alert');
     expect(screen.queryByText('Ordinary app')).toBeNull();
   });
 });
