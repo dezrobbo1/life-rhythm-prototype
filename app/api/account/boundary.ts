@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { handleBoundary } from '../../server/account/boundary';
+import { handleBoundary } from '../../server/account/boundary.js';
 /** Vercel Node entry; raw-header checks happen before constructing Fetch headers. */
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   let response: Response;

@@ -1,7 +1,7 @@
 import { createPublicKey } from 'node:crypto';
 import type { JSONWebKeySet } from 'jose';
 import { z } from 'zod';
-import type { SessionVerificationConfig } from './session';
+import type { SessionVerificationConfig } from './session.js';
 export type ServerConfig = SessionVerificationConfig & {
   supabaseUrl: string;
   publishableKey: string;

@@ -163,6 +163,9 @@ describe('required Supabase sign-in', () => {
   it('shows restricted login and truthful persistence/recovery without signup', async () => {
     mount();
     await screen.findByLabelText('Email');
+    expect(screen.getByRole('heading', { name: 'Sign in', level: 1 })).toBeTruthy();
+    expect(screen.getByText(/account set up for you/)).toBeTruthy();
+    expect(screen.getByText(/Login does not upload your/)).toBeTruthy();
     expect(screen.getByText(/Reloading requires sign-in/)).toBeTruthy();
     expect(
       screen.getByText(/Password recovery is not configured/),

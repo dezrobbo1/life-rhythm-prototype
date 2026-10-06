@@ -1,9 +1,9 @@
-import { boundedJson } from '../../src/account/boundedJson';
+import { boundedJson } from '../../src/account/boundedJson.js';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { headSchema, revisionSchema, type Head } from '../../src/account/accountBoundarySchema';
-import type { ServerConfig } from './config';
-import type { VerifiedAccount } from './session';
+import { headSchema, revisionSchema, type Head } from '../../src/account/accountBoundarySchema.js';
+import type { ServerConfig } from './config.js';
+import type { VerifiedAccount } from './session.js';
 export class BoundaryFailure extends Error {
   constructor(
     public readonly status: 400 | 401 | 403 | 409 | 426 | 503 | 405,

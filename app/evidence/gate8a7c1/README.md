@@ -35,3 +35,12 @@ See [implementation report](../../docs/gate8a7c1-implementation-report.md) and [
 `test/fixtures/audienceCases.ts` shares one 18-case matrix between real ephemeral RSA/Clerk API tests and the actual local PostgREST harness. With `audience: issued`, 15 rows require 401 and zero provider reads; three matching string/array rows require 200 and one read. Existing no-audience sessions remain supported. Reproduce with `npm run test:server` and `npm run test:data-api` (now **60 assertions**, including the original 24).
 
 The 14 browser rows in `results.json` and the prior PostgreSQL grants/forced-RLS matrix retain their original attribution to head `0b32f60cbe8a7808897c2908224c3dd60b8cd920` / fingerprint `463103fa4ad8c1a283c8a2fcecad55ae9281a228a14198ff997ee0d6725f02b3`. They are reused only for unchanged browser/client and SQL boundaries: no `app/src`, SQL/migration, browser fixture/replay, lockfile or CI source changed. Synthetic browser responses do not exercise the server verifier; refreshed signed API/Data API tests establish this correction. The earlier Perth suite remains historical timezone evidence; no scheduling/date/shared-schema behavior changed. This reuse is not native hosted trust or C1 PASS.
+# Bounded native ESM and sign-in corrections — 2026-10-06
+
+Same unmerged draft PR180, input `d35242d5b4a066ae111841934c5223bd0271c513`; exact new published head is in the PR/handoff. Final executable manifest: **312 files**, `477ea8f48ef6ddd7c8eac3e8defa2b186d0d58fe78dd8407358181854b4729e4`.
+
+- [Native ESM results](native-esm-correction-results.json): real emitted-function startup red/green, Node22/24 HTTP/typechecks and 60 isolated signed Data API assertions; no hosted PASS.
+- [Sign-in results](signin-layout-results.json) and [real-browser replay](signin-layout.spec.ts): two widths, focus/tab order, dimensions, busy/error states using actual SDK/intercepted synthetic HTTP. Run `npx --no-install playwright test --config playwright.c1-signin.config.ts`; screenshots replay into `/tmp/life-rhythm-c1-signin-screenshots`, never into the repository.
+- Final combined UTC suite: 1,627 tests / 122 files PASS; build and client privacy PASS. [Report](../../docs/gate8a7c1-implementation-report.md) keeps both scopes distinct and identifies native acceptance still pending. No new full 18/18 browser claim; prior independent fixture-timing caveat remains.
+
+---

@@ -4,10 +4,10 @@ import {
   parseBoundaryQuery,
   guardExpectedHead,
   type BoundaryResponse,
-} from '../../src/account/accountBoundarySchema';
-import { readServerConfig, type ServerConfig } from './config';
-import { verifySession } from './session';
-import { BoundaryFailure, readOwnHead } from './headRepository';
+} from '../../src/account/accountBoundarySchema.js';
+import { readServerConfig, type ServerConfig } from './config.js';
+import { verifySession } from './session.js';
+import { BoundaryFailure, readOwnHead } from './headRepository.js';
 type Dependencies = { config?: () => ServerConfig | null; fetch?: typeof fetch };
 function reply(body: BoundaryResponse, status: number) {
   return Response.json(boundaryResponseSchema.parse(body), {

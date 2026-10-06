@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:server": "vitest run server src/account",
+    "test:server": "vitest run server src/account scripts/serverEsm.test.ts",
     "typecheck:server": "tsc -p tsconfig.server.json",
     "test:database": "bash scripts/test-database.sh",
     "test:browser:c1": "playwright test --config playwright.c1.config.ts",

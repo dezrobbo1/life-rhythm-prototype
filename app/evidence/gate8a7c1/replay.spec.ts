@@ -27,7 +27,7 @@ for (const width of [390, 1280]) {
       await expect(page.getByTestId('ordinary')).toHaveCount(0);
       await page.goto(url);
       await expect(
-        page.getByRole('heading', { name: 'Life Rhythm trial access' }),
+        page.getByRole('heading', { name: 'Sign in', exact: true }),
       ).toBeVisible();
       await expect(page.getByTestId('ordinary')).toHaveCount(0);
       await page.keyboard.press('Tab');

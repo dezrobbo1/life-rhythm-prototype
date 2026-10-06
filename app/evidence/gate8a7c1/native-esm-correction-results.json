@@ -1,0 +1,20 @@
+{
+  "dateUtc": "2026-10-06",
+  "base": "b58b7442c478770f9c0e1db9b6208c8c8e803e30",
+  "inputHead": "d35242d5b4a066ae111841934c5223bd0271c513",
+  "sourceFileCount": 310,
+  "sourceSha256": "07f95f0b3c4e7a56f0261f78e1de786dbe5b14f29fe890e58572eb7a7556e47f",
+  "nativeRed": "ERR_MODULE_NOT_FOUND: emitted API import of server/account/boundary",
+  "testAuthoringFailure": "Initial child-script regex escape typo corrected before native red reproduction",
+  "node24": {"version": "24.19.0", "serverTypecheck": "PASS", "focusedTests": 142, "focusedFiles": 7, "fullTests": 1627, "fullFiles": 122, "fullSeconds": 51.89, "nativeHttpCases": 3},
+  "node22": {"version": "22.23.3", "timezone": "Australia/Perth", "serverTypecheck": "PASS", "focusedTests": 142, "focusedFiles": 7, "nativeHttpCases": 3},
+  "isolatedSignedDataApiAssertions": 60,
+  "build": "PASS; existing chunk-size advisory",
+  "clientPrivacy": "PASS",
+  "diffCheck": "PASS",
+  "hostedCorrectedBuildAcceptance": "NOT RUN",
+  "c1Gate": "NOT PASS",
+  "publication": "Same draft PR180; exact published head recorded in PR/handoff",
+  "scope": "Server emitted ESM imports/resolution and native startup regression only",
+  "reusedEvidence": "Unchanged SQL grants/RLS and browser/date boundaries retain original source attribution; independent browser replay remains 17/18"
+}

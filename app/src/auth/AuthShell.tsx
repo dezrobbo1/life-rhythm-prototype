@@ -122,13 +122,14 @@ function SignInForm() {
     <main className="auth-landing">
       <section className="auth-card">
         <p className="eyebrow">Restricted owner trial</p>
-        <h1>Life Rhythm trial access</h1>
+        <h1>Sign in</h1>
         <p>
-          Sign in with your operator-created account. Login does not upload your
-          Life Rhythm data.
+          Use the account set up for you. Login does not upload your Life Rhythm
+          data.
         </p>
         <p>Sign-in stays in this tab. Reloading requires sign-in again.</p>
         <form
+          className="auth-signin-form"
           onSubmit={async (e) => {
             e.preventDefault();
             if (busy) return;
@@ -143,26 +144,30 @@ function SignInForm() {
             }
           }}
         >
-          <label htmlFor="auth-email">Email</label>
-          <input
-            id="auth-email"
-            type="email"
-            autoComplete="username"
-            required
-            maxLength={254}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <label htmlFor="auth-password">Password</label>
-          <input
-            id="auth-password"
-            type="password"
-            autoComplete="current-password"
-            required
-            maxLength={256}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <div className="auth-signin-field">
+            <label htmlFor="auth-email">Email</label>
+            <input
+              id="auth-email"
+              type="email"
+              autoComplete="username"
+              required
+              maxLength={254}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="auth-signin-field">
+            <label htmlFor="auth-password">Password</label>
+            <input
+              id="auth-password"
+              type="password"
+              autoComplete="current-password"
+              required
+              maxLength={256}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
           <Button type="submit" variant="primary" disabled={busy}>
             {busy ? 'Signing in…' : 'Sign in'}
           </Button>
