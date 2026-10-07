@@ -1,3 +1,4 @@
+import { verifyAttribution } from "./admission.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -12,7 +13,6 @@ import {
   report,
   cleanup,
   withTimeout,
-  requireAttribution,
 } from "./policy.mjs";
 const sha = "a".repeat(40);
 const identity = {
@@ -205,11 +205,10 @@ test("cleanup attempts all resources and fails closed if one fails", async () =>
 });
 test("timeouts and missing secure deployment attribution block before credentials", async () => {
   await assert.rejects(withTimeout(() => new Promise(() => {}), 10));
-  assert.throws(() =>
-    requireAttribution({
-      deployment: manifest.deployment,
-      source: manifest.source,
-      origin: manifest.origin,
-    }),
-  );
+  await assert.rejects(verifyAttribution({ enabled: false }, "start"));
+});
+test("ordinary work stops at 18 minutes while local cleanup retains its two-minute window", () => {
+  const b = new Budget(Date.now() - 18 * 60 * 1000 - 1);
+  assert.throws(() => b.take());
+  b.take({ cleanup: true });
 });

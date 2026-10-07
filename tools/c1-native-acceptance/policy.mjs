@@ -115,7 +115,7 @@ export class Budget {
     this.signins = 0;
   }
   take({ signin = false, cleanup = false } = {}) {
-    check(Date.now() - this.start < 20 * 60 * 1000);
+    check(Date.now() - this.start < (cleanup ? 20 : 18) * 60 * 1000);
     check(this.requests < (cleanup ? 200 : 190));
     if (signin) {
       check(this.signins < 8);
@@ -273,12 +273,6 @@ export async function cleanup(actions) {
       failed = true;
     }
   check(!failed);
-}
-export function requireAttribution() {
-  // A reviewed manifest, mutable alias, READY label, response buildId, or caller-provided
-  // JSON cannot independently authenticate Vercel's project/deployment/source binding.
-  // No approved machine-readable authenticated channel is available to this job yet.
-  throw new Error("C1_DEPLOYMENT_ATTRIBUTION_BLOCK");
 }
 export function identityFromEnv(env = process.env) {
   return {

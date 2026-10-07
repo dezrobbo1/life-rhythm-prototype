@@ -1,6 +1,7 @@
 // Native adapters are never reached by run.mjs while attribution is blocked.
 // Imported by offline regression tests; no top-level network/browser activity.
 import { jwtVerify } from "jose";
+import { boundedText } from "./admission.mjs";
 import {
   manifest,
   check,
@@ -11,11 +12,12 @@ import {
   withTimeout,
   cleanup,
 } from "./policy.mjs";
-export function makeTransport(oidc, budget, fetcher = fetch) {
+export function makeTransport(oidc, budget, fetcher = fetch, stopSignal) {
   return async (
     url,
     { method = "GET", headers = {}, body, cleanup: closing = false } = {},
   ) => {
+    check(!stopSignal?.aborted);
     requestPolicy(url, method);
     budget.take({
       signin: new URL(url).searchParams.get("grant_type") === "password",
@@ -27,7 +29,9 @@ export function makeTransport(oidc, budget, fetcher = fetch) {
       body,
       redirect: "error",
       cache: "no-store",
-      signal: AbortSignal.timeout(10000),
+      signal: stopSignal
+        ? AbortSignal.any([stopSignal, AbortSignal.timeout(10000)])
+        : AbortSignal.timeout(10000),
     });
     check(
       !response.redirected &&
@@ -36,8 +40,8 @@ export function makeTransport(oidc, budget, fetcher = fetch) {
     );
     // HTTP API failures expected by the native matrix are allowed below; transport
     // rejects redirection, not normal denied/error API statuses.
-    const raw = await response.text();
-    check(raw.length <= 65536);
+    const raw =
+      response.status === 204 ? "" : await boundedText(response, 65536);
     let parsed;
     try {
       parsed = response.status === 204 && raw === "" ? null : JSON.parse(raw);
@@ -105,6 +109,27 @@ export function metadataCases(account, generation) {
     ],
   ].map(([query, status]) => ({ method: "GET", path: base + query, status }));
 }
+export async function readPositiveHead(tx, account, token, publishableKey) {
+  const select =
+    "enabled,subject,account_heads(protocol_version,canonical_schema_version,revision::text,generation)";
+  const provider =
+    manifest.provider +
+    "/rest/v1/trial_access?select=" +
+    encodeURIComponent(select) +
+    "&issuer=eq." +
+    encodeURIComponent(manifest.provider + "/auth/v1") +
+    "&enabled=eq.true&subject=eq.";
+  check(/^sb_publishable_[A-Za-z0-9_-]+$/.test(publishableKey));
+  const own = await tx(provider + account.uuid, {
+    headers: {
+      apikey: publishableKey,
+      Authorization: "Bearer " + token,
+      "Accept-Profile": "life_rhythm",
+    },
+  });
+  check(own.response.status === 200);
+  return positiveRows(own.body, account);
+}
 export async function runMetadata(tx, account, token, publishableKey) {
   const other = manifest.accounts.find((a) => a.label !== account.label);
   const select =
@@ -149,7 +174,14 @@ export async function runMetadata(tx, account, token, publishableKey) {
   );
   return head;
 }
-export async function login(tx, account, password, key, publishableKey) {
+export async function login(
+  tx,
+  account,
+  password,
+  key,
+  publishableKey,
+  onSession = () => {},
+) {
   check(
     typeof password === "string" &&
       password.length > 0 &&
@@ -163,6 +195,11 @@ export async function login(tx, account, password, key, publishableKey) {
       body: JSON.stringify({ email: account.email, password }),
     },
   );
+  if (
+    result.response.status === 200 &&
+    typeof result.body?.access_token === "string"
+  )
+    onSession(result.body);
   check(
     result.response.status === 200 &&
       result.body.user?.id === account.uuid &&
@@ -171,7 +208,14 @@ export async function login(tx, account, password, key, publishableKey) {
   await verifySession(result.body.access_token, account, key);
   return result.body;
 }
-export async function refresh(tx, account, session, key, publishableKey) {
+export async function refresh(
+  tx,
+  account,
+  session,
+  key,
+  publishableKey,
+  onSession = () => {},
+) {
   const result = await tx(
     manifest.provider + "/auth/v1/token?grant_type=refresh_token",
     {
@@ -180,6 +224,11 @@ export async function refresh(tx, account, session, key, publishableKey) {
       body: JSON.stringify({ refresh_token: session.refresh_token }),
     },
   );
+  if (
+    result.response.status === 200 &&
+    typeof result.body?.access_token === "string"
+  )
+    onSession(result.body);
   check(
     result.response.status === 200 &&
       result.body.user?.id === account.uuid &&
@@ -211,6 +260,7 @@ export async function browserRow(
   budget,
   key,
   publishableKey,
+  expectedHead,
 ) {
   const context = await browser.newContext({
     viewport: { width, height: 844 },
@@ -219,6 +269,8 @@ export async function browserRow(
   });
   let failure = false,
     session = null,
+    logoutAttempted = false,
+    sessionId = null,
     signins = 0;
   const pending = [];
   try {
@@ -250,12 +302,33 @@ export async function browserRow(
         });
         check(response.status() < 300 || response.status() >= 400);
         check(response.status() !== 429);
-        if (u.origin === manifest.provider && u.pathname === "/auth/v1/logout")
+        if (
+          request.method() === "POST" &&
+          u.origin === manifest.provider &&
+          u.pathname === "/auth/v1/logout"
+        ) {
+          logoutAttempted = true;
           check(response.status() === 204);
-        if (u.origin === manifest.provider && u.pathname === "/auth/v1/token") {
+        }
+        if (
+          request.method() === "POST" &&
+          u.origin === manifest.provider &&
+          u.pathname === "/auth/v1/token"
+        ) {
           const data = await response.json();
+          if (
+            response.status() === 200 &&
+            typeof data?.access_token === "string"
+          )
+            session = data;
           check(response.status() === 200 && data.user?.id === account.uuid);
-          await verifySession(data.access_token, account, key);
+          const nextSessionId = await verifySession(
+            data.access_token,
+            account,
+            key,
+          );
+          check(sessionId === null || sessionId === nextSessionId);
+          sessionId = nextSessionId;
           session = data;
         }
         if (
@@ -271,6 +344,7 @@ export async function browserRow(
             body,
             200,
             account,
+            expectedHead.generation,
           );
         }
         await route.fulfill({ response });
@@ -343,17 +417,11 @@ export async function browserRow(
     // No screenshot of authenticated DOM, inputs, provider content or storage.
     return "ui-" + width;
   } finally {
-    if (session)
+    if (session && !logoutAttempted)
       pending.push(() =>
         logout(makeTransport(oidc, budget), session, publishableKey),
       );
     pending.push(() => context.close());
     await cleanup(pending);
   }
-}
-// Suite orchestration will be wired only with an independently authenticated
-// attribution adapter at both boundaries. Callers cannot provide boolean proof.
-export async function runNative() {
-  const { requireAttribution } = await import("./policy.mjs");
-  requireAttribution();
 }

@@ -42,6 +42,9 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      pull-requests: read
+      checks: read
+      statuses: read
     defaults:
       run:
         working-directory: tools/c1-native-acceptance
@@ -57,18 +60,29 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm test
-      # No secret expressions are wired while the independent attribution channel
-      # is unavailable. Enabling a variable cannot bypass this code-level gate.
+      # Verify the reviewed attribution interface before entering the secret step.
+      # Disabled/missing signer configuration fails; variables cannot bypass it.
       - name: Require authenticated deployment attribution (currently BLOCK)
-        run: node run.mjs
+        run: node run.mjs --admission
         env:
           C1_ENABLED: ${{ vars.C1_NATIVE_ENABLED }}
           C1_TRUSTED_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
           C1_HARNESS_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
+      - name: Run bounded native acceptance
+        run: |
+          ulimit -c 0
+          node run.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          C1_ENABLED: ${{ vars.C1_NATIVE_ENABLED }}
+          C1_TRUSTED_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
+          C1_HARNESS_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
+          C1_ACCOUNT_A_PASSWORD: ${{ secrets.C1_ACCOUNT_A_PASSWORD }}
+          C1_ACCOUNT_B_PASSWORD: ${{ secrets.C1_ACCOUNT_B_PASSWORD }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: failure()
+        if: always()
         with:
-          name: c1-sanitized-block
+          name: c1-sanitized-results
           path: tools/c1-native-acceptance/artifacts/results.json
           if-no-files-found: ignore
           retention-days: 7

@@ -4,18 +4,27 @@
   "base": "b58b7442c478770f9c0e1db9b6208c8c8e803e30",
   "applicationTarget": "5e08c55918eaf64be02d210b17fbcd11c7ec34bf",
   "node": "24.19.0",
-  "harness": { "tests": 22, "passed": 22, "failed": 0 },
-  "applicationAggregate": { "files": 111, "tests": 1454, "passed": 1454, "failed": 0 },
+  "harness": {
+    "tests": 36,
+    "passed": 36,
+    "failed": 0
+  },
+  "applicationAggregate": {
+    "files": 111,
+    "tests": 1454,
+    "passed": 1454,
+    "failed": 0
+  },
   "applicationBuild": "PASS_WITH_EXISTING_CHUNK_ADVISORY",
   "yamlParse": "PASS",
   "whitespace": "PASS",
   "hosted": "NOT_RUN",
   "gate": "BLOCK",
-  "deploymentAttribution": "BLOCKED_NO_AUTHORIZED_AUTHENTICATED_CHANNEL",
+  "deploymentAttribution": "SIGNED_INTERFACE_IMPLEMENTED_DISABLED_NO_AUTHORIZED_PRODUCER",
   "browserExecution": "NOT_RUN",
-  "publicConfigExtraction": "NOT_IMPLEMENTED_GATE_BLOCKED",
-  "githubOidcIssuance": "NOT_IMPLEMENTED_GATE_BLOCKED",
-  "nativeOrchestration": "NOT_WIRED_GATE_BLOCKED",
+  "publicConfigExtraction": "IMPLEMENTED_OFFLINE_VERIFIED_HOSTED_NOT_RUN",
+  "githubOidcIssuance": "IMPLEMENTED_OFFLINE_CRYPTO_VERIFIED_HOSTED_NOT_RUN",
+  "nativeOrchestration": "IMPLEMENTED_OFFLINE_VERIFIED_HOSTED_NOT_RUN",
   "independentReview": "PENDING_PARENT",
   "providersChanged": false,
   "secretsConfigured": false,
@@ -24,6 +33,8 @@
   "history": [
     "Initial regression imports failed before implementation existed.",
     "Workflow static-test parsing was corrected for comments and the statuses key.",
-    "Caller-supplied protection-header leak reproduced offline, then stripped case-insensitively; final suite passed."
-  ]
+    "Caller-supplied protection-header leak reproduced offline, then stripped case-insensitively; final suite passed.",
+    "Completed previously missing public-config/OIDC/orchestration paths and signed attribution consumer after parent feedback; no hosted activity."
+  ],
+  "applicationEvidenceReuse": "Application tree unchanged; prior 1454-test/build evidence reused under AGENTS.md; not rerun for isolated harness edits."
 }
