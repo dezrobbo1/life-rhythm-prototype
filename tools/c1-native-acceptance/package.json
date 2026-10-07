@@ -11,6 +11,7 @@
     "native": "node run.mjs"
   },
   "dependencies": {
+    "acorn": "8.15.0",
     "jose": "6.1.0",
     "playwright": "1.63.0"
   }

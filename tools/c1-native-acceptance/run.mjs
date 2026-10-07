@@ -1,7 +1,9 @@
+import { cancellation, jobWindow } from "./lifecycle.mjs";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { guardIdentity, identityFromEnv, report, check } from "./policy.mjs";
 import { verifyAttribution } from "./admission.mjs";
 import { executeAcceptance } from "./orchestrator.mjs";
+const lifecycle = cancellation();
 let result = report(),
   success = false;
 try {
@@ -12,11 +14,14 @@ try {
     ),
   );
   if (process.argv.includes("--admission")) {
+    jobWindow(process.env);
+    check(!lifecycle.signal.aborted);
     guardIdentity(identityFromEnv(), process.env.C1_TRUSTED_SHA);
     await verifyAttribution(config, "start");
+    check(!lifecycle.signal.aborted);
     success = true;
   } else {
-    result = await executeAcceptance(process.env, config);
+    result = await executeAcceptance(process.env, config, {}, lifecycle.signal);
     success = result.hosted === "SCOPED_ROWS_COMPLETE";
   }
 } catch {
@@ -38,3 +43,5 @@ console.log(
       : "C1_NATIVE_ATTEMPT_BLOCKED",
 );
 process.exitCode = success ? 0 : 1;
+
+lifecycle.dispose();

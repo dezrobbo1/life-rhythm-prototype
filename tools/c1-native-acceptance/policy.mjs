@@ -67,55 +67,151 @@ export function guardClaims(c, sha) {
       c.exp < Date.now() / 1000 + 900,
   );
 }
+export const providerSelect = Object.freeze({
+  trial_access:
+    "enabled,subject,account_heads(protocol_version,canonical_schema_version,revision::text,generation)",
+  account_heads:
+    "subject,protocol_version,canonical_schema_version,revision::text,generation",
+});
 export function scopedHeaders(input, oidc, existing = {}) {
   const u = new URL(input);
   check(!u.username && !u.password && !u.hash);
   check([manifest.origin, manifest.provider].includes(u.origin));
-  const safe = Object.fromEntries(
-    Object.entries(existing).filter(
-      ([name]) => !name.toLowerCase().startsWith("x-vercel-"),
-    ),
-  );
-  return u.origin === manifest.origin
-    ? { ...safe, "x-vercel-trusted-oidc-idp-token": oidc }
-    : safe;
+  const caller = new Headers(existing),
+    safe = {};
+  // Project known protocol fields; never forward arbitrary page-controlled headers.
+  if (u.origin === manifest.origin) {
+    safe["x-vercel-trusted-oidc-idp-token"] = oidc;
+    if (u.pathname === "/api/account/boundary") {
+      safe.Origin = manifest.origin;
+      if (caller.has("authorization"))
+        safe.Authorization = caller.get("authorization");
+    }
+  } else {
+    if (u.pathname !== "/auth/v1/.well-known/jwks.json" && caller.has("apikey"))
+      safe.apikey = caller.get("apikey");
+    if (
+      (u.pathname.startsWith("/rest/v1/") ||
+        ["/auth/v1/user", "/auth/v1/logout"].includes(u.pathname)) &&
+      caller.has("authorization")
+    )
+      safe.Authorization = caller.get("authorization");
+    if (u.pathname.startsWith("/rest/v1/"))
+      safe["Accept-Profile"] = "life_rhythm";
+    if (u.pathname === "/auth/v1/token")
+      safe["content-type"] = "application/json";
+  }
+  return safe;
 }
-export function requestPolicy(input, method = "GET", redirected = false) {
+export function requestPolicy(
+  input,
+  method = "GET",
+  redirected = false,
+  assets = new Set(),
+) {
   const u = new URL(input);
   scopedHeaders(input, "");
   check(!redirected);
-  if (u.origin === manifest.origin)
+  if (u.origin === manifest.origin) {
     check(method === "GET" || method === "HEAD");
-  else if (method === "OPTIONS")
-    check(
-      ["/rest/v1/trial_access", "/auth/v1/token", "/auth/v1/logout"].includes(
-        u.pathname,
+    if (u.pathname === "/" || assets.has(u.pathname)) {
+      check(!u.search);
+      return;
+    }
+    check(u.pathname === "/api/account/boundary");
+    const allowed = {
+      protocolVersion: /^(0|1|2)$/,
+      schemaVersion: /^(1|2)$/,
+      expectedRevision: /^(0|42|9007199254740993|9223372036854775808)$/,
+      expectedGeneration:
+        /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/,
+      owner: new RegExp(
+        "^(" + manifest.accounts.map((a) => a.uuid).join("|") + ")$",
       ),
-    );
-  else if (method === "GET")
+    };
+    for (const [key, value] of u.searchParams) check(allowed[key]?.test(value));
+    check([...u.searchParams].length <= 5);
+    return;
+  }
+  if (u.pathname.startsWith("/rest/v1/")) {
+    check(method === "GET");
+    const table = u.pathname.slice("/rest/v1/".length);
+    check(Object.hasOwn(providerSelect, table));
+    const wanted = {
+      select: providerSelect[table],
+      issuer: "eq." + manifest.provider + "/auth/v1",
+    };
+    if (table === "trial_access") wanted.enabled = "eq.true";
+    wanted.subject = u.searchParams.get("subject");
+    check(manifest.accounts.some((a) => wanted.subject === "eq." + a.uuid));
+    check([...u.searchParams].length === Object.keys(wanted).length);
+    for (const [k, v] of Object.entries(wanted))
+      check(u.searchParams.get(k) === v);
+    return;
+  }
+  if (
+    ["/auth/v1/user", "/auth/v1/.well-known/jwks.json"].includes(u.pathname)
+  ) {
+    check(method === "GET" && !u.search);
+    return;
+  }
+  check(method === "POST");
+  check(
+    (u.pathname === "/auth/v1/token" &&
+      ["?grant_type=password", "?grant_type=refresh_token"].includes(
+        u.search,
+      )) ||
+      (u.pathname === "/auth/v1/logout" && u.search === "?scope=local"),
+  );
+}
+export function authBody(url, body, expected = {}) {
+  const u = new URL(url);
+  if (u.origin !== manifest.provider || u.pathname !== "/auth/v1/token") {
+    check(body == null || body === "");
+    return;
+  }
+  const data = typeof body === "string" ? JSON.parse(body) : body;
+  if (u.search === "?grant_type=password") {
+    if (Object.hasOwn(data, "gotrue_meta_security")) {
+      keys(data.gotrue_meta_security, []); // Actual locked SDK sends an empty object; CAPTCHA is a stop.
+      keys(data, ["email", "password", "gotrue_meta_security"]);
+    } else keys(data, ["email", "password"]);
+    check(manifest.accounts.some((a) => a.email === data.email));
     check(
-      u.pathname === "/rest/v1/trial_access" ||
-        u.pathname === "/auth/v1/user" ||
-        u.pathname === "/auth/v1/.well-known/jwks.json",
+      typeof data.password === "string" &&
+        data.password.length > 0 &&
+        data.password.length <= 1024,
     );
-  else
+    if (expected.account)
+      check(
+        data.email === expected.account.email &&
+          data.password === expected.password,
+      );
+  } else {
+    keys(data, ["refresh_token"]);
     check(
-      method === "POST" &&
-        ((u.pathname === "/auth/v1/token" &&
-          ["password", "refresh_token"].includes(
-            u.searchParams.get("grant_type"),
-          )) ||
-          (u.pathname === "/auth/v1/logout" && u.search === "?scope=local")),
+      typeof data.refresh_token === "string" &&
+        data.refresh_token.length > 0 &&
+        data.refresh_token.length <= 8192,
     );
+    if (expected.session)
+      check(data.refresh_token === expected.session.refresh_token);
+  }
 }
 export class Budget {
-  constructor(start = Date.now()) {
+  constructor(start = Date.now(), deadline = start + 20 * 60 * 1000) {
+    check(
+      Number.isFinite(start) &&
+        Number.isFinite(deadline) &&
+        deadline <= start + 20 * 60 * 1000,
+    );
+    this.deadline = deadline;
     this.start = start;
     this.requests = 0;
     this.signins = 0;
   }
   take({ signin = false, cleanup = false } = {}) {
-    check(Date.now() - this.start < (cleanup ? 20 : 18) * 60 * 1000);
+    check(Date.now() < this.deadline - (cleanup ? 0 : 2 * 60 * 1000));
     check(this.requests < (cleanup ? 200 : 190));
     if (signin) {
       check(this.signins < 8);

@@ -38,6 +38,11 @@ test("workflow is manually dispatched, default-main guarded, isolated with passw
       workflow.indexOf("secrets.C1_ACCOUNT"),
   );
   assert.equal([...workflow.matchAll(/secrets\./g)].length, 2);
+  const native = workflow.slice(workflow.indexOf("  native:"));
+  assert(
+    native.indexOf("C1_JOB_STARTED_AT=") < native.indexOf("actions/checkout@"),
+  );
+  assert.match(native, /started \+ 19 \* 60 \* 1000/);
   assert.doesNotMatch(
     workflow,
     /app\/|test:data-api|vercel curl|env pull|continue-on-error/,
@@ -91,6 +96,8 @@ test("default disabled signer configuration blocks both real CLI paths without a
     const env = {
       ...process.env,
       NODE_OPTIONS: "--import " + hook,
+      C1_JOB_STARTED_AT: String(Date.now()),
+      C1_JOB_DEADLINE_MS: String(Date.now() + 19 * 60 * 1000),
       GITHUB_REPOSITORY: manifest.repository,
       GITHUB_REPOSITORY_ID: manifest.repositoryId,
       GITHUB_REPOSITORY_OWNER_ID: manifest.ownerId,

@@ -1,3 +1,4 @@
+import { parse } from "acorn";
 import { randomBytes } from "node:crypto";
 import { createLocalJWKSet, importJWK, jwtVerify } from "jose";
 import {
@@ -46,9 +47,9 @@ async function jsonRequest(url, init, fetcher, limit = 65536) {
   return JSON.parse(await boundedText(response, limit));
 }
 export function publicTextReader(oidc, budget, fetcher = fetch) {
-  return async (url) => {
+  return async (url, assets = new Set()) => {
     check(new URL(url).origin === manifest.origin);
-    requestPolicy(url, "GET");
+    requestPolicy(url, "GET", false, assets);
     budget.take();
     const r = await fetcher(url, {
       headers: scopedHeaders(url, oidc),
@@ -87,25 +88,201 @@ export async function readPublicConfig(getText) {
     modules.push(u.href);
   }
   check(modules.length === 1);
-  const text = await getText(modules[0]);
+  const assets = new Set(modules.map((u) => new URL(u).pathname));
+  // Only literal same-origin static URLs discovered before credentials are allowed.
+  for (const tag of html.matchAll(/<(?:link|script)\b[^>]*>/gi)) {
+    const match = tag[0].match(/\b(?:href|src)\s*=\s*["']([^"']+)["']/i);
+    if (!match) continue;
+    const u = new URL(match[1], manifest.origin);
+    check(
+      u.origin === manifest.origin &&
+        !u.search &&
+        !u.hash &&
+        /^\/assets\/[A-Za-z0-9_-]+\.(js|css)$/.test(u.pathname),
+    );
+    assets.add(u.pathname);
+  }
+  const text = await getText(modules[0], assets);
   check(typeof text === "string" && text.length <= 5 * 1024 * 1024);
-  const keys = [
-    ...new Set(text.match(/\bsb_publishable_[A-Za-z0-9_-]{1,256}\b/g) || []),
+  const ast = parse(text, { ecmaVersion: "latest", sourceType: "module" });
+  const candidates = [],
+    effectiveObjects = new Set();
+  const required = [
+    "VITE_SUPABASE_URL",
+    "VITE_SUPABASE_PUBLISHABLE_KEY",
+    "VITE_LIFE_RHYTHM_AUTH_ENABLED",
+    "VITE_LIFE_RHYTHM_MODE",
   ];
-  const urls = [
-    ...new Set(text.match(/https:\/\/[a-z0-9-]+\.supabase\.co\b/g) || []),
-  ];
+  function effective(node) {
+    if (!node || typeof node !== "object") return;
+    if (
+      [
+        "FunctionDeclaration",
+        "FunctionExpression",
+        "ArrowFunctionExpression",
+      ].includes(node.type)
+    ) {
+      for (const param of node.params)
+        if (
+          param.type === "AssignmentPattern" &&
+          param.left.type === "Identifier" &&
+          param.right.type === "ObjectExpression"
+        ) {
+          const names = param.right.properties.map(
+            (p) => p.key?.name ?? p.key?.value,
+          );
+          if (required.every((k) => names.includes(k))) {
+            const reads = new Set();
+            function findRead(n) {
+              if (!n || typeof n !== "object") return;
+              if (
+                n.type === "MemberExpression" &&
+                n.object.type === "Identifier" &&
+                n.object.name === param.left.name &&
+                !n.computed
+              )
+                reads.add(n.property.name);
+              for (const v of Object.values(n))
+                if (Array.isArray(v)) v.forEach(findRead);
+                else if (v && typeof v === "object") findRead(v);
+            }
+            findRead(node.body);
+            check(required.every((k) => reads.has(k)));
+            effectiveObjects.add(param.right);
+          }
+        }
+    }
+    for (const v of Object.values(node))
+      if (Array.isArray(v)) v.forEach(effective);
+      else if (v && typeof v === "object") effective(v);
+  }
+  effective(ast);
+  function literal(node) {
+    if (node.type === "Literal" && typeof node.value === "string")
+      return node.value;
+    if (node.type === "TemplateLiteral" && node.expressions.length === 0)
+      return node.quasis[0].value.cooked;
+    check(false);
+  }
+  function walk(node) {
+    if (!node || typeof node !== "object") return;
+    if (node.type === "ObjectExpression") {
+      const properties = node.properties;
+      const names = properties.map((p) =>
+        p.type === "Property" && !p.computed
+          ? (p.key.name ?? p.key.value)
+          : null,
+      );
+      if (effectiveObjects.has(node)) {
+        check(
+          names.every((n) => typeof n === "string") &&
+            new Set(names).size === names.length,
+        );
+        const selected = {};
+        for (const p of properties) {
+          const name = p.key.name ?? p.key.value;
+          if (
+            [
+              "VITE_SUPABASE_URL",
+              "VITE_SUPABASE_PUBLISHABLE_KEY",
+              "VITE_LIFE_RHYTHM_AUTH_ENABLED",
+              "VITE_LIFE_RHYTHM_MODE",
+            ].includes(name)
+          )
+            selected[name] = literal(p.value);
+        }
+        candidates.push(selected);
+      }
+    }
+    // A second executable public-key constant is ambiguous, even if unused.
+    if (
+      node.type === "Literal" &&
+      typeof node.value === "string" &&
+      /^sb_publishable_/.test(node.value)
+    )
+      check(/^sb_publishable_[A-Za-z0-9_-]{1,256}$/.test(node.value));
+    if (node.type === "ImportDeclaration" || node.type === "ImportExpression") {
+      const path = literal(node.source);
+      const u = new URL(path, modules[0]);
+      check(
+        u.origin === manifest.origin &&
+          !u.search &&
+          !u.hash &&
+          /^\/assets\/[A-Za-z0-9_-]+\.js$/.test(u.pathname),
+      );
+      assets.add(u.pathname);
+    }
+    for (const value of Object.values(node))
+      if (Array.isArray(value)) value.forEach(walk);
+      else if (value && typeof value === "object") walk(value);
+  }
+  walk(ast);
+  check(candidates.length > 0);
+  const selected = candidates[0];
   check(
-    keys.length === 1 &&
-      urls.length === 1 &&
-      urls[0] === manifest.provider &&
-      !/\bsb_secret_[A-Za-z0-9_-]+/.test(text),
+    candidates.every((c) => JSON.stringify(c) === JSON.stringify(selected)),
   );
   check(
-    /\bVITE_LIFE_RHYTHM_AUTH_ENABLED["']?\s*:\s*["']true["']/.test(text) &&
-      /\bVITE_LIFE_RHYTHM_MODE["']?\s*:\s*["']required["']/.test(text),
+    selected.VITE_SUPABASE_URL === manifest.provider &&
+      selected.VITE_LIFE_RHYTHM_AUTH_ENABLED === "true" &&
+      selected.VITE_LIFE_RHYTHM_MODE === "required" &&
+      /^sb_publishable_[A-Za-z0-9_-]{1,256}$/.test(
+        selected.VITE_SUPABASE_PUBLISHABLE_KEY,
+      ),
   );
-  return { publishableKey: keys[0], provider: urls[0] };
+  // Reject executable decoy keys/URLs outside the config; comments do not count.
+  const publicKeys = new Set();
+  function constants(node) {
+    if (!node || typeof node !== "object") return;
+    if (
+      node.type === "Literal" &&
+      typeof node.value === "string" &&
+      /^sb_(publishable|secret)_.+/.test(node.value)
+    )
+      publicKeys.add(node.value);
+    if (
+      node.type === "TemplateLiteral" &&
+      node.expressions.length === 0 &&
+      /^sb_(publishable|secret)_.+/.test(node.quasis[0].value.cooked)
+    )
+      publicKeys.add(node.quasis[0].value.cooked);
+    for (const v of Object.values(node))
+      if (Array.isArray(v)) v.forEach(constants);
+      else if (v && typeof v === "object") constants(v);
+  }
+  constants(ast);
+  check(
+    publicKeys.size === 1 &&
+      publicKeys.has(selected.VITE_SUPABASE_PUBLISHABLE_KEY),
+  );
+  return {
+    publishableKey: selected.VITE_SUPABASE_PUBLISHABLE_KEY,
+    provider: manifest.provider,
+    assets,
+  };
+}
+// Credential entry requires a separately approved immutable deployment URL.
+// The current branch alias is deliberately blocked, even if a signer is enabled.
+export function credentialOrigin(config, immutableOrigin) {
+  check(
+    config?.immutableOriginApproved === true &&
+      typeof config.immutableOrigin === "string",
+  );
+  check(
+    immutableOrigin === config.immutableOrigin &&
+      immutableOrigin === manifest.origin,
+  );
+  const u = new URL(immutableOrigin);
+  check(
+    u.protocol === "https:" &&
+      u.origin === immutableOrigin &&
+      !u.username &&
+      !u.password &&
+      !u.port &&
+      u.hostname.endsWith(".vercel.app") &&
+      !u.hostname.includes("-git-") &&
+      u.hostname !== "life-rhythm-prototype.vercel.app",
+  );
 }
 export async function issueOidc(env, sha, fetcher = fetch) {
   const u = new URL(env.ACTIONS_ID_TOKEN_REQUEST_URL);
@@ -219,6 +396,7 @@ export async function verifyAssertion(assertion, config, phase, nonce) {
     project: manifest.project,
     team: manifest.team,
     origin: manifest.origin,
+    immutableOrigin: manifest.origin,
     environment: "preview",
     state: "READY",
   };
@@ -246,10 +424,11 @@ export async function verifyAssertion(assertion, config, phase, nonce) {
       payload.exp > now &&
       payload.exp <= now + 60,
   );
-  return { phase, verified: true };
+  return { phase, verified: true, immutableOrigin: payload.immutableOrigin };
 }
 export async function verifyAttribution(config, phase, fetcher = fetch) {
   attributionConfig(config);
+  credentialOrigin(config, config.immutableOrigin);
   const nonce = randomBytes(48).toString("base64url");
   const u = new URL(config.endpoint);
   u.searchParams.set("phase", phase);
@@ -263,5 +442,7 @@ export async function verifyAttribution(config, phase, fetcher = fetch) {
     32768,
   );
   check(Object.keys(body).length === 1);
-  return verifyAssertion(body.assertion, config, phase, nonce);
+  const observed = await verifyAssertion(body.assertion, config, phase, nonce);
+  credentialOrigin(config, observed.immutableOrigin);
+  return observed;
 }

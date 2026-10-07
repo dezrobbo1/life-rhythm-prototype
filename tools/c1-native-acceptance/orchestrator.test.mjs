@@ -4,6 +4,8 @@ import { executeAcceptance } from "./orchestrator.mjs";
 import { manifest } from "./policy.mjs";
 const sha = "a".repeat(40);
 const env = {
+  C1_JOB_STARTED_AT: String(Date.now()),
+  C1_JOB_DEADLINE_MS: String(Date.now() + 19 * 60 * 1000),
   GITHUB_REPOSITORY: manifest.repository,
   GITHUB_REPOSITORY_ID: manifest.repositoryId,
   GITHUB_REPOSITORY_OWNER_ID: manifest.ownerId,

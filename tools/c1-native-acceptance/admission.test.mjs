@@ -14,9 +14,9 @@ test("public configuration is read only from exact-origin nonexecuted module, ne
   const pages = {
     "/": '<script type="module" src="/assets/index-reviewed.js"></script>',
     "/assets/index-reviewed.js":
-      'const env={VITE_SUPABASE_URL:"' +
+      'function config(env={VITE_SUPABASE_URL:"' +
       manifest.provider +
-      '",VITE_SUPABASE_PUBLISHABLE_KEY:"sb_publishable_synthetic",VITE_LIFE_RHYTHM_MODE:"required",VITE_LIFE_RHYTHM_AUTH_ENABLED:"true"}',
+      '",VITE_SUPABASE_PUBLISHABLE_KEY:"sb_publishable_synthetic",VITE_LIFE_RHYTHM_MODE:"required",VITE_LIFE_RHYTHM_AUTH_ENABLED:"true"}){return [env.VITE_SUPABASE_URL,env.VITE_SUPABASE_PUBLISHABLE_KEY,env.VITE_LIFE_RHYTHM_AUTH_ENABLED,env.VITE_LIFE_RHYTHM_MODE]}',
   };
   assert.equal(
     (await readPublicConfig(async (u) => pages[new URL(u).pathname]))
@@ -120,6 +120,7 @@ const binding = (phase, nonce) => ({
   project: manifest.project,
   team: manifest.team,
   origin: manifest.origin,
+  immutableOrigin: manifest.origin,
   environment: "preview",
   state: "READY",
   observedAt: Math.floor(Date.now() / 1000),
@@ -168,28 +169,25 @@ test("fresh signed attribution binds nonce, phase and all provider facts; JSON a
     }),
   );
 });
-test("attribution fetch carries only public nonce/phase and verifies signed response", async () => {
+test("mutable alias cannot reach attribution reader or credentials even with enabled configuration", async () => {
   const k = await generateKeyPair("EdDSA", { crv: "Ed25519" });
-  const c = {
-    enabled: true,
-    endpoint: "https://verifier.example.test/c1",
-    publicJwk: await exportJWK(k.publicKey),
-  };
-  let headers;
-  await verifyAttribution(c, "end", async (u, o) => {
-    headers = o.headers;
-    const query = new URL(u).searchParams;
-    return Response.json({
-      assertion: await new SignJWT(binding("end", query.get("nonce")))
-        .setProtectedHeader({ alg: "EdDSA" })
-        .setIssuer(c.endpoint)
-        .setAudience(manifest.repository)
-        .setIssuedAt()
-        .setExpirationTime("30s")
-        .sign(k.privateKey),
-    });
-  });
-  assert.deepEqual(headers, { Accept: "application/json" });
+  let calls = 0;
+  await assert.rejects(
+    verifyAttribution(
+      {
+        enabled: true,
+        immutableOriginApproved: true,
+        immutableOrigin: manifest.origin,
+        endpoint: "https://verifier.example.test/c1",
+        publicJwk: await exportJWK(k.publicKey),
+      },
+      "start",
+      async () => {
+        calls++;
+      },
+    ),
+  );
+  assert.equal(calls, 0);
 });
 test("response reader bounds streaming bodies before buffering and cancels excess", async () => {
   let cancelled = false;

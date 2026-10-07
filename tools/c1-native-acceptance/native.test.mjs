@@ -205,6 +205,8 @@ test("provider positive/cross reads and native matrix run without any metadata w
                 : {}),
             };
     }
+    if (url.pathname === "/rest/v1/account_heads" && body.length)
+      body = [{ subject: a.uuid, ...body[0].account_heads }];
     return {
       response: new Response(JSON.stringify(body), {
         status,

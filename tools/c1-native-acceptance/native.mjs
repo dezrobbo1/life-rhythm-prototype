@@ -4,6 +4,8 @@ import { jwtVerify } from "jose";
 import { boundedText } from "./admission.mjs";
 import {
   manifest,
+  providerSelect,
+  authBody,
   check,
   scopedHeaders,
   requestPolicy,
@@ -19,6 +21,7 @@ export function makeTransport(oidc, budget, fetcher = fetch, stopSignal) {
   ) => {
     check(!stopSignal?.aborted);
     requestPolicy(url, method);
+    authBody(url, body);
     budget.take({
       signin: new URL(url).searchParams.get("grant_type") === "password",
       cleanup: closing,
@@ -104,14 +107,15 @@ export function metadataCases(account, generation) {
       q +
         "&expectedRevision=" +
         account.revision +
-        "&expectedGeneration=22222222-2222-4222-8222-222222222222",
+        "&expectedGeneration=" +
+        generation.slice(0, -1) +
+        (generation.endsWith("0") ? "1" : "0"),
       409,
     ],
   ].map(([query, status]) => ({ method: "GET", path: base + query, status }));
 }
 export async function readPositiveHead(tx, account, token, publishableKey) {
-  const select =
-    "enabled,subject,account_heads(protocol_version,canonical_schema_version,revision::text,generation)";
+  const select = providerSelect.trial_access;
   const provider =
     manifest.provider +
     "/rest/v1/trial_access?select=" +
@@ -132,8 +136,7 @@ export async function readPositiveHead(tx, account, token, publishableKey) {
 }
 export async function runMetadata(tx, account, token, publishableKey) {
   const other = manifest.accounts.find((a) => a.label !== account.label);
-  const select =
-    "enabled,subject,account_heads(protocol_version,canonical_schema_version,revision::text,generation)";
+  const select = providerSelect.trial_access;
   const provider =
     manifest.provider +
     "/rest/v1/trial_access?select=" +
@@ -147,9 +150,37 @@ export async function runMetadata(tx, account, token, publishableKey) {
     Authorization: "Bearer " + token,
     "Accept-Profile": "life_rhythm",
   };
+  // Independent direct account_heads controls ensure a trial_access join cannot
+  // conceal a broken grant or RLS policy on the second table.
+  const headsUrl =
+    manifest.provider +
+    "/rest/v1/account_heads?select=" +
+    encodeURIComponent(providerSelect.account_heads) +
+    "&issuer=eq." +
+    encodeURIComponent(manifest.provider + "/auth/v1") +
+    "&subject=eq.";
+  const directOwn = await tx(headsUrl + account.uuid, { headers });
+  check(
+    directOwn.response.status === 200 &&
+      Array.isArray(directOwn.body) &&
+      directOwn.body.length === 1,
+  );
+  const { subject, ...directHead } = directOwn.body[0];
+  check(subject === account.uuid);
+  positiveRows(
+    [{ enabled: true, subject, account_heads: directHead }],
+    account,
+  );
+  const directCross = await tx(headsUrl + other.uuid, { headers });
+  check(
+    directCross.response.status === 200 &&
+      Array.isArray(directCross.body) &&
+      directCross.body.length === 0,
+  );
   const own = await tx(provider + account.uuid, { headers });
   check(own.response.status === 200);
   const head = positiveRows(own.body, account);
+  check(JSON.stringify(head) === JSON.stringify(directHead));
   const cross = await tx(provider + other.uuid, { headers });
   check(
     cross.response.status === 200 &&
@@ -261,6 +292,10 @@ export async function browserRow(
   key,
   publishableKey,
   expectedHead,
+  assets = new Set(),
+  stopSignal,
+  trackSession = () => {},
+  confirmLogout = () => {},
 ) {
   const context = await browser.newContext({
     viewport: { width, height: 844 },
@@ -269,10 +304,17 @@ export async function browserRow(
   });
   let failure = false,
     session = null,
-    logoutAttempted = false,
+    logoutConfirmed = false,
+    boundaryCalls = 0,
     sessionId = null,
     signins = 0;
   const pending = [];
+  const stop = () => {
+    failure = true;
+    void context.close().catch(() => {});
+  };
+  stopSignal?.addEventListener("abort", stop, { once: true });
+  if (stopSignal?.aborted) stop();
   try {
     await context.routeWebSocket("**/*", (socket) => {
       failure = true;
@@ -282,7 +324,31 @@ export async function browserRow(
       try {
         const request = route.request();
         const u = new URL(request.url());
-        requestPolicy(u.href, request.method(), !!request.redirectedFrom());
+        check(!failure && !stopSignal?.aborted);
+        requestPolicy(
+          u.href,
+          request.method(),
+          !!request.redirectedFrom(),
+          assets,
+        );
+        authBody(u.href, request.postData(), { account, password, session });
+        const callerHeaders = new Headers(request.headers());
+        if (
+          u.origin === manifest.provider &&
+          u.pathname !== "/auth/v1/.well-known/jwks.json"
+        )
+          check(callerHeaders.get("apikey") === publishableKey);
+        if (
+          u.pathname === "/api/account/boundary" ||
+          u.pathname === "/auth/v1/user" ||
+          u.pathname === "/auth/v1/logout" ||
+          u.pathname.startsWith("/rest/v1/")
+        )
+          check(
+            session &&
+              callerHeaders.get("authorization") ===
+                "Bearer " + session.access_token,
+          );
         const signin =
           request.method() === "POST" &&
           u.origin === manifest.provider &&
@@ -292,7 +358,7 @@ export async function browserRow(
         if (signin) {
           check(++signins === 1);
           const body = request.postDataJSON();
-          check(body.email === account.email);
+          check(body.email === account.email && body.password === password);
         }
         const response = await route.fetch({
           headers: scopedHeaders(u.href, oidc, request.headers()),
@@ -307,8 +373,9 @@ export async function browserRow(
           u.origin === manifest.provider &&
           u.pathname === "/auth/v1/logout"
         ) {
-          logoutAttempted = true;
           check(response.status() === 204);
+          logoutConfirmed = true;
+          confirmLogout();
         }
         if (
           request.method() === "POST" &&
@@ -319,8 +386,10 @@ export async function browserRow(
           if (
             response.status() === 200 &&
             typeof data?.access_token === "string"
-          )
+          ) {
             session = data;
+            trackSession(data);
+          }
           check(response.status() === 200 && data.user?.id === account.uuid);
           const nextSessionId = await verifySession(
             data.access_token,
@@ -335,6 +404,7 @@ export async function browserRow(
           u.origin === manifest.origin &&
           u.pathname === "/api/account/boundary"
         ) {
+          check(session && u.search === "?protocolVersion=1&schemaVersion=1");
           const body = await response.json();
           boundary(
             {
@@ -346,6 +416,7 @@ export async function browserRow(
             account,
             expectedHead.generation,
           );
+          boundaryCalls++;
         }
         await route.fulfill({ response });
       } catch {
@@ -392,7 +463,13 @@ export async function browserRow(
       .getByText(/Device-only data/)
       .first()
       .waitFor();
-    check(!failure && session && signins === 1);
+    check(
+      !failure &&
+        !stopSignal?.aborted &&
+        session &&
+        signins === 1 &&
+        boundaryCalls > 0,
+    );
     check(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -417,11 +494,17 @@ export async function browserRow(
     // No screenshot of authenticated DOM, inputs, provider content or storage.
     return "ui-" + width;
   } finally {
-    if (session && !logoutAttempted)
-      pending.push(() =>
-        logout(makeTransport(oidc, budget), session, publishableKey),
-      );
+    if (session && !logoutConfirmed)
+      pending.push(async () => {
+        await logout(makeTransport(oidc, budget), session, publishableKey);
+        logoutConfirmed = true;
+        confirmLogout();
+      });
     pending.push(() => context.close());
-    await cleanup(pending);
+    try {
+      await cleanup(pending);
+    } finally {
+      stopSignal?.removeEventListener("abort", stop);
+    }
   }
 }

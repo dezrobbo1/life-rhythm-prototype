@@ -1,3 +1,4 @@
+import { jobWindow, abortable } from "./lifecycle.mjs";
 import { createLocalJWKSet } from "jose";
 import { chromium } from "playwright";
 import {
@@ -91,16 +92,49 @@ function evidence(passed, started, complete, browserVersion, env, budget) {
     passwordSignins: budget.signins,
   };
 }
-export async function executeAcceptance(env, config, adapters = {}) {
+export async function executeAcceptance(
+  env,
+  config,
+  adapters = {},
+  cancellationSignal,
+) {
+  let window;
+  try {
+    window = jobWindow(env);
+  } catch {
+    return report();
+  }
   const d = { ...defaults, ...adapters },
     abort = new AbortController(),
-    work = (fn) => withTimeout(fn, adapters.timeoutMs ?? 60000),
-    budget = new Budget(),
+    work = (fn) =>
+      withTimeout(
+        () => abortable(fn, abort.signal),
+        Math.min(
+          adapters.timeoutMs ?? 60000,
+          Math.max(1, window.deadline - 120000 - Date.now()),
+        ),
+      ),
+    budget = new Budget(window.start, window.deadline),
     passed = [],
     sessions = new Map(),
-    heads = new Map();
+    heads = new Map(),
+    authTasks = new Set();
+  const authWork = (fn) => {
+    const task = Promise.resolve().then(fn);
+    authTasks.add(task);
+    task.finally(() => authTasks.delete(task)).catch(() => {});
+    return work(() => task);
+  };
+  const stop = () => abort.abort();
+  cancellationSignal?.addEventListener("abort", stop, { once: true });
+  if (cancellationSignal?.aborted) stop();
+  const deadlineTimer = setTimeout(
+    stop,
+    Math.max(1, window.deadline - 120000 - Date.now()),
+  );
   let browser = null,
     browserVersion = null,
+    browserTask = null,
     started = false,
     complete = false,
     publishableKey = null;
@@ -139,7 +173,7 @@ export async function executeAcceptance(env, config, adapters = {}) {
         sessions.set(account.label, { session, tx, closingTx });
       await work(() => d.preflight(env));
       await work(() => d.attribution(config, "start"));
-      let session = await work(() =>
+      let session = await authWork(() =>
         d.login(
           tx,
           account,
@@ -162,7 +196,7 @@ export async function executeAcceptance(env, config, adapters = {}) {
         "provider-own-" + account.label,
         "provider-cross-" + account.label,
       );
-      session = await work(() =>
+      session = await authWork(() =>
         d.refresh(
           tx,
           account,
@@ -196,19 +230,26 @@ export async function executeAcceptance(env, config, adapters = {}) {
       oidc = await work(() => d.oidc(env, env.C1_TRUSTED_SHA));
       await work(() => d.preflight(env));
       await work(() => d.attribution(config, "start"));
-      const row = await work(() =>
-        d.browserRow(
-          browser,
-          width,
-          manifest.accounts[index],
-          passwords[index],
-          oidc,
-          budget,
-          key,
-          publicConfig.publishableKey,
-          heads.get(manifest.accounts[index].label),
-        ),
+      const browserKey = "browser-" + width + "-" + index;
+      const closingTx = d.transport(oidc, budget);
+      browserTask = d.browserRow(
+        browser,
+        width,
+        manifest.accounts[index],
+        passwords[index],
+        oidc,
+        budget,
+        key,
+        publicConfig.publishableKey,
+        heads.get(manifest.accounts[index].label),
+        publicConfig.assets,
+        abort.signal,
+        (session) => sessions.set(browserKey, { session, closingTx }),
+        () => sessions.delete(browserKey),
       );
+      browserTask.catch(() => {});
+      const row = await work(() => browserTask);
+      browserTask = null;
       if (!passed.includes(row)) passed.push(row);
     }
     for (const account of manifest.accounts) {
@@ -219,22 +260,41 @@ export async function executeAcceptance(env, config, adapters = {}) {
       check(JSON.stringify(head) === JSON.stringify(heads.get(account.label)));
     }
     const activeBrowser = browser;
-    browser = null;
-    const finishing = [() => activeBrowser.close()];
-    for (const held of sessions.values())
-      finishing.push(() =>
-        d.logout(held.closingTx, held.session, publishableKey),
-      );
-    sessions.clear();
+    const finishing = [
+      async () => {
+        await activeBrowser.close();
+        browser = null;
+      },
+    ];
+    for (const [name, held] of sessions)
+      finishing.push(async () => {
+        await d.logout(held.closingTx, held.session, publishableKey);
+        sessions.delete(name);
+      });
     await cleanup(finishing);
     passed.push("cleanup");
     await work(() => d.attribution(config, "end"));
     await work(() => d.preflight(env));
+    check(!abort.signal.aborted);
     complete = true;
   } catch {
     abort.abort();
     complete = false;
   } finally {
+    if (authTasks.size) {
+      try {
+        await withTimeout(() => Promise.allSettled([...authTasks]), 10000);
+      } catch {
+        complete = false;
+      }
+    }
+    if (browserTask) {
+      try {
+        await withTimeout(() => browserTask, 10000);
+      } catch {
+        complete = false;
+      }
+    }
     const actions = [];
     if (browser) actions.push(() => browser.close());
     for (const { session, closingTx } of sessions.values())
@@ -245,6 +305,8 @@ export async function executeAcceptance(env, config, adapters = {}) {
       complete = false;
     }
     sessions.clear();
+    clearTimeout(deadlineTimer);
+    cancellationSignal?.removeEventListener("abort", stop);
   }
   // No raw errors, JWTs, passwords, API bodies or arbitrary adapter strings reach
   // evidence. Partial observations are never promoted to acceptance PASS.

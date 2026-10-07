@@ -1,5 +1,7 @@
 {
   "enabled": false,
+  "immutableOriginApproved": false,
+  "immutableOrigin": null,
   "endpoint": null,
   "publicJwk": null
 }

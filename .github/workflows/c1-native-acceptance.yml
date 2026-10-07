@@ -49,6 +49,12 @@ jobs:
       run:
         working-directory: tools/c1-native-acceptance
     steps:
+      - name: Start absolute job budget before preparation
+        working-directory: /tmp
+        run: |
+          started=$(date +%s%3N)
+          echo "C1_JOB_STARTED_AT=$started" >> "$GITHUB_ENV"
+          echo "C1_JOB_DEADLINE_MS=$((started + 19 * 60 * 1000))" >> "$GITHUB_ENV"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
