@@ -5,8 +5,8 @@
   "applicationTarget": "5e08c55918eaf64be02d210b17fbcd11c7ec34bf",
   "node": "24.19.0",
   "harness": {
-    "tests": 54,
-    "passed": 54,
+    "tests": 62,
+    "passed": 62,
     "failed": 0
   },
   "applicationAggregate": {
@@ -20,7 +20,7 @@
   "whitespace": "PASS",
   "hosted": "NOT_RUN",
   "gate": "BLOCK",
-  "deploymentAttribution": "BLOCKED_MUTABLE_ALIAS_REQUIRES_APPROVED_INDEPENDENT_IMMUTABLE_TARGET_AND_OBSERVATION",
+  "deploymentAttribution": "SUPERVISED_GITHUB_APPROVAL_RECEIPTS_IMPLEMENTED_DEFAULT_OFF_PENDING_IMMUTABLE_RETARGET_AND_SAFE_OBSERVATION_ACCESS",
   "browserExecution": "NOT_RUN",
   "publicConfigExtraction": "PASS_ACTUAL_PR180_LOCAL_PRODUCTION_BUNDLE_AND_SYNTHETIC_FIXTURE_HOSTED_NOT_RUN",
   "githubOidcIssuance": "IMPLEMENTED_OFFLINE_CRYPTO_VERIFIED_HOSTED_NOT_RUN",
@@ -35,7 +35,8 @@
     "Workflow static-test parsing was corrected for comments and the statuses key.",
     "Caller-supplied protection-header leak reproduced offline, then stripped case-insensitively; final suite passed.",
     "Completed previously missing public-config/OIDC/orchestration paths and signed attribution consumer after parent feedback; no hosted activity.",
-    "Consolidated correction pass for eight independent-review blockers; all hosted NOT_RUN and C1 BLOCK."
+    "Consolidated correction pass for eight independent-review blockers; all hosted NOT_RUN and C1 BLOCK.",
+    "Owner-approved local supervised attribution amendment replaces signing service; no publication, deployment, token use or settings."
   ],
   "applicationEvidenceReuse": "Application tree unchanged; prior 1454-test/build evidence reused under AGENTS.md; not rerun for isolated harness edits.",
   "cancellation": "PASS_REAL_SYNTHETIC_SIGTERM_LOCAL_CLEANUP_BLOCK_NO_HOSTED_EXECUTION",
@@ -56,5 +57,19 @@
       "Independent own/cross controls on both trial_access and account_heads."
     ]
   },
-  "dependencyCleanInstall": "PASS_OWN_LOCKFILE_NPM_CI_IGNORE_SCRIPTS"
+  "dependencyCleanInstall": "PASS_OWN_LOCKFILE_NPM_CI_IGNORE_SCRIPTS",
+  "supervisionAmendment": {
+    "kind": "LOCAL_OFFLINE_ONLY_NOT_PUBLISHED",
+    "sourceHead": "8b8e9f53be424c8f3f45142a3e893902814cd89c",
+    "redFirst": "New positive supervision controls failed against missing/default-block interfaces before implementation.",
+    "observerProvenance": "Pinned numeric User ID, independent from run initiators; GitHub authenticated exact-run approval plus hash-bound unedited PR181 comment.",
+    "postProvenance": "Successful exact native job/run/attempt/head/name, trusted needs output digest and new matching post receipt after GitHub-confirmed completion.",
+    "nativeSuccess": "TEST_PHASE_COMPLETE_PENDING_POST",
+    "postSuccess": "SCOPED_ROWS_COMPLETE_GATE_BLOCK",
+    "publication": "HELD_LOCAL_AUTOMATIC_VERCEL_DEPLOYMENT_REQUIRES_SEPARATE_APPROVAL",
+    "review": "PENDING_PARENT_COORDINATED_INDEPENDENT_REVIEW",
+    "providerObservations": "NOT_RUN",
+    "observerConfigured": false,
+    "postEnvironmentConfigured": false
+  }
 }

@@ -1,6 +1,5 @@
 import { parse } from "acorn";
-import { randomBytes } from "node:crypto";
-import { createLocalJWKSet, importJWK, jwtVerify } from "jose";
+import { createLocalJWKSet, jwtVerify } from "jose";
 import {
   manifest,
   check,
@@ -261,29 +260,6 @@ export async function readPublicConfig(getText) {
     assets,
   };
 }
-// Credential entry requires a separately approved immutable deployment URL.
-// The current branch alias is deliberately blocked, even if a signer is enabled.
-export function credentialOrigin(config, immutableOrigin) {
-  check(
-    config?.immutableOriginApproved === true &&
-      typeof config.immutableOrigin === "string",
-  );
-  check(
-    immutableOrigin === config.immutableOrigin &&
-      immutableOrigin === manifest.origin,
-  );
-  const u = new URL(immutableOrigin);
-  check(
-    u.protocol === "https:" &&
-      u.origin === immutableOrigin &&
-      !u.username &&
-      !u.password &&
-      !u.port &&
-      u.hostname.endsWith(".vercel.app") &&
-      !u.hostname.includes("-git-") &&
-      u.hostname !== "life-rhythm-prototype.vercel.app",
-  );
-}
 export async function issueOidc(env, sha, fetcher = fetch) {
   const u = new URL(env.ACTIONS_ID_TOKEN_REQUEST_URL);
   check(
@@ -350,99 +326,6 @@ export async function issueOidc(env, sha, fetcher = fetch) {
   );
   return issued.value;
 }
-function attributionConfig(config) {
-  check(config?.enabled === true);
-  const u = new URL(config.endpoint);
-  check(
-    u.protocol === "https:" &&
-      !u.username &&
-      !u.password &&
-      !u.search &&
-      !u.hash &&
-      !u.port,
-  );
-  check(
-    config.publicJwk?.kty === "OKP" &&
-      config.publicJwk.crv === "Ed25519" &&
-      typeof config.publicJwk.x === "string" &&
-      !config.publicJwk.d,
-  );
-}
-export async function verifyAssertion(assertion, config, phase, nonce) {
-  attributionConfig(config);
-  check(
-    ["start", "end"].includes(phase) &&
-      /^[A-Za-z0-9_-]{64}$/.test(nonce) &&
-      typeof assertion === "string" &&
-      assertion.length <= 16384,
-  );
-  const { payload } = await jwtVerify(
-    assertion,
-    await importJWK(config.publicJwk, "EdDSA"),
-    {
-      issuer: config.endpoint,
-      audience: manifest.repository,
-      algorithms: ["EdDSA"],
-      clockTolerance: 0,
-    },
-  );
-  const expected = {
-    format: 1,
-    phase,
-    nonce,
-    repository: manifest.repository,
-    source: manifest.source,
-    deployment: manifest.deployment,
-    project: manifest.project,
-    team: manifest.team,
-    origin: manifest.origin,
-    immutableOrigin: manifest.origin,
-    environment: "preview",
-    state: "READY",
-  };
-  const allowed = [
-    ...Object.keys(expected),
-    "observedAt",
-    "iss",
-    "aud",
-    "iat",
-    "exp",
-  ];
-  check(Object.keys(payload).sort().join() === allowed.sort().join());
-  for (const [k, v] of Object.entries(expected)) check(payload[k] === v);
-  const now = Math.floor(Date.now() / 1000);
-  check(
-    Number.isInteger(payload.observedAt) &&
-      payload.observedAt <= now + 2 &&
-      payload.observedAt >= now - 30,
-  );
-  check(
-    Number.isInteger(payload.iat) &&
-      payload.iat <= now + 2 &&
-      payload.iat >= now - 30 &&
-      Number.isInteger(payload.exp) &&
-      payload.exp > now &&
-      payload.exp <= now + 60,
-  );
-  return { phase, verified: true, immutableOrigin: payload.immutableOrigin };
-}
-export async function verifyAttribution(config, phase, fetcher = fetch) {
-  attributionConfig(config);
-  credentialOrigin(config, config.immutableOrigin);
-  const nonce = randomBytes(48).toString("base64url");
-  const u = new URL(config.endpoint);
-  u.searchParams.set("phase", phase);
-  u.searchParams.set("nonce", nonce);
-  // No passwords, GitHub/OIDC tokens, Supabase key/session, cookies or caller
-  // credential goes to the proposed public signing verifier endpoint.
-  const body = await jsonRequest(
-    u.href,
-    { headers: { Accept: "application/json" } },
-    fetcher,
-    32768,
-  );
-  check(Object.keys(body).length === 1);
-  const observed = await verifyAssertion(body.assertion, config, phase, nonce);
-  credentialOrigin(config, observed.immutableOrigin);
-  return observed;
-}
+// Supervision replaces the unprovisioned external signing endpoint. The only
+// reader is GitHub's authenticated run/approval/comment APIs.
+export { verifySupervision as verifyAttribution } from "./supervision.mjs";

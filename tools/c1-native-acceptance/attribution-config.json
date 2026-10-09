@@ -2,6 +2,7 @@
   "enabled": false,
   "immutableOriginApproved": false,
   "immutableOrigin": null,
-  "endpoint": null,
-  "publicJwk": null
+  "trustedObserverIds": [],
+  "preEnvironmentId": null,
+  "postEnvironmentId": null
 }

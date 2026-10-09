@@ -27,7 +27,7 @@ test("workflow is manually dispatched, default-main guarded, isolated with passw
     workflow,
     /github\.workflow_sha == vars\.C1_TRUSTED_HARNESS_SHA/,
   );
-  assert.equal([...workflow.matchAll(/persist-credentials: false/g)].length, 2);
+  assert.equal([...workflow.matchAll(/persist-credentials: false/g)].length, 3);
   for (const match of workflow.matchAll(/^\s+- uses: ([^\s]+)/gm))
     assert.match(match[1], /@[a-f0-9]{40}$/);
   assert.equal([...workflow.matchAll(/id-token: write/g)].length, 1);
@@ -38,6 +38,10 @@ test("workflow is manually dispatched, default-main guarded, isolated with passw
       workflow.indexOf("secrets.C1_ACCOUNT"),
   );
   assert.equal([...workflow.matchAll(/secrets\./g)].length, 2);
+  const post = workflow.slice(workflow.indexOf("  post-verification:"));
+  assert.match(post, /environment: c1-native-post-verification/);
+  assert.doesNotMatch(post, /id-token: write|secrets\.|ACTION.*TOKEN/);
+  assert.match(post, /needs.native.outputs.phase_digest/);
   const native = workflow.slice(workflow.indexOf("  native:"));
   assert(
     native.indexOf("C1_JOB_STARTED_AT=") < native.indexOf("actions/checkout@"),
@@ -78,7 +82,7 @@ test("inert entrypoint logs and artifact never emit injected credentials or raw 
     await rm(dir, { recursive: true, force: true });
   }
 });
-test("default disabled signer configuration blocks both real CLI paths without any network or password disclosure", async () => {
+test("default disabled supervision configuration blocks all real CLI paths without any network or password disclosure", async () => {
   const dir = await mkdtemp(join(tmpdir(), "c1-default-block-"));
   try {
     const { manifest } = await import("./policy.mjs");
@@ -113,7 +117,7 @@ test("default disabled signer configuration blocks both real CLI paths without a
       C1_ACCOUNT_B_PASSWORD: secret,
       GITHUB_TOKEN: secret,
     };
-    for (const args of [[], ["--admission"]]) {
+    for (const args of [[], ["--admission"], ["--post"]]) {
       const result = spawnSync(
         process.execPath,
         [new URL("./run.mjs", import.meta.url).pathname, ...args],

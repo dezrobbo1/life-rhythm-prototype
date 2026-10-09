@@ -31,7 +31,7 @@ import {
 const defaults = {
   preflight: (env) =>
     preflight(githubGet, identityFromEnv(env), env.C1_TRUSTED_SHA),
-  attribution: verifyAttribution,
+  attribution: (config, phase, env) => verifyAttribution(env, config, "pre"),
   oidc: issueOidc,
   publicConfig: (oidc, budget) =>
     readPublicConfig(publicTextReader(oidc, budget)),
@@ -60,7 +60,15 @@ const defaults = {
     }),
   browserRow,
 };
-function evidence(passed, started, complete, browserVersion, env, budget) {
+function evidence(
+  passed,
+  started,
+  complete,
+  browserVersion,
+  env,
+  budget,
+  preReceipt,
+) {
   check(passed.every((x) => rows.includes(x)));
   check(/^[a-f0-9]{40}$/.test(env.C1_TRUSTED_SHA));
   check(
@@ -73,7 +81,7 @@ function evidence(passed, started, complete, browserVersion, env, budget) {
     ...report(),
     hosted: started
       ? complete
-        ? "SCOPED_ROWS_COMPLETE"
+        ? "TEST_PHASE_COMPLETE_PENDING_POST"
         : "ATTEMPTED_BLOCKED"
       : "NOT_RUN",
     passed: complete ? [...new Set(passed)] : [],
@@ -88,6 +96,12 @@ function evidence(passed, started, complete, browserVersion, env, budget) {
       { width: 1280, height: 844 },
     ],
     accounts: manifest.accounts.map(({ label, uuid }) => ({ label, uuid })),
+    runId: env.GITHUB_RUN_ID,
+    attempt: env.GITHUB_RUN_ATTEMPT,
+    origin: manifest.origin,
+    preReceipt,
+    completedAt: complete ? new Date().toISOString() : null,
+    postVerification: "PENDING",
     requests: budget.requests,
     passwordSignins: budget.signins,
   };
@@ -137,13 +151,15 @@ export async function executeAcceptance(
     browserTask = null,
     started = false,
     complete = false,
-    publishableKey = null;
+    publishableKey = null,
+    preReceipt = null;
   try {
     guardIdentity(identityFromEnv(env), env.C1_TRUSTED_SHA);
     check(config?.enabled === true);
     await work(() => d.preflight(env));
     passed.push("preflight");
-    await work(() => d.attribution(config, "start"));
+    const admission = await work(() => d.attribution(config, "start", env));
+    preReceipt = admission?.preReceipt ?? null;
     passed.push("attribution");
     let oidc = await work(() => d.oidc(env, env.C1_TRUSTED_SHA));
     started = true;
@@ -154,7 +170,7 @@ export async function executeAcceptance(
     );
     let tx = d.transport(oidc, budget, undefined, abort.signal);
     const key = await work(() => d.key(tx));
-    // No password property is read before identity/source, signed deployment binding,
+    // No password property is read before identity/source, trusted supervised deployment binding,
     // OIDC verification and attributable public client configuration all pass.
     const passwords = manifest.accounts.map(
       (a) => env["C1_ACCOUNT_" + a.label + "_PASSWORD"],
@@ -172,7 +188,7 @@ export async function executeAcceptance(
       const track = (session) =>
         sessions.set(account.label, { session, tx, closingTx });
       await work(() => d.preflight(env));
-      await work(() => d.attribution(config, "start"));
+      await work(() => d.attribution(config, "start", env));
       let session = await authWork(() =>
         d.login(
           tx,
@@ -229,7 +245,7 @@ export async function executeAcceptance(
     ]) {
       oidc = await work(() => d.oidc(env, env.C1_TRUSTED_SHA));
       await work(() => d.preflight(env));
-      await work(() => d.attribution(config, "start"));
+      await work(() => d.attribution(config, "start", env));
       const browserKey = "browser-" + width + "-" + index;
       const closingTx = d.transport(oidc, budget);
       browserTask = d.browserRow(
@@ -273,7 +289,7 @@ export async function executeAcceptance(
       });
     await cleanup(finishing);
     passed.push("cleanup");
-    await work(() => d.attribution(config, "end"));
+    await work(() => d.attribution(config, "end", env));
     await work(() => d.preflight(env));
     check(!abort.signal.aborted);
     complete = true;
@@ -311,7 +327,15 @@ export async function executeAcceptance(
   // No raw errors, JWTs, passwords, API bodies or arbitrary adapter strings reach
   // evidence. Partial observations are never promoted to acceptance PASS.
   try {
-    return evidence(passed, started, complete, browserVersion, env, budget);
+    return evidence(
+      passed,
+      started,
+      complete,
+      browserVersion,
+      env,
+      budget,
+      preReceipt,
+    );
   } catch {
     return report();
   }

@@ -4,7 +4,6 @@ import { generateKeyPair, exportJWK, SignJWT } from "jose";
 import {
   readPublicConfig,
   issueOidc,
-  verifyAssertion,
   verifyAttribution,
   boundedText,
 } from "./admission.mjs";
@@ -110,83 +109,29 @@ test("OIDC request authenticates only GitHub runtime endpoint, verifies signatur
   );
   await assert.rejects(issueOidc(env, "b".repeat(40), fetcher));
 });
-const binding = (phase, nonce) => ({
-  format: 1,
-  phase,
-  nonce,
-  repository: manifest.repository,
-  source: manifest.source,
-  deployment: manifest.deployment,
-  project: manifest.project,
-  team: manifest.team,
-  origin: manifest.origin,
-  immutableOrigin: manifest.origin,
-  environment: "preview",
-  state: "READY",
-  observedAt: Math.floor(Date.now() / 1000),
-});
-test("fresh signed attribution binds nonce, phase and all provider facts; JSON alone/replay/drift fail", async () => {
-  const k = await generateKeyPair("EdDSA", { crv: "Ed25519" });
-  const jwk = await exportJWK(k.publicKey);
-  const nonce = "n".repeat(64);
-  const c = {
-    enabled: true,
-    endpoint: "https://verifier.example.test/c1",
-    publicJwk: jwk,
-  };
-  const sign = async (v) =>
-    new SignJWT(v)
-      .setProtectedHeader({ alg: "EdDSA" })
-      .setIssuer(c.endpoint)
-      .setAudience(manifest.repository)
-      .setIssuedAt()
-      .setExpirationTime("30s")
-      .sign(k.privateKey);
-  const good = await sign(binding("start", nonce));
-  await verifyAssertion(good, c, "start", nonce);
-  for (const patch of [
-    { source: sha },
-    { origin: "https://evil.test" },
-    { environment: "production" },
-    { observedAt: 1 },
-    { nonce: "bad" },
-    { phase: "end" },
+test("disabled supervision and mutable alias block before any reader", async () => {
+  let calls = 0;
+  for (const config of [
+    { enabled: false },
+    {
+      enabled: true,
+      immutableOriginApproved: true,
+      immutableOrigin: manifest.origin,
+      trustedObserverIds: ["777"],
+      preEnvironmentId: 1,
+      postEnvironmentId: 2,
+    },
   ])
     await assert.rejects(
-      verifyAssertion(
-        await sign({ ...binding("start", nonce), ...patch }),
-        c,
-        "start",
-        nonce,
+      verifyAttribution(
+        { GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1" },
+        config,
+        "pre",
+        async () => {
+          calls++;
+        },
       ),
     );
-  await assert.rejects(
-    verifyAssertion(JSON.stringify(binding("start", nonce)), c, "start", nonce),
-  );
-  await assert.rejects(
-    verifyAttribution({ enabled: false }, "start", async () => {
-      throw Error("must not fetch");
-    }),
-  );
-});
-test("mutable alias cannot reach attribution reader or credentials even with enabled configuration", async () => {
-  const k = await generateKeyPair("EdDSA", { crv: "Ed25519" });
-  let calls = 0;
-  await assert.rejects(
-    verifyAttribution(
-      {
-        enabled: true,
-        immutableOriginApproved: true,
-        immutableOrigin: manifest.origin,
-        endpoint: "https://verifier.example.test/c1",
-        publicJwk: await exportJWK(k.publicKey),
-      },
-      "start",
-      async () => {
-        calls++;
-      },
-    ),
-  );
   assert.equal(calls, 0);
 });
 test("response reader bounds streaming bodies before buffering and cancels excess", async () => {

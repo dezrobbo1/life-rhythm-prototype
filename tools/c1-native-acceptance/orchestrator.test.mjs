@@ -6,6 +6,8 @@ const sha = "a".repeat(40);
 const env = {
   C1_JOB_STARTED_AT: String(Date.now()),
   C1_JOB_DEADLINE_MS: String(Date.now() + 19 * 60 * 1000),
+  GITHUB_RUN_ID: "123",
+  GITHUB_RUN_ATTEMPT: "1",
   GITHUB_REPOSITORY: manifest.repository,
   GITHUB_REPOSITORY_ID: manifest.repositoryId,
   GITHUB_REPOSITORY_OWNER_ID: manifest.ownerId,
@@ -28,6 +30,7 @@ function adapters(log, failAt) {
     attribution: async (c, phase) => {
       log.push("attribution-" + phase);
       if (failAt === phase) throw Error("synthetic-secret-error");
+      return { preReceipt: 456 };
     },
     oidc: async () => {
       log.push("oidc");
@@ -75,7 +78,7 @@ function adapters(log, failAt) {
 test("executable orchestrator sequences both metadata controls, refresh, minimal browsers, cleanup and final guards", async () => {
   const log = [];
   const r = await executeAcceptance(env, { enabled: true }, adapters(log));
-  assert.equal(r.hosted, "SCOPED_ROWS_COMPLETE");
+  assert.equal(r.hosted, "TEST_PHASE_COMPLETE_PENDING_POST");
   assert.equal(r.gate, "BLOCK");
   assert(log.indexOf("attribution-start") < log.indexOf("login-A"));
   assert(log.indexOf("browser-close") < log.indexOf("attribution-end"));
@@ -112,7 +115,7 @@ test("unexpected login, final drift and cleanup failures cannot report scoped co
       adapters(log, fail),
     );
     assert.equal(r.gate, "BLOCK");
-    assert.notEqual(r.hosted, "SCOPED_ROWS_COMPLETE");
+    assert.notEqual(r.hosted, "TEST_PHASE_COMPLETE_PENDING_POST");
     assert(!JSON.stringify(r).includes("synthetic-secret"));
     if (fail === "login") assert(log.includes("local-logout"));
   }

@@ -35,12 +35,18 @@ jobs:
           C1_TRUSTED_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
           C1_HARNESS_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
   native:
+    name: C1 native test phase
+    outputs:
+      phase_result_b64: ${{ steps.phase.outputs.phase_result_b64 }}
+      phase_digest: ${{ steps.phase.outputs.phase_digest }}
+      native_job_id: ${{ steps.phase.outputs.native_job_id }}
     needs: preflight
     environment: c1-native-preview
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
+      actions: read
       id-token: write
       pull-requests: read
       checks: read
@@ -71,10 +77,12 @@ jobs:
       - name: Require authenticated deployment attribution (currently BLOCK)
         run: node run.mjs --admission
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           C1_ENABLED: ${{ vars.C1_NATIVE_ENABLED }}
           C1_TRUSTED_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
           C1_HARNESS_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
       - name: Run bounded native acceptance
+        id: phase
         run: |
           ulimit -c 0
           node run.mjs
@@ -89,6 +97,51 @@ jobs:
         if: always()
         with:
           name: c1-sanitized-results
+          path: |
+            tools/c1-native-acceptance/artifacts/results.json
+            tools/c1-native-acceptance/artifacts/phase.json
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 9
+
+  post-verification:
+    name: C1 supervised post verification
+    needs: native
+    # No account secrets, provider access or OIDC permission in this job.
+    environment: c1-native-post-verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      checks: read
+      statuses: read
+    defaults:
+      run:
+        working-directory: tools/c1-native-acceptance
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24.19.0"
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node run.mjs --post
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          C1_ENABLED: ${{ vars.C1_NATIVE_ENABLED }}
+          C1_TRUSTED_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
+          C1_HARNESS_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
+          C1_PHASE_RESULT_B64: ${{ needs.native.outputs.phase_result_b64 }}
+          C1_PHASE_DIGEST: ${{ needs.native.outputs.phase_digest }}
+          C1_NATIVE_JOB_ID: ${{ needs.native.outputs.native_job_id }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: c1-post-verification
           path: tools/c1-native-acceptance/artifacts/results.json
           if-no-files-found: ignore
           retention-days: 7
