@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-07",
+  "kind": "local-offline-preview-self-origin-amendment",
+  "sourceParent": "5e08c55918eaf64be02d210b17fbcd11c7ec34bf",
+  "flag": "LIFE_RHYTHM_ALLOW_VERCEL_PREVIEW_SELF_ORIGIN",
+  "default": "OFF",
+  "project": "prj_Os5Ucic7cDQwut3mO3I39V3lc52s",
+  "redFirst": {
+    "focusedFailed": 21,
+    "focusedPassed": 76
+  },
+  "focused": {
+    "tests": 98,
+    "passed": 98,
+    "failed": 0
+  },
+  "aggregate": {
+    "files": 123,
+    "tests": 1665,
+    "passed": 1665,
+    "failed": 0,
+    "timezone": "UTC"
+  },
+  "build": "PASS_WITH_EXISTING_CHUNK_ADVISORY",
+  "serverTypecheck": "PASS",
+  "hosted": "NOT_RUN",
+  "gate": "BLOCK",
+  "publication": "HELD_LOCAL_AUTO_VERCEL_DEPLOYMENT_REQUIRES_SEPARATE_APPROVAL",
+  "independentReview": "PENDING_PARENT_COORDINATED",
+  "settingsChanged": false,
+  "tokensUsed": false,
+  "deploymentRequested": false,
+  "history": "Existing original-SHA and original-identity acceptance artifacts are untouched; new-head local checks do not claim hosted/UI acceptance."
+}

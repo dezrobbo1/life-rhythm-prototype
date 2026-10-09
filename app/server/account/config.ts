@@ -33,6 +33,31 @@ export function readServerConfig(
       return;
     exactOrigin(value);
   });
+  const previewOptIn = env.LIFE_RHYTHM_ALLOW_VERCEL_PREVIEW_SELF_ORIGIN;
+  if (
+    previewOptIn !== undefined &&
+    previewOptIn !== "false" &&
+    previewOptIn !== "true"
+  )
+    throw new Error("unavailable");
+  if (previewOptIn === "true") {
+    // Platform settings are operator-controlled, never request headers. Default off.
+    const host = env.VERCEL_URL;
+    if (
+      env.VERCEL !== "1" ||
+      env.VERCEL_ENV !== "preview" ||
+      env.VERCEL_PROJECT_ID !== "prj_Os5Ucic7cDQwut3mO3I39V3lc52s" ||
+      typeof host !== "string" ||
+      host.length > 253 ||
+      !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.vercel\.app$/.test(host) ||
+      host.includes("-git-") ||
+      host === "life-rhythm-prototype.vercel.app"
+    )
+      throw new Error("unavailable");
+    const self = exactOrigin("https://" + host);
+    if (!origins.includes(self)) origins.push(self);
+    if (origins.length > 8) throw new Error("unavailable");
+  }
   const supabaseUrl = exactOrigin(string.parse(env.SUPABASE_URL));
   if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(supabaseUrl))
     throw new Error('unavailable');

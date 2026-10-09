@@ -376,6 +376,105 @@ describe('public verification/runtime config', () => {
     SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_synthetic',
     LIFE_RHYTHM_BUILD_ID: 'test-build',
   });
+  const preview = () => ({
+    ...env(),
+    LIFE_RHYTHM_ALLOW_VERCEL_PREVIEW_SELF_ORIGIN: "true",
+    VERCEL: "1",
+    VERCEL_ENV: "preview",
+    VERCEL_PROJECT_ID: "prj_Os5Ucic7cDQwut3mO3I39V3lc52s",
+    VERCEL_URL:
+      "life-rhythm-prototype-synthetic123-daler-project-lr.vercel.app",
+  });
+  it("adds only its exact platform Preview origin under explicit opt-in", () => {
+    expect(readServerConfig(preview()).origins).toEqual([
+      origin,
+      "https://" + preview().VERCEL_URL,
+    ]);
+    expect(
+      readServerConfig({
+        ...preview(),
+        LIFE_RHYTHM_ALLOW_VERCEL_PREVIEW_SELF_ORIGIN: undefined,
+      }).origins,
+    ).toEqual([origin]);
+    expect(
+      readServerConfig({
+        ...preview(),
+        LIFE_RHYTHM_ALLOW_VERCEL_PREVIEW_SELF_ORIGIN: "false",
+      }).origins,
+    ).toEqual([origin]);
+  });
+  it("retains bearer and exact same-origin enforcement on the platform self origin", async () => {
+    const cfg = readServerConfig(preview()),
+      self = "https://" + preview().VERCEL_URL;
+    const original = await request();
+    const good = new Request(
+      self + "/api/account/boundary?protocolVersion=1&schemaVersion=1",
+      {
+        headers: {
+          origin: self,
+          authorization: original.headers.get("authorization")!,
+        },
+      },
+    );
+    expect((await run(good, provider(), cfg)).status).toBe(200);
+    const noBearer = new Request(good.url, { headers: { origin: self } });
+    expect((await run(noBearer, provider(), cfg)).status).toBe(401);
+    const foreign = new Request(good.url, {
+      headers: {
+        origin: "https://foreign.vercel.app",
+        authorization: original.headers.get("authorization")!,
+      },
+    });
+    expect((await run(foreign, provider(), cfg)).status).toBe(403);
+    const fakeHost = new Request(
+      "https://foreign.vercel.app/api/account/boundary?protocolVersion=1&schemaVersion=1",
+      {
+        headers: {
+          origin: self,
+          authorization: original.headers.get("authorization")!,
+        },
+      },
+    );
+    expect((await run(fakeHost, provider(), cfg)).status).toBe(403);
+  });
+  it.each([
+    { VERCEL: undefined },
+    { VERCEL: "0" },
+    { VERCEL_ENV: "production" },
+    { VERCEL_ENV: "development" },
+    { VERCEL_PROJECT_ID: "prj_foreign" },
+    { VERCEL_URL: undefined },
+    { VERCEL_URL: "https://synthetic.vercel.app" },
+    { VERCEL_URL: "synthetic.vercel.app:443" },
+    { VERCEL_URL: "synthetic.vercel.app/path" },
+    { VERCEL_URL: "synthetic.vercel.app?x=y" },
+    { VERCEL_URL: "synthetic.vercel.app#fragment" },
+    { VERCEL_URL: "user@synthetic.vercel.app" },
+    { VERCEL_URL: "*.vercel.app" },
+    { VERCEL_URL: "synthetic.vercel.app.evil.test" },
+    { VERCEL_URL: "synthetic-git-main-team.vercel.app" },
+    { VERCEL_URL: "life-rhythm-prototype.vercel.app" },
+    { VERCEL_URL: "SYNTHETIC.vercel.app" },
+    { VERCEL_URL: "synthetic..vercel.app" },
+    { LIFE_RHYTHM_ALLOW_VERCEL_PREVIEW_SELF_ORIGIN: "yes" },
+  ])("rejects unsafe enabled Preview origin %j", (override) => {
+    expect(() => readServerConfig({ ...preview(), ...override })).toThrow();
+  });
+  it("preserves the eight-origin limit and does not duplicate an explicit self origin", () => {
+    const eight = Array.from(
+      { length: 8 },
+      (_, i) => "https://explicit" + i + ".example.test",
+    ).join(",");
+    expect(() =>
+      readServerConfig({ ...preview(), LIFE_RHYTHM_ALLOWED_ORIGINS: eight }),
+    ).toThrow();
+    expect(
+      readServerConfig({
+        ...preview(),
+        LIFE_RHYTHM_ALLOWED_ORIGINS: "https://" + preview().VERCEL_URL,
+      }).origins,
+    ).toEqual(["https://" + preview().VERCEL_URL]);
+  });
   it('accepts public verification settings', () =>
     expect(readServerConfig(env())).toEqual(config()));
   it.each([

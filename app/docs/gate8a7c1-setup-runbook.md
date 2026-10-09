@@ -68,3 +68,33 @@ Docker tests use isolated disposable PostgreSQL 17 and PostgREST 13.0.7 with syn
 Explicit Vite development/test `local-fixture` can explore preserved legacy local data. Production fixture mode is invalid and cannot bypass required hosted authorization. Browser replay aliases only the SDK on a separate test server and intercepts synthetic metadata responses; production uses real Supabase SDK. Browser replay is not native hosted provider evidence. Static Pages cannot host this API and required mode stays closed.
 
 Historical CI run `37363612961` attempt 2 at prior head `2330b45…` had no runner and zero steps. Subsequent normal publication at reviewed head `617d886…` produced successful App CI `37390109462` and App Preview `37390109800`, attempt 1 with assigned runners. That older green is not evidence for the correction head: inspect its exact-head runs in PR #180. No manual retry is authorized or triggered here.
+
+
+## Local amendment: platform Preview self origin (default off)
+
+Owner code-only approval on 2026-10-07 covers a bounded local correction to
+`readServerConfig`. No deployment or configuration enable is authorized by that
+approval. The existing exact configured origins and bearer authorization remain.
+`LIFE_RHYTHM_ALLOW_VERCEL_PREVIEW_SELF_ORIGIN` is absent/false by default. Explicit
+`true` requires platform `VERCEL=1`, `VERCEL_ENV=preview`, the exact project ID
+`prj_Os5Ucic7cDQwut3mO3I39V3lc52s`, and a canonical generated `VERCEL_URL` hostname.
+Only that deployment's HTTPS origin is added; branch aliases, production domain,
+wildcards, ports, paths, credentials, uppercase/invalid hostnames are rejected.
+The combined exact-origin list still has at most eight entries. Request headers
+never provide the added origin. Enabled opt-in with missing/wrong platform facts
+fails closed, including outside Preview. No settings enable it in this change.
+
+Vercel supplies the generated hostname during build/runtime, so a future deployment
+can recognize its own immutable origin without guessing its URL before deployment.
+This is origin admission, not source/deployment attribution: independent trusted
+Vercel observation must still bind that URL to the reviewed source/project/team.
+The existing browser API request stays relative; Deployment Protection is retained.
+Official reference: https://vercel.com/docs/environment-variables/system-environment-variables
+
+After independent review, publication of this branch would trigger the existing
+Vercel Git integration. Separate deployment/publication approval is required before
+pushing. A future approved Preview must be newly attributed and the acceptance
+harness retargeted; prior results at `5e08c55918eaf64be02d210b17fbcd11c7ec34bf`
+remain historical evidence for that SHA, not new-head hosted acceptance. Rollback
+is disable opt-in for future builds/revert this code, plus revoke any new target/run
+authorization; immutable already-created deployments are not edited in place.
