@@ -1,8 +1,8 @@
 {
-  "enabled": false,
-  "immutableOriginApproved": false,
-  "immutableOrigin": null,
+  "enabled": true,
+  "immutableOriginApproved": true,
+  "immutableOrigin": "https://life-rhythm-prototype-7it1u92y9-daler-project-lr.vercel.app",
   "mode": "external-connector-automation",
-  "trustedObserverIds": [],
+  "trustedObserverIds": ["228294552"],
   "receiptIssue": 179
 }

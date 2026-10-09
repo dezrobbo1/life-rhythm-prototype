@@ -93,5 +93,22 @@
     "hosted": "NOT_RUN",
     "gate": "BLOCK",
     "existingSourceReviewAdmission": "PR180 currently has no GitHub review objects; existing exact-head independent APPROVED preflight remains unsatisfied and is not waived."
+  },
+  "immutableRetarget20261009": {
+    "applicationSource": "07469f9f13aa3887a6ec7847b7b642a839651e63",
+    "deployment": "dpl_4GvGzb8vWMvFuPpYjUaJSBv61Vtm",
+    "origin": "https://life-rhythm-prototype-7it1u92y9-daler-project-lr.vercel.app",
+    "exactSourceReview": "5467824686 APPROVED coderabbitai[bot]",
+    "ciRuns": ["37906435622", "37906435496"],
+    "tests": 72,
+    "passed": 72,
+    "failed": 0,
+    "node": "24.19.0",
+    "whitespace": "PASS",
+    "supervisionEnabled": true,
+    "repositoryDispatchEnabled": false,
+    "independentTargetedReview": "MERGE_ZERO_SUPPORTED_FINDINGS_RETARGET_AND_SEPARATE_DISPATCH_GATE",
+    "hosted": "NOT_RUN",
+    "gate": "BLOCK"
   }
 }

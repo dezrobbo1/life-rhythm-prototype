@@ -86,7 +86,7 @@ test("inert entrypoint logs and artifact never emit injected credentials or raw 
     await rm(dir, { recursive: true, force: true });
   }
 });
-test("default disabled supervision configuration blocks all real CLI paths without any network or password disclosure", async () => {
+test("disabled repository dispatch blocks all real CLI paths without any network or password disclosure even with armed supervision", async () => {
   const dir = await mkdtemp(join(tmpdir(), "c1-default-block-"));
   try {
     const { manifest } = await import("./policy.mjs");
@@ -115,7 +115,7 @@ test("default disabled supervision configuration blocks all real CLI paths witho
       GITHUB_WORKFLOW_SHA: sha,
       C1_HARNESS_SHA: sha,
       RUNNER_ENVIRONMENT: "github-hosted",
-      C1_ENABLED: "true",
+      C1_ENABLED: "false",
       C1_TRUSTED_SHA: sha,
       C1_ACCOUNT_A_PASSWORD: secret,
       C1_ACCOUNT_B_PASSWORD: secret,
