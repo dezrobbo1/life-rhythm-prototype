@@ -38,6 +38,10 @@ test("workflow is manually dispatched, default-main guarded, isolated with passw
       workflow.indexOf("secrets.C1_ACCOUNT"),
   );
   assert.equal([...workflow.matchAll(/secrets\./g)].length, 2);
+  assert.doesNotMatch(workflow, /issues: write|pull-requests: write|contents: write|actions: write/);
+  assert.match(workflow, /name: C1 external pre admission/);
+  assert.match(workflow, /run\.mjs --pre/);
+  assert.equal([...workflow.matchAll(/C1_PRE_JOB_ID: \$\{\{ needs.preflight.outputs.pre_job_id \}\}/g)].length, 2);
   const post = workflow.slice(workflow.indexOf("  post-verification:"));
   assert.match(post, /environment: c1-native-post-verification/);
   assert.doesNotMatch(post, /id-token: write|secrets\.|ACTION.*TOKEN/);
@@ -117,7 +121,7 @@ test("default disabled supervision configuration blocks all real CLI paths witho
       C1_ACCOUNT_B_PASSWORD: secret,
       GITHUB_TOKEN: secret,
     };
-    for (const args of [[], ["--admission"], ["--post"]]) {
+    for (const args of [[], ["--pre"], ["--admission"], ["--post"]]) {
       const result = spawnSync(
         process.execPath,
         [new URL("./run.mjs", import.meta.url).pathname, ...args],

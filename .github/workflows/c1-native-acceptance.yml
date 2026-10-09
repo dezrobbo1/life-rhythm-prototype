@@ -8,6 +8,11 @@ concurrency:
   cancel-in-progress: false
 jobs:
   preflight:
+    name: C1 external pre admission
+    outputs:
+      pre_receipt_id: ${{ steps.observation.outputs.pre_receipt_id }}
+      pre_receipt_digest: ${{ steps.observation.outputs.pre_receipt_digest }}
+      pre_job_id: ${{ steps.observation.outputs.pre_job_id }}
     if: >-
       github.repository == 'dezrobbo1/life-rhythm-prototype' &&
       github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
@@ -17,6 +22,8 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      actions: read
+      issues: read
       pull-requests: read
       checks: read
       statuses: read
@@ -29,6 +36,17 @@ jobs:
         with:
           node-version: "24.19.0"
       - run: node tools/c1-native-acceptance/preflight.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          C1_ENABLED: ${{ vars.C1_NATIVE_ENABLED }}
+          C1_TRUSTED_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
+          C1_HARNESS_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: tools/c1-native-acceptance
+      - name: Await fresh external connector observation
+        id: observation
+        run: node run.mjs --pre
+        working-directory: tools/c1-native-acceptance
         env:
           GITHUB_TOKEN: ${{ github.token }}
           C1_ENABLED: ${{ vars.C1_NATIVE_ENABLED }}
@@ -47,6 +65,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      issues: read
       id-token: write
       pull-requests: read
       checks: read
@@ -81,6 +100,9 @@ jobs:
           C1_ENABLED: ${{ vars.C1_NATIVE_ENABLED }}
           C1_TRUSTED_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
           C1_HARNESS_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
+          C1_PRE_RECEIPT_ID: ${{ needs.preflight.outputs.pre_receipt_id }}
+          C1_PRE_RECEIPT_DIGEST: ${{ needs.preflight.outputs.pre_receipt_digest }}
+          C1_PRE_JOB_ID: ${{ needs.preflight.outputs.pre_job_id }}
       - name: Run bounded native acceptance
         id: phase
         run: |
@@ -91,6 +113,9 @@ jobs:
           C1_ENABLED: ${{ vars.C1_NATIVE_ENABLED }}
           C1_TRUSTED_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
           C1_HARNESS_SHA: ${{ vars.C1_TRUSTED_HARNESS_SHA }}
+          C1_PRE_RECEIPT_ID: ${{ needs.preflight.outputs.pre_receipt_id }}
+          C1_PRE_RECEIPT_DIGEST: ${{ needs.preflight.outputs.pre_receipt_digest }}
+          C1_PRE_JOB_ID: ${{ needs.preflight.outputs.pre_job_id }}
           C1_ACCOUNT_A_PASSWORD: ${{ secrets.C1_ACCOUNT_A_PASSWORD }}
           C1_ACCOUNT_B_PASSWORD: ${{ secrets.C1_ACCOUNT_B_PASSWORD }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -105,7 +130,7 @@ jobs:
           compression-level: 9
 
   post-verification:
-    name: C1 supervised post verification
+    name: C1 external post verification
     needs: native
     # No account secrets, provider access or OIDC permission in this job.
     environment: c1-native-post-verification
@@ -114,6 +139,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      issues: read
       pull-requests: read
       checks: read
       statuses: read

@@ -2,7 +2,7 @@
   "enabled": false,
   "immutableOriginApproved": false,
   "immutableOrigin": null,
+  "mode": "external-connector-automation",
   "trustedObserverIds": [],
-  "preEnvironmentId": null,
-  "postEnvironmentId": null
+  "receiptIssue": 179
 }
