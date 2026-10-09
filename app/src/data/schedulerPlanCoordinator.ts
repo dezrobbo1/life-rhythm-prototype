@@ -748,32 +748,34 @@ export function changedDurationLearningTemplateIds(
 export async function ensureCurrentPrivatePlan(
   options: PrivatePlanCoordinatorOptions = {},
 ): Promise<PrivatePlanActionResult> {
-  const saved = await loadSchedulerPlanState();
+  const database = options.database ?? getCurrentLifeRhythmDatabase();
+  const boundOptions = { ...options, database };
+  const saved = await loadSchedulerPlanState(database);
 
   if (saved.status === 'invalid' || saved.status === 'error') {
     return { ok: false, errors: saved.errors, warnings: [] };
   }
 
-  const live = await buildCurrentLiveSchedulingContext(options);
+  const live = await buildCurrentLiveSchedulingContext(boundOptions);
   if (!live.ok) return live;
 
   const current = live.context.schedulerStateSnapshot ?? saved;
 
   if (current.status === 'ok' && current.taskInputRepairPendingAt) {
     return repairCurrentPrivatePlan({
-      ...options,
+      ...boundOptions,
       reason: 'Apply the corrected task definition to the private plan.',
       trigger: 'taskDefinitionChanged',
     });
   }
 
   if (current.status === 'ok' && current.settingsRepairPendingAt) {
-    return repairCurrentPrivatePlan({ ...options, reason: 'Apply reviewed planning-day settings.', trigger: 'settingsChanged' });
+    return repairCurrentPrivatePlan({ ...boundOptions, reason: 'Apply reviewed planning-day settings.', trigger: 'settingsChanged' });
   }
 
   if (current.status === 'ok' && current.rhythmInputRepairPendingAt) {
     return repairCurrentPrivatePlan({
-      ...options,
+      ...boundOptions,
       reason: 'Apply the current rhythm definition and occurrences to the private plan.',
       trigger: 'rhythmDefinitionChanged',
     });
@@ -781,7 +783,7 @@ export async function ensureCurrentPrivatePlan(
 
   if (current.status === 'ok' && current.preferenceRepairPendingAt) {
     return repairCurrentPrivatePlan({
-      ...options,
+      ...boundOptions,
       reason: 'Apply current scheduling preferences to the private plan.',
       trigger: 'preferenceChanged',
       releasePlacementIds: releasePlacementIdsForPreferenceRepair(
@@ -795,7 +797,7 @@ export async function ensureCurrentPrivatePlan(
 
   if (current.status === 'ok' && current.durationLearningRepairPendingAt) {
     return repairCurrentPrivatePlan({
-      ...options,
+      ...boundOptions,
       reason: 'Apply current duration learning to the private plan.',
       trigger: 'durationLearningChanged',
     });
@@ -809,7 +811,7 @@ export async function ensureCurrentPrivatePlan(
     ).length > 0
   ) {
     return repairCurrentPrivatePlan({
-      ...options,
+      ...boundOptions,
       reason: 'Apply current duration learning to the private plan.',
       trigger: 'durationLearningChanged',
     });
@@ -831,7 +833,7 @@ export async function ensureCurrentPrivatePlan(
     now: live.now,
     reason: 'Create the current private plan from live scheduling information.',
     trigger: 'manualReplan',
-  }, undefined, undefined, undefined, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, current, {
+  }, database, undefined, undefined, live.context.calendarSourceSnapshot, live.context.canonicalInputSnapshot, current, {
     applied: live.context.durationLearningApplied,
     ...(live.context.durationLearningEventSnapshot
       ? { eventSnapshot: live.context.durationLearningEventSnapshot }
@@ -842,9 +844,9 @@ export async function ensureCurrentPrivatePlan(
       return { ok: false, errors: built.errors, warnings: live.context.warnings };
     }
 
-    const freshLive = await buildCurrentLiveSchedulingContext(options);
+    const freshLive = await buildCurrentLiveSchedulingContext(boundOptions);
     if (!freshLive.ok) return freshLive;
-    const accepted = await loadSchedulerPlanState();
+    const accepted = await loadSchedulerPlanState(database);
     if (accepted.status === 'invalid' || accepted.status === 'error') {
       return { ok: false, errors: accepted.errors, warnings: freshLive.context.warnings };
     }
@@ -864,7 +866,7 @@ export async function ensureCurrentPrivatePlan(
       now: freshLive.now,
       reason: 'Create the current private plan from live scheduling information.',
       trigger: 'manualReplan',
-    }, undefined, undefined, undefined, freshLive.context.calendarSourceSnapshot, freshLive.context.canonicalInputSnapshot, freshLive.context.schedulerStateSnapshot, {
+    }, database, undefined, undefined, freshLive.context.calendarSourceSnapshot, freshLive.context.canonicalInputSnapshot, freshLive.context.schedulerStateSnapshot, {
       applied: freshLive.context.durationLearningApplied,
       ...(freshLive.context.durationLearningEventSnapshot
         ? { eventSnapshot: freshLive.context.durationLearningEventSnapshot }
@@ -949,14 +951,16 @@ export async function undoCurrentPrivatePlan(
   options: PrivatePlanCoordinatorOptions = {},
   expectedRecoveryGeneration?: number,
 ): Promise<PrivatePlanActionResult> {
+  const database = options.database ?? getCurrentLifeRhythmDatabase();
   const recoveryGeneration = expectedRecoveryGeneration ?? options.expectedRecoveryGeneration;
   const live = await buildCurrentLiveSchedulingContext({
     ...options,
+    database,
     ...(recoveryGeneration !== undefined ? { expectedRecoveryGeneration: recoveryGeneration } : {}),
   });
   if (!live.ok) return live;
 
-  const undone = await undoPersistedSchedulerRepair(undefined, undefined, recoveryGeneration);
+  const undone = await undoPersistedSchedulerRepair(database, undefined, recoveryGeneration);
   if (!undone.ok) {
     return { ok: false, errors: undone.errors, warnings: live.context.warnings };
   }

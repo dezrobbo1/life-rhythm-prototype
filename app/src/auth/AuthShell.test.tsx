@@ -238,7 +238,7 @@ describe('required Supabase sign-in', () => {
         session(B, '22222222-2222-4222-8222-222222222222'),
       ),
     );
-    await act(async () => resolve(new Response(JSON.stringify(ready))));
+    await act(async () => resolve(Response.json(ready)));
     await screen.findByRole('alert');
     expect(screen.queryByText('Ordinary app')).toBeNull();
   });

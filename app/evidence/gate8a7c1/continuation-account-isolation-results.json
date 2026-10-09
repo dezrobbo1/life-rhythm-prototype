@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-09",
+  "kind": "bounded-local-account-isolation-correction",
+  "inputSource": "b112adb5386e10b566532705a49d9e4e5c934a56",
+  "reviewedBundleSource": "2e52b76aae05e7ab05df87dcd098ebd4c6596eea",
+  "harnessMerge": "c8d984b10a3d0ecfe8a927439f4125462f7b45de",
+  "redFirst": {
+    "failed": 3,
+    "passed": 16,
+    "realPersistence": "Dexie/fake-indexeddb",
+    "cases": [
+      "supplied-A-current-B-initial-plan",
+      "initial-read-account-switch",
+      "supplied-A-current-B-undo"
+    ]
+  },
+  "green": {
+    "coordinator": 19,
+    "focusedNode24": 59,
+    "focusedNode22": 223,
+    "focusedFilesNode22": 10,
+    "fullNode24": {
+      "tests": 1668,
+      "files": 123,
+      "timezones": [
+        "UTC",
+        "Australia/Perth"
+      ]
+    },
+    "serverTypecheck": [
+      "22.23.3",
+      "24.19.0"
+    ],
+    "build": "PASS",
+    "clientPrivacy": "PASS",
+    "diffCheck": "PASS"
+  },
+  "review": {
+    "reviewer": "/root/c1_harness_final_review",
+    "verdict": "MERGE",
+    "materialFindings": 0,
+    "fourFileDiffSha256": "665c19325130ab5cc6f5e3c894ff271afabd9337965dc27d297cce8aa334e0b0",
+    "coordinatorBlob": "d5c05605c92241a072e2c40a6b5c5ff49afb1a29",
+    "separateGithubApprovedGate": "UNSATISFIED"
+  },
+  "sourceManifest": {
+    "files": 316,
+    "sha256": "11825681576357abdc6d13975eefb5b0a06f3010588c062f312199a2a8814fab"
+  },
+  "hostedAcceptance": "NOT_RUN",
+  "gate": "BLOCK",
+  "passwordOperation": "NONE",
+  "nextMilestone": "C1 closeout; C2 not started"
+}
