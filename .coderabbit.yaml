@@ -1,0 +1,4 @@
+# C1 requires a genuine completed review decision, not an author override.
+reviews:
+  request_changes_workflow: true
+  allow_author_approval: false
