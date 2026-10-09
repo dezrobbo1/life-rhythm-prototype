@@ -126,3 +126,30 @@ authority. Historical original-identity/app-source evidence remains attributed t
 original SHA, and all new-head hosted acceptance is NOT_RUN.
 
 GitHub approval provenance: https://docs.github.com/en/rest/actions/workflow-runs#get-the-review-history-for-a-workflow-run
+
+# Reviewed target continuation — 2026-10-09
+
+The manifest now pins PR #180 source `07469f9f13aa3887a6ec7847b7b642a839651e63`
+and immutable Preview `dpl_4GvGzb8vWMvFuPpYjUaJSBv61Vtm` at
+`https://life-rhythm-prototype-7it1u92y9-daler-project-lr.vercel.app`.
+The Gmail-linked Vercel management connector verified the exact project/team,
+source, READY and Preview (`target:null`). GitHub review `5467824686` is an
+actual non-author CodeRabbit APPROVED decision at this exact source; App CI
+`37906435622` and App Preview `37906435496`, attempt 1, succeeded. Approval was
+obtained by normal completed incremental review, not approve/resolve overrides.
+
+The owner-authorized external executor ID `228294552` and exact immutable
+origin are configured. `attribution-config.json` is armed, **not authorization
+to dispatch**: repository `C1_NATIVE_ENABLED` remains absent/false. The full
+reviewed merged main SHA H must still be authorized externally, and exact
+Preview-only OIDC required claims configured with action-time confirmation.
+No persistent bypass, Production trust, provider-management credentials or broad template.
+
+The main-only environments are `c1-native-preview` ID `23853861553` and
+`c1-native-post-verification` ID `23853957047`, with administrator bypass off.
+The owner entered only the A/B environment password secrets through the secure
+UI; names were verified without reading values. Their validity remains untested.
+No workflow has been dispatched and no current hosted matrix or responsive
+row passed. C1 remains BLOCK; scoped harness completion still cannot establish
+full C1 PASS. Older sections above are dated implementation history; the merged
+automated-observer contract governs current attribution mode and trust.

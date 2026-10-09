@@ -116,7 +116,7 @@ test("disabled supervision and mutable alias block before any reader", async () 
     {
       enabled: true,
       immutableOriginApproved: true,
-      immutableOrigin: manifest.origin,
+      immutableOrigin: "https://life-rhythm-prototype-git-feat-gate8a7c-dbab5a-daler-project-lr.vercel.app",
       trustedObserverIds: ["777"],
       preEnvironmentId: 1,
       postEnvironmentId: 2,
@@ -130,6 +130,7 @@ test("disabled supervision and mutable alias block before any reader", async () 
         async () => {
           calls++;
         },
+        { ...manifest, origin: "https://life-rhythm-prototype-git-feat-gate8a7c-dbab5a-daler-project-lr.vercel.app" },
       ),
     );
   assert.equal(calls, 0);

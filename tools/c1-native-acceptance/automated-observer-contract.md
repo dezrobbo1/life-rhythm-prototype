@@ -1,6 +1,10 @@
 # C1 external connector automation
 
-Status: bounded observer redesign, default OFF; hosted acceptance NOT_RUN.
+Status: bounded observer redesign merged through #182 at
+`c8d984b10a3d0ecfe8a927439f4125462f7b45de`, independently reviewed with 71 offline
+tests passing. Target/origin/executor configuration is armed by the dated
+continuation in README.md, but repository dispatch remains OFF and hosted
+acceptance NOT_RUN. No source-review admission or full C1 row is waived.
 Authority: owner authorization on 2026-10-09 for a bounded automated-observer
 redesign, with one independent security review before activation. PR #181 is
 already merged at `31d325f7058e16ecaa9c426fc6030f8e1587a31d`. This follow-up

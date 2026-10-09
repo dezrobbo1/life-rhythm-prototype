@@ -3,12 +3,12 @@ export const manifest = Object.freeze({
   repositoryId: "1268056225",
   ownerId: "228294552",
   pr: 180,
-  source: "5e08c55918eaf64be02d210b17fbcd11c7ec34bf",
+  source: "07469f9f13aa3887a6ec7847b7b642a839651e63",
   workflowRef:
     "dezrobbo1/life-rhythm-prototype/.github/workflows/c1-native-acceptance.yml@refs/heads/main",
   origin:
-    "https://life-rhythm-prototype-git-feat-gate8a7c-dbab5a-daler-project-lr.vercel.app",
-  deployment: "dpl_Ees6UuR6vfNtmuNgk9Qe1zCLqmYi",
+    "https://life-rhythm-prototype-7it1u92y9-daler-project-lr.vercel.app",
+  deployment: "dpl_4GvGzb8vWMvFuPpYjUaJSBv61Vtm",
   project: "prj_Os5Ucic7cDQwut3mO3I39V3lc52s",
   team: "team_EeRBGaTcRamnOpGbT1RswHVc",
   provider: "https://lfwadowwdvcnibjkeerg.supabase.co",
