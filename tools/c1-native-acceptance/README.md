@@ -1,5 +1,20 @@
 # C1 native acceptance infrastructure — draft, BLOCK
 
+Current continuation, 2026-10-09: PR #181 is merged. The owner authorized a bounded
+automated-observer redesign, described in
+[automated-observer-contract.md](automated-observer-contract.md). The proposed
+default-off mode trusts owner-authorized external Work connector automation,
+with isolated pre/native/post job verification, rather than requiring a second
+GitHub person. It introduces no CI Vercel credential and does not claim
+second-person independence or provider-signed metadata. One independent security
+review is required before activation. PR #180 stays draft; hosted C1 NOT_RUN.
+
+The material below records the earlier independent-human design and dated
+authorization limits. Those historical limits do not supersede the owner's
+2026-10-09 continuation authorization. Immutable deployment admission, request
+containment, OIDC, account isolation, cleanup, deadlines and fail-closed coverage
+remain binding in both modes.
+
 Code-only authority: owner approval on 2026-10-07 permits implementation and publication of one draft infrastructure PR. No merge, dispatch, password entry, environment/trust configuration, deployment or Supabase change. PR #180 remains draft/unmerged, C1 BLOCK. Existing local/API/browser-mock and App CI results are not hosted acceptance.
 
 ## Scope and implementation contract

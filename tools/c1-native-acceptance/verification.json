@@ -71,5 +71,27 @@
     "providerObservations": "NOT_RUN",
     "observerConfigured": false,
     "postEnvironmentConfigured": false
+  },
+  "automatedObserverRedesign": {
+    "date": "2026-10-09",
+    "base": "31d325f7058e16ecaa9c426fc6030f8e1587a31d",
+    "authorization": "OWNER_AUTHORIZED_BOUNDED_AUTOMATED_OBSERVER_REDESIGN",
+    "mode": "external-connector-automation",
+    "trust": "OWNER_AUTHORIZED_EXTERNAL_CONNECTOR_NOT_SECOND_PERSON_INDEPENDENCE",
+    "redFirst": "Four initial automated-admission regressions failed; missing native interface and attribution phase compatibility regressions reproduced before corrections.",
+    "tests": 71,
+    "passed": 71,
+    "failed": 0,
+    "node": "24.19.0",
+    "yaml": "PASS",
+    "whitespace": "PASS",
+    "applicationSourceChanged": false,
+    "applicationEvidenceReuse": "Unchanged application source; prior valid tests/build evidence reused under AGENTS.md.",
+    "independentSecurityReview": "PENDING",
+    "configured": false,
+    "hostedDispatched": false,
+    "hosted": "NOT_RUN",
+    "gate": "BLOCK",
+    "existingSourceReviewAdmission": "PR180 currently has no GitHub review objects; existing exact-head independent APPROVED preflight remains unsatisfied and is not waived."
   }
 }

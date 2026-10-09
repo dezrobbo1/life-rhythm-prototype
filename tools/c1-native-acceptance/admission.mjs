@@ -328,4 +328,9 @@ export async function issueOidc(env, sha, fetcher = fetch) {
 }
 // Supervision replaces the unprovisioned external signing endpoint. The only
 // reader is GitHub's authenticated run/approval/comment APIs.
-export { verifySupervision as verifyAttribution } from "./supervision.mjs";
+import { verifyNativeObservation } from "./supervision.mjs";
+import { githubGet } from "./preflight.mjs";
+export async function verifyAttribution(env, config, phase = "pre", get = githubGet, target = manifest) {
+  check(phase === "pre");
+  return verifyNativeObservation(env, config, get, target);
+}
