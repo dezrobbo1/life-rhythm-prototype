@@ -1,0 +1,75 @@
+{
+  "date": "2026-10-07",
+  "kind": "offline-code-verification",
+  "base": "b58b7442c478770f9c0e1db9b6208c8c8e803e30",
+  "applicationTarget": "5e08c55918eaf64be02d210b17fbcd11c7ec34bf",
+  "node": "24.19.0",
+  "harness": {
+    "tests": 62,
+    "passed": 62,
+    "failed": 0
+  },
+  "applicationAggregate": {
+    "files": 111,
+    "tests": 1454,
+    "passed": 1454,
+    "failed": 0
+  },
+  "applicationBuild": "PASS_WITH_EXISTING_CHUNK_ADVISORY",
+  "yamlParse": "PASS",
+  "whitespace": "PASS",
+  "hosted": "NOT_RUN",
+  "gate": "BLOCK",
+  "deploymentAttribution": "SUPERVISED_GITHUB_APPROVAL_RECEIPTS_IMPLEMENTED_DEFAULT_OFF_PENDING_IMMUTABLE_RETARGET_AND_SAFE_OBSERVATION_ACCESS",
+  "browserExecution": "NOT_RUN",
+  "publicConfigExtraction": "PASS_ACTUAL_PR180_LOCAL_PRODUCTION_BUNDLE_AND_SYNTHETIC_FIXTURE_HOSTED_NOT_RUN",
+  "githubOidcIssuance": "IMPLEMENTED_OFFLINE_CRYPTO_VERIFIED_HOSTED_NOT_RUN",
+  "nativeOrchestration": "IMPLEMENTED_OFFLINE_VERIFIED_HOSTED_NOT_RUN",
+  "independentReview": "PENDING_PARENT",
+  "providersChanged": false,
+  "secretsConfigured": false,
+  "hostedDispatched": false,
+  "applicationCodeChanged": false,
+  "history": [
+    "Initial regression imports failed before implementation existed.",
+    "Workflow static-test parsing was corrected for comments and the statuses key.",
+    "Caller-supplied protection-header leak reproduced offline, then stripped case-insensitively; final suite passed.",
+    "Completed previously missing public-config/OIDC/orchestration paths and signed attribution consumer after parent feedback; no hosted activity.",
+    "Consolidated correction pass for eight independent-review blockers; all hosted NOT_RUN and C1 BLOCK.",
+    "Owner-approved local supervised attribution amendment replaces signing service; no publication, deployment, token use or settings."
+  ],
+  "applicationEvidenceReuse": "Application tree unchanged; prior 1454-test/build evidence reused under AGENTS.md; not rerun for isolated harness edits.",
+  "cancellation": "PASS_REAL_SYNTHETIC_SIGTERM_LOCAL_CLEANUP_BLOCK_NO_HOSTED_EXECUTION",
+  "nativeJobDeadline": "FIRST_STEP_ABSOLUTE_19_MINUTES_INCLUDES_PREPARATION_2_MINUTE_CLEANUP_RESERVE",
+  "reviewCorrections": {
+    "reviewedHead": "0aae50ae713e13537f8be680a227556f79b52abc",
+    "findings": 8,
+    "targetedVerification": "PENDING_PARENT",
+    "redFirst": "9 adversarial regressions failed against reviewed head before corrections",
+    "outcomes": [
+      "Mutable approved alias now blocked before reader/credential step; future immutable-origin/app-origin approval required.",
+      "Explicit path/query/body/header allowlists with hostile-page no-forward regressions.",
+      "Only confirmed HTTP 204 marks logout complete; UI failure invokes bounded local fallback.",
+      "SIGINT/SIGTERM cancellation and absolute preparation-inclusive deadline; forced termination never proves cleanup.",
+      "Effective-config ESTree extraction passes exact-source production build/backticks; comments/decoys/dynamic config rejected.",
+      "UI pass requires captured-session authenticated boundary request and validated response.",
+      "Stale generation deterministically differs from observed generation including B sentinel.",
+      "Independent own/cross controls on both trial_access and account_heads."
+    ]
+  },
+  "dependencyCleanInstall": "PASS_OWN_LOCKFILE_NPM_CI_IGNORE_SCRIPTS",
+  "supervisionAmendment": {
+    "kind": "LOCAL_OFFLINE_ONLY_NOT_PUBLISHED",
+    "sourceHead": "8b8e9f53be424c8f3f45142a3e893902814cd89c",
+    "redFirst": "New positive supervision controls failed against missing/default-block interfaces before implementation.",
+    "observerProvenance": "Pinned numeric User ID, independent from run initiators; GitHub authenticated exact-run approval plus hash-bound unedited PR181 comment.",
+    "postProvenance": "Successful exact native job/run/attempt/head/name, trusted needs output digest and new matching post receipt after GitHub-confirmed completion.",
+    "nativeSuccess": "TEST_PHASE_COMPLETE_PENDING_POST",
+    "postSuccess": "SCOPED_ROWS_COMPLETE_GATE_BLOCK",
+    "publication": "HELD_LOCAL_AUTOMATIC_VERCEL_DEPLOYMENT_REQUIRES_SEPARATE_APPROVAL",
+    "review": "PENDING_PARENT_COORDINATED_INDEPENDENT_REVIEW",
+    "providerObservations": "NOT_RUN",
+    "observerConfigured": false,
+    "postEnvironmentConfigured": false
+  }
+}

@@ -1,0 +1,9 @@
+node_modules/
+artifacts/
+playwright-report/
+test-results/
+.env*
+*.log
+*.har
+*.zip
+core*
