@@ -3,7 +3,11 @@
 This continuation completes the existing C1 authentication/account-metadata gate.
 It changes no application behavior and starts no C2 storage work. The application
 under test remains PR #180 SHA `07469f9f13aa3887a6ec7847b7b642a839651e63`,
-Preview `dpl_4GvGzb8vWMvFuPpYjUaJSBv61Vtm`, at the exact immutable manifest host.
+Preview `dpl_FWvCxvDYgnpUZFeDR6NcgrtWz7kn`, at
+`https://life-rhythm-prototype-r04nvovwn-daler-project-lr.vercel.app`.
+This replacement uses the existing branch-scoped Preview self-origin opt-in;
+see the current origin-alignment amendment in [README.md](README.md).
+Configuration/deployment verification is not hosted admission or C1 acceptance.
 
 ## Accepted fixture boundaries
 
