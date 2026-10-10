@@ -138,11 +138,36 @@ test("admission proof checks exact Preview protection without sending any creden
   assert.equal(typeof policy.proveDeploymentProtection, "function");
   await policy.proveDeploymentProtection(new policy.Budget(), async (url, init) => {
     assert.equal(url, policy.manifest.origin + "/");
-    assert.equal(init.redirect, "error");
+    assert.equal(init.redirect, "manual");
     assert.deepEqual(init.headers, {});
     return new Response("protection", {status:401});
   });
   await assert.rejects(policy.proveDeploymentProtection(new policy.Budget(), async () => new Response("public app")));
+});
+test("uncredentialed protection proof recognizes only Vercel SSO redirects without following them", async () => {
+  const location = "https://vercel.com/sso-api?url=" + encodeURIComponent(policy.manifest.origin + "/");
+  await policy.proveDeploymentProtection(new policy.Budget(), async (url, init) => {
+    assert.equal(url, policy.manifest.origin + "/");
+    assert.equal(init.redirect, "manual");
+    assert.deepEqual(init.headers, {});
+    return new Response(null, { status: 302, headers: { location } });
+  });
+  for (const invalidLocation of [
+    "https://other.invalid/sso-api", "https://vercel.com.evil.invalid/sso-api",
+    "http://vercel.com/sso-api", "https://vercel.com/other",
+    "https://user:password@vercel.com/sso-api", "/sso-api", "not a URL",
+    "https://vercel.com/sso-api",
+    "https://vercel.com/sso-api?url=https%3A%2F%2Funrelated.vercel.app%2F",
+    location + "&url=" + encodeURIComponent(policy.manifest.origin + "/"),
+    location + "&next=https%3A%2F%2Funrelated.invalid",
+    location + "#fragment",
+    location + "&nonce=one&nonce=two",
+  ]) {
+    await assert.rejects(policy.proveDeploymentProtection(new policy.Budget(), async () =>
+      new Response(null, { status: 302, headers: { location: invalidLocation } })), { message: "C1_GUARD_BLOCK" });
+  }
+  await assert.rejects(policy.proveDeploymentProtection(new policy.Budget(), async () =>
+    new Response(null, { status: 302 })));
 });
 test("phase artifact records only the explicit mode enum, never the bypass value", () => {
   const phase = { format:2, gate:"BLOCK", hosted:"TEST_PHASE_COMPLETE_PENDING_POST",
