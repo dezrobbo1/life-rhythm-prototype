@@ -27,11 +27,13 @@ test("workflow is manually dispatched, default-main guarded, isolated with passw
     workflow,
     /github\.workflow_sha == vars\.C1_TRUSTED_HARNESS_SHA/,
   );
-  assert.equal([...workflow.matchAll(/persist-credentials: false/g)].length, 3);
+  assert.equal([...workflow.matchAll(/persist-credentials: false/g)].length, 4);
   for (const match of workflow.matchAll(/^\s+- uses: ([^\s]+)/gm))
     assert.match(match[1], /@[a-f0-9]{40}$/);
   assert.equal([...workflow.matchAll(/id-token: write/g)].length, 1);
   assert.match(workflow, /cancel-in-progress: false/);
+  assert.match(workflow, /ref: 07469f9f13aa3887a6ec7847b7b642a839651e63/);
+  assert(workflow.indexOf("prepare-source-fixture.mjs") < workflow.indexOf("secrets.C1_ACCOUNT"));
   assert(workflow.indexOf("npm ci") < workflow.indexOf("secrets.C1_ACCOUNT"));
   assert(
     workflow.indexOf("run.mjs --admission") <
@@ -53,7 +55,7 @@ test("workflow is manually dispatched, default-main guarded, isolated with passw
   assert.match(native, /started \+ 19 \* 60 \* 1000/);
   assert.doesNotMatch(
     workflow,
-    /app\/|test:data-api|vercel curl|env pull|continue-on-error/,
+    /test:data-api|vercel curl|env pull|continue-on-error/,
   );
 });
 test("inert entrypoint logs and artifact never emit injected credentials or raw exception", async () => {

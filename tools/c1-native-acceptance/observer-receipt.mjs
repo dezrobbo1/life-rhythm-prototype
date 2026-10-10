@@ -1,5 +1,5 @@
 import { manifest, check } from "./policy.mjs";
-import { verifyRecord, verifyPending } from "./supervision.mjs";
+import { verifyRecord, verifyPending, fixtureStages } from "./supervision.mjs";
 
 // Pure projection for an owner-authorized external Work executor. This module
 // performs no provider request and does not prove a lookup occurred. The
@@ -20,6 +20,7 @@ export function connectorReceipt(deployment, context, env, phase,
     check(pending && nativeJob);
     verifyPending(pending, nativeJob, env, target);
     completedAt = nativeJob.completed_at;
+    check(context.fixtureProject==="lfwadowwdvcnibjkeerg" && context.fixtureVerified===true && context.baselineDigest===pending.fixtures.baselineDigest);
   }
   const record = {
     format: 3, phase, repository: manifest.repository,
@@ -32,9 +33,14 @@ export function connectorReceipt(deployment, context, env, phase,
     observerTrust: "OWNER_AUTHORIZED_EXTERNAL_CONNECTOR",
     observedAt: new Date().toISOString(),
     ...(phase === "post" ? { phaseDigest: pending.phaseDigest,
-      preReceipt: pending.preReceipt, completedAt } : {}),
+      preReceipt: pending.preReceipt, completedAt,fixtureBaselineDigest:pending.fixtures.baselineDigest,
+      fixtureRestoredReceipt:pending.fixtures.fixtureRestoredReceipt } : {}),
   };
+  if(fixtureStages.includes(phase)) {
+    check(context.fixtureProject === "lfwadowwdvcnibjkeerg" && context.fixtureState === phase && context.fixtureVerified === true && /^[a-f0-9]{64}$/.test(context.baselineDigest));
+    Object.assign(record,{baselineDigest:context.baselineDigest,preReceipt:Number(env.C1_PRE_RECEIPT_ID),fixtureObservationMethod:"SUPABASE_EXISTING_CONNECTION_METADATA"});
+  }
   verifyRecord(record, env, target, phase, Date.now(), phase === "post"
-    ? { ...pending, completedAt } : undefined, "external-connector-automation");
+    ? { ...pending, completedAt } : fixtureStages.includes(phase) ? pending : undefined, "external-connector-automation");
   return record;
 }

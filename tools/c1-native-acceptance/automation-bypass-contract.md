@@ -1,3 +1,19 @@
+# Final frozen-window provisioning amendment — 2026-10-10
+
+For the final C1 window only, the owner supersedes the older isEnvVar=false
+requirement below: Vercel requires its sole bypass to retain mandatory system-env
+designation. The exact approved application Preview must already be READY before
+creation. Create exactly one key, freeze ALL deployments/source operations, store
+only in protected C1 environment, and revoke/remove immediately after evidence on
+PASS or FAIL. If any deployment appears while live, revoke immediately and BLOCK.
+Application source/client bundles must not consume/expose the key. No Production
+request receives it. See [final-native-coverage-contract.md](final-native-coverage-contract.md).
+
+Older provisioning restrictions below are historical; containment, explicit mode,
+application-auth independence and privacy requirements remain in force.
+
+---
+
 # C1 explicit automation-bypass recovery — 2026-10-10
 
 This is acceptance transport infrastructure, not C1 PASS. The owner authorized

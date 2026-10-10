@@ -119,8 +119,11 @@ export function scopedHeaders(input, oidc, existing = {}) {
       caller.has("authorization")
     )
       safe.Authorization = caller.get("authorization");
-    if (u.pathname.startsWith("/rest/v1/"))
+    if (u.pathname.startsWith("/rest/v1/")) {
       safe["Accept-Profile"] = "life_rhythm";
+      safe["Content-Profile"] = "life_rhythm";
+      safe["content-type"] = "application/json";
+    }
     if (u.pathname === "/auth/v1/token")
       safe["content-type"] = "application/json";
   }
@@ -157,9 +160,17 @@ export function requestPolicy(
     return;
   }
   if (u.pathname.startsWith("/rest/v1/")) {
-    check(method === "GET");
     const table = u.pathname.slice("/rest/v1/".length);
     check(Object.hasOwn(providerSelect, table));
+    if(method !== "GET") {
+      check(["POST","PATCH","DELETE"].includes(method));
+      check([...u.searchParams].length === 2 &&
+        u.searchParams.getAll("issuer").length === 1 &&
+        u.searchParams.getAll("subject").length === 1 &&
+        u.searchParams.get("issuer") === "eq." + manifest.provider + "/auth/v1" &&
+        manifest.accounts.some(a=>u.searchParams.get("subject")==="eq."+a.uuid));
+      return;
+    }
     const wanted = {
       select: providerSelect[table],
       issuer: "eq." + manifest.provider + "/auth/v1",
@@ -189,6 +200,17 @@ export function requestPolicy(
 }
 export function authBody(url, body, expected = {}) {
   const u = new URL(url);
+  if(u.origin === manifest.provider && u.pathname.startsWith("/rest/v1/") && expected.method !== undefined && expected.method !== "GET") {
+    requestPolicy(url,expected.method);
+    if(expected.method === "DELETE") { check(body == null || body === "");return; }
+    check(typeof body === "string" && body.length <= 1024);
+    const data=JSON.parse(body),table=u.pathname.slice("/rest/v1/".length),subject=u.searchParams.get("subject").slice(3);
+    const payload=table === "trial_access" ? {enabled:false} : {revision:"0",generation:"33333333-3333-4333-8333-333333333333"};
+    if(expected.method === "POST") Object.assign(payload,{issuer:manifest.provider+"/auth/v1",subject,...(table === "account_heads" ? {protocol_version:1,canonical_schema_version:1} : {})});
+    keys(data,Object.keys(payload));
+    for(const [key,value] of Object.entries(payload)) check(data[key] === value);
+    return;
+  }
   if (u.origin !== manifest.provider || u.pathname !== "/auth/v1/token") {
     check(body == null || body === "");
     return;
@@ -344,6 +366,9 @@ export const rows = [
   "cleanup",
   "attribution",
   "preflight",
+  "invalid-token", "forged-token", "expired-valid-token", "provider-503",
+  "stored-incompatible-head", "disabled", "uninvited", "issued-session-disabled",
+  "write-insert", "write-update", "write-delete", "fixture-restoration", "origin-denial",
 ];
 export function report(passed = [], gate = "BLOCK") {
   check(
@@ -361,14 +386,15 @@ export function report(passed = [], gate = "BLOCK") {
     passed: [],
     offlineGuards: passed,
     notRun: [...rows],
-    fixturesNotRun: [
-      "expired-valid-token",
-      "provider-503",
-      "stored-incompatible-head",
-      "disabled-uninvited",
-    ],
+    fixturesNotRun: [],
     historicalIdentityEvidence: "UNCHANGED",
   };
+}
+export function fixtureEvidence(value) {
+  check(value && /^[a-f0-9]{64}$/.test(value.baselineDigest));
+  check([value.baselineReceipt,value.fixtureRestoredReceipt].every(x=>Number.isSafeInteger(x)&&x>0));
+  check(value.baselineReceipt!==value.fixtureRestoredReceipt);
+  return{baselineDigest:value.baselineDigest,baselineReceipt:value.baselineReceipt,fixtureRestoredReceipt:value.fixtureRestoredReceipt};
 }
 export async function withTimeout(fn, ms = 10000) {
   let timer;

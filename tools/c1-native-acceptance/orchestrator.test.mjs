@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { executeAcceptance } from "./orchestrator.mjs";
+import { coverageRows } from "./coverage.mjs";
 import { manifest, scopedHeaders } from "./policy.mjs";
 const sha = "a".repeat(40);
 const env = {
@@ -25,6 +26,7 @@ const env = {
 };
 function adapters(log, failAt) {
   return {
+    coverage: async () => ({rows:[...coverageRows],fixtures:{baselineDigest:"d".repeat(64),baselineReceipt:458,fixtureRestoredReceipt:459}}),
     preflight: async () => {
       log.push("preflight");
     },
@@ -190,4 +192,10 @@ test("missing A/B passwords, missing bypass or failed GitHub OIDC cannot be sile
   assert.equal(r.hosted, "NOT_RUN");
   assert(!JSON.stringify(r).includes(secret));
   assert(!log.includes("public-config"));
+});
+test("a required coverage row or restoration evidence missing cannot produce native completion",async()=>{
+  for(const defect of ["missing-row","restore"]) {
+    const log=[],d=adapters(log);d.coverage=async()=>({rows:coverageRows.slice(defect==="missing-row"?1:0),fixtures:{baselineDigest:"d".repeat(64),baselineReceipt:458,fixtureRestoredReceipt:defect==="restore"?undefined:459}});
+    const r=await executeAcceptance(env,{enabled:true},d);assert.equal(r.gate,"BLOCK");assert.equal(r.hosted,"ATTEMPTED_BLOCKED");assert(log.includes("local-logout"));
+  }
 });

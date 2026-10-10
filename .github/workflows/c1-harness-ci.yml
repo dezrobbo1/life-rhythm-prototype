@@ -20,5 +20,14 @@ jobs:
           node-version: '24.19.0'
       - run: npm ci --ignore-scripts --no-audit --no-fund
         working-directory: tools/c1-native-acceptance
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 07469f9f13aa3887a6ec7847b7b642a839651e63
+          path: c1-app-under-test
+          persist-credentials: false
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: c1-app-under-test/app
+      - run: node prepare-source-fixture.mjs
+        working-directory: tools/c1-native-acceptance
       - run: npm test
         working-directory: tools/c1-native-acceptance

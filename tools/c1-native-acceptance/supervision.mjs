@@ -7,10 +7,12 @@ import {
   rows,
   report,
   protectionMode,
+  fixtureEvidence,
 } from "./policy.mjs";
 import { githubGet } from "./preflight.mjs";
 const root = "/repos/" + manifest.repository;
 export const digest = (text) => createHash("sha256").update(text).digest("hex");
+export const fixtureStages = ["fixture-baseline","fixture-protocol","fixture-schema","fixture-disabled","fixture-uninvited","fixture-restored"];
 function exact(value, keys) {
   check(value && typeof value === "object" && !Array.isArray(value));
   check(Object.keys(value).sort().join() === keys.slice().sort().join());
@@ -79,6 +81,7 @@ export function verifyRecord(
   pending,
   mode = "independent-human",
 ) {
+  const fixture=fixtureStages.includes(phase);
   const expected = {
     format: mode === "external-connector-automation" ? 3 : 2,
     phase,
@@ -101,7 +104,7 @@ export function verifyRecord(
     } : {}),
   };
   check(
-    ["pre", "post"].includes(phase) &&
+    (["pre", "post"].includes(phase) || fixture) &&
       /^[1-9][0-9]{0,15}$/.test(env.GITHUB_RUN_ID) &&
       env.GITHUB_RUN_ATTEMPT === "1" &&
       /^[a-f0-9]{40}$/.test(env.C1_TRUSTED_SHA),
@@ -113,7 +116,15 @@ export function verifyRecord(
       phaseDigest: pending.phaseDigest,
       preReceipt: pending.preReceipt,
       completedAt: pending.completedAt,
+      fixtureBaselineDigest:pending.fixtures.baselineDigest,
+      fixtureRestoredReceipt:pending.fixtures.fixtureRestoredReceipt,
     });
+  }
+  if(fixture) {
+    check(mode==="external-connector-automation" && /^[a-f0-9]{64}$/.test(record.baselineDigest));
+    Object.assign(expected,{baselineDigest:pending?.baselineDigest??record.baselineDigest,
+      preReceipt:Number(env.C1_PRE_RECEIPT_ID),fixtureObservationMethod:"SUPABASE_EXISTING_CONNECTION_METADATA"});
+    check(Number.isSafeInteger(expected.preReceipt)&&expected.preReceipt>0);
   }
   exact(record, [...Object.keys(expected), "observedAt"]);
   for (const [k, v] of Object.entries(expected)) check(record[k] === v);
@@ -125,6 +136,7 @@ export function verifyRecord(
       observed >= now - (phase === "pre" ? 20 : 5) * 60000,
   );
   if (phase === "post") check(observed >= Date.parse(pending.completedAt));
+  if(fixture && pending?.requestedAt !== undefined) check(observed >= pending.requestedAt - 2000 && observed >= now-(pending.postCheck ? 5*60000 : 90000));
   return observed;
 }
 export async function verifySupervision(
@@ -280,8 +292,8 @@ async function verifyExternalReceipt(env, config, phase, get, target, pending) {
       created >= Date.parse(job.started_at) && created <= Date.parse(job.completed_at) &&
       Date.parse(job.completed_at) <= now + 2000);
   }
-  return { verified: true, preReceipt: phase === "pre" ? receipt.id : pending.preReceipt,
-    receipt: receipt.id, receiptDigest: digest(receipt.body) };
+  return { verified: true, preReceipt: phase === "pre" ? receipt.id : fixtureStages.includes(phase) ? Number(env.C1_PRE_RECEIPT_ID) : pending.preReceipt,
+    receipt: receipt.id, receiptDigest: digest(receipt.body),...(fixtureStages.includes(phase)?{baselineDigest:record.baselineDigest}:{}) };
 }
 
 export async function waitForObservation(env, config, phase, get = githubGet,
@@ -351,6 +363,7 @@ export function phaseResult(result, target = manifest) {
     passed: [...rows],
     requests: result.requests,
     passwordSignins: result.passwordSignins,
+    fixtures:fixtureEvidence(result.fixtures),
   };
   check(
     Number.isInteger(selected.requests) &&
@@ -380,6 +393,7 @@ export function verifyPending(pending, job, env, target = manifest) {
     "requests",
     "passwordSignins",
     "phaseDigest",
+    "fixtures",
   ]);
   check(
     pending.format === 2 &&
@@ -388,6 +402,7 @@ export function verifyPending(pending, job, env, target = manifest) {
       rows.every((row) => pending.passed.includes(row)) &&
       new Set(pending.passed).size === rows.length,
   );
+  exact(pending.fixtures,["baselineDigest","baselineReceipt","fixtureRestoredReceipt"]);fixtureEvidence(pending.fixtures);
   check(
     Number.isInteger(pending.requests) &&
       pending.requests >= 0 &&
@@ -453,13 +468,16 @@ export async function postVerification(
   // Observation must follow GitHub-confirmed native job completion, not merely
   // the earlier runner-generated completion timestamp.
   const observedPending = { ...pending, completedAt: job.completed_at };
+  const restored=await verifySupervision({...env,C1_PRE_RECEIPT_ID:String(pending.preReceipt)},config,"fixture-restored",get,target,
+    {baselineDigest:pending.fixtures.baselineDigest,requestedAt:Date.parse(job.started_at),postCheck:true,preReceipt:pending.preReceipt});
+  check(restored.receipt===pending.fixtures.fixtureRestoredReceipt);
   const observation = config.mode === "external-connector-automation"
     ? await waitForObservation(env, config, "post", get, target, observedPending)
     : await verifySupervision(env, config, "post", get, target, observedPending);
   return {
     format: 2,
-    gate: "BLOCK",
-    hosted: "SCOPED_ROWS_COMPLETE",
+    gate: "PASS",
+    hosted: "C1_ACCEPTED",
     runId: env.GITHUB_RUN_ID,
     attempt: "1",
     harness: env.C1_TRUSTED_SHA,
@@ -472,6 +490,8 @@ export async function postVerification(
     postVerification: config.mode === "external-connector-automation"
       ? "VERIFIED_EXTERNAL_CONNECTOR_AUTOMATION" : "VERIFIED_SUPERVISED",
     fixturesNotRun: report().fixturesNotRun,
+    notRun:[], passed:[...rows], fixtures:fixtureEvidence(pending.fixtures),
+    fixtureLayers:["GENUINE_SUPABASE_SESSION_EXACT_SOURCE_CONTROLLED_CLOCK","EXACT_SOURCE_PROVIDER_503_INTERCEPT","CONNECTED_SUPABASE_METADATA_SNAPSHOT_RESTORE"],
     historicalIdentityEvidence: "UNCHANGED",
   };
 }

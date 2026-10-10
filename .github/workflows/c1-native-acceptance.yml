@@ -1,4 +1,4 @@
-name: C1 native acceptance (blocked draft)
+name: C1 final native acceptance
 on:
   workflow_dispatch:
     inputs:
@@ -98,13 +98,21 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24.19.0"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: 07469f9f13aa3887a6ec7847b7b642a839651e63
+          path: c1-app-under-test
+          persist-credentials: false
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: c1-app-under-test/app
+      - run: node prepare-source-fixture.mjs
       # Dependency/browser preparation never receives account secrets.
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm test
       # Verify the reviewed attribution interface before entering the secret step.
       # Disabled/missing signer configuration fails; variables cannot bypass it.
-      - name: Require authenticated deployment attribution (currently BLOCK)
+      - name: Require authenticated deployment attribution
         run: node run.mjs --admission
         env:
           GITHUB_TOKEN: ${{ github.token }}

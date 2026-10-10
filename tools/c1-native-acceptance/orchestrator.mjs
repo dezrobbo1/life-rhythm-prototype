@@ -17,6 +17,7 @@ import {
   proveDeploymentProtection,
 } from "./policy.mjs";
 import { preflight, githubGet } from "./preflight.mjs";
+import { completeCoverage, coverageRows, fixtureEvidence } from "./coverage.mjs";
 import {
   verifyAttribution,
   issueOidc,
@@ -65,6 +66,7 @@ const defaults = {
   browserRow,
   denial: proveApplicationDenial,
   protection: (budget, signal) => proveDeploymentProtection(budget, fetch, signal),
+  coverage: completeCoverage,
 };
 function evidence(
   passed,
@@ -74,6 +76,7 @@ function evidence(
   env,
   budget,
   preReceipt,
+  fixtures,
 ) {
   check(passed.every((x) => rows.includes(x)));
   check(/^[a-f0-9]{40}$/.test(env.C1_TRUSTED_SHA));
@@ -107,6 +110,7 @@ function evidence(
     attempt: env.GITHUB_RUN_ATTEMPT,
     origin: manifest.origin,
     preReceipt,
+    ...(complete ? { fixtures:fixtureEvidence(fixtures) } : {}),
     completedAt: complete ? new Date().toISOString() : null,
     postVerification: "PENDING",
     requests: budget.requests,
@@ -159,7 +163,8 @@ export async function executeAcceptance(
     started = false,
     complete = false,
     publishableKey = null,
-    preReceipt = null;
+    preReceipt = null,
+    fixtures = null;
   try {
     guardIdentity(identityFromEnv(env), env.C1_TRUSTED_SHA);
     const mode = protectionMode(env.C1_PROTECTION_MODE);
@@ -286,6 +291,9 @@ export async function executeAcceptance(
       browserTask = null;
       if (!passed.includes(row)) passed.push(row);
     }
+    const coverage=await d.coverage({tx,closingTx:d.transport(oidc,budget),sessions,publishableKey,env,config,signal:abort.signal,work});
+    check(coverageRows.length===coverage.rows.length && coverageRows.every(row=>coverage.rows.includes(row)) && new Set(coverage.rows).size===coverageRows.length);
+    fixtures=fixtureEvidence(coverage.fixtures);passed.push(...coverageRows);
     for (const account of manifest.accounts) {
       const held = sessions.get(account.label);
       const head = await work(() =>
@@ -353,6 +361,7 @@ export async function executeAcceptance(
       env,
       budget,
       preReceipt,
+      fixtures,
     );
   } catch {
     return report();
