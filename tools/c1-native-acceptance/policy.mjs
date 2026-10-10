@@ -402,11 +402,26 @@ export async function proveDeploymentProtection(budget, fetcher = fetch, stopSig
   check(!stopSignal?.aborted);
   budget.take();
   const response = await fetcher(manifest.origin + "/", {
-    headers: {}, redirect: "error", cache: "no-store",
+    headers: {}, redirect: "manual", cache: "no-store",
     signal: stopSignal ? AbortSignal.any([stopSignal, AbortSignal.timeout(10000)])
       : AbortSignal.timeout(10000),
   });
-  try { check(!response.redirected && [401, 403].includes(response.status)); }
+  try {
+    let sso = false;
+    if (response.status === 302) {
+      try {
+        const location = new URL(response.headers.get("location"));
+        sso = location.origin === "https://vercel.com" &&
+          location.pathname === "/sso-api" && !location.username &&
+          !location.password && !location.hash &&
+          location.searchParams.getAll("url").length === 1 &&
+          location.searchParams.get("url") === manifest.origin + "/" &&
+          location.searchParams.getAll("nonce").length <= 1 &&
+          [...location.searchParams.keys()].every(key => ["url", "nonce"].includes(key));
+      } catch { /* An unrecognized redirect is not protection evidence. */ }
+    }
+    check(!response.redirected && ([401, 403].includes(response.status) || sso));
+  }
   finally { await response.body?.cancel(); }
 }
 // External management executor only: never inject a Vercel admin credential
