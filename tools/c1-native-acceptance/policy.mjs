@@ -73,6 +73,21 @@ export const providerSelect = Object.freeze({
   account_heads:
     "subject,protocol_version,canonical_schema_version,revision::text,generation",
 });
+// Secrets are reachable only by the exact-origin header projector. Logging,
+// inspecting or JSON-serializing the carrier exposes only the fixed mode enum.
+const protectionSecrets = new WeakMap();
+export function protectionMode(mode) {
+  check(mode === "trusted-source" || mode === "automation-bypass");
+  return mode;
+}
+export function protectionCredential(mode, value) {
+  protectionMode(mode);
+  check(typeof value === "string" && value.length > 0 && value.length <= 8192);
+  if (mode === "automation-bypass") check(/^[A-Za-z0-9_-]{32}$/.test(value));
+  const carrier = Object.freeze({ mode });
+  protectionSecrets.set(carrier, value);
+  return carrier;
+}
 export function scopedHeaders(input, oidc, existing = {}) {
   const u = new URL(input);
   check(!u.username && !u.password && !u.hash);
@@ -81,7 +96,15 @@ export function scopedHeaders(input, oidc, existing = {}) {
     safe = {};
   // Project known protocol fields; never forward arbitrary page-controlled headers.
   if (u.origin === manifest.origin) {
-    safe["x-vercel-trusted-oidc-idp-token"] = oidc;
+    // Legacy string calls remain the trusted-source-only offline adapter API.
+    // Real orchestration always supplies a sealed, explicit-mode carrier.
+    if (typeof oidc === "string") safe["x-vercel-trusted-oidc-idp-token"] = oidc;
+    else {
+      check(protectionSecrets.has(oidc));
+      safe[oidc.mode === "automation-bypass"
+        ? "x-vercel-protection-bypass" : "x-vercel-trusted-oidc-idp-token"] =
+        protectionSecrets.get(oidc);
+    }
     if (u.pathname === "/api/account/boundary") {
       safe.Origin = manifest.origin;
       if (caller.has("authorization"))
@@ -369,6 +392,28 @@ export async function cleanup(actions) {
       failed = true;
     }
   check(!failed);
+}
+export async function proveApplicationDenial(tx) {
+  const { response, body } = await tx(manifest.origin +
+    "/api/account/boundary?protocolVersion=1&schemaVersion=1");
+  boundary(response, body, 401);
+}
+export async function proveDeploymentProtection(budget, fetcher = fetch, stopSignal) {
+  check(!stopSignal?.aborted);
+  budget.take();
+  const response = await fetcher(manifest.origin + "/", {
+    headers: {}, redirect: "error", cache: "no-store",
+    signal: stopSignal ? AbortSignal.any([stopSignal, AbortSignal.timeout(10000)])
+      : AbortSignal.timeout(10000),
+  });
+  try { check(!response.redirected && [401, 403].includes(response.status)); }
+  finally { await response.body?.cancel(); }
+}
+// External management executor only: never inject a Vercel admin credential
+// into the acceptance job. Attempt every bounded cleanup action even on failure.
+export async function revokeAutomationBypass({ revoke, removeEnvironmentSecret, verifyDenied }) {
+  check([revoke, removeEnvironmentSecret, verifyDenied].every(fn => typeof fn === "function"));
+  await cleanup([revoke, removeEnvironmentSecret, async () => check(await verifyDenied() === true)]);
 }
 export function identityFromEnv(env = process.env) {
   return {

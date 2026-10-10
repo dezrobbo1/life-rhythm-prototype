@@ -37,7 +37,7 @@ test("workflow is manually dispatched, default-main guarded, isolated with passw
     workflow.indexOf("run.mjs --admission") <
       workflow.indexOf("secrets.C1_ACCOUNT"),
   );
-  assert.equal([...workflow.matchAll(/secrets\./g)].length, 2);
+  assert.equal([...workflow.matchAll(/secrets\./g)].length, 3);
   assert.doesNotMatch(workflow, /issues: write|pull-requests: write|contents: write|actions: write/);
   assert.match(workflow, /name: C1 external pre admission/);
   assert.match(workflow, /run\.mjs --pre/);

@@ -1,5 +1,11 @@
 # C1 native acceptance infrastructure — draft, BLOCK
 
+Current recovery, 2026-10-10: [automation-bypass-contract.md](automation-bypass-contract.md)
+records the owner-authorized temporary project-wide Automation Bypass fallback,
+explicit transport mode and mandatory revocation. It supersedes historical
+prohibitions on a reusable transport bypass ONLY within that bounded recovery.
+No credential is provisioned by source changes; no full C1 PASS is claimed.
+
 Current continuation, 2026-10-09: PR #181 is merged. The owner authorized a bounded
 automated-observer redesign, described in
 [automated-observer-contract.md](automated-observer-contract.md). The proposed

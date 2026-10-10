@@ -11,6 +11,10 @@ import {
   rows,
   report,
   withTimeout,
+  protectionMode,
+  protectionCredential,
+  proveApplicationDenial,
+  proveDeploymentProtection,
 } from "./policy.mjs";
 import { preflight, githubGet } from "./preflight.mjs";
 import {
@@ -59,6 +63,8 @@ const defaults = {
       args: ["--disable-breakpad", "--disable-crash-reporter"],
     }),
   browserRow,
+  denial: proveApplicationDenial,
+  protection: (budget, signal) => proveDeploymentProtection(budget, fetch, signal),
 };
 function evidence(
   passed,
@@ -88,6 +94,7 @@ function evidence(
     observedRows: [...new Set(passed)],
     notRun: complete ? [] : [...rows],
     harness: env.C1_TRUSTED_SHA,
+    protectionMode: protectionMode(env.C1_PROTECTION_MODE),
     date: new Date().toISOString(),
     timezone: "UTC",
     browserVersion,
@@ -155,13 +162,22 @@ export async function executeAcceptance(
     preReceipt = null;
   try {
     guardIdentity(identityFromEnv(env), env.C1_TRUSTED_SHA);
+    const mode = protectionMode(env.C1_PROTECTION_MODE);
     check(config?.enabled === true);
     await work(() => d.preflight(env));
     passed.push("preflight");
     const admission = await work(() => d.attribution(config, "start", env));
     preReceipt = admission?.preReceipt ?? null;
     passed.push("attribution");
-    let oidc = await work(() => d.oidc(env, env.C1_TRUSTED_SHA));
+    if (mode === "automation-bypass") await work(() => d.protection(budget, abort.signal));
+    // Verify signed GitHub claims in BOTH modes. Bypass is transport admission,
+    // never a substitute for workflow identity or Supabase account sessions.
+    const issueAdmission = async () => {
+      const verifiedOidc = await work(() => d.oidc(env, env.C1_TRUSTED_SHA));
+      return protectionCredential(mode, mode === "trusted-source"
+        ? verifiedOidc : env.C1_AUTOMATION_BYPASS_SECRET);
+    };
+    let oidc = await issueAdmission();
     started = true;
     const publicConfig = await work(() => d.publicConfig(oidc, budget));
     publishableKey = publicConfig.publishableKey;
@@ -170,6 +186,8 @@ export async function executeAcceptance(
     );
     let tx = d.transport(oidc, budget, undefined, abort.signal);
     const key = await work(() => d.key(tx));
+    // Before reading either A/B password, prove Vercel admission grants no app identity.
+    await work(() => d.denial(tx));
     // No password property is read before identity/source, trusted supervised deployment binding,
     // OIDC verification and attributable public client configuration all pass.
     const passwords = manifest.accounts.map(
@@ -181,7 +199,7 @@ export async function executeAcceptance(
       ),
     );
     for (const [index, account] of manifest.accounts.entries()) {
-      oidc = await work(() => d.oidc(env, env.C1_TRUSTED_SHA));
+      oidc = await issueAdmission();
       tx = d.transport(oidc, budget, undefined, abort.signal);
       started = true;
       const closingTx = d.transport(oidc, budget);
@@ -243,7 +261,7 @@ export async function executeAcceptance(
       [390, 1],
       [1280, 0],
     ]) {
-      oidc = await work(() => d.oidc(env, env.C1_TRUSTED_SHA));
+      oidc = await issueAdmission();
       await work(() => d.preflight(env));
       await work(() => d.attribution(config, "start", env));
       const browserKey = "browser-" + width + "-" + index;

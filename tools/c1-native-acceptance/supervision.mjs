@@ -6,6 +6,7 @@ import {
   identityFromEnv,
   rows,
   report,
+  protectionMode,
 } from "./policy.mjs";
 import { githubGet } from "./preflight.mjs";
 const root = "/repos/" + manifest.repository;
@@ -341,6 +342,7 @@ export function phaseResult(result, target = manifest) {
     runId: result.runId,
     attempt: result.attempt,
     harness: result.harness,
+    protectionMode: protectionMode(result.protectionMode),
     source: result.source,
     deployment: result.deployment,
     origin: result.origin,
@@ -368,6 +370,7 @@ export function verifyPending(pending, job, env, target = manifest) {
     "runId",
     "attempt",
     "harness",
+    "protectionMode",
     "source",
     "deployment",
     "origin",
@@ -399,6 +402,7 @@ export function verifyPending(pending, job, env, target = manifest) {
       pending.runId === env.GITHUB_RUN_ID &&
       pending.attempt === "1" &&
       pending.harness === env.C1_TRUSTED_SHA &&
+      protectionMode(pending.protectionMode) === protectionMode(env.C1_PROTECTION_MODE) &&
       pending.source === target.source &&
       pending.deployment === target.deployment &&
       pending.origin === target.origin &&
@@ -459,6 +463,7 @@ export async function postVerification(
     runId: env.GITHUB_RUN_ID,
     attempt: "1",
     harness: env.C1_TRUSTED_SHA,
+    protectionMode: pending.protectionMode,
     source: target.source,
     deployment: target.deployment,
     preReceipt: pending.preReceipt,
