@@ -1,3 +1,4 @@
+import { admissionFailureFrom } from "./admission-evidence.mjs";
 import { cancellation, jobWindow } from "./lifecycle.mjs";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { guardIdentity, identityFromEnv, report, check, protectionMode } from "./policy.mjs";
@@ -94,9 +95,9 @@ try {
       );
     }
   }
-} catch {
+} catch (error) {
   success = false;
-  result = report();
+  result = report([], "BLOCK", admissionFailureFrom(error) ?? result.admissionFailure);
 }
 if (!process.argv.includes("--admission") || !success) {
   await mkdir("artifacts", { recursive: true });

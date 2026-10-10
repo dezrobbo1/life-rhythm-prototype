@@ -1,3 +1,4 @@
+import { AdmissionTrace, admissionFailureFrom } from "./admission-evidence.mjs";
 import { jobWindow, abortable } from "./lifecycle.mjs";
 import { createLocalJWKSet } from "jose";
 import { chromium } from "playwright";
@@ -38,8 +39,8 @@ const defaults = {
     preflight(githubGet, identityFromEnv(env), env.C1_TRUSTED_SHA),
   attribution: (config, phase, env) => verifyAttribution(env, config, "pre"),
   oidc: issueOidc,
-  publicConfig: (oidc, budget) =>
-    readPublicConfig(publicTextReader(oidc, budget)),
+  publicConfig: (oidc, budget, trace) =>
+    readPublicConfig(publicTextReader(oidc, budget, fetch, trace)),
   key: async (tx) => {
     const { response, body } = await tx(
       manifest.provider + "/auth/v1/.well-known/jwks.json",
@@ -77,6 +78,7 @@ function evidence(
   budget,
   preReceipt,
   fixtures,
+  admissionFailure,
 ) {
   check(passed.every((x) => rows.includes(x)));
   check(/^[a-f0-9]{40}$/.test(env.C1_TRUSTED_SHA));
@@ -87,7 +89,7 @@ function evidence(
   );
   if (complete) check(rows.every((row) => passed.includes(row)));
   return {
-    ...report(),
+    ...report([], "BLOCK", admissionFailure),
     hosted: started
       ? complete
         ? "TEST_PHASE_COMPLETE_PENDING_POST"
@@ -164,7 +166,9 @@ export async function executeAcceptance(
     complete = false,
     publishableKey = null,
     preReceipt = null,
-    fixtures = null;
+    fixtures = null,
+    admissionFailure = null;
+  const admissionTrace = new AdmissionTrace();
   try {
     guardIdentity(identityFromEnv(env), env.C1_TRUSTED_SHA);
     const mode = protectionMode(env.C1_PROTECTION_MODE);
@@ -184,7 +188,7 @@ export async function executeAcceptance(
     };
     let oidc = await issueAdmission();
     started = true;
-    const publicConfig = await work(() => d.publicConfig(oidc, budget));
+    const publicConfig = await work(() => d.publicConfig(oidc, budget, admissionTrace));
     publishableKey = publicConfig.publishableKey;
     check(
       /^sb_publishable_[A-Za-z0-9_-]{1,256}$/.test(publicConfig.publishableKey),
@@ -319,7 +323,8 @@ export async function executeAcceptance(
     await work(() => d.preflight(env));
     check(!abort.signal.aborted);
     complete = true;
-  } catch {
+  } catch (error) {
+    admissionFailure = admissionFailureFrom(error) ?? admissionTrace.failure(error);
     abort.abort();
     complete = false;
   } finally {
@@ -362,8 +367,9 @@ export async function executeAcceptance(
       budget,
       preReceipt,
       fixtures,
+      admissionFailure,
     );
   } catch {
-    return report();
+    return report([], "BLOCK", admissionFailure);
   }
 }
