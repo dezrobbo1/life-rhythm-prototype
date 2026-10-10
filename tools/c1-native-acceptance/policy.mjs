@@ -7,8 +7,8 @@ export const manifest = Object.freeze({
   workflowRef:
     "dezrobbo1/life-rhythm-prototype/.github/workflows/c1-native-acceptance.yml@refs/heads/main",
   origin:
-    "https://life-rhythm-prototype-7it1u92y9-daler-project-lr.vercel.app",
-  deployment: "dpl_4GvGzb8vWMvFuPpYjUaJSBv61Vtm",
+    "https://life-rhythm-prototype-r04nvovwn-daler-project-lr.vercel.app",
+  deployment: "dpl_FWvCxvDYgnpUZFeDR6NcgrtWz7kn",
   project: "prj_Os5Ucic7cDQwut3mO3I39V3lc52s",
   team: "team_EeRBGaTcRamnOpGbT1RswHVc",
   provider: "https://lfwadowwdvcnibjkeerg.supabase.co",

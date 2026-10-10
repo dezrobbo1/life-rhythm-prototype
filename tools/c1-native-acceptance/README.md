@@ -1,5 +1,30 @@
 # Current C1 completion authority — 2026-10-10
 
+## Preview origin alignment — 2026-10-10
+
+The active target is replacement Preview `dpl_FWvCxvDYgnpUZFeDR6NcgrtWz7kn` at
+`https://life-rhythm-prototype-r04nvovwn-daler-project-lr.vercel.app`, with unchanged
+PR #180 application SHA `07469f9f13aa3887a6ec7847b7b642a839651e63`.
+Only `LIFE_RHYTHM_ALLOW_VERCEL_PREVIEW_SELF_ORIGIN=true` was added for project
+`prj_Os5Ucic7cDQwut3mO3I39V3lc52s`, Preview target, branch
+`feat/gate8a7c1-account-boundary`. The explicit branch-alias allowed origin was
+preserved. System-environment access is enabled; the existing source guard still
+requires Vercel Preview context, exact project ID and a valid immutable hostname.
+
+Exact-source local config/boundary/HTTP-adapter tests reproduce alias-only 403
+and guarded self-origin 401 without a bearer, with strict JSON/no-store and no
+provider access. Foreign origins remain 403; invalid platform context fails
+closed. Current project configuration does not prove the old deployment's
+captured runtime configuration or explain its earlier missing failed response.
+
+This amendment prepares a retarget only. Acceptance remains disabled and the
+trusted harness activation pin remains the merged main SHA. No new bypass or
+hosted acceptance is authorized or run here; the strict unauthenticated API
+expectation remains 401. The earlier admission diagnostic and its revocation
+evidence remain historical: [#179 continuation](https://github.com/dezrobbo1/life-rhythm-prototype/issues/179#issuecomment-6094558024).
+
+## Completion contract
+
 Read [final-native-coverage-contract.md](final-native-coverage-contract.md) first.
 It supersedes dated exclusions and approval pauses below for this expressly
 owner-authorized continuation. All required rows are executable; native completion
