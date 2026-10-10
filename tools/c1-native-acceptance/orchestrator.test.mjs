@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { executeAcceptance } from "./orchestrator.mjs";
-import { manifest } from "./policy.mjs";
+import { manifest, scopedHeaders } from "./policy.mjs";
 const sha = "a".repeat(40);
 const env = {
   C1_JOB_STARTED_AT: String(Date.now()),
@@ -19,6 +19,7 @@ const env = {
   RUNNER_ENVIRONMENT: "github-hosted",
   C1_ENABLED: "true",
   C1_TRUSTED_SHA: sha,
+  C1_PROTECTION_MODE: "trusted-source",
   C1_ACCOUNT_A_PASSWORD: "synthetic-A",
   C1_ACCOUNT_B_PASSWORD: "synthetic-B",
 };
@@ -41,6 +42,7 @@ function adapters(log, failAt) {
       return { publishableKey: "sb_publishable_synthetic" };
     },
     key: async () => ({}),
+    denial: async () => { log.push("application-denial"); },
     transport: () => () => {},
     login: async (tx, a, p, k, key, onSession) => {
       log.push("login-" + a.label);
@@ -153,4 +155,39 @@ test("raw invalid harness configuration never appears in sanitized evidence", as
   );
   assert(!JSON.stringify(r).includes("synthetic-secret"));
   assert.equal(r.hosted, "NOT_RUN");
+});
+test("explicit automation mode preserves admission-before-passwords and real A/B session sequence", async () => {
+  const log = [], d = adapters(log), secret = "SYNTHETIC_BYPASS_VALUE_123456789";
+  d.protection = async () => { log.push("protection-without-credential"); };
+  d.transport = (admission) => {
+    assert.equal(scopedHeaders(manifest.origin + "/", admission)["x-vercel-protection-bypass"], secret);
+    assert(!JSON.stringify(admission).includes(secret));
+    return () => {};
+  };
+  const r = await executeAcceptance({ ...env, C1_PROTECTION_MODE:"automation-bypass", C1_AUTOMATION_BYPASS_SECRET:secret }, {enabled:true}, d);
+  assert.equal(r.hosted, "TEST_PHASE_COMPLETE_PENDING_POST");
+  assert.equal(r.protectionMode, "automation-bypass");
+  assert(log.indexOf("application-denial") < log.indexOf("login-A"));
+  assert(log.indexOf("protection-without-credential") < log.indexOf("login-A"));
+  assert.deepEqual(log.filter(x => x.startsWith("login-")), ["login-A", "login-B"]);
+  assert(!JSON.stringify(r).includes(secret));
+});
+test("missing A/B passwords, missing bypass or failed GitHub OIDC cannot be silently replaced by transport admission", async () => {
+  const secret = "SYNTHETIC_BYPASS_VALUE_123456789";
+  for (const absent of ["C1_ACCOUNT_A_PASSWORD", "C1_ACCOUNT_B_PASSWORD", "C1_AUTOMATION_BYPASS_SECRET", "C1_PROTECTION_MODE"]) {
+    const log = [], d = adapters(log), configured = {...env, C1_PROTECTION_MODE:"automation-bypass", C1_AUTOMATION_BYPASS_SECRET:secret};
+    d.protection = async () => {};
+    delete configured[absent];
+    const r = await executeAcceptance(configured, {enabled:true}, d);
+    assert.equal(r.gate, "BLOCK");
+    assert(!log.some(x => x.startsWith("login-")));
+  }
+  const log = [], d = adapters(log), configured = {...env, C1_PROTECTION_MODE:"automation-bypass"};
+  d.protection = async () => {};
+  d.oidc = async () => { throw Error(secret); };
+  Object.defineProperty(configured, "C1_AUTOMATION_BYPASS_SECRET", {get(){throw Error("bypass-read-before-verified-oidc");}});
+  const r = await executeAcceptance(configured, {enabled:true}, d);
+  assert.equal(r.hosted, "NOT_RUN");
+  assert(!JSON.stringify(r).includes(secret));
+  assert(!log.includes("public-config"));
 });

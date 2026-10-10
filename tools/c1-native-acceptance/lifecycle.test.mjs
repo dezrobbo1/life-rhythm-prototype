@@ -40,8 +40,9 @@ test("real SIGTERM after synthetic session drains local cleanup and returns only
  import {executeAcceptance} from './orchestrator.mjs';import {cancellation} from './lifecycle.mjs';
  const env=${JSON.stringify({ GITHUB_REPOSITORY: manifest.repository, GITHUB_REPOSITORY_ID: manifest.repositoryId, GITHUB_REPOSITORY_OWNER_ID: manifest.ownerId, GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_WORKFLOW_REF: manifest.workflowRef, GITHUB_WORKFLOW_SHA: sha, C1_HARNESS_SHA: sha, RUNNER_ENVIRONMENT: "github-hosted", C1_ENABLED: "true", C1_TRUSTED_SHA: sha, C1_ACCOUNT_A_PASSWORD: "synthetic-A", C1_ACCOUNT_B_PASSWORD: "synthetic-B" })};
  env.C1_JOB_STARTED_AT=String(Date.now());env.C1_JOB_DEADLINE_MS=String(Date.now()+19*60000);
+ env.C1_PROTECTION_MODE='trusted-source';
  const c=cancellation();let revoked=0;
- const adapters={preflight:async()=>{},attribution:async()=>{},oidc:async()=>'',publicConfig:async()=>({publishableKey:'sb_publishable_synthetic'}),key:async()=>({}),transport:()=>()=>{},login:async(t,a,p,k,pk,track)=>{const s={access_token:'synthetic'};track(s);return s;},metadata:()=>{process.send('session-held');return new Promise(()=>{});},logout:async()=>{revoked++;}};
+ const adapters={preflight:async()=>{},attribution:async()=>{},oidc:async()=>'synthetic-oidc',publicConfig:async()=>({publishableKey:'sb_publishable_synthetic'}),key:async()=>({}),denial:async()=>{},transport:()=>()=>{},login:async(t,a,p,k,pk,track)=>{const s={access_token:'synthetic'};track(s);return s;},metadata:()=>{process.send('session-held');return new Promise(()=>{});},logout:async()=>{revoked++;}};
  const result=await executeAcceptance(env,{enabled:true},adapters,c.signal);c.dispose();process.send({revoked,result});process.disconnect();`;
   const child = spawn(process.execPath, ["--input-type=module", "-e", source], {
     cwd: new URL(".", import.meta.url),

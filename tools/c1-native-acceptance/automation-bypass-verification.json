@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "date": "2026-10-10",
+  "liveBase": "811f43c99dd4656353fc226a328afb4d74514d7b",
+  "applicationSource": "07469f9f13aa3887a6ec7847b7b642a839651e63",
+  "immutableDeployment": "dpl_4GvGzb8vWMvFuPpYjUaJSBv61Vtm",
+  "unchangedBaseline": { "tests": 72, "passed": 72, "failed": 0 },
+  "redFirst": {
+    "initialMissingFallback": { "tests": 9, "passed": 0, "failed": 9 },
+    "additionalProtectionAndPhaseProvenance": { "newTests": 2, "failed": 2 }
+  },
+  "finalLocal": {
+    "node": "24.19.0",
+    "tests": 85,
+    "passed": 85,
+    "failed": 0,
+    "syntaxModules": 22,
+    "syntax": "PASS",
+    "yamlWorkflows": 2,
+    "yaml": "PASS",
+    "diffCheck": "PASS",
+    "typecheck": "NO_TYPESCRIPT_CHANGE_REUSE_UNCHANGED_APPLICATION_CI",
+    "applicationSuite": "NOT_RERUN_UNCHANGED_SOURCE_AGENTS_POLICY"
+  },
+  "capability": "HOBBY_ADD_BYPASS_CONFIGURABLE_UI_NO_CREDENTIAL_GENERATED",
+  "authority": "OWNER_APPROVED_TEMPORARY_PROJECT_WIDE_CREDENTIAL_PREVIEW_ONLY_USE",
+  "securityReview": "PENDING",
+  "bypassProvisioned": false,
+  "admissionBoundary": "NOT_RUN",
+  "hosted": "NOT_RUN",
+  "gate": "BLOCK",
+  "productionChanges": "NONE"
+}

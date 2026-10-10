@@ -1,6 +1,6 @@
 import { cancellation, jobWindow } from "./lifecycle.mjs";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
-import { guardIdentity, identityFromEnv, report, check } from "./policy.mjs";
+import { guardIdentity, identityFromEnv, report, check, protectionMode } from "./policy.mjs";
 import {
   verifySupervision,
   postVerification,
@@ -16,6 +16,7 @@ const lifecycle = cancellation();
 let result = report(),
   success = false;
 try {
+  protectionMode(process.env.C1_PROTECTION_MODE);
   const config = JSON.parse(
     await readFile(
       new URL("./attribution-config.json", import.meta.url),

@@ -1,6 +1,17 @@
 name: C1 native acceptance (blocked draft)
 on:
   workflow_dispatch:
+    inputs:
+      protection_mode:
+        description: Reviewed deployment-admission mode (never automatic fallback)
+        required: true
+        type: choice
+        default: trusted-source
+        options:
+          - trusted-source
+          - automation-bypass
+env:
+  C1_PROTECTION_MODE: ${{ inputs.protection_mode }}
 permissions:
   contents: read
 concurrency:
@@ -118,6 +129,7 @@ jobs:
           C1_PRE_JOB_ID: ${{ needs.preflight.outputs.pre_job_id }}
           C1_ACCOUNT_A_PASSWORD: ${{ secrets.C1_ACCOUNT_A_PASSWORD }}
           C1_ACCOUNT_B_PASSWORD: ${{ secrets.C1_ACCOUNT_B_PASSWORD }}
+          C1_AUTOMATION_BYPASS_SECRET: ${{ inputs.protection_mode == 'automation-bypass' && secrets.C1_AUTOMATION_BYPASS_SECRET || '' }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

@@ -17,6 +17,7 @@ const env = {
   GITHUB_RUN_ID: "123",
   GITHUB_RUN_ATTEMPT: "1",
   C1_TRUSTED_SHA: sha,
+  C1_PROTECTION_MODE: "trusted-source",
 };
 const target = { ...manifest, origin };
 const config = {
@@ -228,6 +229,7 @@ test("post finalization requires the actual successful native job and trusted ob
     passed: [...rows],
     requests: 100,
     passwordSignins: 5,
+    protectionMode: "trusted-source",
   };
   const text = JSON.stringify(phase),
     hash = digest(text),
@@ -330,6 +332,7 @@ test("phase output projection drops arbitrary secrets and rejects unbound source
     passed: [...rows],
     requests: 100,
     passwordSignins: 5,
+    protectionMode: "trusted-source",
     password: "SYNTHETIC_SECRET",
   };
   assert(
