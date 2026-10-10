@@ -7,25 +7,37 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:server": "vitest run server src/account scripts/serverEsm.test.ts",
+    "typecheck:server": "tsc -p tsconfig.server.json",
+    "test:database": "bash scripts/test-database.sh",
+    "test:browser:c1": "playwright test --config playwright.c1.config.ts",
+    "dev:api": "tsx scripts/local-api.ts",
+    "check:client-privacy": "node scripts/check-client-privacy.mjs",
+    "test:data-api": "tsx scripts/test-data-api.ts",
+    "source:manifest": "node scripts/source-manifest.mjs"
   },
   "dependencies": {
-    "@clerk/react": "^6.10.0",
+    "@supabase/supabase-js": "2.117.2",
     "dexie": "^4.0.10",
     "ical.js": "2.2.1",
     "lucide-react": "^1.21.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "jose": "6.2.12"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@types/node": "22.20.5",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^6.0.2",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
+    "tsx": "4.23.15",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.8"

@@ -1,0 +1,517 @@
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { generateKeyPair, exportJWK, SignJWT } from 'jose';
+import { handleBoundary } from './boundary';
+import { readServerConfig, type ServerConfig } from './config';
+import { audienceCases } from '../../test/fixtures/audienceCases';
+const origin = 'https://app.example.test',
+  issuer = 'https://synthetic.supabase.co/auth/v1';
+const generation = '11111111-1111-4111-8111-111111111111';
+let jwks: { keys: Awaited<ReturnType<typeof exportJWK>>[] },
+  keys: Awaited<ReturnType<typeof generateKeyPair>>;
+beforeAll(async () => {
+  keys = await generateKeyPair('RS256');
+  jwks = {
+    keys: [
+      {
+        ...(await exportJWK(keys.publicKey)),
+        kid: 'throwaway',
+        alg: 'RS256',
+        use: 'sig',
+      },
+    ],
+  };
+});
+const config = () => ({
+  issuer,
+  origins: [origin],
+  jwks,
+  supabaseUrl: 'https://synthetic.supabase.co',
+  publishableKey: 'sb_publishable_synthetic',
+  buildId: 'test-build',
+});
+async function token(claims: Record<string, unknown> = {}) {
+  const now = Math.floor(Date.now() / 1000);
+  return new SignJWT({
+    iss: issuer,
+    sub: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    session_id: '11111111-1111-4111-8111-111111111111',
+    role: 'authenticated',
+    aud: 'authenticated',
+    is_anonymous: false,
+    aal: 'aal1',
+    iat: now,
+    nbf: now - 1,
+    exp: now + 60,
+    ...claims,
+  })
+    .setProtectedHeader({ alg: 'RS256', typ: 'JWT', kid: 'throwaway' })
+    .sign(keys.privateKey);
+}
+async function request(
+  query = 'protocolVersion=1&schemaVersion=1',
+  headers: Record<string, string | undefined> = {},
+  method = 'GET',
+  claims: Record<string, unknown> = {},
+) {
+  return new Request(`${origin}/api/account/boundary?${query}`, {
+    method,
+    headers: {
+      origin,
+      authorization: `Bearer ${await token(claims)}`,
+      ...Object.fromEntries(
+        Object.entries(headers).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string',
+        ),
+      ),
+    },
+    ...(method === 'POST' ? { body: 'private content' } : {}),
+  });
+}
+const rows = (
+  head: unknown = {
+    protocol_version: 1,
+    canonical_schema_version: 1,
+    revision: '9007199254740993',
+    generation,
+    updated_at: '2026-10-05T00:00:00Z',
+  },
+) => [{ enabled: true, account_heads: head }];
+function provider(value: unknown = rows(), status = 200) {
+  return vi.fn(
+    async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(JSON.stringify(value), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      }),
+  );
+}
+async function run(
+  req: Request,
+  fetcher = provider(),
+  cfg: ServerConfig | null = config(),
+) {
+  return handleBoundary(req, { config: () => cfg, fetch: fetcher });
+}
+describe('metadata API', () => {
+  it.each(audienceCases)(
+    'configured audience: $name',
+    async ({ aud, status }) => {
+      const fetcher = provider();
+      const res = await run(
+        await request(undefined, {}, 'GET', { aud }),
+        fetcher,
+        config(),
+      );
+      expect({
+        status: res.status,
+        providerCalls: fetcher.mock.calls.length,
+      }).toEqual({
+        status,
+        providerCalls: status === 200 ? 1 : 0,
+      });
+      if (status === 401) {
+        expect(await res.json()).toEqual({
+          kind: 'error',
+          category: 'unauthorized',
+          requestId: expect.any(String),
+        });
+      }
+    },
+  );
+  it('forwards caller bearer per request and only reads own compatible metadata', async () => {
+    const req = await request(),
+      fetcher = provider();
+    const res = await run(req, fetcher);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('private, no-store');
+    expect(await res.json()).toEqual({
+      kind: 'ready',
+      protocolVersion: 1,
+      schemaVersion: 1,
+      buildId: 'test-build',
+      head: { revision: '9007199254740993', generation },
+    });
+    const [url, init] = fetcher.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(url).toContain('issuer=eq.');
+    expect(url).toContain('subject=eq.aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    expect(new Headers(init.headers).get('authorization')).toBe(
+      req.headers.get('authorization'),
+    );
+    expect(new Headers(init.headers).get('apikey')).toBe(
+      'sb_publishable_synthetic',
+    );
+    expect(new Headers(init.headers).get('accept-profile')).toBe('life_rhythm');
+    expect(init.method).toBe('GET');
+  });
+  it('keeps A and B request bearer and filter independent', async () => {
+    const fetcher = provider();
+    await Promise.all([
+      run(await request(), fetcher),
+      run(
+        await request(undefined, {}, 'GET', {
+          sub: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          session_id: '22222222-2222-4222-8222-222222222222',
+        }),
+        fetcher,
+      ),
+    ]);
+    const calls = fetcher.mock.calls as unknown as [string, RequestInit][];
+    expect(
+      calls.some(([url]) =>
+        url.includes('subject=eq.aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+      ),
+    ).toBe(true);
+    expect(
+      calls.some(([url]) =>
+        url.includes('subject=eq.bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
+      ),
+    ).toBe(true);
+    expect(new Headers(calls[0][1].headers).get('authorization')).not.toBe(
+      new Headers(calls[1][1].headers).get('authorization'),
+    );
+  });
+  it.each([
+    'owner=B',
+    'account=B',
+    'schemaVersion=1',
+    'expectedRevision=0',
+    'expectedGeneration=bad',
+  ])('rejects extra/invalid query %s before reads', async (extra) => {
+    const f = provider();
+    expect(
+      (
+        await run(
+          await request(`protocolVersion=1&schemaVersion=1&${extra}`),
+          f,
+        )
+      ).status,
+    ).toBe(400);
+    expect(f).not.toHaveBeenCalled();
+  });
+  it.each([
+    { exp: 1 },
+    { session_id: '' },
+    { is_anonymous: true },
+    { iss: 'https://foreign.test' },
+    { token_type: 'oauth_token' },
+    { role: 'service_role' },
+    { role: undefined },
+  ])('401 rejected sessions avoid provider reads %j', async (claims) => {
+    const f = provider();
+    expect(
+      (await run(await request(undefined, {}, 'GET', claims), f)).status,
+    ).toBe(401);
+    expect(f).not.toHaveBeenCalled();
+  });
+  it('denies cookie-only requests', async () => {
+    const f = provider();
+    expect(
+      (
+        await run(
+          new Request(
+            `${origin}/api/account/boundary?protocolVersion=1&schemaVersion=1`,
+            {
+              headers: { origin, cookie: '__session=synthetic' },
+            },
+          ),
+          f,
+        )
+      ).status,
+    ).toBe(401);
+    expect(f).not.toHaveBeenCalled();
+  });
+  it.each([
+    { origin: 'https://foreign.test' },
+    { origin: 'null' },
+    { 'sec-fetch-site': 'cross-site' },
+    {},
+  ])('denies unapproved origin or missing signals %j', async (headers) => {
+    const f = provider();
+    const req = await request();
+    req.headers.delete('origin');
+    for (const [key, value] of Object.entries(headers))
+      req.headers.set(key, value);
+    expect((await run(req, f)).status).toBe(403);
+    expect(f).not.toHaveBeenCalled();
+  });
+  it('allows same-origin GET with no Origin', async () => {
+    const req = await request();
+    req.headers.delete('origin');
+    req.headers.set('sec-fetch-site', 'same-origin');
+    expect((await run(req)).status).toBe(200);
+  });
+  it('denies approved origin with a foreign request URL', async () => {
+    const req = await request();
+    const foreign = new Request(
+      req.url.replace(origin, 'https://foreign.test'),
+      {
+        headers: req.headers,
+      },
+    );
+    expect((await run(foreign)).status).toBe(403);
+  });
+  it.each(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'])(
+    'disables %s',
+    async (method) => {
+      const f = provider();
+      expect((await run(await request(undefined, {}, method), f)).status).toBe(
+        405,
+      );
+      expect(f).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    { authorization: 'Bearer ' + 'a'.repeat(8193) },
+    { 'content-length': '1' },
+    { 'x-owner': 'B' },
+  ])('rejects bounded/header/body shape %j', async (headers) => {
+    const f = provider();
+    expect((await run(await request(undefined, headers), f)).status).toBe(400);
+    expect(f).not.toHaveBeenCalled();
+  });
+  it.each(
+    [[], [{ enabled: false, account_heads: null }], [...rows(), ...rows()]].map(
+      (value) => [value],
+    ),
+  )('denies missing disabled or multiple access rows %j', async (value) =>
+    expect((await run(await request(), provider(value))).status).toBe(
+      value.length > 1 ? 503 : 403,
+    ),
+  );
+  it('returns null without writing for no head', async () => {
+    const res = await run(await request(), provider(rows(null)));
+    expect(await res.json()).toHaveProperty('head', null);
+  });
+  it.each(
+    [
+      rows({
+        protocol_version: 2,
+        canonical_schema_version: 1,
+        revision: '1',
+        generation,
+        updated_at: '2026-10-05T00:00:00Z',
+      }),
+      rows({
+        protocol_version: 1,
+        canonical_schema_version: 2,
+        revision: '1',
+        generation,
+        updated_at: '2026-10-05T00:00:00Z',
+      }),
+    ].map((value) => [value]),
+  )('fails stored compatibility %j', async (value) =>
+    expect((await run(await request(), provider(value))).status).toBe(426),
+  );
+  it.each(
+    [
+      rows({
+        protocol_version: 1,
+        canonical_schema_version: 1,
+        revision: 9007199254740993,
+        generation,
+      }),
+      [
+        {
+          enabled: true,
+          account_heads: [rows()[0].account_heads, rows()[0].account_heads],
+        },
+      ],
+      rows({ privateProfile: 'NEVER_ECHO' }),
+    ].map((value) => [value]),
+  )('fails unreadable metadata %j', async (value) =>
+    expect((await run(await request(), provider(value))).status).toBe(503),
+  );
+  it('checks client versions before reads', async () => {
+    const f = provider();
+    expect(
+      (await run(await request('protocolVersion=2&schemaVersion=1'), f)).status,
+    ).toBe(426);
+    expect(f).not.toHaveBeenCalled();
+  });
+  it('compares exact head and preserves compatible own head on conflict', async () => {
+    for (const revision of ['9007199254740993', '9007199254740992']) {
+      const res = await run(
+        await request(
+          `protocolVersion=1&schemaVersion=1&expectedRevision=${revision}&expectedGeneration=${generation}`,
+        ),
+      );
+      expect(res.status).toBe(revision === '9007199254740993' ? 200 : 409);
+      expect(await res.json()).toHaveProperty(
+        'head.revision',
+        '9007199254740993',
+      );
+    }
+  });
+  it('conflicts on generation change or no head', async () => {
+    const req = await request(
+      `protocolVersion=1&schemaVersion=1&expectedRevision=1&expectedGeneration=${generation}`,
+    );
+    expect((await run(req, provider(rows(null)))).status).toBe(409);
+    expect((await run(req)).status).toBe(409);
+  });
+  it('sanitizes provider errors and missing configuration', async () => {
+    for (const cfg of [null, config()]) {
+      const res = await run(
+        await request(),
+        provider({ message: 'NEVER_ECHO' }, 500),
+        cfg,
+      );
+      expect(res.status).toBe(503);
+      expect(await res.text()).not.toContain('NEVER_ECHO');
+    }
+  });
+  it('bounds provider responses', async () =>
+    expect(
+      (await run(await request(), provider('x'.repeat(20000)))).status,
+    ).toBe(503));
+});
+describe('public verification/runtime config', () => {
+  const env = () => ({
+    SUPABASE_AUTH_JWKS: JSON.stringify(jwks),
+    LIFE_RHYTHM_ALLOWED_ORIGINS: origin,
+    SUPABASE_URL: 'https://synthetic.supabase.co',
+    SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_synthetic',
+    LIFE_RHYTHM_BUILD_ID: 'test-build',
+  });
+  const preview = () => ({
+    ...env(),
+    LIFE_RHYTHM_ALLOW_VERCEL_PREVIEW_SELF_ORIGIN: "true",
+    VERCEL: "1",
+    VERCEL_ENV: "preview",
+    VERCEL_PROJECT_ID: "prj_Os5Ucic7cDQwut3mO3I39V3lc52s",
+    VERCEL_URL:
+      "life-rhythm-prototype-synthetic123-daler-project-lr.vercel.app",
+  });
+  it("adds only its exact platform Preview origin under explicit opt-in", () => {
+    expect(readServerConfig(preview()).origins).toEqual([
+      origin,
+      "https://" + preview().VERCEL_URL,
+    ]);
+    expect(
+      readServerConfig({
+        ...preview(),
+        LIFE_RHYTHM_ALLOW_VERCEL_PREVIEW_SELF_ORIGIN: undefined,
+      }).origins,
+    ).toEqual([origin]);
+    expect(
+      readServerConfig({
+        ...preview(),
+        LIFE_RHYTHM_ALLOW_VERCEL_PREVIEW_SELF_ORIGIN: "false",
+      }).origins,
+    ).toEqual([origin]);
+  });
+  it("retains bearer and exact same-origin enforcement on the platform self origin", async () => {
+    const cfg = readServerConfig(preview()),
+      self = "https://" + preview().VERCEL_URL;
+    const original = await request();
+    const good = new Request(
+      self + "/api/account/boundary?protocolVersion=1&schemaVersion=1",
+      {
+        headers: {
+          origin: self,
+          authorization: original.headers.get("authorization")!,
+        },
+      },
+    );
+    expect((await run(good, provider(), cfg)).status).toBe(200);
+    const noBearer = new Request(good.url, { headers: { origin: self } });
+    expect((await run(noBearer, provider(), cfg)).status).toBe(401);
+    const foreign = new Request(good.url, {
+      headers: {
+        origin: "https://foreign.vercel.app",
+        authorization: original.headers.get("authorization")!,
+      },
+    });
+    expect((await run(foreign, provider(), cfg)).status).toBe(403);
+    const fakeHost = new Request(
+      "https://foreign.vercel.app/api/account/boundary?protocolVersion=1&schemaVersion=1",
+      {
+        headers: {
+          origin: self,
+          authorization: original.headers.get("authorization")!,
+        },
+      },
+    );
+    expect((await run(fakeHost, provider(), cfg)).status).toBe(403);
+  });
+  it.each([
+    { VERCEL: undefined },
+    { VERCEL: "0" },
+    { VERCEL_ENV: "production" },
+    { VERCEL_ENV: "development" },
+    { VERCEL_PROJECT_ID: "prj_foreign" },
+    { VERCEL_URL: undefined },
+    { VERCEL_URL: "https://synthetic.vercel.app" },
+    { VERCEL_URL: "synthetic.vercel.app:443" },
+    { VERCEL_URL: "synthetic.vercel.app/path" },
+    { VERCEL_URL: "synthetic.vercel.app?x=y" },
+    { VERCEL_URL: "synthetic.vercel.app#fragment" },
+    { VERCEL_URL: "user@synthetic.vercel.app" },
+    { VERCEL_URL: "*.vercel.app" },
+    { VERCEL_URL: "synthetic.vercel.app.evil.test" },
+    { VERCEL_URL: "synthetic-git-main-team.vercel.app" },
+    { VERCEL_URL: "life-rhythm-prototype.vercel.app" },
+    { VERCEL_URL: "SYNTHETIC.vercel.app" },
+    { VERCEL_URL: "synthetic..vercel.app" },
+    { LIFE_RHYTHM_ALLOW_VERCEL_PREVIEW_SELF_ORIGIN: "yes" },
+  ])("rejects unsafe enabled Preview origin %j", (override) => {
+    expect(() => readServerConfig({ ...preview(), ...override })).toThrow();
+  });
+  it("preserves the eight-origin limit and does not duplicate an explicit self origin", () => {
+    const eight = Array.from(
+      { length: 8 },
+      (_, i) => "https://explicit" + i + ".example.test",
+    ).join(",");
+    expect(() =>
+      readServerConfig({ ...preview(), LIFE_RHYTHM_ALLOWED_ORIGINS: eight }),
+    ).toThrow();
+    expect(
+      readServerConfig({
+        ...preview(),
+        LIFE_RHYTHM_ALLOWED_ORIGINS: "https://" + preview().VERCEL_URL,
+      }).origins,
+    ).toEqual(["https://" + preview().VERCEL_URL]);
+  });
+  it('accepts public verification settings', () =>
+    expect(readServerConfig(env())).toEqual(config()));
+  it.each([
+    'SUPABASE_AUTH_JWKS',
+    'LIFE_RHYTHM_ALLOWED_ORIGINS',
+    'SUPABASE_URL',
+    'SUPABASE_PUBLISHABLE_KEY',
+    'LIFE_RHYTHM_BUILD_ID',
+  ])('rejects missing %s', (key) => {
+    const value = env();
+    delete value[key as keyof typeof value];
+    expect(() => readServerConfig(value)).toThrow();
+  });
+  it('rejects private, duplicate and unsupported public trust material', async () => {
+    const privateKey = { ...jwks.keys[0], d: 'synthetic-private-field' };
+    for (const value of [
+      { keys: [{ ...privateKey, kid: 'throwaway', alg: 'RS256' }] },
+      { keys: [...jwks.keys, ...jwks.keys] },
+      { keys: [{ kty: 'oct', k: 'private', kid: 'shared', alg: 'HS256' }] },
+      { keys: [] },
+    ])
+      expect(() =>
+        readServerConfig({
+          ...env(),
+          SUPABASE_AUTH_JWKS: JSON.stringify(value),
+        }),
+      ).toThrow();
+  });
+  it.each([
+    { SUPABASE_PUBLISHABLE_KEY: 'sb_secret_never' },
+    { SUPABASE_PUBLISHABLE_KEY: 'eyJlegacy' },
+    { SUPABASE_URL: 'http://foreign.test' },
+    { LIFE_RHYTHM_ALLOWED_ORIGINS: '*' },
+    { LIFE_RHYTHM_ALLOWED_ORIGINS: origin + '/path' },
+    { SUPABASE_AUTH_JWKS: 'broken' },
+    { SUPABASE_URL: 'https://unrelated.test' },
+  ])('rejects wrong config %j', (override) =>
+    expect(() => readServerConfig({ ...env(), ...override })).toThrow(),
+  );
+});

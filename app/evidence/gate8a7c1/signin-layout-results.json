@@ -1,0 +1,26 @@
+{
+  "dateUtc": "2026-10-06",
+  "inputHead": "d35242d5b4a066ae111841934c5223bd0271c513",
+  "base": "b58b7442c478770f9c0e1db9b6208c8c8e803e30",
+  "sourceFileCount": 312,
+  "sourceSha256": "477ea8f48ef6ddd7c8eac3e8defa2b186d0d58fe78dd8407358181854b4729e4",
+  "scope": "Bounded sign-in typography, stacked fields, touch targets and plain wording; session/auth constraints preserved",
+  "red": {"unitFailures": 1, "unitPasses": 15, "browserFailures": 2, "observedInputHeightPx": 30},
+  "focusedAuth": {"tests": 16, "result": "PASS"},
+  "browser": {
+    "engine": "Chromium 151.0.7922.173",
+    "playwright": "1.63.0",
+    "viewports": ["390x844", "1280x844"],
+    "cases": 2,
+    "result": "PASS",
+    "transport": "Real pinned SDK with intercepted synthetic error HTTP; no hosted provider access",
+    "checks": ["No horizontal overflow", "Labels above inputs", "Full-width controls >=44px", "Input text >=16px", "Shared heading scale", "Visible keyboard focus", "Email > Password > Sign in", "Disabled busy action", "Password cleared", "Sanitized failed-login error", "Ordinary content closed", "Tab/reload and recovery facts retained"],
+    "existingRequiredModeRows": {"cases": 2, "result": "PASS"},
+    "localScreenshots": "/tmp/life-rhythm-c1-signin-screenshots/{signin,focus,busy,error}-{390,1280}.png",
+    "screenshotDelivery": "Workspace artifacts only; no committed binaries or external attachment claim",
+    "limitation": "Agent-browser CLI unavailable; Playwright used; native corrected Preview NOT RUN"
+  },
+  "combinedValidation": {"node": "24.19.0", "timezone": "UTC", "tests": 1627, "files": 122, "seconds": 50.50, "result": "PASS", "build": "PASS; existing chunk advisory", "privacy": "PASS", "diff": "PASS"},
+  "nativeEsmEvidence": "native-esm-correction-results.json records separate server red/green and Node22/24 checks",
+  "c1Gate": "NOT PASS; targeted review and attributable native hosted acceptance pending"
+}

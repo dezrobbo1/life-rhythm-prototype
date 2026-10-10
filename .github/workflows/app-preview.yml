@@ -44,6 +44,10 @@ jobs:
         working-directory: app
         run: npm test
 
+      - name: Typecheck /app Node API
+        working-directory: app
+        run: npm run typecheck:server
+
       - name: Build /app preview
         working-directory: app
         run: npm run build -- --base=./

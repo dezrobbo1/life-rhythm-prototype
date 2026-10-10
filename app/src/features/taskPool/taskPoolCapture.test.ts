@@ -1,5 +1,8 @@
 import 'fake-indexeddb/auto';
+import Dexie from 'dexie';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createAuthLocalDataNamespace, getLifeRhythmDatabaseForNamespace, getLegacyLocalDataNamespace, setCurrentLocalDataNamespace, resetCurrentLocalDataNamespace } from '../../data/localDataNamespace';
+import { advanceProfileRecoveryGeneration, STALE_PROFILE_RECOVERY_MESSAGE } from '../../data/profileRecoveryGeneration';
 import { createLifeRhythmDatabase } from '../../data/db';
 import { captureTaskPoolItem, type TaskPoolCaptureInput } from './taskPoolCapture';
 
@@ -89,4 +92,49 @@ describe('shared Task Pool capture authority', () => {
       await database.delete();
     }
   });
+});
+
+describe('capture account binding', () => {
+  it.each(['other-account', 'signed-out', 'same-session'] as const)('retains initiating database across %s during preflight', async (transition) => {
+    const aNamespace = createAuthLocalDataNamespace('synthetic-capture-A-' + transition);
+    const otherNamespace = transition === 'signed-out' ? getLegacyLocalDataNamespace() : createAuthLocalDataNamespace('synthetic-capture-B-' + transition);
+    const a = getLifeRhythmDatabaseForNamespace(aNamespace);
+    const other = getLifeRhythmDatabaseForNamespace(otherNamespace);
+    let release!: (rows: []) => void;
+    vi.spyOn(a.taskPoolItems, 'toArray').mockImplementationOnce(() => new Dexie.Promise<[]>((resolve) => { release = resolve; }));
+    try {
+      setCurrentLocalDataNamespace(aNamespace);
+      const pending = captureTaskPoolItem(input({ title: 'A private task' }), { createId: () => 'private-A' });
+      await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+      setCurrentLocalDataNamespace(transition === 'same-session' ? aNamespace : otherNamespace);
+      release([]);
+      const result = await pending;
+      expect(result.ok).toBe(true);
+      expect(await a.taskPoolItems.get('private-A')).toMatchObject({ title: 'A private task' });
+      expect(await a.taskHistory.count()).toBe(1);
+      expect(await other.taskPoolItems.count()).toBe(0);
+      expect(await other.taskHistory.count()).toBe(0);
+      expect(await other.schedulerPlanState.count()).toBe(0);
+    } finally {
+      resetCurrentLocalDataNamespace();
+      await a.delete();
+      await other.delete();
+    }
+  });
+});
+
+it('cancels capture if recovery replaces the initiating profile during preflight', async () => {
+  const database = createTestDatabase();
+  let release!: (rows: []) => void;
+  vi.spyOn(database.taskPoolItems, 'toArray').mockImplementationOnce(() => new Dexie.Promise<[]>((resolve) => { release = resolve; }));
+  try {
+    const pending = captureTaskPoolItem(input(), { store: database });
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    await database.transaction('rw', database.settings, () => advanceProfileRecoveryGeneration(database, 0));
+    release([]);
+    await expect(pending).resolves.toEqual({ ok: false, errors: [STALE_PROFILE_RECOVERY_MESSAGE] });
+    expect(await database.taskPoolItems.count()).toBe(0);
+    expect(await database.taskHistory.count()).toBe(0);
+    expect(await database.schedulerPlanState.count()).toBe(0);
+  } finally { await database.delete(); }
 });

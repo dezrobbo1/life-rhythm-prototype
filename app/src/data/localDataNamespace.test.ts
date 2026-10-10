@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DATABASE_NAME } from './db';
 import { createLifeRhythmDatabase } from './db';
 import {
+  captureLocalDataContext,
   createAuthLocalDataNamespace,
   getCurrentLocalDataNamespace,
   getLifeRhythmDatabaseForNamespace,
@@ -481,4 +482,16 @@ describe('local data namespace', () => {
       }
     }
   });
+});
+
+it('runtime leases expire across switch away and back without changing namespace names', () => {
+  setCurrentLocalDataNamespace(userANamespace);
+  const context = captureLocalDataContext();
+  expect(context.database.name).toBe(userANamespace.databaseName);
+  expect(context.isCurrent()).toBe(true);
+  setCurrentLocalDataNamespace(userBNamespace);
+  expect(context.isCurrent()).toBe(false);
+  setCurrentLocalDataNamespace(userANamespace);
+  expect(context.isCurrent()).toBe(false);
+  expect(getCurrentLocalDataNamespace()).toEqual(userANamespace);
 });

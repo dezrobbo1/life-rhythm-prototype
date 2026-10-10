@@ -45,5 +45,17 @@ jobs:
           path: app/test-output.txt
           if-no-files-found: error
 
+      - name: Typecheck Node API
+        run: npm run typecheck:server
+
+      - name: Prove metadata database grants and RLS
+        run: npm run test:database
+
+      - name: Verify local signed-token Data API integration
+        run: npm run test:data-api
+
       - name: Build production app
         run: npm run build
+
+      - name: Scan built client boundary
+        run: npm run check:client-privacy

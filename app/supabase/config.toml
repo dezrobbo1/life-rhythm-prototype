@@ -1,0 +1,18 @@
+# Local metadata schema exposure only; native hosted Supabase Auth acceptance remains an operator gate.
+project_id = "life-rhythm-c1-local"
+[api]
+enabled = true
+port = 54321
+schemas = ["life_rhythm"]
+extra_search_path = ["public", "extensions"]
+max_rows = 10
+[db]
+port = 54322
+major_version = 17
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+# Local configuration does not authorize hosted Auth settings.
+enable_signup = false
+[auth.email]
+enable_signup = false

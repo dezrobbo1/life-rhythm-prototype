@@ -1,0 +1,170 @@
+{
+  "dateUTC": "2026-10-05",
+  "status": "LOCAL PASS; UNMERGED; HOSTED NOT RUN",
+  "base": "b58b7442c478770f9c0e1db9b6208c8c8e803e30",
+  "precedingHead": "2330b45a1249cee3e98ccefa8ff3d3a968bdae02",
+  "sourceSha256": "808674d283b0f6c9dd6d98e2ce0f2ab5f38e20a3f1e3db13a8ef940ed1a0877b",
+  "sourceFiles": 308,
+  "node22": {
+    "version": "22.23.3",
+    "focusedPassed": 234,
+    "files": 12,
+    "serverTypecheck": "PASS"
+  },
+  "node24": {
+    "version": "24.19.0",
+    "focusedPassed": 234,
+    "files": 12,
+    "serverTypecheck": "PASS"
+  },
+  "UTC": {
+    "tests": 1615,
+    "files": 120,
+    "durationSeconds": 113.9,
+    "status": "PASS"
+  },
+  "Australia/Perth": {
+    "tests": 1615,
+    "files": 120,
+    "durationSeconds": 104.11,
+    "status": "PASS"
+  },
+  "database": {
+    "engine": "PostgreSQL 17.11",
+    "image": "sha256:212aeeeb8faaef6c46498d86cbec6b9344d8d9492996b174664ff82c562ab685",
+    "status": "PASS",
+    "matrix": [
+      "normal-role own A/B",
+      "missing/disabled/foreign claims",
+      "independent grants and forced RLS",
+      "anonymous denied",
+      "write/ownership changes denied"
+    ],
+    "hosted": false
+  },
+  "dataAPI": {
+    "engine": "PostgREST 13.0.7",
+    "image": "sha256:5c5eb0045fa5c2f83e977647f4aaf6222f75b8538642ed6ec682f56721b1708d",
+    "assertions": 60,
+    "status": "PASS",
+    "trust": "ephemeral local RSA, not hosted Supabase Auth"
+  },
+  "browser": {
+    "browser": "Chromium 151.0.7922.173",
+    "playwright": "1.63.0",
+    "viewports": [
+      "390x844",
+      "1280x844"
+    ],
+    "stats": {
+      "startTime": "2026-10-05T23:36:45.916Z",
+      "duration": 15111.257,
+      "expected": 16,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "rows": [
+      {
+        "title": "required missing config and signed-out surface block content",
+        "status": "expected"
+      },
+      {
+        "title": "authorized metadata shows device-only status and sign-out clears it",
+        "status": "expected"
+      },
+      {
+        "title": "API 401 blocks ordinary data and offers keyboard retry",
+        "status": "expected"
+      },
+      {
+        "title": "API 403 blocks ordinary data and offers keyboard retry",
+        "status": "expected"
+      },
+      {
+        "title": "API 426 blocks ordinary data and offers keyboard retry",
+        "status": "expected"
+      },
+      {
+        "title": "API 503 blocks ordinary data and offers keyboard retry",
+        "status": "expected"
+      },
+      {
+        "title": "reload clears sign-in and recovery remains explicit",
+        "status": "expected"
+      },
+      {
+        "title": "late A request is discarded during B switch",
+        "status": "expected"
+      },
+      {
+        "title": "required missing config and signed-out surface block content",
+        "status": "expected"
+      },
+      {
+        "title": "authorized metadata shows device-only status and sign-out clears it",
+        "status": "expected"
+      },
+      {
+        "title": "API 401 blocks ordinary data and offers keyboard retry",
+        "status": "expected"
+      },
+      {
+        "title": "API 403 blocks ordinary data and offers keyboard retry",
+        "status": "expected"
+      },
+      {
+        "title": "API 426 blocks ordinary data and offers keyboard retry",
+        "status": "expected"
+      },
+      {
+        "title": "API 503 blocks ordinary data and offers keyboard retry",
+        "status": "expected"
+      },
+      {
+        "title": "reload clears sign-in and recovery remains explicit",
+        "status": "expected"
+      },
+      {
+        "title": "late A request is discarded during B switch",
+        "status": "expected"
+      }
+    ],
+    "nativeHosted": false,
+    "screenshotsDelivered": false
+  },
+  "build": "PASS; existing large-chunk advisory",
+  "cleanInstall": "PASS npm ci --ignore-scripts",
+  "clientPrivacy": "PASS; bare SDK secret prefix permitted, attached values denied",
+  "routing": "PASS API precedes SPA fallback",
+  "portableAndNamespacePreservation": "PASS; implementation bytes unchanged",
+  "diffCheck": "PASS",
+  "redEvidence": {
+    "cryptoAgainstClerk": {
+      "failed": 2,
+      "passed": 27
+    },
+    "UIAgainstClerk": {
+      "failed": 10,
+      "passed": 2
+    },
+    "expiryBeforeFix": {
+      "failed": 1,
+      "passed": 12
+    },
+    "privacyPrefixBeforeFix": {
+      "failed": 1,
+      "passed": 2
+    }
+  },
+  "intermediateFailures": [
+    "Crypto setup initially shadowed JWKS; corrected before valid baseline replay",
+    "Intermediate full UTC: 1611 passed / one failed newly added trust fixture because non-extractable private CryptoKey export; fixture corrected without exporting private material",
+    "Client scan matched SDK bare sb_secret_ prefix; credential-shaped scanner regression fixed"
+  ],
+  "hostedChecks": "NOT RUN: Auth accounts/signup/key settings; metadata schema/exposure/access; Vercel root/env/native sessions; recovery/email",
+  "CI": "Prior head run 37363612961 attempt 2 failed; job cancelled, runner 0/name empty, zero steps. No retry.",
+  "providerChangesPerformed": false,
+  "personalProfileUploaded": false,
+  "merged": false
+}

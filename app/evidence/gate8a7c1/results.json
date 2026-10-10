@@ -1,0 +1,129 @@
+{
+  "sourceSha256": "463103fa4ad8c1a283c8a2fcecad55ae9281a228a14198ff997ee0d6725f02b3",
+  "runtime": {
+    "node": "24.19.0",
+    "node22": "22.23.3",
+    "chromium": "151.0.7922.173",
+    "playwright": "1.63.0",
+    "postgres": "17.11",
+    "postgrest": "13.0.7",
+    "timezone": "UTC"
+  },
+  "browserStartTime": "2026-10-05T19:02:42.220Z",
+  "viewports": [
+    {
+      "width": 390,
+      "height": 844
+    },
+    {
+      "width": 1280,
+      "height": 844
+    }
+  ],
+  "synthetic": true,
+  "hostedAcceptance": "NOT RUN \u2014 MANUAL ACTION REQUIRED",
+  "rows": [
+    {
+      "row": "viewport 390 / required missing config and signed-out surface block content",
+      "outcome": "passed",
+      "durationMs": 2238
+    },
+    {
+      "row": "viewport 390 / authorized metadata shows device-only status and sign-out clears it",
+      "outcome": "passed",
+      "durationMs": 2068
+    },
+    {
+      "row": "viewport 390 / API 401 blocks ordinary data and offers keyboard retry",
+      "outcome": "passed",
+      "durationMs": 1760
+    },
+    {
+      "row": "viewport 390 / API 403 blocks ordinary data and offers keyboard retry",
+      "outcome": "passed",
+      "durationMs": 1620
+    },
+    {
+      "row": "viewport 390 / API 426 blocks ordinary data and offers keyboard retry",
+      "outcome": "passed",
+      "durationMs": 1775
+    },
+    {
+      "row": "viewport 390 / API 503 blocks ordinary data and offers keyboard retry",
+      "outcome": "passed",
+      "durationMs": 1848
+    },
+    {
+      "row": "viewport 390 / late A request is discarded during B switch",
+      "outcome": "passed",
+      "durationMs": 1631
+    },
+    {
+      "row": "viewport 1280 / required missing config and signed-out surface block content",
+      "outcome": "passed",
+      "durationMs": 1830
+    },
+    {
+      "row": "viewport 1280 / authorized metadata shows device-only status and sign-out clears it",
+      "outcome": "passed",
+      "durationMs": 1743
+    },
+    {
+      "row": "viewport 1280 / API 401 blocks ordinary data and offers keyboard retry",
+      "outcome": "passed",
+      "durationMs": 1843
+    },
+    {
+      "row": "viewport 1280 / API 403 blocks ordinary data and offers keyboard retry",
+      "outcome": "passed",
+      "durationMs": 1524
+    },
+    {
+      "row": "viewport 1280 / API 426 blocks ordinary data and offers keyboard retry",
+      "outcome": "passed",
+      "durationMs": 1589
+    },
+    {
+      "row": "viewport 1280 / API 503 blocks ordinary data and offers keyboard retry",
+      "outcome": "passed",
+      "durationMs": 1937
+    },
+    {
+      "row": "viewport 1280 / late A request is discarded during B switch",
+      "outcome": "passed",
+      "durationMs": 1910
+    }
+  ],
+  "localChecks": {
+    "serverAndShared": {
+      "files": 6,
+      "testsPassed": 106,
+      "node": [
+        "22.23.3",
+        "24.19.0"
+      ]
+    },
+    "postgresPolicyMatrix": "PASS",
+    "signedDataApiAssertions": 24,
+    "privacyAndSyntheticExport": "PASS",
+    "node22And24Build": "PASS",
+    "hostedC1": "NOT RUN \u2014 MANUAL ACTION REQUIRED",
+    "appSuites": {
+      "UTC": {
+        "files": 118,
+        "testsPassed": 1573,
+        "durationSeconds": 39.35
+      },
+      "Australia/Perth": {
+        "files": 118,
+        "testsPassed": 1573,
+        "durationSeconds": 41.9
+      }
+    },
+    "concurrentAttempts": {
+      "UTC": "FAIL: Gate6DailyLoopAcceptance timeout; LibraryScreen saved-message wait",
+      "Australia/Perth": "FAIL: Gate6DailyLoopAcceptance timeout",
+      "resolution": "Serial full reruns pass on identical executable source; no assertions/timeouts weakened"
+    }
+  }
+}

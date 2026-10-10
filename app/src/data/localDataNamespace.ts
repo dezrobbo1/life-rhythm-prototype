@@ -34,6 +34,7 @@ export const LEGACY_LOCAL_DATA_NAMESPACE: LocalDataNamespace = {
 const databaseCache = new Map<string, LifeRhythmDatabase>();
 
 let currentNamespace = LEGACY_LOCAL_DATA_NAMESPACE;
+let namespaceGeneration = 0;
 
 function hashNamespaceValue(value: string) {
   let hash = 0x811c9dc5;
@@ -72,10 +73,12 @@ export function getCurrentLocalDataNamespace(): LocalDataNamespace {
 }
 
 export function setCurrentLocalDataNamespace(namespace: LocalDataNamespace) {
+  namespaceGeneration++;
   currentNamespace = namespace;
 }
 
 export function resetCurrentLocalDataNamespace() {
+  namespaceGeneration++;
   currentNamespace = LEGACY_LOCAL_DATA_NAMESPACE;
 }
 
@@ -94,6 +97,15 @@ export function getLifeRhythmDatabaseForNamespace(namespace: LocalDataNamespace)
 
 export function getCurrentLifeRhythmDatabase() {
   return getLifeRhythmDatabaseForNamespace(currentNamespace);
+}
+
+/** Runtime lease only: does not alter persisted namespaces or recovery formats. */
+export function captureLocalDataContext() {
+  const generation = namespaceGeneration;
+  return {
+    database: getCurrentLifeRhythmDatabase(),
+    isCurrent: () => generation === namespaceGeneration,
+  };
 }
 
 function settingsComparableFields(settings: Settings) {

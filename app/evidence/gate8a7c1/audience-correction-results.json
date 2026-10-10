@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-05 UTC",
+  "reviewedHead": "0b32f60cbe8a7808897c2908224c3dd60b8cd920",
+  "base": "b58b7442c478770f9c0e1db9b6208c8c8e803e30",
+  "publicationHead": "Recorded in existing draft PR #180",
+  "sourceSha256": "ba3d992cd512884f334cbfb3d40d21b6806499b4f9dd7ed9e80daed565fa8568",
+  "sourceFileCount": 305,
+  "red": {
+    "command": "npx vitest run server/account/boundary.test.ts server/account/session.test.ts --reporter=verbose",
+    "failed": 12,
+    "passed": 85,
+    "observed": {
+      "status": 200,
+      "providerCalls": 1
+    },
+    "expected": {
+      "status": 401,
+      "providerCalls": 0
+    }
+  },
+  "green": {
+    "matrixRows": 18,
+    "rejectedRows": 15,
+    "acceptedRows": 3,
+    "focusedNode24": 124,
+    "focusedNode22": 124,
+    "serverTypechecks": "PASS Node 22.23.3 / 24.19.0",
+    "signedLocalDataApiAssertions": 60
+  },
+  "initialFullUTC": {
+    "passed": 1588,
+    "failed": 3,
+    "unhandledErrors": 1,
+    "durationSeconds": 90.17,
+    "failures": [
+      "AppShell.smoke navigation timeout",
+      "Gate6DailyLoopAcceptance daily-loop timeout",
+      "PoolSoftPlacementFlow saved-placement wait"
+    ],
+    "unhandled": "TaskLifecycleFlow: window is not defined after TodayScreen state update"
+  },
+  "reused": {
+    "sourceSha256": "463103fa4ad8c1a283c8a2fcecad55ae9281a228a14198ff997ee0d6725f02b3",
+    "head": "0b32f60cbe8a7808897c2908224c3dd60b8cd920",
+    "boundaries": [
+      "unchanged SQL grants/forced RLS",
+      "unchanged browser/client and replay: 14 rows",
+      "unchanged date/domain/shared schemas: prior Perth suite"
+    ]
+  },
+  "hostedAcceptance": "NOT RUN \u2014 MANUAL ACTION REQUIRED",
+  "synthetic": true,
+  "final": {
+    "command": "TZ=UTC npm test -- --maxWorkers=1",
+    "passed": 1591,
+    "files": 118,
+    "failed": 0,
+    "unhandledErrors": 0,
+    "durationSeconds": 204.18,
+    "build": "PASS Node 24.19.0; existing large-chunk advisory",
+    "clientPrivacy": "PASS",
+    "diffCheck": "PASS"
+  },
+  "dependencyInstall": "Initial default-cache install unavailable outside writable roots; unchanged lockfile npm ci succeeded with /tmp/lr-c1-npm-cache."
+}

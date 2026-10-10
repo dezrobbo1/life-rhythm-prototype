@@ -1,8 +1,10 @@
 import 'fake-indexeddb/auto';
+import Dexie from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createAuthLocalDataNamespace,
   getCurrentLifeRhythmDatabase,
+  getLifeRhythmDatabaseForNamespace,
   resetCurrentLocalDataNamespace,
   setCurrentLocalDataNamespace,
 } from './localDataNamespace';
@@ -672,4 +674,99 @@ describe('live scheduler plan coordinator', () => {
     expect(await database.rhythmInstances.toArray()).toEqual(beforeRhythms);
   });
 
+});
+
+it('retains initiating repair database after an account switch during a live read', async () => {
+  const a = getCurrentLifeRhythmDatabase();
+  await saveLifeShape();
+  await a.taskPoolItems.put(task('task-a'));
+  expect((await ensureCurrentPrivatePlan(coordinatorOptions())).ok).toBe(true);
+  const b = getLifeRhythmDatabaseForNamespace(createAuthLocalDataNamespace('synthetic-repair-B'));
+  const originalGet = a.settings.get.bind(a.settings);
+  let release!: () => void;
+  vi.spyOn(a.settings, 'get').mockImplementationOnce((...args) => new Dexie.Promise((resolve, reject) => {
+    release = () => { originalGet(...args).then(resolve, reject); };
+  }));
+  try {
+    const pending = repairCurrentPrivatePlan({ ...coordinatorOptions(), reason: 'Synthetic capture repair', trigger: 'taskDefinitionChanged' });
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    setCurrentLocalDataNamespace(createAuthLocalDataNamespace('synthetic-repair-B'));
+    release();
+    expect((await pending).ok).toBe(true);
+    expect(await a.schedulerPlanState.count()).toBe(1);
+    expect(await b.settings.count()).toBe(0);
+    expect(await b.taskPoolItems.count()).toBe(0);
+    expect(await b.taskHistory.count()).toBe(0);
+    expect(await b.rhythmInstances.count()).toBe(0);
+    expect(await b.schedulerPlanState.count()).toBe(0);
+  } finally {
+    setCurrentLocalDataNamespace(createAuthLocalDataNamespace('unused-cleanup'));
+    await b.delete();
+    await a.delete();
+  }
+});
+
+it('builds the initial plan in the supplied database when another account is current', async () => {
+  const a = getCurrentLifeRhythmDatabase();
+  await saveLifeShape();
+  await a.taskPoolItems.put(task('task-a'));
+  const bNamespace = createAuthLocalDataNamespace(`initial-plan-B-${namespaceIndex}`);
+  const b = getLifeRhythmDatabaseForNamespace(bNamespace);
+  setCurrentLocalDataNamespace(bNamespace);
+  const beforeB = await b.schedulerPlanState.toArray();
+  const result = await ensureCurrentPrivatePlan({ ...coordinatorOptions(), database: a });
+  expect(result.ok).toBe(true);
+  expect(await a.schedulerPlanState.count()).toBe(1);
+  expect(await b.schedulerPlanState.toArray()).toEqual(beforeB);
+  expect(await b.settings.count()).toBe(0);
+  expect(await b.taskHistory.count()).toBe(0);
+  expect(await b.rhythmInstances.count()).toBe(0);
+});
+
+it('retains the initial-plan database across an account switch during its first read', async () => {
+  const a = getCurrentLifeRhythmDatabase();
+  await saveLifeShape();
+  await a.taskPoolItems.put(task('task-a'));
+  const bNamespace = createAuthLocalDataNamespace(`initial-plan-switch-B-${namespaceIndex}`);
+  const b = getLifeRhythmDatabaseForNamespace(bNamespace);
+  const originalGet = a.schedulerPlanState.get.bind(a.schedulerPlanState);
+  let release!: () => void;
+  vi.spyOn(a.schedulerPlanState, 'get').mockImplementationOnce((...args) => new Dexie.Promise((resolve, reject) => {
+    release = () => { originalGet(...args).then(resolve, reject); };
+  }));
+  const pending = ensureCurrentPrivatePlan(coordinatorOptions());
+  await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+  setCurrentLocalDataNamespace(bNamespace);
+  release();
+  const result = await pending;
+  expect(result.ok).toBe(true);
+  expect(await a.schedulerPlanState.count()).toBe(1);
+  expect(await b.schedulerPlanState.count()).toBe(0);
+  expect(await b.settings.count()).toBe(0);
+  expect(await b.taskHistory.count()).toBe(0);
+  expect(await b.rhythmInstances.count()).toBe(0);
+});
+
+it('undoes the supplied account plan without changing the current account plan', async () => {
+  const a = getCurrentLifeRhythmDatabase();
+  await saveLifeShape();
+  await a.taskPoolItems.put(task('task-a'));
+  expect((await ensureCurrentPrivatePlan(coordinatorOptions())).ok).toBe(true);
+  expect((await repairCurrentPrivatePlan({ ...coordinatorOptions(), reason: 'A repair', trigger: 'manualReplan' })).ok).toBe(true);
+  const bNamespace = createAuthLocalDataNamespace(`undo-plan-B-${namespaceIndex}`);
+  const b = getLifeRhythmDatabaseForNamespace(bNamespace);
+  setCurrentLocalDataNamespace(bNamespace);
+  await saveLifeShape();
+  await b.taskPoolItems.put(task('task-b'));
+  expect((await ensureCurrentPrivatePlan(coordinatorOptions())).ok).toBe(true);
+  expect((await repairCurrentPrivatePlan({ ...coordinatorOptions(), reason: 'B repair', trigger: 'manualReplan' })).ok).toBe(true);
+  const beforeB = await b.schedulerPlanState.toArray();
+  const historyBeforeB = await b.taskHistory.toArray();
+  const result = await undoCurrentPrivatePlan({ ...coordinatorOptions(), database: a });
+  expect(result).toMatchObject({ ok: true, mode: 'undone' });
+  const afterA = await loadSchedulerPlanState(a);
+  expect(afterA.status).toBe('ok');
+  if (afterA.status === 'ok') expect(afterA.plan.repair).toBeUndefined();
+  expect(await b.schedulerPlanState.toArray()).toEqual(beforeB);
+  expect(await b.taskHistory.toArray()).toEqual(historyBeforeB);
 });

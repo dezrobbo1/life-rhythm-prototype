@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-// @ts-expect-error -- Tests run in Node; application typings intentionally omit Node.
 import { readFileSync } from 'node:fs';
 const globalCss = readFileSync('src/styles/global.css', 'utf8');
 const todayCss = readFileSync('src/styles/today-calm-surface.css', 'utf8');
