@@ -27,7 +27,8 @@ function record(phase = "pre", pending) {
     observerTrust: "OWNER_AUTHORIZED_EXTERNAL_CONNECTOR",
     observedAt: new Date(now - 1000).toISOString(),
     ...(phase === "post" ? { phaseDigest: pending.phaseDigest,
-      preReceipt: pending.preReceipt, completedAt: pending.completedAt } : {}),
+      preReceipt: pending.preReceipt, completedAt: pending.completedAt,
+      fixtureBaselineDigest:pending.fixtures.baselineDigest, fixtureRestoredReceipt:pending.fixtures.fixtureRestoredReceipt } : {}),
   };
 }
 function fixture(phase = "pre", pending) {
@@ -98,6 +99,7 @@ test("edited, forged, replayed, ambiguous and stale automated receipts cannot ad
 });
 test("post observation is newer than native completion and endorses exact native output bytes", async () => {
   const pending = { phaseDigest: "d".repeat(64), preReceipt: 456,
+    fixtures: {baselineDigest:"d".repeat(64),baselineReceipt:458,fixtureRestoredReceipt:459},
     completedAt: new Date(now - 5000).toISOString() };
   const f = fixture("post", pending);
   assert.equal((await supervision.verifySupervision(env, config, "post", f.get, target, pending)).verified, true);
@@ -128,4 +130,14 @@ test("orchestrator attribution interface preserves its phase argument and enforc
     C1_PRE_RECEIPT_DIGEST: supervision.digest(f.receipt.body) };
   assert.equal((await verifyAttribution(nativeEnv, config, "pre", f.get, target)).verified, true);
   await assert.rejects(verifyAttribution(nativeEnv, config, "post", f.get, target));
+});
+test("fixture receipts bind exact run, pre receipt, stage, snapshot and fresh external provider observation",async()=>{
+  const nativeEnv={...env,C1_PRE_RECEIPT_ID:"456"};
+  const pending={baselineDigest:"d".repeat(64),requestedAt:now-2000};
+  for(const phase of supervision.fixtureStages) {
+    const base={...record(phase),baselineDigest:pending.baselineDigest,preReceipt:456,fixtureObservationMethod:"SUPABASE_EXISTING_CONNECTION_METADATA"};
+    supervision.verifyRecord(base,nativeEnv,target,phase,Date.now(),pending,config.mode);
+    for(const patch of [{preReceipt:999},{baselineDigest:"e".repeat(64)},{phase:"pre"},{runId:"999"},{fixtureObservationMethod:"mock"},{observedAt:new Date(now-95000).toISOString()},{password:"SECRET"}])
+      assert.throws(()=>supervision.verifyRecord({...base,...patch},nativeEnv,target,phase,Date.now(),pending,config.mode));
+  }
 });

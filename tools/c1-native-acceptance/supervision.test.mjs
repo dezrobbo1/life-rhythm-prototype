@@ -66,6 +66,8 @@ function record(phase = "pre", now = Date.now(), pending) {
           phaseDigest: pending.phaseDigest,
           preReceipt: pending.preReceipt,
           completedAt: pending.completedAt,
+          fixtureBaselineDigest:pending.fixtures.baselineDigest,
+          fixtureRestoredReceipt:pending.fixtures.fixtureRestoredReceipt,
         }
       : {}),
   };
@@ -187,6 +189,7 @@ test("post observation must follow completion and bind exact phase evidence dige
     deployment: manifest.deployment,
     origin,
     preReceipt: 456,
+    fixtures: {baselineDigest:"d".repeat(64),baselineReceipt:458,fixtureRestoredReceipt:459},
     completedAt: new Date(Date.now() - 5000).toISOString(),
     phaseDigest: "d".repeat(64),
   };
@@ -225,6 +228,7 @@ test("post finalization requires the actual successful native job and trusted ob
     deployment: manifest.deployment,
     origin,
     preReceipt: 456,
+    fixtures: {baselineDigest:"d".repeat(64),baselineReceipt:458,fixtureRestoredReceipt:459},
     completedAt,
     passed: [...rows],
     requests: 100,
@@ -261,12 +265,23 @@ test("post finalization requires the actual successful native job and trusted ob
     started_at: new Date(Date.now() - 10000).toISOString(),
     completed_at: jobDone,
   };
-  const f = fixture("post", pending),
-    reader = async (path) =>
-      path.includes("/actions/jobs/") ? job : f.get(path);
-  const result = await postVerification(identity, config, reader, target);
-  assert.equal(result.hosted, "SCOPED_ROWS_COMPLETE");
-  assert.equal(result.gate, "BLOCK");
+  const externalConfig={enabled:true,immutableOriginApproved:true,immutableOrigin:origin,
+    mode:"external-connector-automation",receiptIssue:179,trustedObserverIds:[manifest.ownerId]};
+  const receipt=(phase,id,extra)=>{const now=Date.now();return{id,user:{id:Number(manifest.ownerId),type:"User"},
+    body:JSON.stringify({...record(phase,now,phase==="post"?pending:undefined),format:3,
+      observerTrust:"OWNER_AUTHORIZED_EXTERNAL_CONNECTOR",...extra}),
+    created_at:new Date(now).toISOString(),updated_at:new Date(now).toISOString(),
+    issue_url:"https://api.github.com/repos/"+manifest.repository+"/issues/179",
+    html_url:"https://github.com/"+manifest.repository+"/issues/179#issuecomment-"+id};};
+  const post=receipt("post",457,{}), restored=receipt("fixture-restored",459,
+    {baselineDigest:pending.fixtures.baselineDigest,preReceipt:456,
+     fixtureObservationMethod:"SUPABASE_EXISTING_CONNECTION_METADATA"});
+  const f={get:async path=>path.includes("/issues/179/comments")?[post,restored]:
+    path.endsWith("/issues/comments/459")?restored:path.endsWith("/issues/comments/457")?post:run};
+  const reader=async path=>path.includes("/actions/jobs/")?job:f.get(path);
+  const result = await postVerification(identity, externalConfig, reader, target);
+  assert.equal(result.hosted, "C1_ACCEPTED");
+  assert.equal(result.gate, "PASS");
   for (const patch of [
     { conclusion: "failure" },
     { run_attempt: 2 },
@@ -279,7 +294,7 @@ test("post finalization requires the actual successful native job and trusted ob
     await assert.rejects(
       postVerification(
         identity,
-        config,
+        externalConfig,
         async (path) =>
           path.includes("/actions/jobs/") ? { ...job, ...patch } : f.get(path),
         target,
@@ -294,7 +309,7 @@ test("post finalization requires the actual successful native job and trusted ob
     },
   ])
     await assert.rejects(
-      postVerification({ ...identity, ...patch }, config, reader, target),
+      postVerification({ ...identity, ...patch }, externalConfig, reader, target),
     );
 });
 test("trusted receipt fields still fail when attacker recomputes the public digest", async () => {
@@ -328,6 +343,7 @@ test("phase output projection drops arbitrary secrets and rejects unbound source
     deployment: target.deployment,
     origin,
     preReceipt: 456,
+    fixtures: {baselineDigest:"d".repeat(64),baselineReceipt:458,fixtureRestoredReceipt:459},
     completedAt: new Date().toISOString(),
     passed: [...rows],
     requests: 100,

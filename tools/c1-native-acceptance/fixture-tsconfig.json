@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true,
+    "skipLibCheck": true, "esModuleInterop": true,
+    "rootDir": "../../c1-app-under-test/app", "outDir": "../../c1-app-under-test/app/.c1-compiled",
+    "typeRoots": ["../../c1-app-under-test/app/node_modules/@types"], "types": ["node"]
+  },
+  "include": ["../../c1-app-under-test/app/server/account/boundary.ts"]
+}

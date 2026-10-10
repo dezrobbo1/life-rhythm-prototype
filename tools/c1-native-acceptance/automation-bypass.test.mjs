@@ -173,6 +173,7 @@ test("phase artifact records only the explicit mode enum, never the bypass value
   const phase = { format:2, gate:"BLOCK", hosted:"TEST_PHASE_COMPLETE_PENDING_POST",
     runId:"123", attempt:"1", harness:"a".repeat(40), source:policy.manifest.source,
     deployment:policy.manifest.deployment, origin:policy.manifest.origin, preReceipt:456,
+    fixtures:{baselineDigest:"d".repeat(64),baselineReceipt:458,fixtureRestoredReceipt:459},
     completedAt:new Date().toISOString(), passed:[...policy.rows], requests:100, passwordSignins:5,
     protectionMode:"automation-bypass", bypass:secret };
   const artifact = phaseResult(phase);

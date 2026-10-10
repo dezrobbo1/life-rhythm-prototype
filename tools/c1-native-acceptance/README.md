@@ -1,3 +1,29 @@
+# Current C1 completion authority — 2026-10-10
+
+Read [final-native-coverage-contract.md](final-native-coverage-contract.md) first.
+It supersedes dated exclusions and approval pauses below for this expressly
+owner-authorized continuation. All required rows are executable; native completion
+remains BLOCK until successful independent post verification of the exact job,
+all required rows and fixture restoration. Only then may final evidence say PASS.
+No hosted acceptance result is inferred from offline tests.
+
+Offline preparation now also checks out application SHA `07469f9f13aa3887a6ec7847b7b642a839651e63`
+at `c1-app-under-test`, runs `npm ci --ignore-scripts --no-audit --no-fund` in its
+`app` directory, then runs `node prepare-source-fixture.mjs` in this harness.
+These steps receive no acceptance secrets. The workflow contains this exact
+sequence. Run `npm test` after preparation. No privileged fixture secret is used.
+
+The existing explicit Trusted Sources mode remains usable if restored. The
+reviewed automation-bypass mode is selected deliberately and never on failure.
+For this final one-run window the owner authorizes mandatory Vercel system-env
+designation, with NO deployment/push/merge/redeploy/promotion while the key exists.
+Always revoke/remove it before any source correction or #180 merge.
+
+The remainder is dated implementation history, not an instruction to repeat
+completed approvals or leave now-implemented fixtures NOT_RUN.
+
+---
+
 # C1 native acceptance infrastructure — draft, BLOCK
 
 Current recovery, 2026-10-10: [automation-bypass-contract.md](automation-bypass-contract.md)

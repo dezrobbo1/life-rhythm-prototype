@@ -111,7 +111,7 @@ console.log(
       : process.argv.includes("--admission")
       ? "C1_ADMISSION_OK"
       : process.argv.includes("--post")
-        ? "C1_SUPERVISED_COMPLETE_GATE_BLOCK"
+        ? "C1_FINAL_ACCEPTED_PASS"
         : "C1_TEST_PHASE_PENDING_POST_GATE_BLOCK"
     : result.hosted === "NOT_RUN"
       ? "C1_BLOCK_HOSTED_NOT_RUN"

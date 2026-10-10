@@ -17,18 +17,21 @@ import {
 export function makeTransport(oidc, budget, fetcher = fetch, stopSignal) {
   return async (
     url,
-    { method = "GET", headers = {}, body, cleanup: closing = false } = {},
+    { method = "GET", headers = {}, body, originProbe = false, cleanup: closing = false } = {},
   ) => {
     check(!stopSignal?.aborted);
     requestPolicy(url, method);
-    authBody(url, body);
+    authBody(url, body, { method });
+    const projected=scopedHeaders(url, oidc, headers);
+    check(typeof originProbe==="boolean");
+    if(originProbe) {check(new URL(url).origin===manifest.origin && new URL(url).pathname==="/api/account/boundary");projected.Origin="https://c1-origin-negative.invalid";}
     budget.take({
       signin: new URL(url).searchParams.get("grant_type") === "password",
       cleanup: closing,
     });
     const response = await fetcher(url, {
       method,
-      headers: scopedHeaders(url, oidc, headers),
+      headers: projected,
       body,
       redirect: "error",
       cache: "no-store",
@@ -325,6 +328,8 @@ export async function browserRow(
         const request = route.request();
         const u = new URL(request.url());
         check(!failure && !stopSignal?.aborted);
+        // Negative writes belong only to the acceptance adapter, never page code.
+        if(u.pathname.startsWith("/rest/v1/")) check(request.method()==="GET");
         requestPolicy(
           u.href,
           request.method(),
