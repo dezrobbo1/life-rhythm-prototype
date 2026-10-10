@@ -1,3 +1,20 @@
+# Admission failure evidence — 2026-10-10
+
+The existing `results.json` artifact now retains optional `admissionFailure`:
+code-defined stage/category, HTTP-response-received boolean, actual numeric status
+(or null when no Response was returned), finite content-type classification and
+fixed validation code. Root/bootstrap transport, response and body reading, HTML
+asset discovery, JavaScript parsing and public-config checks are distinguished.
+Only recognized exception types/codes select a transport category; generic
+`redirect:error` rejections remain unknown, with no inferred HTTP status.
+
+The first admission failure survives orchestrator cleanup, fallback reporting and
+entrypoint serialization. No raw exception properties, headers, locations, bodies,
+parser excerpts, credentials or credential fingerprints are retained. Diagnostics
+cannot satisfy acceptance rows or create successful phase outputs. Run
+`38051649607` / attempt 1 and its original artifact remain unchanged: its exact
+HTTP status/reason is still unknown. This correction authorizes no hosted retry.
+
 # Current C1 completion authority — 2026-10-10
 
 ## Preview origin alignment — 2026-10-10

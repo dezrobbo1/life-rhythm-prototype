@@ -1,4 +1,5 @@
 import { parse } from "acorn";
+import { AdmissionTrace } from "./admission-evidence.mjs";
 import { createLocalJWKSet, jwtVerify } from "jose";
 import {
   manifest,
@@ -7,8 +8,10 @@ import {
   scopedHeaders,
   requestPolicy,
 } from "./policy.mjs";
-export async function boundedText(response, limit) {
-  check(response.body);
+const readerTraces = new WeakMap();
+export async function boundedText(response, limit, trace) {
+  if (trace) trace.expect(response.body, "BODY_MISSING", "body_read");
+  else check(response.body);
   const reader = response.body.getReader();
   let size = 0;
   const chunks = [];
@@ -17,15 +20,20 @@ export async function boundedText(response, limit) {
       const { value, done } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      check(size <= limit);
+      if (trace) trace.expect(size <= limit, "BODY_LIMIT", "body_read");
+      else check(size <= limit);
       chunks.push(value);
     }
-    return new TextDecoder("utf-8", { fatal: true }).decode(
-      Buffer.concat(chunks),
-    );
+    const bytes = Buffer.concat(chunks);
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch (error) {
+      throw trace ? trace.capture(error, "body_read", "BODY_UTF8") : error;
+    }
   } catch (error) {
+    const failure = trace ? trace.capture(error) : error;
     await reader.cancel().catch(() => {});
-    throw error;
+    throw failure;
   } finally {
     reader.releaseLock();
   }
@@ -45,65 +53,85 @@ async function jsonRequest(url, init, fetcher, limit = 65536) {
   );
   return JSON.parse(await boundedText(response, limit));
 }
-export function publicTextReader(oidc, budget, fetcher = fetch) {
-  return async (url, assets = new Set()) => {
+export function publicTextReader(oidc, budget, fetcher = fetch, trace = new AdmissionTrace()) {
+  const getText = async (url, assets = new Set()) => {
     check(new URL(url).origin === manifest.origin);
     requestPolicy(url, "GET", false, assets);
     budget.take();
-    const r = await fetcher(url, {
-      headers: scopedHeaders(url, oidc),
-      redirect: "error",
-      signal: AbortSignal.timeout(10000),
-      cache: "no-store",
-    });
-    check(r.status === 200 && !r.redirected);
     const html = new URL(url).pathname === "/";
-    check(
-      (html
-        ? ["text/html"]
-        : ["application/javascript", "text/javascript"]
-      ).includes(r.headers.get("content-type")?.split(";")[0]),
-    );
-    return boundedText(r, html ? 256 * 1024 : 5 * 1024 * 1024);
+    const prefix = html ? "root" : "bootstrap";
+    trace.enter(prefix + "_request", "transport_unknown");
+    try {
+      const r = await fetcher(url, {
+        headers: scopedHeaders(url, oidc),
+        redirect: "error",
+        signal: AbortSignal.timeout(10000),
+        cache: "no-store",
+      });
+      trace.enter(prefix + "_response", "http_response", "RESPONSE_INVALID");
+      trace.response(r);
+      trace.expect(r.status === 200, "HTTP_STATUS", "http_response");
+      trace.expect(!r.redirected, "HTTP_REDIRECT", "http_response");
+      trace.expect((html ? ["text/html"] : ["application/javascript", "text/javascript"])
+        .includes(r.headers.get("content-type")?.split(";")[0]), "CONTENT_TYPE", "http_response");
+      trace.enter(prefix + "_body", "body_read", "BODY_READ");
+      return await boundedText(r, html ? 256 * 1024 : 5 * 1024 * 1024, trace);
+    } catch (error) { throw trace.capture(error); }
   };
+  readerTraces.set(getText, trace);
+  return getText;
 }
-export async function readPublicConfig(getText) {
+export async function readPublicConfig(getText, trace = readerTraces.get(getText) ?? new AdmissionTrace()) {
+  try { return await publicConfigFromText(getText, trace); }
+  catch (error) { throw trace.capture(error); }
+  finally { trace.finish(); }
+}
+async function publicConfigFromText(getText, trace) {
+  trace.enter("root_request", "transport_unknown");
   const html = await getText(manifest.origin + "/");
-  check(typeof html === "string" && html.length <= 256 * 1024);
+  trace.enter("html_discovery");
+  trace.expect(typeof html === "string" && html.length <= 256 * 1024, "TEXT_INVALID");
   const modules = [];
   for (const tag of html.matchAll(/<script\b[^>]*>/gi)) {
     if (!/\btype\s*=\s*["']module["']/i.test(tag[0])) continue;
     const src = tag[0].match(/\bsrc\s*=\s*["']([^"']+)["']/i);
-    check(src);
+    trace.expect(src, "MODULE_SOURCE_MISSING");
+    trace.enter("html_discovery", "validation", "ASSET_REFERENCE");
     const u = new URL(src[1], manifest.origin);
-    check(
+    trace.expect(
       u.origin === manifest.origin &&
         !u.username &&
         !u.password &&
         !u.search &&
         !u.hash &&
         /^\/assets\/[A-Za-z0-9_-]+\.js$/.test(u.pathname),
+      "ASSET_REFERENCE",
     );
     modules.push(u.href);
   }
-  check(modules.length === 1);
+  trace.expect(modules.length === 1, "MODULE_COUNT");
   const assets = new Set(modules.map((u) => new URL(u).pathname));
   // Only literal same-origin static URLs discovered before credentials are allowed.
   for (const tag of html.matchAll(/<(?:link|script)\b[^>]*>/gi)) {
     const match = tag[0].match(/\b(?:href|src)\s*=\s*["']([^"']+)["']/i);
     if (!match) continue;
+    trace.enter("html_discovery", "validation", "ASSET_REFERENCE");
     const u = new URL(match[1], manifest.origin);
-    check(
+    trace.expect(
       u.origin === manifest.origin &&
         !u.search &&
         !u.hash &&
         /^\/assets\/[A-Za-z0-9_-]+\.(js|css)$/.test(u.pathname),
+      "ASSET_REFERENCE",
     );
     assets.add(u.pathname);
   }
+  trace.enter("bootstrap_request", "transport_unknown");
   const text = await getText(modules[0], assets);
-  check(typeof text === "string" && text.length <= 5 * 1024 * 1024);
+  trace.enter("javascript_parse", "javascript_parse", "JS_PARSE");
+  trace.expect(typeof text === "string" && text.length <= 5 * 1024 * 1024, "TEXT_INVALID");
   const ast = parse(text, { ecmaVersion: "latest", sourceType: "module" });
+  trace.enter("public_config_selection");
   const candidates = [],
     effectiveObjects = new Set();
   const required = [
@@ -146,7 +174,7 @@ export async function readPublicConfig(getText) {
                 else if (v && typeof v === "object") findRead(v);
             }
             findRead(node.body);
-            check(required.every((k) => reads.has(k)));
+            trace.expect(required.every((k) => reads.has(k)), "CONFIG_READS");
             effectiveObjects.add(param.right);
           }
         }
@@ -161,7 +189,7 @@ export async function readPublicConfig(getText) {
       return node.value;
     if (node.type === "TemplateLiteral" && node.expressions.length === 0)
       return node.quasis[0].value.cooked;
-    check(false);
+    trace.expect(false, "CONFIG_LITERAL");
   }
   function walk(node) {
     if (!node || typeof node !== "object") return;
@@ -173,9 +201,10 @@ export async function readPublicConfig(getText) {
           : null,
       );
       if (effectiveObjects.has(node)) {
-        check(
+        trace.expect(
           names.every((n) => typeof n === "string") &&
             new Set(names).size === names.length,
+          "CONFIG_PROPERTIES",
         );
         const selected = {};
         for (const p of properties) {
@@ -199,16 +228,19 @@ export async function readPublicConfig(getText) {
       typeof node.value === "string" &&
       /^sb_publishable_/.test(node.value)
     )
-      check(/^sb_publishable_[A-Za-z0-9_-]{1,256}$/.test(node.value));
+      trace.expect(/^sb_publishable_[A-Za-z0-9_-]{1,256}$/.test(node.value), "CONFIG_KEY_FORMAT");
     if (node.type === "ImportDeclaration" || node.type === "ImportExpression") {
+      trace.enter("javascript_assets", "validation", "ASSET_REFERENCE");
       const path = literal(node.source);
       const u = new URL(path, modules[0]);
-      check(
+      trace.expect(
         u.origin === manifest.origin &&
           !u.search &&
           !u.hash &&
           /^\/assets\/[A-Za-z0-9_-]+\.js$/.test(u.pathname),
+        "ASSET_REFERENCE",
       );
+      trace.enter("public_config_selection");
       assets.add(u.pathname);
     }
     for (const value of Object.values(node))
@@ -216,18 +248,22 @@ export async function readPublicConfig(getText) {
       else if (value && typeof value === "object") walk(value);
   }
   walk(ast);
-  check(candidates.length > 0);
+  trace.enter("public_config_selection");
+  trace.expect(candidates.length > 0, "CONFIG_MISSING");
   const selected = candidates[0];
-  check(
+  trace.expect(
     candidates.every((c) => JSON.stringify(c) === JSON.stringify(selected)),
+    "CONFIG_AMBIGUOUS",
   );
-  check(
+  trace.enter("public_config_validation");
+  trace.expect(
     selected.VITE_SUPABASE_URL === manifest.provider &&
       selected.VITE_LIFE_RHYTHM_AUTH_ENABLED === "true" &&
       selected.VITE_LIFE_RHYTHM_MODE === "required" &&
       /^sb_publishable_[A-Za-z0-9_-]{1,256}$/.test(
         selected.VITE_SUPABASE_PUBLISHABLE_KEY,
       ),
+    "CONFIG_VALUES",
   );
   // Reject executable decoy keys/URLs outside the config; comments do not count.
   const publicKeys = new Set();
@@ -250,9 +286,10 @@ export async function readPublicConfig(getText) {
       else if (v && typeof v === "object") constants(v);
   }
   constants(ast);
-  check(
+  trace.expect(
     publicKeys.size === 1 &&
       publicKeys.has(selected.VITE_SUPABASE_PUBLISHABLE_KEY),
+    "CONFIG_KEY_AMBIGUOUS",
   );
   return {
     publishableKey: selected.VITE_SUPABASE_PUBLISHABLE_KEY,

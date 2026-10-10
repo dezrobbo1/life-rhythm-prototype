@@ -1,3 +1,4 @@
+import { validateAdmissionFailure } from "./admission-evidence.mjs";
 export const manifest = Object.freeze({
   repository: "dezrobbo1/life-rhythm-prototype",
   repositoryId: "1268056225",
@@ -370,13 +371,14 @@ export const rows = [
   "stored-incompatible-head", "disabled", "uninvited", "issued-session-disabled",
   "write-insert", "write-update", "write-delete", "fixture-restoration", "origin-denial",
 ];
-export function report(passed = [], gate = "BLOCK") {
+export function report(passed = [], gate = "BLOCK", admissionFailure = null) {
   check(
     gate === "BLOCK" &&
       Array.isArray(passed) &&
       passed.every((x) => rows.includes(x)) &&
       new Set(passed).size === passed.length,
   );
+  const failure = validateAdmissionFailure(admissionFailure);
   return {
     format: 1,
     gate,
@@ -388,6 +390,7 @@ export function report(passed = [], gate = "BLOCK") {
     notRun: [...rows],
     fixturesNotRun: [],
     historicalIdentityEvidence: "UNCHANGED",
+    ...(failure ? { admissionFailure: failure } : {}),
   };
 }
 export function fixtureEvidence(value) {
