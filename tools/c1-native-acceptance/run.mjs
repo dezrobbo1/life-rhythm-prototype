@@ -56,6 +56,7 @@ try {
     success = true;
   } else {
     result = await executeAcceptance(process.env, config, {}, lifecycle.signal);
+    check(!lifecycle.signal.aborted);
     success = result.hosted === "TEST_PHASE_COMPLETE_PENDING_POST";
     if (success) {
       // Fixed reviewed native job selects its own GitHub job ID, no caller input.
@@ -78,6 +79,7 @@ try {
           native.length === 1 &&
           Number.isSafeInteger(native[0].id),
       );
+      check(!lifecycle.signal.aborted);
       const phase = JSON.stringify(phaseResult(result));
       check(Buffer.byteLength(phase) < 16384 && process.env.GITHUB_OUTPUT);
       await mkdir("artifacts", { recursive: true });
@@ -99,12 +101,17 @@ try {
   success = false;
   result = report([], "BLOCK", admissionFailureFrom(error) ?? result.admissionFailure);
 }
+if(lifecycle.signal.aborted) {
+  success=false;
+  result=report([],"BLOCK",result.admissionFailure);
+}
 if (!process.argv.includes("--admission") || !success) {
   await mkdir("artifacts", { recursive: true });
   const json = JSON.stringify(result, null, 2) + "\n";
   check(Buffer.byteLength(json) + 16384 < 10 * 1024 * 1024);
   await writeFile("artifacts/results.json", json, { mode: 0o600 });
 }
+success = success && !lifecycle.signal.aborted;
 console.log(
   success
     ? process.argv.includes("--pre")

@@ -123,6 +123,8 @@ jobs:
           C1_PRE_RECEIPT_DIGEST: ${{ needs.preflight.outputs.pre_receipt_digest }}
           C1_PRE_JOB_ID: ${{ needs.preflight.outputs.pre_job_id }}
       - name: Run bounded native acceptance
+        # This step stays alive for bounded external revocation and old-key checks.
+        # It never waits for post-verification (which requires native completion).
         id: phase
         run: |
           ulimit -c 0

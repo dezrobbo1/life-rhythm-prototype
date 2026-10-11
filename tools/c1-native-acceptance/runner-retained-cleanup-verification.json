@@ -1,0 +1,181 @@
+{
+  "format": 1,
+  "kind": "OFFLINE_HARNESS_CORRECTION_ONLY",
+  "date": "2026-10-11",
+  "base": "92122edf3a4e6be9917eb0bcfb3112387f636e53",
+  "applicationSource": "07469f9f13aa3887a6ec7847b7b642a839651e63",
+  "immutableDeployment": "dpl_FWvCxvDYgnpUZFeDR6NcgrtWz7kn",
+  "origin": "https://life-rhythm-prototype-r04nvovwn-daler-project-lr.vercel.app",
+  "coordination": {
+    "writers": 1,
+    "publishedOverlap": "ONLY_UNCHANGED_DRAFT_PR_180",
+    "unpublishedOtherChats": "UNKNOWN"
+  },
+  "redFirst": {
+    "missingLifecycle": {
+      "tests": 12,
+      "passed": 9,
+      "failed": 3
+    },
+    "hardReceiptCutoff": {
+      "tests": 1,
+      "failed": 1
+    },
+    "lateCancellationCli": {
+      "tests": 1,
+      "failed": 1
+    }
+  },
+  "finalLocal": {
+    "node": "24.19.0",
+    "tests": 173,
+    "passed": 173,
+    "failed": 0,
+    "syntaxModules": 30,
+    "syntax": "PASS",
+    "yamlWorkflows": 2,
+    "yaml": "PASS",
+    "diffCheck": "PASS",
+    "exactSourceFixturePreparation": "PASS_GIT_BLOB_PINNED_UNCHANGED_SOURCE"
+  },
+  "history": [
+    "Initial npm setup failed because the default cache was outside writable roots; /tmp cache succeeded with unchanged lockfiles.",
+    "Initial full baseline: 158 tests, 152 passed, 6 failed in orchestrator tests. Two separate Date.now calls could exceed the strict synthetic 19-minute deadline. Test setup now samples one start time; production jobWindow unchanged.",
+    "First corrected full run: 166 tests, 165 passed, 1 failed because the old automation phase fixture lacked newly mandatory cleanup evidence; fixture updated and missing evidence still rejects.",
+    "Before final fixture correction: 173 tests, 172 passed, runner-loss test alone failed on Node unsettled top-level await warning. Synthetic wait now keeps a timer alive until deliberate SIGKILL, matching the real bounded cleanup wait. Runtime unchanged. Final full run 173/173."
+  ],
+  "limits": {
+    "jobAbsoluteMs": 1140000,
+    "workflowTimeoutMinutes": 20,
+    "ordinaryCleanupReserveMs": 120000,
+    "cleanupStageMaxMs": 110000,
+    "cleanupDeadlineMarginMs": 5000,
+    "receiptWaitMaxMs": 90000,
+    "probeMaxMs": 5000,
+    "probeMaxRequests": 2,
+    "totalRequestCap": 200,
+    "passwordSigninCap": 8,
+    "acceptanceRetries": 0
+  },
+  "runtimeManifest": [
+    {
+      "path": ".github/workflows/c1-native-acceptance.yml",
+      "sha256": "f8f293b8654ba966240462b533aef098783b7fe6947daf7a1a1c776fc8dd4cb8"
+    },
+    {
+      "path": "tools/c1-native-acceptance/admission-evidence.mjs",
+      "sha256": "bd9ca9769bf282ef9e0ff0ef93a18f88b1301eeaceaf8e642cc2432b2d8925fb"
+    },
+    {
+      "path": "tools/c1-native-acceptance/admission.mjs",
+      "sha256": "e0dc11a8496d86e3754a6da564d2e2d320c9e6be9748d6c28be542adb08a8d5a"
+    },
+    {
+      "path": "tools/c1-native-acceptance/attribution-config.json",
+      "sha256": "79a238fa64ea9fba4ea3b0427e4f156aed29edc2bac2231fc3a2ed449e98bbbe"
+    },
+    {
+      "path": "tools/c1-native-acceptance/coverage.mjs",
+      "sha256": "3e97409dee9166f0b6fc149cae48b6afdb1c9b7f50d6fc908efd8c674ae62701"
+    },
+    {
+      "path": "tools/c1-native-acceptance/fixture-tsconfig.json",
+      "sha256": "ba460f5bacbc298e7a1d7f728434925b25b41a84d0800c033c1617a1bc53eec4"
+    },
+    {
+      "path": "tools/c1-native-acceptance/lifecycle.mjs",
+      "sha256": "e8c2dcdfb45e54c903694e53b0d006cbcd38773207edb8753656b9b885a229ba"
+    },
+    {
+      "path": "tools/c1-native-acceptance/native.mjs",
+      "sha256": "9021843f3f2702268730cbe51e2b119a77eef901de920d817bbc0b14bb905c5f"
+    },
+    {
+      "path": "tools/c1-native-acceptance/observer-receipt.mjs",
+      "sha256": "1d046d9ef268463a908345ce607dc10607de1f4924809355bf73c1b7c7f46154"
+    },
+    {
+      "path": "tools/c1-native-acceptance/orchestrator.mjs",
+      "sha256": "0d762c5e94562985f760109e8ab9e80cc8acf5507f929618a25b4376a67fa5ba"
+    },
+    {
+      "path": "tools/c1-native-acceptance/package-lock.json",
+      "sha256": "404d3b2af1a1e9422ba100d4266ace78ce1cb5ebe222dac623cf878310d03a07"
+    },
+    {
+      "path": "tools/c1-native-acceptance/package.json",
+      "sha256": "d240fe0d992645ee8cc072fcd31eb068ea60e7f162ea37edb1db196071c308b0"
+    },
+    {
+      "path": "tools/c1-native-acceptance/policy.mjs",
+      "sha256": "02497306cdf3c6723a7c38772816db4f2165c9bbd34a1237bb7780052820d0ae"
+    },
+    {
+      "path": "tools/c1-native-acceptance/preflight.mjs",
+      "sha256": "d20614f8b9b9091e95f3f61b8225a6ab4c21a5a9c2037b1760b2ce3c6ea36515"
+    },
+    {
+      "path": "tools/c1-native-acceptance/prepare-source-fixture.mjs",
+      "sha256": "9ba3d256752a814097b506ffefd5afee43a6a87065f07b8530bd3faebd6657e9"
+    },
+    {
+      "path": "tools/c1-native-acceptance/retained-cleanup.mjs",
+      "sha256": "7bf76f1c3d952d217bc4a560c0b56f7bb8c220df2419f5d1848a5aaa62384d43"
+    },
+    {
+      "path": "tools/c1-native-acceptance/run.mjs",
+      "sha256": "4926eb347870875b7de4466af7e5f3718725b11b3c2369e543ee7c94b1046b1d"
+    },
+    {
+      "path": "tools/c1-native-acceptance/source-fixture-blobs.json",
+      "sha256": "66308c57af4d1801a83d259d4468b894bab70839d205394dee9b8b90c762da12"
+    },
+    {
+      "path": "tools/c1-native-acceptance/source-fixture-child.mjs",
+      "sha256": "bb24134140dcc7d56f042b2067c7696bfa6f8b38ae242c589620405e6b591647"
+    },
+    {
+      "path": "tools/c1-native-acceptance/supervision.mjs",
+      "sha256": "ccac1dcc0b624395adb4097eb27ace2b988422540063ac3007a9422ef334a41f"
+    }
+  ],
+  "runtimeDigest": "9961e82e5514509f8157bdf2095bd9f569f0abf9eb579e88aeb9ee3731e2787d",
+  "independentReview": {
+    "reviewedHead": "be1e5ea89dee7b9886c341396d68862162225caa",
+    "verdict": "MERGE_SOURCE_READINESS_ONLY",
+    "findings": 0,
+    "focusedPassed": 46,
+    "targetedHead": "5875657fe09930d295a35e97bf48b04f2f91bbad",
+    "targetedPassed": 15,
+    "targetedVerdict": "MERGE_SOURCE_READINESS_ONLY",
+    "postReviewDelta": "TEST_ONLY_RUNNER_LOSS_WAIT_AND_DOCUMENTED_OFFLINE_EVIDENCE; RUNTIME_DIGEST_UNCHANGED"
+  },
+  "applicationEvidenceReuse": {
+    "applicationTreeChanged": false,
+    "suiteBuild": "REUSE_UNCHANGED_APPLICATION_EVIDENCE_PER_USER_AND_AGENTS",
+    "exactSourceAppCI": 37906435622,
+    "exactSourceAppPreview": 37906435496,
+    "freshGithubRunRead": "BOTH_COMPLETED_SUCCESS",
+    "applicationIndependentReview": 5467824686,
+    "reviewEvidence": "EXISTING_DATED_EXACT_SOURCE_APPROVAL_NOT_NEW_APPLICATION_REVIEW"
+  },
+  "hosted": "NOT_RUN_BY_THIS_CORRECTION",
+  "gate": "BLOCK",
+  "priorCredentialedRun": 38051649607,
+  "priorAdmissionCause": "UNKNOWN",
+  "acceptanceEnabledChanged": false,
+  "bypassGenerated": false,
+  "secretValuesRead": false,
+  "secretsChanged": false,
+  "providerSettingsChanged": false,
+  "fixturesMutated": false,
+  "productionChanged": false,
+  "merged": false,
+  "remaining": [
+    "BoB exact-source draft readiness/CI gate and separate merge decision",
+    "After approved merge authorize actual merged main H, keep enable OFF until all action-time gates pass",
+    "Authorized external operator verifies secure entry/removal and independent exact sole-key revocation controls without relying on native survival",
+    "Separately authorized one-key/one-dispatch frozen window, unchanged hosted matrix, external revocation/restoration and independent post",
+    "No C2 until genuine hosted C1 and all repository gates PASS"
+  ]
+}

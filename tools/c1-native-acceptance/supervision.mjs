@@ -8,7 +8,9 @@ import {
   report,
   protectionMode,
   fixtureEvidence,
+  bypassCleanupEvidence,
 } from "./policy.mjs";
+import { abortable } from "./lifecycle.mjs";
 import { githubGet } from "./preflight.mjs";
 const root = "/repos/" + manifest.repository;
 export const digest = (text) => createHash("sha256").update(text).digest("hex");
@@ -82,6 +84,7 @@ export function verifyRecord(
   mode = "independent-human",
 ) {
   const fixture=fixtureStages.includes(phase);
+  const revocation=phase==="bypass-revoked";
   const expected = {
     format: mode === "external-connector-automation" ? 3 : 2,
     phase,
@@ -104,7 +107,7 @@ export function verifyRecord(
     } : {}),
   };
   check(
-    (["pre", "post"].includes(phase) || fixture) &&
+    (["pre", "post"].includes(phase) || fixture || revocation) &&
       /^[1-9][0-9]{0,15}$/.test(env.GITHUB_RUN_ID) &&
       env.GITHUB_RUN_ATTEMPT === "1" &&
       /^[a-f0-9]{40}$/.test(env.C1_TRUSTED_SHA),
@@ -118,7 +121,21 @@ export function verifyRecord(
       completedAt: pending.completedAt,
       fixtureBaselineDigest:pending.fixtures.baselineDigest,
       fixtureRestoredReceipt:pending.fixtures.fixtureRestoredReceipt,
+      ...(pending.protectionMode==="automation-bypass"?{
+        bypassRevocationReceipt:bypassCleanupEvidence(pending.bypassCleanup).revocationReceipt,
+        bypassCleanupVerified:true,
+      }:{}),
     });
+  }
+  if(revocation) {
+    check(mode==="external-connector-automation" && pending && Number.isFinite(pending.requestedAt));
+    const revoked=Date.parse(record.revokedAt);
+    check(Number.isFinite(revoked) && new Date(revoked).toISOString()===record.revokedAt &&
+      revoked>=pending.requestedAt && revoked<=Date.parse(record.observedAt));
+    Object.assign(expected,{preReceipt:Number(env.C1_PRE_RECEIPT_ID),revokedAt:record.revokedAt,
+      revocationMethod:"VERCEL_EXISTING_CONNECTION_EXACT_KEY_REVOCATION",
+      environmentSecretRemoved:true,bypassInventoryEmpty:true,deploymentsUnchanged:true});
+    check(Number.isSafeInteger(expected.preReceipt)&&expected.preReceipt>0);
   }
   if(fixture) {
     check(mode==="external-connector-automation" && /^[a-f0-9]{64}$/.test(record.baselineDigest));
@@ -137,6 +154,8 @@ export function verifyRecord(
   );
   if (phase === "post") check(observed >= Date.parse(pending.completedAt));
   if(fixture && pending?.requestedAt !== undefined) check(observed >= pending.requestedAt - 2000 && observed >= now-(pending.postCheck ? 5*60000 : 90000));
+  if(revocation) check(observed>=pending.requestedAt && observed>=now-(pending.postCheck?5*60000:90000));
+  if(revocation && pending.postCheck) check(observed<=Date.parse(pending.verifiedAt));
   return observed;
 }
 export async function verifySupervision(
@@ -292,7 +311,7 @@ async function verifyExternalReceipt(env, config, phase, get, target, pending) {
       created >= Date.parse(job.started_at) && created <= Date.parse(job.completed_at) &&
       Date.parse(job.completed_at) <= now + 2000);
   }
-  return { verified: true, preReceipt: phase === "pre" ? receipt.id : fixtureStages.includes(phase) ? Number(env.C1_PRE_RECEIPT_ID) : pending.preReceipt,
+  return { verified: true, preReceipt: phase === "pre" ? receipt.id : fixtureStages.includes(phase)||phase==="bypass-revoked" ? Number(env.C1_PRE_RECEIPT_ID) : pending.preReceipt,
     receipt: receipt.id, receiptDigest: digest(receipt.body),...(fixtureStages.includes(phase)?{baselineDigest:record.baselineDigest}:{}) };
 }
 
@@ -304,10 +323,11 @@ export async function waitForObservation(env, config, phase, get = githubGet,
   check(Number.isInteger(timeoutMs) && timeoutMs > 0 && timeoutMs <= 90000 &&
     Number.isInteger(intervalMs) && intervalMs > 0 && intervalMs <= 2000);
   const deadline = clock() + timeoutMs;
+  const run=fn=>timing.signal?abortable(fn,timing.signal):fn();
   for (;;) {
     check(clock() < deadline);
     try {
-      const result = await verifySupervision(env, config, phase, get, target, pending);
+      const result = await run(()=>verifySupervision(env, config, phase, get, target, pending));
       check(clock() < deadline);
       return result;
     } catch (error) {
@@ -315,7 +335,7 @@ export async function waitForObservation(env, config, phase, get = githubGet,
       if (error?.message !== "C1_OBSERVATION_PENDING") throw error;
     }
     check(clock() < deadline);
-    await wait(Math.min(intervalMs, deadline - clock()));
+    await run(()=>wait(Math.min(intervalMs, deadline - clock())));
   }
 }
 
@@ -364,6 +384,7 @@ export function phaseResult(result, target = manifest) {
     requests: result.requests,
     passwordSignins: result.passwordSignins,
     fixtures:fixtureEvidence(result.fixtures),
+    bypassCleanup:result.protectionMode==="automation-bypass"?bypassCleanupEvidence(result.bypassCleanup):null,
   };
   check(
     Number.isInteger(selected.requests) &&
@@ -394,6 +415,7 @@ export function verifyPending(pending, job, env, target = manifest) {
     "passwordSignins",
     "phaseDigest",
     "fixtures",
+    "bypassCleanup",
   ]);
   check(
     pending.format === 2 &&
@@ -403,6 +425,12 @@ export function verifyPending(pending, job, env, target = manifest) {
       new Set(pending.passed).size === rows.length,
   );
   exact(pending.fixtures,["baselineDigest","baselineReceipt","fixtureRestoredReceipt"]);fixtureEvidence(pending.fixtures);
+  if(pending.protectionMode==="automation-bypass") {
+    exact(pending.bypassCleanup,["revocationReceipt","requestedAt","verifiedAt","oldKeyStatus","ordinaryStatus"]);
+    bypassCleanupEvidence(pending.bypassCleanup);
+    check(Date.parse(pending.bypassCleanup.verifiedAt)<=Date.parse(pending.completedAt) &&
+      Date.parse(pending.bypassCleanup.requestedAt)>=Date.parse(job.started_at));
+  } else check(pending.bypassCleanup===null);
   check(
     Number.isInteger(pending.requests) &&
       pending.requests >= 0 &&
@@ -471,6 +499,12 @@ export async function postVerification(
   const restored=await verifySupervision({...env,C1_PRE_RECEIPT_ID:String(pending.preReceipt)},config,"fixture-restored",get,target,
     {baselineDigest:pending.fixtures.baselineDigest,requestedAt:Date.parse(job.started_at),postCheck:true,preReceipt:pending.preReceipt});
   check(restored.receipt===pending.fixtures.fixtureRestoredReceipt);
+  if(pending.protectionMode==="automation-bypass") {
+    const revoked=await verifySupervision({...env,C1_PRE_RECEIPT_ID:String(pending.preReceipt)},config,
+      "bypass-revoked",get,target,{requestedAt:Date.parse(pending.bypassCleanup.requestedAt),
+        verifiedAt:pending.bypassCleanup.verifiedAt,postCheck:true});
+    check(revoked.receipt===pending.bypassCleanup.revocationReceipt);
+  }
   const observation = config.mode === "external-connector-automation"
     ? await waitForObservation(env, config, "post", get, target, observedPending)
     : await verifySupervision(env, config, "post", get, target, observedPending);
@@ -491,6 +525,7 @@ export async function postVerification(
       ? "VERIFIED_EXTERNAL_CONNECTOR_AUTOMATION" : "VERIFIED_SUPERVISED",
     fixturesNotRun: report().fixturesNotRun,
     notRun:[], passed:[...rows], fixtures:fixtureEvidence(pending.fixtures),
+    bypassCleanup:pending.bypassCleanup,
     fixtureLayers:["GENUINE_SUPABASE_SESSION_EXACT_SOURCE_CONTROLLED_CLOCK","EXACT_SOURCE_PROVIDER_503_INTERCEPT","CONNECTED_SUPABASE_METADATA_SNAPSHOT_RESTORE"],
     historicalIdentityEvidence: "UNCHANGED",
   };

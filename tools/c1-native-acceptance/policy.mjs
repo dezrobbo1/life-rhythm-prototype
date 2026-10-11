@@ -89,6 +89,9 @@ export function protectionCredential(mode, value) {
   protectionSecrets.set(carrier, value);
   return carrier;
 }
+export function releaseProtectionCredential(carrier) {
+  protectionSecrets.delete(carrier);
+}
 export function scopedHeaders(input, oidc, existing = {}) {
   const u = new URL(input);
   check(!u.username && !u.password && !u.hash);
@@ -435,6 +438,9 @@ export async function proveDeploymentProtection(budget, fetcher = fetch, stopSig
     signal: stopSignal ? AbortSignal.any([stopSignal, AbortSignal.timeout(10000)])
       : AbortSignal.timeout(10000),
   });
+  return requireDeploymentProtection(response);
+}
+export async function requireDeploymentProtection(response) {
   try {
     let sso = false;
     if (response.status === 302) {
@@ -450,8 +456,19 @@ export async function proveDeploymentProtection(budget, fetcher = fetch, stopSig
       } catch { /* An unrecognized redirect is not protection evidence. */ }
     }
     check(!response.redirected && ([401, 403].includes(response.status) || sso));
+    return response.status;
   }
   finally { await response.body?.cancel(); }
+}
+export function bypassCleanupEvidence(value) {
+  check(value && Number.isSafeInteger(value.revocationReceipt) && value.revocationReceipt > 0);
+  for (const k of ["requestedAt", "verifiedAt"])
+    check(typeof value[k] === "string" && new Date(Date.parse(value[k])).toISOString() === value[k]);
+  check(Date.parse(value.verifiedAt) >= Date.parse(value.requestedAt) &&
+    Date.parse(value.verifiedAt) <= Date.parse(value.requestedAt) + 110000 &&
+    [401,403,302].includes(value.oldKeyStatus) && [401,403,302].includes(value.ordinaryStatus));
+  return {revocationReceipt:value.revocationReceipt,requestedAt:value.requestedAt,
+    verifiedAt:value.verifiedAt,oldKeyStatus:value.oldKeyStatus,ordinaryStatus:value.ordinaryStatus};
 }
 // External management executor only: never inject a Vercel admin credential
 // into the acceptance job. Attempt every bounded cleanup action even on failure.

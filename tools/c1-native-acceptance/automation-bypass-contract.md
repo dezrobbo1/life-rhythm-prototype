@@ -1,3 +1,89 @@
+# Runner-retained cleanup amendment — 2026-10-11
+
+Approved scope: correct the failed execution-cell handoff from
+[#179 comment 6105373849](https://github.com/dezrobbo1/life-rhythm-prototype/issues/179#issuecomment-6105373849).
+Base `92122edf3a4e6be9917eb0bcfb3112387f636e53`; one writer, focused draft PR,
+no merge or credentialed execution in this change. Application #180 and the exact
+immutable target in final-native-coverage-contract.md remain unchanged. Only #180
+was open at reconciliation; unpublished work in other chats cannot be ruled out.
+No hosted acceptance PASS exists. Run 38051649607 failed before password sign-in;
+its original HTTP cause remains unknown. #188 diagnostics remain intact.
+
+## Bounded implementation plan and security boundary
+
+- [x] Reproduce absent retained-key cleanup before correction.
+- [x] Keep the supplied native-step bypass in its existing sealed memory carrier;
+  remove the process-environment reference after verified OIDC and attribution.
+  Reuse that SAME carrier through acceptance and cleanup; never export its value.
+- [x] After unchanged acceptance and bounded session/browser cleanup, signal
+  `C1_BYPASS_CLEANUP_WAIT` on both successful and failed attempts that loaded the key.
+  Await a fresh external `bypass-revoked` receipt, never the dependent post job.
+- [x] Complete at most two exact immutable Preview root GETs: old-key challenge,
+  then ordinary credential-free protection check. Each is at most five seconds,
+  no redirect following, cookies, response body recording or retry. Attempt the
+  second once even if the first fails; request exhaustion/deadline prohibits it.
+- [x] Require external revocation evidence plus both protection proofs before any
+  automation-mode phase output can be published. Preserve C1 BLOCK pending post.
+- [x] Complete offline verification and one independent focused security review,
+  with one targeted correction verification; record source-only readiness in
+  [runner-retained-cleanup-verification.json](runner-retained-cleanup-verification.json).
+- [ ] BoB completes draft publication checks and a separate merge decision; no
+  hosted run or C1 promotion is authorized by this source correction.
+
+`retained-cleanup.mjs` owns this read-only wait/probe stage. It adds no provider
+management credential or revocation power. The existing 19-minute absolute job
+budget and 20-minute job timeout remain. Cleanup ends by the earlier of 110 seconds
+from its start or five seconds before the absolute deadline. Receipt polling is at
+most 90 seconds and leaves 20 seconds for probes/bookkeeping; cleanup requests share
+the existing ten-request reserve and total 200-request cap. Ordinary acceptance
+still stops two minutes before the deadline. There are no acceptance retries.
+
+SIGINT/SIGTERM abort ordinary acceptance, retain BLOCK, and attempt this cleanup
+under its separate strict deadline; cancellation cannot turn into PASS. Before key
+load, admission failure stays BLOCK and the external operator must still revoke.
+Deadline, cancellation, SIGKILL, runner loss, absent/invalid/edited/ambiguous evidence,
+old-key admission or failed ordinary protection remain BLOCK. Operator revocation,
+secret removal and fixture restoration are mandatory independently of runner logs,
+results, job success, or whether post runs. No signal/post job is a cleanup watchdog.
+Finally remove the sealed carrier's private association. JavaScript reference
+release is not a claim of cryptographic memory erasure or provider revocation.
+
+## External evidence
+
+The existing authenticated external owner connector principal, receipt issue #179,
+format-3 canonical bytes, unedited server timestamps, exact run/attempt/H/source/
+deployment/project/team/origin and freshness checks remain mandatory. This is an
+accountable external attestation, not a second human or a provider signature.
+
+A new `bypass-revoked` receipt repeats those bindings and adds only `preReceipt`,
+canonical `revokedAt`, `revocationMethod=VERCEL_EXISTING_CONNECTION_EXACT_KEY_REVOCATION`,
+`environmentSecretRemoved=true`, `bypassInventoryEmpty=true`, and
+`deploymentsUnchanged=true`. Actual exact-key revocation and fresh empty provider
+inventory, GitHub secret-name absence, and frozen-window deployment comparison
+must precede publication. Revocation/observation must follow the runner cleanup
+request; invalid evidence fails immediately. No key value, key hash, raw provider
+response or secret inventory values belong in the receipt. `connectorReceipt` is
+only a strict projection; its booleans do not establish that management reads ran.
+
+Native evidence adds exactly `bypassCleanup={revocationReceipt,requestedAt,verifiedAt,
+oldKeyStatus,ordinaryStatus}` (statuses only 401/403 or the existing exact-host SSO
+302 contract). Failure may leave this null; it never means external cleanup passed.
+The native phase digest includes these fields; trusted-source mode uses null.
+Independent post verification requires a completed successful exact native job,
+original restoration receipt, unchanged authenticated revocation receipt observed
+before the probe completion, and a NEW post receipt after GitHub job completion.
+The post receipt binds `bypassRevocationReceipt` and `bypassCleanupVerified=true`;
+the external operator must freshly verify provider/storage/deployment cleanup and
+fixture restoration before endorsing the exact phase digest. Runner HTTP proofs
+are supplementary to independent management evidence, never its replacement.
+
+This amendment supersedes only the older external old-key HTTP challenge below:
+the native runner now makes that challenge with the retained value. Exact-key
+revocation remains external. A secure dashboard/operator route to revoke the sole
+identified key without recovering it from native is an action-time prerequisite.
+No key may be generated to investigate that route. The operator may use an existing
+supported private management route; the runner never supplies the key to it.
+
 # Final frozen-window provisioning amendment — 2026-10-10
 
 For the final C1 window only, the owner supersedes the older isEnvVar=false

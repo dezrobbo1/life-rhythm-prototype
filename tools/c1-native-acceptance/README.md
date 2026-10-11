@@ -1,3 +1,58 @@
+# Current runner-retained cleanup runbook — 2026-10-11
+
+This section and the [cleanup amendment](automation-bypass-contract.md) govern the
+new cleanup sequence; older sections below remain dated evidence. C1 remains BLOCK.
+No credential is created, configured or exercised by this source correction.
+
+1. BoB reviews the focused draft, exact base/head, complete offline checks and the
+   independent security disposition. Merge is separate and not authorized here.
+   After an approved merge, authorize the ACTUAL merged main H externally, keeping
+   acceptance OFF until all existing attribution, fixture and environment gates
+   are verified. Reuse #180's unchanged exact-source application evidence; do not
+   retarget its Preview to this harness PR's ordinary publication Preview.
+2. The authorized external operator verifies supported secure entry/removal and
+   sole-key provider revocation controls BEFORE any credential window. An empty
+   key inventory, exact identified sole key during the frozen window, and fresh
+   empty inventory after revocation are required; missing/ambiguous controls BLOCK.
+   The operator must be able to revoke independently of native surviving. Do not
+   ask Dale to run scripts or operate routine tests. No chat-cell retention route
+   is needed for the old-key challenge, and no key is sent back from the runner.
+3. Resume the existing one-key, one-dispatch procedure only with separate execution
+   authority. Keep all source/deployments frozen while the key exists. Snapshot the
+   exact original A/B metadata; supply only the existing protected native-step
+   secrets via the approved private UI; publish the existing independent pre receipt.
+   Monitor all existing fixture stages and restore the exact baseline/timestamps.
+   The application/auth/RLS/direct-provider/UI/responsive matrix is unchanged.
+4. On `C1_BYPASS_CLEANUP_WAIT`, while the native job is still IN_PROGRESS, revoke
+   the EXACT sole window key through the existing authorized management plane
+   without regeneration; remove only C1_AUTOMATION_BYPASS_SECRET from
+   c1-native-preview; verify fresh empty provider inventory/secret-name absence and
+   zero deployment drift. Publish the bound `bypass-revoked` receipt using the
+   existing connectorReceipt projection and authenticated GitHub comment tool.
+   This must complete within at most 90 seconds (less if preparation/work consumed
+   the absolute budget). Never wait for native completion or the post job to revoke.
+5. Native checks the old retained key and ordinary protection at the exact immutable
+   Preview only (two requests maximum, no retry), releases its memory association,
+   and emits sanitized results/phase evidence. A successful native phase remains
+   pending independent post verification. Inspect actual job ID/run/attempt/H/name,
+   completed SUCCESS, provider artifact digest and exact needs-output phase digest.
+   Freshly reread restored fixtures, provider/storage/deployment cleanup and exact
+   immutable deployment, then publish the NEW post receipt after GitHub completion.
+   The existing post job validates all those independent bindings and required rows.
+6. On early failure, cancellation, timeout, deadline or runner loss, revoke/remove
+   and restore fixtures externally immediately EVEN WITHOUT a cleanup signal or
+   post job. Keep/return dispatch OFF. Missing same-key HTTP proof after runner loss
+   means cleanup evidence remains incomplete/BLOCK; actual provider revocation and
+   secret removal must still finish. No replacement key or automatic test retry.
+   Source fixes/publication/merge resume only after actual revocation is verified.
+
+No new privileged runner credential, provider setting, persistent session, HAR,
+trace, authenticated screenshot/video or Production request is introduced. Secret
+names and last-recorded enable/trust settings in #179 are checkpoints; current
+administrative state must be verified at action time via the secure management UI.
+This task's GitHub app excludes secret/administration reads; no fresh assertion of
+secret-name inventory or variable settings is inferred from that limitation.
+
 # Admission failure evidence — 2026-10-10
 
 The existing `results.json` artifact now retains optional `admissionFailure`:

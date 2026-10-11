@@ -84,13 +84,15 @@ probes immediately; restore original synthetic metadata and record C1 FAIL.
 
 Restoration is requested in finally on success and failure. The external operator
 also restores independently if job cancellation/runner loss prevents signaling.
-Never claim cleanup PASS without verified restoration. After native completion,
+Never claim cleanup PASS without verified restoration. While native is still alive,
+complete external revocation/secret removal and the retained-key checks under the
+[runner-retained cleanup amendment](automation-bypass-contract.md). After native completion,
 verify the actual successful GitHub job, exact needs-output digest and fresh real
 restored baseline, then publish the bound post receipt. Post independently rereads
 the restoration receipt and native job. Every required row and valid restoration
 binding is mandatory; absent/failed rows cannot finalize PASS.
 
-Immediately after evidence capture, on PASS or FAIL: revoke the exact bypass,
+Before native completion, on successful or failed acceptance: revoke the exact bypass,
 remove its environment secret, prove the old key no longer admits and ordinary
 protection applies, and compare deployment IDs/timestamps throughout the window.
 Restore any remaining fixture state before closing. No source correction or merge

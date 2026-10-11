@@ -71,3 +71,31 @@ test("real SIGTERM after synthetic session drains local cleanup and returns only
   assert.deepEqual(result.result.passed, []);
   assert.equal(output, "");
 });
+test("runner loss during retained-key wait cannot claim cleanup; the external operator remains responsible",async()=>{
+  const sha="a".repeat(40),secret="SYNTHETIC_BYPASS_VALUE_123456789";
+  const configured={GITHUB_REPOSITORY:manifest.repository,GITHUB_REPOSITORY_ID:manifest.repositoryId,
+    GITHUB_REPOSITORY_OWNER_ID:manifest.ownerId,GITHUB_EVENT_NAME:"workflow_dispatch",GITHUB_REF:"refs/heads/main",
+    GITHUB_WORKFLOW_REF:manifest.workflowRef,GITHUB_WORKFLOW_SHA:sha,C1_HARNESS_SHA:sha,RUNNER_ENVIRONMENT:"github-hosted",
+    C1_ENABLED:"true",C1_TRUSTED_SHA:sha,C1_PROTECTION_MODE:"automation-bypass",C1_AUTOMATION_BYPASS_SECRET:secret};
+  const source=`import {executeAcceptance} from './orchestrator.mjs';
+    const env=${JSON.stringify(configured)},start=Date.now();
+    env.C1_JOB_STARTED_AT=String(start);env.C1_JOB_DEADLINE_MS=String(start+19*60000);
+    const d={preflight:async()=>{},attribution:async()=>({preReceipt:456}),oidc:async()=>"synthetic-oidc",
+      protection:async()=>{},publicConfig:async()=>{throw Error("synthetic-admission-failure");},
+      bypassCleanup:()=>{process.send("cleanup-wait");return new Promise(()=>{setTimeout(()=>{},110000);});}};
+    const result=await executeAcceptance(env,{enabled:true},d);process.send({result});`;
+  const child=spawn(process.execPath,["--input-type=module","-e",source],{
+    cwd:new URL(".",import.meta.url),env:{},stdio:["ignore","pipe","pipe","ipc"]});
+  let output="",claimed=false,externalRevocations=0,externalSecretRemovals=0;
+  child.stdout.on("data",b=>output+=b);child.stderr.on("data",b=>output+=b);
+  const ended=new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{child.kill("SIGKILL");reject(Error("timeout"));},5000);
+    child.on("message",m=>{if(m==="cleanup-wait")child.kill("SIGKILL");else claimed=true;});
+    child.on("error",reject);child.on("exit",(code,signal)=>{clearTimeout(timer);resolve({code,signal});});
+  });
+  assert.deepEqual(await ended,{code:null,signal:"SIGKILL"});
+  // Synthetic external watchdog runs independently of any native output/post job.
+  externalRevocations++;externalSecretRemovals++;
+  assert.equal(claimed,false);assert.equal(output,"");
+  assert.equal(externalRevocations,1);assert.equal(externalSecretRemovals,1);
+});
