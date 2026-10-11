@@ -234,6 +234,7 @@ test("post finalization requires the actual successful native job and trusted ob
     requests: 100,
     passwordSignins: 5,
     protectionMode: "trusted-source",
+    bypassCleanup: null,
   };
   const text = JSON.stringify(phase),
     hash = digest(text),

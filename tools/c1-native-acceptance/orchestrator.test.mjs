@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { executeAcceptance } from "./orchestrator.mjs";
 import { coverageRows } from "./coverage.mjs";
 import { manifest, scopedHeaders } from "./policy.mjs";
-const sha = "a".repeat(40);
+const sha = "a".repeat(40), jobStartedAt=Date.now();
 const env = {
-  C1_JOB_STARTED_AT: String(Date.now()),
-  C1_JOB_DEADLINE_MS: String(Date.now() + 19 * 60 * 1000),
+  C1_JOB_STARTED_AT: String(jobStartedAt),
+  C1_JOB_DEADLINE_MS: String(jobStartedAt + 19 * 60 * 1000),
   GITHUB_RUN_ID: "123",
   GITHUB_RUN_ATTEMPT: "1",
   GITHUB_REPOSITORY: manifest.repository,
@@ -26,6 +26,8 @@ const env = {
 };
 function adapters(log, failAt) {
   return {
+    bypassCleanup:async()=>({revocationReceipt:789,requestedAt:new Date(Date.now()-100).toISOString(),
+      verifiedAt:new Date().toISOString(),oldKeyStatus:403,ordinaryStatus:403}),
     coverage: async () => ({rows:[...coverageRows],fixtures:{baselineDigest:"d".repeat(64),baselineReceipt:458,fixtureRestoredReceipt:459}}),
     preflight: async () => {
       log.push("preflight");
@@ -161,6 +163,8 @@ test("raw invalid harness configuration never appears in sanitized evidence", as
 test("explicit automation mode preserves admission-before-passwords and real A/B session sequence", async () => {
   const log = [], d = adapters(log), secret = "SYNTHETIC_BYPASS_VALUE_123456789";
   d.protection = async () => { log.push("protection-without-credential"); };
+  d.bypassCleanup=async()=>({revocationReceipt:789,requestedAt:new Date(Date.now()-100).toISOString(),
+    verifiedAt:new Date().toISOString(),oldKeyStatus:403,ordinaryStatus:403});
   d.transport = (admission) => {
     assert.equal(scopedHeaders(manifest.origin + "/", admission)["x-vercel-protection-bypass"], secret);
     assert(!JSON.stringify(admission).includes(secret));
@@ -198,4 +202,53 @@ test("a required coverage row or restoration evidence missing cannot produce nat
     const log=[],d=adapters(log);d.coverage=async()=>({rows:coverageRows.slice(defect==="missing-row"?1:0),fixtures:{baselineDigest:"d".repeat(64),baselineReceipt:458,fixtureRestoredReceipt:defect==="restore"?undefined:459}});
     const r=await executeAcceptance(env,{enabled:true},d);assert.equal(r.gate,"BLOCK");assert.equal(r.hosted,"ATTEMPTED_BLOCKED");assert(log.includes("local-logout"));
   }
+});
+test("automation completion and early admission failure both retain the same key through external cleanup", async () => {
+  const secret = "SYNTHETIC_BYPASS_VALUE_123456789";
+  for (const fail of [null, "public-config", "login", "cleanup"]) {
+    const log=[],d=adapters(log,fail),e={...env,C1_PROTECTION_MODE:"automation-bypass",C1_AUTOMATION_BYPASS_SECRET:secret};
+    d.protection=async()=>{};
+    if(fail==="public-config")d.publicConfig=async()=>{throw Error(secret);};
+    d.bypassCleanup=async({credential})=>{
+      log.push("external-cleanup");
+      assert.equal(scopedHeaders(manifest.origin+"/",credential)["x-vercel-protection-bypass"],secret);
+      assert.equal(e.C1_AUTOMATION_BYPASS_SECRET,undefined);
+      return {revocationReceipt:789,requestedAt:new Date(Date.now()-100).toISOString(),
+        verifiedAt:new Date().toISOString(),oldKeyStatus:403,ordinaryStatus:403};
+    };
+    const r=await executeAcceptance(e,{enabled:true},d);
+    assert.equal(log.at(-1),"external-cleanup");
+    assert.equal(r.bypassCleanup.revocationReceipt,789);
+    assert.equal(r.hosted,fail?"ATTEMPTED_BLOCKED":"TEST_PHASE_COMPLETE_PENDING_POST");
+    assert(!JSON.stringify(r).includes(secret));
+  }
+});
+test("external cleanup failure or cancellation after all acceptance rows never produces a publishable phase",async()=>{
+  for(const defect of ["receipt-fails","cancel"]) {
+    const log=[],d=adapters(log),controller=new AbortController();
+    const secret="SYNTHETIC_BYPASS_VALUE_123456789",e={...env,C1_PROTECTION_MODE:"automation-bypass",C1_AUTOMATION_BYPASS_SECRET:secret};
+    d.protection=async()=>{};
+    let carrier;
+    d.bypassCleanup=async({credential})=>{carrier=credential;
+      if(defect==="receipt-fails")throw Error(secret);
+      controller.abort();
+      return {revocationReceipt:789,requestedAt:new Date(Date.now()-100).toISOString(),verifiedAt:new Date().toISOString(),oldKeyStatus:403,ordinaryStatus:403};};
+    const r=await executeAcceptance(e,{enabled:true},d,controller.signal);
+    assert.equal(r.hosted,"ATTEMPTED_BLOCKED");assert.deepEqual(r.passed,[]);
+    assert(log.includes("attribution-end"));
+    assert.throws(()=>scopedHeaders(manifest.origin+"/",carrier));
+    assert(!JSON.stringify(r).includes(secret));
+  }
+});
+test("SIGTERM during ordinary work still attempts retained-key cleanup and releases the carrier",async()=>{
+  const log=[],d=adapters(log),controller=new AbortController(),secret="SYNTHETIC_BYPASS_VALUE_123456789";
+  d.protection=async()=>{};
+  d.metadata=async()=>{controller.abort();throw Error(secret);};
+  let carrier;
+  d.bypassCleanup=async({credential})=>{carrier=credential;log.push("external-cleanup");
+    return {revocationReceipt:789,requestedAt:new Date(Date.now()-100).toISOString(),verifiedAt:new Date().toISOString(),oldKeyStatus:403,ordinaryStatus:403};};
+  const r=await executeAcceptance({...env,C1_PROTECTION_MODE:"automation-bypass",C1_AUTOMATION_BYPASS_SECRET:secret},
+    {enabled:true},d,controller.signal);
+  assert.equal(log.at(-1),"external-cleanup");assert(log.includes("local-logout"));
+  assert.equal(r.hosted,"ATTEMPTED_BLOCKED");assert.throws(()=>scopedHeaders(manifest.origin+"/",carrier));
 });

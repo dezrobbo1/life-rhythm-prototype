@@ -176,8 +176,11 @@ test("phase artifact records only the explicit mode enum, never the bypass value
     fixtures:{baselineDigest:"d".repeat(64),baselineReceipt:458,fixtureRestoredReceipt:459},
     completedAt:new Date().toISOString(), passed:[...policy.rows], requests:100, passwordSignins:5,
     protectionMode:"automation-bypass", bypass:secret };
+  phase.bypassCleanup={revocationReceipt:789,requestedAt:new Date(Date.now()-100).toISOString(),
+    verifiedAt:phase.completedAt,oldKeyStatus:403,ordinaryStatus:403};
   const artifact = phaseResult(phase);
   assert.equal(artifact.protectionMode, "automation-bypass");
   assert(!JSON.stringify(artifact).includes(secret));
   assert.throws(() => phaseResult({...phase, protectionMode:secret}));
+  assert.throws(() => phaseResult({...phase,bypassCleanup:null}));
 });

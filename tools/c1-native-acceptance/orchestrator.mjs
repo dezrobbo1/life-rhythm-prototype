@@ -1,4 +1,5 @@
 import { AdmissionTrace, admissionFailureFrom } from "./admission-evidence.mjs";
+import { completeBypassCleanup } from "./retained-cleanup.mjs";
 import { jobWindow, abortable } from "./lifecycle.mjs";
 import { createLocalJWKSet } from "jose";
 import { chromium } from "playwright";
@@ -16,6 +17,8 @@ import {
   protectionCredential,
   proveApplicationDenial,
   proveDeploymentProtection,
+  releaseProtectionCredential,
+  bypassCleanupEvidence,
 } from "./policy.mjs";
 import { preflight, githubGet } from "./preflight.mjs";
 import { completeCoverage, coverageRows, fixtureEvidence } from "./coverage.mjs";
@@ -68,6 +71,7 @@ const defaults = {
   denial: proveApplicationDenial,
   protection: (budget, signal) => proveDeploymentProtection(budget, fetch, signal),
   coverage: completeCoverage,
+  bypassCleanup: completeBypassCleanup,
 };
 function evidence(
   passed,
@@ -79,6 +83,7 @@ function evidence(
   preReceipt,
   fixtures,
   admissionFailure,
+  bypassCleanup,
 ) {
   check(passed.every((x) => rows.includes(x)));
   check(/^[a-f0-9]{40}$/.test(env.C1_TRUSTED_SHA));
@@ -117,6 +122,7 @@ function evidence(
     postVerification: "PENDING",
     requests: budget.requests,
     passwordSignins: budget.signins,
+    bypassCleanup,
   };
 }
 export async function executeAcceptance(
@@ -167,7 +173,9 @@ export async function executeAcceptance(
     publishableKey = null,
     preReceipt = null,
     fixtures = null,
-    admissionFailure = null;
+    admissionFailure = null,
+    retainedCredential = null,
+    bypassCleanup = null;
   const admissionTrace = new AdmissionTrace();
   try {
     guardIdentity(identityFromEnv(env), env.C1_TRUSTED_SHA);
@@ -178,15 +186,19 @@ export async function executeAcceptance(
     const admission = await work(() => d.attribution(config, "start", env));
     preReceipt = admission?.preReceipt ?? null;
     passed.push("attribution");
-    if (mode === "automation-bypass") await work(() => d.protection(budget, abort.signal));
     // Verify signed GitHub claims in BOTH modes. Bypass is transport admission,
     // never a substitute for workflow identity or Supabase account sessions.
     const issueAdmission = async () => {
       const verifiedOidc = await work(() => d.oidc(env, env.C1_TRUSTED_SHA));
-      return protectionCredential(mode, mode === "trusted-source"
-        ? verifiedOidc : env.C1_AUTOMATION_BYPASS_SECRET);
+      if(mode === "trusted-source") return protectionCredential(mode,verifiedOidc);
+      if(!retainedCredential) {
+        retainedCredential=protectionCredential(mode,env.C1_AUTOMATION_BYPASS_SECRET);
+        delete env.C1_AUTOMATION_BYPASS_SECRET;
+      }
+      return retainedCredential;
     };
     let oidc = await issueAdmission();
+    if (mode === "automation-bypass") await work(() => d.protection(budget, abort.signal));
     started = true;
     const publicConfig = await work(() => d.publicConfig(oidc, budget, admissionTrace));
     publishableKey = publicConfig.publishableKey;
@@ -354,6 +366,14 @@ export async function executeAcceptance(
     sessions.clear();
     clearTimeout(deadlineTimer);
     cancellationSignal?.removeEventListener("abort", stop);
+    if(retainedCredential) {
+      try {
+        bypassCleanup=bypassCleanupEvidence(await d.bypassCleanup({credential:retainedCredential,
+          budget,deadline:window.deadline,env,config}));
+      } catch { complete=false; }
+      finally { releaseProtectionCredential(retainedCredential); retainedCredential=null; }
+    }
+    if(cancellationSignal?.aborted) complete=false;
   }
   // No raw errors, JWTs, passwords, API bodies or arbitrary adapter strings reach
   // evidence. Partial observations are never promoted to acceptance PASS.
@@ -368,6 +388,7 @@ export async function executeAcceptance(
       preReceipt,
       fixtures,
       admissionFailure,
+      bypassCleanup,
     );
   } catch {
     return report([], "BLOCK", admissionFailure);
